@@ -1,0 +1,57 @@
+{
+  "name": "@jcode-works/knowledge-base",
+  "version": "0.1.0",
+  "description": "Reusable local-first RAG knowledge base for private project documents.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "author": "Jean-Baptiste Thery",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jcode-works/jcode-knowledge-base.git"
+  },
+  "homepage": "https://github.com/jcode-works/jcode-knowledge-base#readme",
+  "bugs": {
+    "url": "https://github.com/jcode-works/jcode-knowledge-base/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "kb": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lancedb/lancedb": "^0.22.1",
+    "commander": "^14.0.2",
+    "fast-glob": "^3.3.3",
+    "html-to-text": "^9.0.5",
+    "ollama": "^0.5.16",
+    "picocolors": "^1.1.1",
+    "unpdf": "^1.4.0",
+    "yaml": "^2.8.1",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/html-to-text": "^9.0.4",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  },
+  "packageManager": "pnpm@11.9.0"
+}

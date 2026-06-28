@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.env
+.DS_Store
+private/**
+.kb/storage/
+.kb/cache/
+*.tgz
