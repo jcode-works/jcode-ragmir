@@ -39,7 +39,8 @@ function setupNextSteps(report) {
     if (report.ready) {
         return [
             "Ask questions with the search or ask command shown by `kb doctor`.",
-            "Connect an AI with .mimir/mcp.json or load .mimir/skills/mimir/.",
+            "Connect Claude Code with .mimir/claude-mcp-server.json, Codex with .mimir/codex-mcp.toml, or another AI with .mimir/mcp.json.",
+            "Load .mimir/skills/mimir/ in agents that support skill folders.",
         ];
     }
     return report.nextSteps;

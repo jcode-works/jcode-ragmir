@@ -33,6 +33,9 @@ export function testConfig(
     topK: DEFAULT_CONFIG.topK,
     chunkSize: DEFAULT_CONFIG.chunkSize,
     chunkOverlap: DEFAULT_CONFIG.chunkOverlap,
+    maxFileBytes: DEFAULT_CONFIG.maxFileBytes,
+    ingestConcurrency: DEFAULT_CONFIG.ingestConcurrency,
+    embeddingBatchSize: DEFAULT_CONFIG.embeddingBatchSize,
     includeExtensions: [...DEFAULT_CONFIG.includeExtensions],
   }
 

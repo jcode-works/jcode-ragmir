@@ -33,6 +33,9 @@ const rawConfigSchema = z.object({
     topK: z.number().int().positive().default(DEFAULT_CONFIG.topK),
     chunkSize: z.number().int().positive().default(DEFAULT_CONFIG.chunkSize),
     chunkOverlap: z.number().int().nonnegative().default(DEFAULT_CONFIG.chunkOverlap),
+    maxFileBytes: z.number().int().positive().default(DEFAULT_CONFIG.maxFileBytes),
+    ingestConcurrency: z.number().int().positive().default(DEFAULT_CONFIG.ingestConcurrency),
+    embeddingBatchSize: z.number().int().positive().default(DEFAULT_CONFIG.embeddingBatchSize),
     includeExtensions: z.array(z.string().min(1)).default(DEFAULT_CONFIG.includeExtensions),
 });
 export function findProjectRoot(start = process.cwd()) {
@@ -74,6 +77,9 @@ export async function loadConfig(start = process.cwd()) {
         topK: withEnv.topK,
         chunkSize: withEnv.chunkSize,
         chunkOverlap: withEnv.chunkOverlap,
+        maxFileBytes: withEnv.maxFileBytes,
+        ingestConcurrency: withEnv.ingestConcurrency,
+        embeddingBatchSize: withEnv.embeddingBatchSize,
         includeExtensions: normalizeExtensions(withEnv.includeExtensions),
     };
 }
@@ -101,6 +107,9 @@ function applyEnv(config) {
         topK: readPositiveIntEnv("KB_TOP_K", config.topK),
         chunkSize: readPositiveIntEnv("KB_CHUNK_SIZE", config.chunkSize),
         chunkOverlap: readNonNegativeIntEnv("KB_CHUNK_OVERLAP", config.chunkOverlap),
+        maxFileBytes: readPositiveIntEnv("KB_MAX_FILE_BYTES", config.maxFileBytes),
+        ingestConcurrency: readPositiveIntEnv("KB_INGEST_CONCURRENCY", config.ingestConcurrency),
+        embeddingBatchSize: readPositiveIntEnv("KB_EMBEDDING_BATCH_SIZE", config.embeddingBatchSize),
         includeExtensions: readExtensionsEnv("KB_INCLUDE_EXTENSIONS", config.includeExtensions),
     };
 }

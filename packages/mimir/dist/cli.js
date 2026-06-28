@@ -93,7 +93,12 @@ program
     .option("--rebuild", "Accepted for compatibility; ingest always rebuilds the local index.")
     .action(async () => {
     const result = await ingest({ cwd: process.cwd(), rebuild: true });
-    console.log(pc.green(`Done. indexedFiles=${result.indexedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} redactions=${result.redactions} errors=${result.errors.length}`));
+    console.log(pc.green(`Done. discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} indexedFiles=${result.indexedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} redactions=${result.redactions} errors=${result.errors.length}`));
+    printUnsupportedSummary(result.unsupportedExtensions);
+    if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
+        const auditCommand = await kbCommand(process.cwd(), ["audit", "--unsupported"]);
+        console.log(pc.yellow(`Some files were not indexed. Run \`${auditCommand.display}\` for details.`));
+    }
     for (const error of result.errors) {
         console.error(pc.red(`  - ${error.path}: ${error.message}`));
     }
@@ -138,18 +143,35 @@ program
 program
     .command("audit")
     .description("Compare supported files on disk with the current vector index.")
-    .action(async () => {
+    .option("--unsupported", "List skipped file paths and reasons.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options) => {
     const report = await audit(process.cwd());
+    if (options.json) {
+        console.log(JSON.stringify(report, null, 2));
+        return;
+    }
     console.log(`supportedFiles=${report.supportedFiles.length}`);
+    console.log(`skippedFiles=${report.skippedFiles.length}`);
+    console.log(`unsupportedFiles=${report.skippedFiles.filter((file) => file.reason === "unsupported-extension").length}`);
     console.log(`indexedFiles=${report.indexedFiles.length}`);
     console.log(`totalChunks=${report.totalChunks}`);
     console.log(`missingFromIndex=${report.missingFromIndex.length}`);
     console.log(`staleInIndex=${report.staleInIndex.length}`);
+    printUnsupportedSummary(report.unsupportedExtensions);
     for (const file of report.missingFromIndex) {
         console.log(pc.yellow(`missing: ${file}`));
     }
     for (const file of report.staleInIndex) {
         console.log(pc.red(`stale: ${file}`));
+    }
+    if (options.unsupported) {
+        for (const file of report.skippedFiles) {
+            console.log(pc.yellow(`skipped: ${file.relativePath} reason=${file.reason}`));
+        }
+    }
+    else if (report.skippedFiles.length > 0) {
+        console.log(pc.yellow("Run `kb audit --unsupported` to list skipped file paths."));
     }
     if (report.missingFromIndex.length > 0 || report.staleInIndex.length > 0) {
         process.exitCode = 1;
@@ -173,6 +195,9 @@ program
     console.log(`redactionEnabled=${config.redaction.enabled}`);
     console.log(`accessLog=${config.accessLog}`);
     console.log(`mcpMaxTopK=${config.mcpMaxTopK}`);
+    console.log(`maxFileBytes=${config.maxFileBytes}`);
+    console.log(`ingestConcurrency=${config.ingestConcurrency}`);
+    console.log(`embeddingBatchSize=${config.embeddingBatchSize}`);
     console.log(`includeExtensions=${config.includeExtensions.join(",")}`);
     console.log(`chunksIndexed=${rows}`);
 });
@@ -271,7 +296,7 @@ program
     .command("serve-mcp")
     .description("Start the MCP server over stdio for Claude, Codex, and other MCP-compatible agents.")
     .action(async () => {
-    await serveMcp(process.cwd());
+    await serveMcp();
 });
 program
     .command("skill-path")
@@ -292,10 +317,13 @@ program
     }
     console.log(`Skill path: ${result.skillPath}`);
     console.log(`Optional audio skill path: ${result.audioSkillPath}`);
+    console.log(`Optional Markdown report skill path: ${result.reportSkillPath}`);
     console.log(`MCP config example: ${result.mcpConfigPath}`);
+    console.log(`Claude Code MCP server JSON: ${result.claudeConfigPath}`);
+    console.log(`Codex MCP TOML snippet: ${result.codexConfigPath}`);
     console.log("");
     console.log("Next steps:");
-    console.log("  1. Add the MCP config from .mimir/mcp.json to your agent if it supports MCP.");
+    console.log("  1. Add the MCP config from .mimir/ to Claude Code, Codex, or another MCP client.");
     console.log("  2. Load .mimir/skills/mimir/ in agents that support skill folders.");
     console.log(`  3. Run \`${doctorCommand.display}\` before relying on retrieved context.`);
 });
@@ -374,6 +402,8 @@ function printDoctor(report) {
     console.log(`redactionEnabled=${report.redactionEnabled}`);
     console.log(`accessLog=${report.accessLog}`);
     console.log(`supportedFiles=${report.supportedFiles}`);
+    console.log(`skippedFiles=${report.skippedFiles}`);
+    console.log(`unsupportedFiles=${report.unsupportedFiles}`);
     console.log(`indexedFiles=${report.indexedFiles}`);
     console.log(`chunksIndexed=${report.chunksIndexed}`);
     console.log(`missingFromIndex=${report.missingFromIndex}`);
@@ -408,11 +438,15 @@ function printSetup(result, title) {
     console.log(pc.cyan("Agent integration:"));
     console.log(`  - skill: ${result.agentKit.skillPath}`);
     console.log(`  - audio skill: ${result.agentKit.audioSkillPath}`);
+    console.log(`  - report skill: ${result.agentKit.reportSkillPath}`);
     console.log(`  - MCP config: ${result.agentKit.mcpConfigPath}`);
+    console.log(`  - Claude Code MCP JSON: ${result.agentKit.claudeConfigPath}`);
+    console.log(`  - Codex MCP TOML: ${result.agentKit.codexConfigPath}`);
     console.log("");
     console.log(pc.cyan("Index:"));
     if (result.ingested) {
-        console.log(`  - ingested indexedFiles=${result.ingested.indexedFiles} chunks=${result.ingested.chunks} errors=${result.ingested.errors.length}`);
+        console.log(`  - ingested indexedFiles=${result.ingested.indexedFiles} chunks=${result.ingested.chunks} skippedFiles=${result.ingested.skippedFiles} errors=${result.ingested.errors.length}`);
+        printUnsupportedSummary(result.ingested.unsupportedExtensions);
     }
     else if (result.doctor.ready) {
         console.log(`  - already ready chunks=${result.doctor.chunksIndexed}`);
@@ -422,6 +456,14 @@ function printSetup(result, title) {
     }
     console.log("");
     printDoctor(result.doctor);
+}
+function printUnsupportedSummary(extensions) {
+    if (extensions.length === 0) {
+        return;
+    }
+    console.log(pc.yellow(`unsupportedExtensions=${extensions
+        .map((entry) => `${entry.extension}:${entry.count}`)
+        .join(",")}`));
 }
 function printMaybeJson(value, json) {
     if (json) {

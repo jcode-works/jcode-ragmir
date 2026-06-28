@@ -13,7 +13,7 @@ const queryToolInputSchema = z.object({
   topK: z.number().int().positive().optional(),
 })
 
-export async function serveMcp(cwd = process.cwd()): Promise<void> {
+export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
   const server = new McpServer({
     name: "mimir",
     version: VERSION,
@@ -41,6 +41,9 @@ export async function serveMcp(cwd = process.cwd()): Promise<void> {
         llmGeneration: false,
         redactionEnabled: config.redaction.enabled,
         mcpMaxTopK: config.mcpMaxTopK,
+        maxFileBytes: config.maxFileBytes,
+        ingestConcurrency: config.ingestConcurrency,
+        embeddingBatchSize: config.embeddingBatchSize,
         includeExtensions: config.includeExtensions,
         chunksIndexed,
       }
@@ -90,6 +93,13 @@ export async function serveMcp(cwd = process.cwd()): Promise<void> {
   )
 
   await server.connect(new StdioServerTransport())
+}
+
+export function resolveMcpProjectRoot(
+  env: NodeJS.ProcessEnv = process.env,
+  fallback = process.cwd(),
+): string {
+  return env.MIMIR_PROJECT_ROOT ?? env.CLAUDE_PROJECT_DIR ?? fallback
 }
 
 function textResult(value: unknown): { content: Array<{ type: "text"; text: string }> } {

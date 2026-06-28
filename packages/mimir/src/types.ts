@@ -18,6 +18,9 @@ export interface Config {
   topK: number
   chunkSize: number
   chunkOverlap: number
+  maxFileBytes: number
+  ingestConcurrency: number
+  embeddingBatchSize: number
   includeExtensions: string[]
 }
 
@@ -51,6 +54,22 @@ export interface SourceFile {
   checksum: string
 }
 
+export type SkippedSourceReason = "unsupported-extension" | "oversized" | "sensitive-name"
+
+export interface SkippedSourceFile {
+  relativePath: string
+  source: string
+  extension: string
+  bytes: number
+  reason: SkippedSourceReason
+}
+
+export interface SourceInventory {
+  discoveredFiles: number
+  supportedFiles: SourceFile[]
+  skippedFiles: SkippedSourceFile[]
+}
+
 export interface ParsedDocument {
   file: SourceFile
   text: string
@@ -77,9 +96,15 @@ export interface IngestOptions {
 }
 
 export interface IngestResult {
+  discoveredFiles: number
+  supportedFiles: number
   indexedFiles: number
   chunks: number
   skippedFiles: number
+  unsupportedFiles: number
+  oversizedFiles: number
+  sensitiveFiles: number
+  unsupportedExtensions: Array<{ extension: string; count: number }>
   redactions: number
   errors: Array<{ path: string; message: string }>
 }
@@ -105,6 +130,8 @@ export interface AskResult {
 export interface AuditReport {
   indexedFiles: Array<{ source: string; chunks: number }>
   supportedFiles: string[]
+  skippedFiles: SkippedSourceFile[]
+  unsupportedExtensions: Array<{ extension: string; count: number }>
   missingFromIndex: string[]
   staleInIndex: string[]
   totalChunks: number
@@ -129,6 +156,8 @@ export interface DoctorReport {
   redactionEnabled: boolean
   accessLog: boolean
   supportedFiles: number
+  skippedFiles: number
+  unsupportedFiles: number
   indexedFiles: number
   chunksIndexed: number
   missingFromIndex: number

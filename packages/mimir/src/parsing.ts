@@ -28,6 +28,9 @@ export async function parseFile(file: SourceFile): Promise<ParsedDocument> {
     case ".odp":
       text = await parseOpenDocument(file.absolutePath)
       break
+    case ".epub":
+      text = await parseEpub(file.absolutePath)
+      break
     case ".html":
     case ".htm":
       text = htmlToText(await readFile(file.absolutePath, "utf8"), {
@@ -39,6 +42,7 @@ export async function parseFile(file: SourceFile): Promise<ParsedDocument> {
       })
       break
     case ".json":
+    case ".ipynb":
       text = JSON.stringify(JSON.parse(await readFile(file.absolutePath, "utf8")), null, 2)
       break
     case ".yaml":
@@ -97,13 +101,34 @@ async function parseOpenDocument(filePath: string): Promise<string> {
   return xmlEntriesToText(entries, [/^content\.xml$/u, /^meta\.xml$/u])
 }
 
+async function parseEpub(filePath: string): Promise<string> {
+  const entries = unzipOfficeFile(await readFile(filePath))
+  const parts: string[] = []
+  for (const [name, content] of [...entries.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (!/\.(?:xhtml|html|htm|xml)$/iu.test(name)) {
+      continue
+    }
+    const text = htmlToText(content, {
+      wordwrap: false,
+      selectors: [
+        { selector: "a", options: { ignoreHref: true } },
+        { selector: "img", format: "skip" },
+      ],
+    })
+    if (text.trim()) {
+      parts.push(text)
+    }
+  }
+  return parts.join("\n\n")
+}
+
 function unzipOfficeFile(buffer: Buffer): Map<string, string> {
   const unzipped = unzipSync(new Uint8Array(buffer), {
     filter: (file) => file.originalSize <= MAX_OFFICE_XML_ENTRY_BYTES,
   })
   const entries = new Map<string, string>()
   for (const [name, content] of Object.entries(unzipped)) {
-    if (name.endsWith(".xml")) {
+    if (/\.(?:xml|xhtml|html|htm)$/iu.test(name)) {
       entries.set(name, strFromU8(content))
     }
   }

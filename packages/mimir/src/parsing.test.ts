@@ -51,6 +51,22 @@ describe("parseFile", () => {
 
     expect(parsed.text).toContain("Invoice\t24000\tPaid")
   })
+
+  it("extracts text from epub html entries", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-epub-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "brief.epub")
+    await writeFile(
+      filePath,
+      zipSync({
+        "OPS/chapter.xhtml": strToU8("<html><body><h1>Sovereign report</h1></body></html>"),
+      }),
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".epub"))
+
+    expect(parsed.text).toContain("SOVEREIGN REPORT")
+  })
 })
 
 function sourceFile(root: string, absolutePath: string, extension: string): SourceFile {

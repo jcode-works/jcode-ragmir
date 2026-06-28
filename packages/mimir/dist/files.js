@@ -5,84 +5,164 @@ import path from "node:path";
 import fg from "fast-glob";
 import { PRIVATE_DIR } from "./defaults.js";
 const GENERATED_SOURCE_README = `${PRIVATE_DIR}/README.md`;
+const NO_EXTENSION = "(none)";
+const SENSITIVE_FILE_NAMES = new Set([
+    ".env",
+    ".env.local",
+    ".env.production",
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    ".pgpass",
+]);
+const SENSITIVE_EXTENSIONS = new Set([
+    ".crt",
+    ".der",
+    ".gpg",
+    ".jks",
+    ".key",
+    ".keystore",
+    ".p12",
+    ".pem",
+    ".pfx",
+]);
 export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
     ".atom",
+    ".adoc",
+    ".astro",
+    ".bash",
     ".c",
+    ".cjs",
     ".cfg",
     ".conf",
     ".cpp",
     ".cs",
     ".css",
     ".csv",
+    ".cts",
+    ".diff",
     ".docx",
+    ".eml",
+    ".epub",
     ".go",
     ".h",
+    ".hpp",
     ".htm",
     ".html",
+    ".ics",
     ".ini",
     ".java",
     ".js",
     ".json",
     ".jsonl",
     ".jsx",
+    ".ipynb",
     ".log",
+    ".markdown",
     ".md",
+    ".mdown",
     ".mdx",
+    ".mjs",
+    ".mts",
     ".ndjson",
     ".odp",
     ".ods",
     ".odt",
+    ".patch",
     ".pdf",
     ".php",
     ".pptx",
     ".properties",
+    ".ps1",
     ".py",
     ".rb",
+    ".rst",
     ".rs",
     ".rss",
     ".rtf",
+    ".scss",
+    ".srt",
+    ".svelte",
+    ".svg",
+    ".sh",
     ".sql",
+    ".tex",
     ".text",
     ".toml",
     ".ts",
     ".tsv",
     ".tsx",
     ".txt",
+    ".vtt",
+    ".vue",
     ".xml",
     ".xlsx",
     ".yaml",
     ".yml",
 ]);
 export async function listSourceFiles(config) {
+    return (await inventorySourceFiles(config)).supportedFiles;
+}
+export async function inventorySourceFiles(config) {
     const roots = await sourceRoots(config);
     const files = new Map();
+    const skippedFiles = new Map();
+    let discoveredFiles = 0;
     for (const root of roots) {
         if (!existsSync(root)) {
             continue;
         }
-        const entries = await fg("**/*", {
+        const entries = (await fg("**/*", {
             cwd: root,
             absolute: true,
             onlyFiles: true,
             dot: false,
             followSymbolicLinks: false,
             ignore: ["**/.git/**", "**/node_modules/**", "**/.kb/**", "**/.mimir/**"],
-        });
-        for (const absolutePath of entries) {
+            objectMode: true,
+            stats: true,
+            unique: true,
+        }));
+        for (const entry of entries) {
+            const absolutePath = path.isAbsolute(entry.path) ? entry.path : path.resolve(root, entry.path);
             const relativePath = path.relative(config.projectRoot, absolutePath);
             if (relativePath === GENERATED_SOURCE_README) {
                 continue;
             }
+            discoveredFiles += 1;
             const extension = path.extname(absolutePath).toLowerCase();
-            if (!supportedExtensions(config).has(extension)) {
+            const info = entry.stats ?? (await stat(absolutePath));
+            const source = path.relative(root, absolutePath) || path.basename(absolutePath);
+            const skipped = skippedSourceFile(absolutePath, relativePath, source, extension, info.size);
+            if (skipped) {
+                skippedFiles.set(absolutePath, skipped);
                 continue;
             }
-            const info = await stat(absolutePath);
+            if (!supportedExtensions(config).has(extension)) {
+                skippedFiles.set(absolutePath, {
+                    relativePath,
+                    source,
+                    extension: extension || NO_EXTENSION,
+                    bytes: info.size,
+                    reason: "unsupported-extension",
+                });
+                continue;
+            }
+            if (info.size > config.maxFileBytes) {
+                skippedFiles.set(absolutePath, {
+                    relativePath,
+                    source,
+                    extension: extension || NO_EXTENSION,
+                    bytes: info.size,
+                    reason: "oversized",
+                });
+                continue;
+            }
             const buffer = await readFile(absolutePath);
             files.set(absolutePath, {
                 absolutePath,
                 relativePath,
-                source: path.relative(root, absolutePath) || path.basename(absolutePath),
+                source,
                 extension,
                 bytes: info.size,
                 mtimeMs: info.mtimeMs,
@@ -90,10 +170,26 @@ export async function listSourceFiles(config) {
             });
         }
     }
-    return [...files.values()].sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+    return {
+        discoveredFiles,
+        supportedFiles: [...files.values()].sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
+        skippedFiles: [...skippedFiles.values()].sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
+    };
 }
 export function supportedExtensions(config) {
     return new Set([...DEFAULT_SUPPORTED_EXTENSIONS, ...config.includeExtensions]);
+}
+export function summarizeUnsupportedExtensions(skippedFiles) {
+    const counts = new Map();
+    for (const file of skippedFiles) {
+        if (file.reason !== "unsupported-extension") {
+            continue;
+        }
+        counts.set(file.extension, (counts.get(file.extension) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([extension, count]) => ({ extension, count }));
 }
 async function sourceRoots(config) {
     const roots = [config.rawDir];
@@ -109,5 +205,18 @@ async function sourceRoots(config) {
         roots.push(path.isAbsolute(trimmed) ? trimmed : path.resolve(config.projectRoot, trimmed));
     }
     return roots;
+}
+function skippedSourceFile(absolutePath, relativePath, source, extension, bytes) {
+    const baseName = path.basename(absolutePath).toLowerCase();
+    if (!SENSITIVE_FILE_NAMES.has(baseName) && !SENSITIVE_EXTENSIONS.has(extension)) {
+        return null;
+    }
+    return {
+        relativePath,
+        source,
+        extension: extension || NO_EXTENSION,
+        bytes,
+        reason: "sensitive-name",
+    };
 }
 //# sourceMappingURL=files.js.map

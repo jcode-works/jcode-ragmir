@@ -23,6 +23,7 @@ private/          # raw documents to ingest
 .kb/sources.txt   # optional extra source paths
 .kb/storage/      # generated local index
 .kb/access.log    # metadata-only access log
+.mimir/reports/   # generated local Markdown reports
 ```
 
 ## Data Safety
@@ -63,7 +64,7 @@ npx kb setup
 ```
 
 Use `status`, `audit`, and `security-audit` for deeper checks after `doctor` explains the current
-state.
+state. Use `audit --unsupported` when files exist but may not have been indexed.
 
 ## Provider Modes
 
@@ -100,6 +101,7 @@ After documents are added or changed:
 ```bash
 pnpm exec kb doctor --fix
 pnpm exec kb audit
+pnpm exec kb audit --unsupported
 pnpm exec kb security-audit
 pnpm exec kb status
 ```
@@ -160,6 +162,18 @@ If the agent supports MCP, configure a server for the repository:
 }
 ```
 
+For Claude Code, run this from the target repository root after `pnpm exec kb setup`:
+
+```bash
+claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
+```
+
+For Codex, copy `.mimir/codex-mcp.toml` into `~/.codex/config.toml` or another trusted Codex config
+layer.
+
+For other MCP clients that cannot set `cwd`, set `MIMIR_PROJECT_ROOT=/absolute/path/to/repository`
+when launching `kb serve-mcp`.
+
 Available MCP tools:
 
 - `mimir_status`: show config and chunk count.
@@ -178,12 +192,25 @@ destroy-index --yes` from the shell when the user explicitly wants to remove the
 If the user asks for a listenable or TTS summary, load the optional
 `.mimir/skills/mimir-audio-summary/` skill installed by `pnpm exec kb setup`.
 
-That skill should:
+The audio skill should:
 
 - gather evidence through Mimir first;
 - write narration text only to a temp file outside the repository;
 - render generated audio under `.mimir/audio/` by default;
 - prefer offline TTS engines for confidential content.
+
+## Optional Markdown Reports
+
+If the user asks for a Markdown report, dossier, audit memo, planning note, or decision brief, load
+the optional `.mimir/skills/mimir-markdown-report/` skill installed by `pnpm exec kb setup`.
+
+The report skill should:
+
+- gather evidence through multiple Mimir searches first;
+- cite source paths and chunk numbers;
+- separate facts, inference, uncertainty, and missing evidence;
+- write reports under `.mimir/reports/` by default;
+- keep generated reports uncommitted unless the user explicitly wants a sanitized tracked report.
 
 ## Installing This Skill Into A Repository
 
@@ -204,11 +231,16 @@ This creates:
 
 ```plain text
 .mimir/skills/mimir/SKILL.md
+.mimir/skills/mimir-audio-summary/SKILL.md
+.mimir/skills/mimir-markdown-report/SKILL.md
 .mimir/mcp.json
+.mimir/claude-mcp-server.json
+.mimir/codex-mcp.toml
 .mimir/README.md
 ```
 
-Agents that understand skill folders can load `.mimir/skills/mimir/`. Other agents can read `.mimir/README.md` and `.mimir/mcp.json`.
+Agents that understand skill folders can load `.mimir/skills/mimir/`. Other agents can read
+`.mimir/README.md` and `.mimir/mcp.json`.
 
 ## Answer Style
 

@@ -23,6 +23,10 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
   const nextSteps = nextActions({
     initialized,
     supportedFiles: auditReport.supportedFiles.length,
+    skippedFiles: auditReport.skippedFiles.length,
+    unsupportedFiles: auditReport.skippedFiles.filter(
+      (file) => file.reason === "unsupported-extension",
+    ).length,
     chunksIndexed,
     missingFromIndex: auditReport.missingFromIndex.length,
     staleInIndex: auditReport.staleInIndex.length,
@@ -44,6 +48,10 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     redactionEnabled: config.redaction.enabled,
     accessLog: config.accessLog,
     supportedFiles: auditReport.supportedFiles.length,
+    skippedFiles: auditReport.skippedFiles.length,
+    unsupportedFiles: auditReport.skippedFiles.filter(
+      (file) => file.reason === "unsupported-extension",
+    ).length,
     indexedFiles: auditReport.indexedFiles.length,
     chunksIndexed,
     missingFromIndex: auditReport.missingFromIndex.length,
@@ -62,6 +70,8 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
 interface NextActionInput {
   initialized: boolean
   supportedFiles: number
+  skippedFiles: number
+  unsupportedFiles: number
   chunksIndexed: number
   missingFromIndex: number
   staleInIndex: number
@@ -79,7 +89,15 @@ function nextActions(input: NextActionInput): string[] {
   }
 
   if (input.supportedFiles === 0) {
-    steps.push("Add supported files under private/ or list extra source paths in .kb/sources.txt.")
+    if (input.skippedFiles > 0) {
+      steps.push(
+        "Mimir found files, but none are currently indexable. Run `kb audit --unsupported` to inspect skipped files.",
+      )
+    } else {
+      steps.push(
+        "Add supported files under private/ or list extra source paths in .kb/sources.txt.",
+      )
+    }
     return steps
   }
 
@@ -95,6 +113,11 @@ function nextActions(input: NextActionInput): string[] {
   }
 
   if (steps.length === 0) {
+    if (input.unsupportedFiles > 0) {
+      steps.push(
+        "Run `kb audit --unsupported` to inspect files skipped because their type is not supported.",
+      )
+    }
     steps.push(`Run \`${input.run(["search", '"your question"'])}\` to retrieve source passages.`)
     steps.push(
       `Run \`${input.run(["ask", '"your question"'])}\` to produce cited retrieval context.`,
@@ -115,6 +138,9 @@ function isAgentKitInstalled(projectRoot: string): boolean {
   return (
     existsSync(path.join(projectRoot, MIMIR_DIR, "skills", "mimir", "SKILL.md")) &&
     existsSync(path.join(projectRoot, MIMIR_DIR, "skills", "mimir-audio-summary", "SKILL.md")) &&
-    existsSync(path.join(projectRoot, MIMIR_DIR, "mcp.json"))
+    existsSync(path.join(projectRoot, MIMIR_DIR, "skills", "mimir-markdown-report", "SKILL.md")) &&
+    existsSync(path.join(projectRoot, MIMIR_DIR, "mcp.json")) &&
+    existsSync(path.join(projectRoot, MIMIR_DIR, "claude-mcp-server.json")) &&
+    existsSync(path.join(projectRoot, MIMIR_DIR, "codex-mcp.toml"))
   )
 }

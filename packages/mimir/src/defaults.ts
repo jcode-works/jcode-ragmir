@@ -30,5 +30,8 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   topK: 5,
   chunkSize: 1200,
   chunkOverlap: 150,
+  maxFileBytes: 50_000_000,
+  ingestConcurrency: 4,
+  embeddingBatchSize: 32,
   includeExtensions: [],
 }

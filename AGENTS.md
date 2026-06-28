@@ -32,6 +32,12 @@
   Transformers.js WAV path for offline/confidential rendering, use the Edge MP3 path for global
   Voice Forge quality only when online TTS is explicitly acceptable, and keep generated audio under
   ignored local Mimir state.
+- Keep report generation separate from core retrieval. The `mimir-markdown-report` skill writes cited
+  Markdown reports under ignored `.mimir/reports/` by default and must distinguish evidence,
+  inference, uncertainty, missing documents, and professional-review items.
+- Ingestion must be explicit about files it did not index. Preserve `kb audit --unsupported`,
+  unsupported-extension summaries, secret-like file skipping, max file size limits, and checksum-based
+  stale detection.
 - Keep the repository as a simple pnpm workspace monorepo. Add Turbo only if multiple packages or
   apps start needing task caching/orchestration beyond `pnpm --filter`.
 - Keep Mimir core free of Ollama. `embeddingProvider: "local-hash"` supports ingestion, search, MCP,
@@ -95,6 +101,11 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   privacy and confidentiality hardening layer.
 - `packages/mimir/skills/mimir/SKILL.md` is the bundled portable agent skill.
 - `packages/mimir/skills/mimir-audio-summary/SKILL.md` is the optional bundled audio-summary skill.
+- `packages/mimir/skills/mimir-markdown-report/SKILL.md` is the optional bundled Markdown-report
+  skill.
+- `kb setup` must keep generating agent-specific MCP helpers for easy local use:
+  `.mimir/claude-mcp-server.json` for `claude mcp add-json` and `.mimir/codex-mcp.toml` for Codex
+  config layers.
 - `packages/mimir/examples/sovereign-rag-demo` is the tracked synthetic test workspace for manual
   and package validation.
 - `.kb/`, `.mimir/`, and project `private/` folders are local user data or generated agent

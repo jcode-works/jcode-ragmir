@@ -5,7 +5,10 @@ export interface InstallSkillOptions {
 export interface InstallSkillResult {
     skillPath: string;
     audioSkillPath: string;
+    reportSkillPath: string;
     mcpConfigPath: string;
+    claudeConfigPath: string;
+    codexConfigPath: string;
     readmePath: string;
     written: string[];
 }

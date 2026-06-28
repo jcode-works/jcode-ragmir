@@ -64,8 +64,7 @@ Early public package. APIs may evolve before `1.0.0`.
 - Give Claude, Codex, Cursor, internal assistants, or other MCP-compatible tools the same private
   retrieval layer.
 - Retrieve grounded local evidence through CLI, library calls, MCP tools, or bundled agent skills.
-- Optionally create listenable MP3 or WAV summaries with `kb audio`, `@jcode.labs/mimir-tts`, and
-  the bundled `mimir-audio-summary` skill.
+- Optionally create listenable MP3/WAV summaries or cited Markdown reports with bundled skills.
 
 Mimir is not a hosted SaaS, not a remote vector database, and not a certified high-assurance system.
 For regulated or state-grade environments, pair it with encrypted disks, controlled machines,
@@ -88,6 +87,7 @@ context.
 | Prepare meetings or decisions | "Give me a one-page briefing.", "What is missing before deciding?", "List action items and evidence." |
 | Ask questions over offline documents | "Which files mention local-only operation?", "What evidence supports this claim?" |
 | Generate audio briefings | "Create a listenable high-quality or offline summary of the current dossier." |
+| Generate Markdown reports | "Write a cited local report with findings, risks, next actions, and sources." |
 
 ## Requirements
 
@@ -103,6 +103,8 @@ context.
   external `edge-tts` CLI and render with `--engine edge`. For confidential or air-gapped content,
   use the Transformers.js WAV path with `--engine transformers --offline`; it does not require
   Python, ffmpeg, Piper, XTTS, or a local server.
+- Optional Markdown reports use the bundled `mimir-markdown-report` skill and should stay under
+  ignored `.mimir/reports/` unless explicitly sanitized for sharing.
 
 ## Install
 
@@ -145,12 +147,15 @@ private/                         # raw documents to ingest
 .kb/sources.txt                  # optional extra source paths
 .mimir/skills/mimir/SKILL.md     # portable agent skill
 .mimir/skills/mimir-audio-summary/SKILL.md
-.mimir/mcp.json                  # MCP server config snippet
+.mimir/skills/mimir-markdown-report/SKILL.md
+.mimir/mcp.json                  # generic MCP server config snippet
+.mimir/claude-mcp-server.json    # Claude Code add-json payload
+.mimir/codex-mcp.toml            # Codex config.toml snippet
 .gitignore                       # ignores private/**, .kb/, and .mimir/
 ```
 
-It detects the repository package manager and writes `.mimir/mcp.json` with the right command, such
-as `pnpm exec kb serve-mcp`, `npx kb serve-mcp`, `yarn exec kb serve-mcp`, or `bunx kb serve-mcp`.
+It detects the repository package manager and writes the MCP helper files with the right command:
+`pnpm exec kb serve-mcp`, `npx kb serve-mcp`, `yarn exec kb serve-mcp`, or `bunx kb serve-mcp`.
 
 Check readiness at any time:
 
@@ -192,7 +197,15 @@ pnpm exec kb ingest
 pnpm exec kb doctor
 ```
 
-When the index is ready, `kb doctor` prints `ready=true`.
+When the index is ready, `kb doctor` prints `ready=true`. `kb ingest` and `kb audit` also report
+files that were discovered but not indexed because the type is unsupported, the file is too large,
+or the file name looks like a secret/private key.
+
+List skipped paths explicitly:
+
+```bash
+pnpm exec kb audit --unsupported
+```
 
 Retrieve exact passages:
 
@@ -286,13 +299,18 @@ This creates:
 ```plain text
 .mimir/skills/mimir/SKILL.md
 .mimir/skills/mimir-audio-summary/SKILL.md
+.mimir/skills/mimir-markdown-report/SKILL.md
 .mimir/mcp.json
+.mimir/claude-mcp-server.json
+.mimir/codex-mcp.toml
 .mimir/README.md
 ```
 
 Agents that support skill folders can load `.mimir/skills/mimir/` for deep local RAG usage. Load
-`.mimir/skills/mimir-audio-summary/` only when an optional spoken summary is needed. Other agents can
-read the generated `.mimir/README.md` and use the MCP config snippet.
+`.mimir/skills/mimir-audio-summary/` only when an optional spoken summary is needed. Load
+`.mimir/skills/mimir-markdown-report/` when the user asks for a cited Markdown report, dossier,
+audit memo, or planning note. Other agents can read the generated `.mimir/README.md` and use the MCP
+config snippet.
 
 Start the MCP server from the repository root:
 
@@ -311,6 +329,55 @@ MCP tools exposed:
 This MCP layer is the recommended way to let any compatible LLM or agent query the same local
 knowledge base. The LLM does not need to know about LanceDB or the raw file layout; it asks Mimir for
 ranked passages or cited context and uses the returned citations.
+
+### Claude Code
+
+From the target repository root:
+
+```bash
+pnpm exec kb setup
+claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
+```
+
+Claude Code provides the active project path to MCP servers through `CLAUDE_PROJECT_DIR`; Mimir uses
+that value when serving MCP, so the same installed npm package can work inside each repository where
+`kb setup` was run. Keep the MCP scope local unless you intentionally want to share the server
+config.
+
+### Codex
+
+From the target repository root:
+
+```bash
+pnpm exec kb setup
+cat .mimir/codex-mcp.toml
+```
+
+Copy the printed TOML into `~/.codex/config.toml` or another trusted Codex config layer. The snippet
+contains the repository `cwd`, so Codex can launch the Mimir MCP server from the right project.
+
+For other MCP clients that cannot set `cwd`, set `MIMIR_PROJECT_ROOT=/absolute/path/to/repository`
+when launching `kb serve-mcp`.
+
+### Agent Demo
+
+From a repository that already ran `kb setup` and has Mimir wired into the current agent, ask:
+
+```plain text
+Use Mimir to audit the local evidence. First run mimir_status and mimir_audit. Then search for
+"offline retrieval approval" and produce a cited Markdown report. Do not rely on memory if Mimir
+does not contain enough evidence.
+```
+
+Agents that support skill folders should also load:
+
+```plain text
+.mimir/skills/mimir/
+.mimir/skills/mimir-markdown-report/
+```
+
+The Markdown report skill writes reports under `.mimir/reports/` by default, which stays ignored by
+Git.
 
 Print the bundled skill path from the installed package:
 
@@ -419,14 +486,20 @@ Mimir supports common text, document, data, config, log, and source-code files o
 - YAML: `.yaml`, `.yml`
 - CSV/TSV: `.csv`, `.tsv`
 - HTML: `.html`, `.htm`
+- EPUB: `.epub`
 - PDF: `.pdf`
 - Office/OpenDocument: `.docx`, `.pptx`, `.xlsx`, `.odt`, `.ods`, `.odp`
 - Rich text: `.rtf`
+- Notebook: `.ipynb`
+- Subtitles/calendars/mail: `.vtt`, `.srt`, `.ics`, `.eml`
 - Line data and logs: `.jsonl`, `.ndjson`, `.log`
-- XML feeds and documents: `.xml`, `.rss`, `.atom`
+- XML feeds and documents: `.xml`, `.rss`, `.atom`, `.svg`
 - Config and data files: `.toml`, `.ini`, `.conf`, `.cfg`, `.properties`, `.sql`
-- Source code: `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.rb`, `.php`, `.cs`,
-  `.c`, `.cpp`, `.h`, `.css`
+- Source code: `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.py`, `.go`, `.rs`,
+  `.java`, `.rb`, `.php`, `.cs`, `.c`, `.cpp`, `.h`, `.hpp`, `.css`, `.scss`, `.vue`, `.svelte`,
+  `.astro`, `.sh`, `.bash`, `.ps1`
+- Documentation/code review text: `.rst`, `.adoc`, `.tex`, `.diff`, `.patch`, `.markdown`,
+  `.mdown`
 
 Custom UTF-8 text extensions can be enabled without changing code:
 
@@ -446,6 +519,13 @@ Images, scans, audio/video files, old proprietary Office binaries such as `.doc`
 that are not listed should be OCRed, transcribed, converted, or exported to text/PDF/HTML first.
 Mimir intentionally avoids pretending that every binary format can be indexed safely without
 extraction logic.
+
+Secret-like files such as `.env`, `.npmrc`, private keys, and certificates are skipped by default.
+Convert safe examples to a normal text format before ingestion.
+
+Sensitive key/certificate-like files such as `.pem`, `.key`, `.p12`, `.pfx`, `.jks`, `.gpg`, and
+common secret filenames such as `.env`, `.npmrc`, `.netrc`, and `.pgpass` are skipped by default even
+if they sit under a source directory.
 
 ## Configuration Reference
 
@@ -472,6 +552,9 @@ Default `.kb/config.json`:
   "topK": 5,
   "chunkSize": 1200,
   "chunkOverlap": 150,
+  "maxFileBytes": 50000000,
+  "ingestConcurrency": 4,
+  "embeddingBatchSize": 32,
   "includeExtensions": []
 }
 ```
@@ -493,6 +576,9 @@ Environment overrides:
 - `KB_TOP_K`
 - `KB_CHUNK_SIZE`
 - `KB_CHUNK_OVERLAP`
+- `KB_MAX_FILE_BYTES`
+- `KB_INGEST_CONCURRENCY`
+- `KB_EMBEDDING_BATCH_SIZE`
 - `KB_INCLUDE_EXTENSIONS`
 
 ## CLI Reference
@@ -512,6 +598,7 @@ Mimir ships two CLIs:
 | `kb doctor --fix` | Create missing scaffolding, install skills/MCP config, and rebuild stale indexes when safe. |
 | `kb ingest` | Parse source files, redact, chunk, embed, and rebuild the local LanceDB index. |
 | `kb audit` | Check whether supported source files are missing from or stale in the index. |
+| `kb audit --unsupported` | List files skipped because they are unsupported, too large, or secret-like. |
 | `kb search "<query>"` | Retrieve ranked passages without asking an LLM to write an answer. |
 | `kb ask "<question>"` | Return cited retrieval context for an agent or trusted model runtime. |
 | `kb security-audit` | Inspect privacy posture: telemetry, providers, redaction, Git ignore, MCP. |
@@ -547,7 +634,8 @@ Mimir ships two CLIs:
 | Option | Applies to | Meaning |
 | --- | --- | --- |
 | `--top-k <number>` | `search`, `ask` | Number of passages to return. |
-| `--json` | `doctor`, `security-audit`, `audio --doctor`, `mimir-tts doctor` | Print machine-readable JSON. |
+| `--json` | `doctor`, `audit`, `security-audit`, `audio --doctor`, `mimir-tts doctor` | Print machine-readable JSON. |
+| `--unsupported` | `audit` | List skipped file paths and reasons. |
 | `--strict` | `security-audit` | Exit non-zero when warnings exist. |
 | `--offline` | `audio`, `mimir-tts render` | Disable remote model downloads and force the local Transformers.js path. |
 | `--allow-remote-models` | `audio`, `mimir-tts render` | Explicitly allow model downloads for Transformers.js. |
@@ -601,6 +689,15 @@ pnpm exec kb doctor
 
 If documents live elsewhere, add one path per line to `.kb/sources.txt`. Relative paths resolve from
 the project root.
+
+If files exist but are not supported yet, inspect the skipped inventory:
+
+```bash
+pnpm exec kb audit --unsupported
+```
+
+Then either convert them to a supported format, OCR/transcribe them, or add a safe custom UTF-8 text
+extension with `includeExtensions` / `KB_INCLUDE_EXTENSIONS`.
 
 ### Search Returns Weak Results
 

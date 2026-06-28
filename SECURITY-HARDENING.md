@@ -13,6 +13,10 @@ built to minimize data movement, but it is not a certified high-assurance system
   remote model loading disabled by default through `transformersAllowRemoteModels: false`.
 - Redaction before indexing: built-in DLP patterns redact common secrets and identifiers before
   chunks are embedded and stored.
+- Secret-like files are skipped by default: common private-key, certificate, and credential
+  filenames/extensions are not indexed even when they appear under a source directory.
+- Ingestion has a default per-file size cap through `maxFileBytes` and reports unsupported,
+  oversized, and secret-like skipped files.
 - Metadata-only access logs: access logs contain action metadata and query hashes, not raw
   queries or retrieved text.
 - Generated local state is ignored by Git: `.kb/`, `.mimir/`, and `private/**` are ignored by
@@ -22,6 +26,8 @@ built to minimize data movement, but it is not a certified high-assurance system
 - Optional audio summaries use `kb audio` / `@jcode.labs/mimir-tts`. Transformers.js WAV is the
   default offline/confidential path and does not require Python, ffmpeg, Piper, XTTS, or a local TTS
   server. Edge MP3 gives the highest quality only when online TTS is explicitly acceptable.
+- Optional Markdown reports use the bundled `mimir-markdown-report` skill and should be written
+  under `.mimir/reports/` by default.
 - npm releases are published with provenance from the protected GitHub Actions workflow.
 - Release artifacts include a package tarball, SHA256 checksums, SBOM, and manifest.
 
@@ -61,8 +67,9 @@ Move the generated tarballs from `release-artifacts/` into the offline environme
 
 ```bash
 pnpm add -D ./jcode.labs-mimir-tts-<version>.tgz ./jcode.labs-mimir-<version>.tgz
-pnpm exec kb init
-pnpm exec kb ingest
+pnpm exec kb setup
+pnpm exec kb doctor --fix
+pnpm exec kb audit --unsupported
 ```
 
 For semantic embeddings, preload the Transformers.js-compatible embedding model files inside the
@@ -104,6 +111,16 @@ Run:
 pnpm exec kb security-audit --strict
 ```
 
+Also run:
+
+```bash
+pnpm exec kb audit --unsupported
+```
+
+This exposes local relative paths for files that were skipped because the extension is unsupported,
+the file exceeds `maxFileBytes`, or the filename looks like a secret/key artifact. Use it before
+assuming a dossier was fully indexed.
+
 ## DLP Redaction
 
 Built-in redaction is enabled by default for common secret and identifier shapes: private keys,
@@ -129,6 +146,23 @@ Custom patterns can be added in `.kb/config.json`:
 
 Redaction changes the indexed text, not the raw files under `private/`.
 
+## Ingestion Boundaries
+
+Mimir indexes many text, document, Office/OpenDocument, PDF, EPUB, subtitle, notebook, mail, config,
+and source-code formats. It does not silently ingest every binary file. Unsupported images, scans,
+audio/video, old proprietary Office binaries, and unknown formats must be converted, OCRed, or
+transcribed first.
+
+Default ingestion guardrails:
+
+- `maxFileBytes`: 50 MB per file by default;
+- `ingestConcurrency`: four parse/chunk workers by default;
+- `embeddingBatchSize`: 32 chunks per embedding batch by default;
+- checksum-based stale detection for supported files;
+- unsupported/skipped file reporting through `kb ingest`, `kb audit`, and `kb audit --unsupported`.
+
+These are configurable, but raising limits increases local memory and parsing risk.
+
 ## Optional Audio Summaries
 
 `kb install-skill` installs an optional `mimir-audio-summary` skill. It is designed for listenable
@@ -150,6 +184,12 @@ Confidentiality defaults:
 
 Generated audio can still contain sensitive information. Treat it like a derived confidential
 document.
+
+## Optional Markdown Reports
+
+`kb install-skill` also installs `mimir-markdown-report`. Reports generated from private evidence are
+derived confidential documents. Keep them under `.mimir/reports/` by default, cite source paths and
+chunk numbers, and do not commit them unless the user explicitly asks for a sanitized tracked report.
 
 ## MCP Hardening
 

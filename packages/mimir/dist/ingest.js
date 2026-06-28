@@ -2,40 +2,51 @@ import { recordAccess } from "./access-log.js";
 import { chunkDocument } from "./chunking.js";
 import { loadConfig } from "./config.js";
 import { embedTexts } from "./embeddings.js";
-import { listSourceFiles } from "./files.js";
+import { inventorySourceFiles, summarizeUnsupportedExtensions } from "./files.js";
 import { parseFile } from "./parsing.js";
 import { redactText, totalRedactions } from "./redaction.js";
 import { openRowsTable, writeRows } from "./store.js";
-const EMBED_BATCH_SIZE = 32;
 const MAX_AUDIT_ROWS = 100_000;
 export async function ingest(options = {}) {
     const config = await loadConfig(String(options.cwd ?? process.cwd()));
-    const files = await listSourceFiles(config);
+    const inventory = await inventorySourceFiles(config);
+    const files = inventory.supportedFiles;
     const allChunks = [];
     const errors = [];
     const redactionCounts = [];
-    let skippedFiles = 0;
-    for (const file of files) {
+    let emptyFiles = 0;
+    const results = await mapLimit(files, config.ingestConcurrency, async (file) => {
         try {
             const parsed = await parseFile(file);
             const redacted = redactText(parsed.text, config);
-            redactionCounts.push(...redacted.counts);
             const chunks = chunkDocument({ ...parsed, text: redacted.text }, config.chunkSize, config.chunkOverlap);
-            if (chunks.length === 0) {
-                skippedFiles += 1;
-            }
-            allChunks.push(...chunks);
+            return { chunks, redactions: redacted.counts, error: null };
         }
         catch (error) {
-            errors.push({
-                path: file.relativePath,
-                message: error instanceof Error ? error.message : String(error),
-            });
+            return {
+                chunks: [],
+                redactions: [],
+                error: {
+                    path: file.relativePath,
+                    message: error instanceof Error ? error.message : String(error),
+                },
+            };
         }
+    });
+    for (const result of results) {
+        if (result.error) {
+            errors.push(result.error);
+            continue;
+        }
+        redactionCounts.push(...result.redactions);
+        if (result.chunks.length === 0) {
+            emptyFiles += 1;
+        }
+        allChunks.push(...result.chunks);
     }
     const rows = [];
-    for (let i = 0; i < allChunks.length; i += EMBED_BATCH_SIZE) {
-        const batch = allChunks.slice(i, i + EMBED_BATCH_SIZE);
+    for (let i = 0; i < allChunks.length; i += config.embeddingBatchSize) {
+        const batch = allChunks.slice(i, i + config.embeddingBatchSize);
         const embeddings = await embedTexts(batch.map((chunk) => chunk.text), config);
         for (const [index, chunk] of batch.entries()) {
             const vector = embeddings[index];
@@ -54,20 +65,29 @@ export async function ingest(options = {}) {
     return {
         indexedFiles: new Set(rows.map((row) => row.relativePath)).size,
         chunks: rows.length,
-        skippedFiles,
+        discoveredFiles: inventory.discoveredFiles,
+        supportedFiles: files.length,
+        skippedFiles: inventory.skippedFiles.length + emptyFiles,
+        unsupportedFiles: countSkipped(inventory.skippedFiles, "unsupported-extension"),
+        oversizedFiles: countSkipped(inventory.skippedFiles, "oversized"),
+        sensitiveFiles: countSkipped(inventory.skippedFiles, "sensitive-name"),
+        unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
         redactions: totalRedactions(redactionCounts),
         errors,
     };
 }
 export async function audit(cwd = process.cwd()) {
     const config = await loadConfig(cwd);
-    const files = await listSourceFiles(config);
+    const inventory = await inventorySourceFiles(config);
+    const files = inventory.supportedFiles;
     const supportedFiles = files.map((file) => file.relativePath);
     const table = await openRowsTable(config);
     if (!table) {
         return {
             indexedFiles: [],
             supportedFiles,
+            skippedFiles: inventory.skippedFiles,
+            unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
             missingFromIndex: supportedFiles,
             staleInIndex: [],
             totalChunks: 0,
@@ -75,19 +95,56 @@ export async function audit(cwd = process.cwd()) {
     }
     const rows = (await table.query().limit(MAX_AUDIT_ROWS).toArray());
     const counts = new Map();
+    const checksums = new Map();
     for (const row of rows) {
         counts.set(row.relativePath, (counts.get(row.relativePath) ?? 0) + 1);
+        if (row.checksum) {
+            const fileChecksums = checksums.get(row.relativePath) ?? new Set();
+            fileChecksums.add(row.checksum);
+            checksums.set(row.relativePath, fileChecksums);
+        }
     }
     const supportedSet = new Set(supportedFiles);
     const indexedSet = new Set(counts.keys());
+    const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]));
     return {
         indexedFiles: [...counts.entries()]
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([source, chunks]) => ({ source, chunks })),
         supportedFiles,
+        skippedFiles: inventory.skippedFiles,
+        unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
         missingFromIndex: supportedFiles.filter((file) => !indexedSet.has(file)),
-        staleInIndex: [...indexedSet].filter((file) => !supportedSet.has(file)).sort(),
+        staleInIndex: [...indexedSet]
+            .filter((file) => {
+            if (!supportedSet.has(file)) {
+                return true;
+            }
+            const currentChecksum = currentChecksums.get(file);
+            const indexedChecksums = checksums.get(file);
+            return !currentChecksum || !indexedChecksums?.has(currentChecksum);
+        })
+            .sort(),
         totalChunks: rows.length,
     };
+}
+async function mapLimit(items, concurrency, worker) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    async function run() {
+        while (nextIndex < items.length) {
+            const index = nextIndex;
+            nextIndex += 1;
+            const item = items[index];
+            if (item !== undefined) {
+                results[index] = await worker(item);
+            }
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => run()));
+    return results;
+}
+function countSkipped(files, reason) {
+    return files.filter((file) => file.reason === reason).length;
 }
 //# sourceMappingURL=ingest.js.map

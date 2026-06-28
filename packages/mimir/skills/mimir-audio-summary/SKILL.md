@@ -33,6 +33,7 @@ From the repository root, run:
 pnpm exec kb doctor
 pnpm exec kb status
 pnpm exec kb audit
+pnpm exec kb audit --unsupported
 pnpm exec kb security-audit
 ```
 
@@ -40,7 +41,7 @@ If the audit reports missing or stale files, run:
 
 ```bash
 pnpm exec kb doctor --fix
-pnpm exec kb audit
+pnpm exec kb audit --unsupported
 ```
 
 `kb doctor --fix` rebuilds the index only when supported files are present and the privacy posture

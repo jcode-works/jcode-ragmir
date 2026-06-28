@@ -13,6 +13,7 @@ This folder must never contain real-world sensitive, regulated, or production do
 - JSONL incident timelines.
 - YAML policy metadata.
 - A custom `.evidence` text extension enabled through `.kb/config.json`.
+- Unsupported/skipped-file reporting through `audit --unsupported`.
 
 ## Run From This Repository Checkout
 
@@ -32,6 +33,7 @@ node ../../dist/cli.js search "offline retrieval approval"
 node ../../dist/cli.js search "dataset residency"
 node ../../dist/cli.js ask "What evidence supports offline operation?"
 node ../../dist/cli.js audit
+node ../../dist/cli.js audit --unsupported
 node ../../dist/cli.js status
 ```
 
@@ -45,6 +47,17 @@ Retrieval is lexical/hash-based rather than model-semantic.
 - `incident containment evidence`
 - `who owns the usage review`
 - `what documents support sovereign deployment`
+
+## Agent Report Prompt
+
+After running `kb setup` in a real project, an MCP-compatible agent can use the generated
+`.mimir/mcp.json`. For this synthetic demo, ask an agent:
+
+```plain text
+Use Mimir to inspect the local knowledge base, search for "offline retrieval approval", and write a
+cited Markdown report under .mimir/reports/demo-sovereign-rag.md. Mention any unsupported or stale
+files reported by the audit.
+```
 
 ## Switch To Transformers Semantic Mode
 
