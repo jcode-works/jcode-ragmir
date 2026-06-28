@@ -1,18 +1,19 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import { createServer } from "node:http"
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const cliPath = path.join(repoRoot, "dist", "cli.js")
+const corePackageRoot = path.join(repoRoot, "packages", "mimir")
+const cliPath = path.join(corePackageRoot, "dist", "cli.js")
 const tempRoot = await mkdtemp(path.join(tmpdir(), "mimir-smoke-"))
-const fakeOllama = await startFakeOllama()
+const MCP_REQUEST_TIMEOUT_MS = 10_000
+const MCP_CLOSE_TIMEOUT_MS = 2_000
 
 try {
   await runKb(["init"], tempRoot)
-  await configureProject(tempRoot, fakeOllama.url)
+  await configureProject(tempRoot)
   await writeFixtureDocuments(tempRoot)
 
   const ingest = await runKb(["ingest"], tempRoot)
@@ -29,8 +30,8 @@ try {
   )
   assertIncludes(
     ask.stdout,
-    "Fake Mimir answer citing [1].",
-    "ask should call the local LLM client",
+    "Mimir returns retrieval context only",
+    "ask should return retrieval context without calling an LLM",
   )
 
   const audit = await runKb(["audit"], tempRoot)
@@ -45,28 +46,105 @@ try {
   )
   assertIncludes(
     security.stdout,
-    '"classification": "loopback"',
-    "security audit should classify local Ollama",
+    '"llmGeneration": false',
+    "security audit should report retrieval-only core behavior",
+  )
+
+  const audioDoctor = await runKb(["audio", "--doctor", "--json"], tempRoot)
+  assertIncludes(
+    audioDoctor.stdout,
+    '"pythonRequired": false',
+    "audio doctor should not require Python",
+  )
+  assertIncludes(
+    audioDoctor.stdout,
+    '"outputFormat": "wav"',
+    "audio doctor should report WAV output",
   )
 
   await runKb(["install-skill"], tempRoot)
   const skill = await readFile(path.join(tempRoot, ".mimir", "skills", "mimir", "SKILL.md"), "utf8")
+  const audioSkill = await readFile(
+    path.join(tempRoot, ".mimir", "skills", "mimir-audio-summary", "SKILL.md"),
+    "utf8",
+  )
   assertIncludes(skill, "name: mimir", "install-skill should copy the bundled skill")
+  assertIncludes(
+    audioSkill,
+    "name: mimir-audio-summary",
+    "install-skill should copy the optional audio summary skill",
+  )
   const gitignore = await readFile(path.join(tempRoot, ".gitignore"), "utf8")
   assertIncludes(gitignore, ".kb/", "init should ignore the Mimir config and index directory")
   assertIncludes(gitignore, ".mimir/", "install-skill should ignore generated agent kit files")
 
   await smokeMcp(tempRoot)
+  await smokeExampleWorkspace()
 
   const destroy = await runKb(["destroy-index", "--yes"], tempRoot)
   assertIncludes(destroy.stdout, "removed=true", "destroy-index should remove generated storage")
   console.log("Smoke test passed.")
 } finally {
-  await fakeOllama.close()
   await rm(tempRoot, { recursive: true, force: true })
 }
 
-async function configureProject(cwd, ollamaHost) {
+async function smokeExampleWorkspace() {
+  const exampleSource = path.join(corePackageRoot, "examples", "sovereign-rag-demo")
+  const exampleTemp = await mkdtemp(path.join(tmpdir(), "mimir-example-"))
+
+  try {
+    await cp(exampleSource, exampleTemp, { recursive: true })
+    await configureProject(exampleTemp)
+
+    const security = await runKb(["security-audit", "--strict"], exampleTemp)
+    assertIncludes(
+      security.stdout,
+      "llmGeneration=false",
+      "example security audit should keep LLM generation outside core",
+    )
+
+    const ingest = await runKb(["ingest"], exampleTemp)
+    assertIncludes(ingest.stdout, "errors=0", "example ingest should complete")
+
+    const audit = await runKb(["audit"], exampleTemp)
+    assertIncludes(audit.stdout, "missingFromIndex=0", "example audit should find no missing files")
+    assertIncludes(audit.stdout, "staleInIndex=0", "example audit should find no stale files")
+
+    const approvalSearch = await runKb(
+      ["search", "offline retrieval approval", "--top-k", "2"],
+      exampleTemp,
+    )
+    assertIncludes(
+      approvalSearch.stdout,
+      "review-notes.evidence",
+      "example search should retrieve offline approval evidence",
+    )
+
+    const customExtensionSearch = await runKb(
+      ["search", "offline text-to-speech usage review", "--top-k", "10"],
+      exampleTemp,
+    )
+    assertIncludes(
+      customExtensionSearch.stdout,
+      "review-notes.evidence",
+      "example search should index the custom .evidence extension",
+    )
+
+    const retrievalOnlyAsk = await runKb(
+      ["ask", "What evidence supports offline operation?", "--top-k", "2"],
+      exampleTemp,
+    )
+    assertIncludes(
+      retrievalOnlyAsk.stdout,
+      "Mimir returns retrieval context only",
+      "example ask should return cited retrieval context",
+    )
+  } finally {
+    await rm(exampleTemp, { recursive: true, force: true })
+  }
+}
+
+async function configureProject(cwd) {
   const configPath = path.join(cwd, ".kb", "config.json")
   const config = JSON.parse(await readFile(configPath, "utf8"))
   await writeFile(
@@ -74,7 +152,7 @@ async function configureProject(cwd, ollamaHost) {
     `${JSON.stringify(
       {
         ...config,
-        ollamaHost,
+        embeddingProvider: "local-hash",
         chunkSize: 500,
         chunkOverlap: 50,
         topK: 2,
@@ -209,11 +287,9 @@ function createJsonLineClient(child) {
   })
   child.stderr.on("data", (chunk) => stderr.push(chunk))
   child.on("close", () => {
-    for (const [id, entry] of pending) {
+    for (const entry of pending.values()) {
       clearTimeout(entry.timeout)
-      entry.reject(
-        new Error(`MCP process closed before response ${id}.\nstderr:\n${stderr.join("")}`),
-      )
+      entry.reject(new Error(`MCP process closed before response.\nstderr:\n${stderr.join("")}`))
     }
     pending.clear()
   })
@@ -230,7 +306,7 @@ function createJsonLineClient(child) {
           reject(
             new Error(`Timed out waiting for MCP response ${id}.\nstderr:\n${stderr.join("")}`),
           )
-        }, 10_000)
+        }, MCP_REQUEST_TIMEOUT_MS)
         pending.set(id, { resolve, reject, timeout })
       })
     },
@@ -243,7 +319,7 @@ function createJsonLineClient(child) {
         const timeout = setTimeout(() => {
           child.kill("SIGKILL")
           resolve()
-        }, 2_000)
+        }, MCP_CLOSE_TIMEOUT_MS)
         child.on("close", () => {
           clearTimeout(timeout)
           resolve()
@@ -259,72 +335,6 @@ function mcpText(response) {
     return JSON.stringify(response)
   }
   return content.map((item) => item.text ?? "").join("\n")
-}
-
-async function startFakeOllama() {
-  const server = createServer(async (request, response) => {
-    const body = await readRequestJson(request)
-
-    if (request.url === "/api/embed") {
-      const input = Array.isArray(body.input) ? body.input : [body.input]
-      writeJson(response, { embeddings: input.map(toEmbedding) })
-      return
-    }
-
-    if (request.url === "/api/chat") {
-      writeJson(response, {
-        model: body.model,
-        created_at: new Date(0).toISOString(),
-        message: {
-          role: "assistant",
-          content: "Fake Mimir answer citing [1].",
-        },
-        done: true,
-      })
-      return
-    }
-
-    response.writeHead(404, { "content-type": "application/json" })
-    response.end(JSON.stringify({ error: `Unhandled fake Ollama route: ${request.url}` }))
-  })
-
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
-  const address = server.address()
-  if (!address || typeof address === "string") {
-    throw new Error("Fake Ollama server did not bind to a TCP port.")
-  }
-
-  return {
-    url: `http://127.0.0.1:${address.port}`,
-    close: () => new Promise((resolve) => server.close(resolve)),
-  }
-}
-
-async function readRequestJson(request) {
-  const chunks = []
-  for await (const chunk of request) {
-    chunks.push(chunk)
-  }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")
-}
-
-function writeJson(response, body) {
-  response.writeHead(200, { "content-type": "application/json" })
-  response.end(JSON.stringify(body))
-}
-
-function toEmbedding(value) {
-  const text = String(value).toLowerCase()
-  return [
-    countMatches(text, ["tax", "fiscal", "france", "french", "residency"]),
-    countMatches(text, ["thai", "thailand", "bangkok", "dtv"]),
-    countMatches(text, ["equipment", "subscription", "invoice"]),
-    Math.min(text.length / 1000, 1),
-  ]
-}
-
-function countMatches(text, needles) {
-  return needles.reduce((count, needle) => count + (text.includes(needle) ? 1 : 0), 0)
 }
 
 function assertIncludes(actual, expected, message) {

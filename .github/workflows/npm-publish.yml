@@ -47,7 +47,8 @@ jobs:
 
       - name: Verify version input
         run: |
-          test "$(node -p "require('./package.json').version")" = "${{ inputs.version }}"
+          test "$(node -p "require('./packages/mimir/package.json').version")" = "${{ inputs.version }}"
+          test "$(node -p "require('./packages/mimir-tts/package.json').version")" = "${{ inputs.version }}"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -68,7 +69,7 @@ jobs:
         run: pnpm smoke
 
       - name: Verify generated dist is committed
-        run: git diff --exit-code -- dist
+        run: git diff --exit-code -- packages/mimir/dist packages/mimir-tts/dist
 
       - name: Verify npm package metadata
         run: pnpm package:check
@@ -82,7 +83,12 @@ jobs:
           name: mimir-release-${{ inputs.version }}
           path: release-artifacts/
 
-      - name: Publish
-        run: npm publish --access public --provenance
+      - name: Publish Mimir TTS
+        run: pnpm --dir packages/mimir-tts publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Mimir
+        run: pnpm --dir packages/mimir publish --access public --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

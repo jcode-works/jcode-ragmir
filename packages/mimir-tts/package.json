@@ -1,0 +1,66 @@
+{
+  "name": "@jcode.labs/mimir-tts",
+  "version": "0.4.0",
+  "description": "Plug-and-play local text-to-speech for Mimir audio summaries.",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Jean-Baptiste Thery",
+    "url": "https://github.com/jb-thery"
+  },
+  "keywords": [
+    "jcode",
+    "mimir",
+    "text-to-speech",
+    "tts",
+    "local-first",
+    "transformers",
+    "onnx",
+    "audio"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jcode-works/jcode-mimir.git",
+    "directory": "packages/mimir-tts"
+  },
+  "homepage": "https://github.com/jcode-works/jcode-mimir/tree/main/packages/mimir-tts#readme",
+  "bugs": {
+    "url": "https://github.com/jcode-works/jcode-mimir/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "mimir-tts": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "package:check": "publint",
+    "smoke": "node dist/cli.js doctor --json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "publint": "^0.3.21",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  }
+}

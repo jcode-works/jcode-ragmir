@@ -1,0 +1,14 @@
+classification: synthetic
+purpose: local-rag-test
+controls:
+  remote_model_loading: disabled
+  storage: encrypted-volume-recommended
+  telemetry: none
+  access_log: metadata-only
+  mcp:
+    destructive_tools: false
+    max_top_k: 10
+review:
+  owner: Example Review Team
+  required_before_remote_model_loading: true
+  required_before_online_tts: true

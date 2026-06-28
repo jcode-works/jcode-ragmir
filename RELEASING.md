@@ -11,7 +11,8 @@ and approved by Jean-Baptiste Thery through the protected `npm-publish` environm
 2. Wait for the required CI checks to pass.
 3. Merge only after approval and green checks.
 4. Trigger the `Publish npm` workflow manually from `main`.
-5. Enter the version already committed in `package.json`.
+5. Enter the version already committed in `packages/mimir/package.json` and
+   `packages/mimir-tts/package.json`.
 6. Approve the protected `npm-publish` environment when GitHub asks for review.
 
 The publish workflow refuses to run from any branch other than `main`, verifies that the

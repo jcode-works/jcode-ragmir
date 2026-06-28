@@ -1,0 +1,5 @@
+dataset,source_type,data_residency,network_access,review_status
+Example Notes,markdown notes,local only,none,approved
+Example Model Card,model metadata,local repository,none,approved
+Example Audio Draft,generated summary,local only,none,approved with offline TTS
+Example Remote Transcript,transcription sample,remote processing,internet,rejected for confidential tests

@@ -1,0 +1,2 @@
+# Optional extra source paths, one per line.
+# This demo keeps all indexed files under ./raw.

@@ -1,0 +1,4 @@
+{"date":"2026-02-12","event":"synthetic dataset imported","owner":"example knowledge team","impact":"none","evidence":"fictional files only"}
+{"date":"2026-02-13","event":"remote model loading disabled","owner":"example review team","impact":"offline policy enforced","evidence":"transformersAllowRemoteModels false"}
+{"date":"2026-02-14","event":"offline retrieval approval completed","owner":"example platform team","impact":"local cited retrieval allowed","evidence":"local-hash provider"}
+{"date":"2026-02-15","event":"audio summary test requested","owner":"example operations role","impact":"offline TTS required","evidence":"mimir-audio-summary skill"}

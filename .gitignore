@@ -1,9 +1,20 @@
 node_modules/
 coverage/
 .env
+.env.*
 .DS_Store
 private/**
 .kb/
 .mimir/
 *.tgz
 release-artifacts/
+
+# Tracked synthetic examples. Keep generated example runtime state ignored.
+!packages/mimir/examples/
+!packages/mimir/examples/**/
+!packages/mimir/examples/**/.kb/
+!packages/mimir/examples/**/.kb/config.json
+!packages/mimir/examples/**/.kb/sources.txt
+packages/mimir/examples/**/.kb/storage/
+packages/mimir/examples/**/.kb/access.log
+packages/mimir/examples/**/.mimir/

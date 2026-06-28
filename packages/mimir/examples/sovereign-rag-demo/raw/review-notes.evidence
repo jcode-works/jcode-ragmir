@@ -1,0 +1,11 @@
+Evidence memo for the synthetic usage review.
+
+The Example Review Team approved local-only retrieval because the source documents remain under the
+repository raw folder and the generated vector store remains under .kb/storage.
+
+The review rejected remote transcription and online text-to-speech for fictional confidential test
+datasets. The approved audio path is a generated briefing under .mimir/audio created with an offline
+engine.
+
+The test is considered complete when Mimir can retrieve the offline retrieval approval, dataset
+residency requirements, and incident containment evidence from separate file formats.

@@ -7,19 +7,37 @@ import YAML from "yaml"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const artifactsDir = path.join(repoRoot, "release-artifacts")
-const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"))
+const corePackageDir = "packages/mimir"
+const packageDirs = ["packages/mimir-tts", corePackageDir]
+const corePackageJson = await readPackageJson(corePackageDir)
 
 await rm(artifactsDir, { recursive: true, force: true })
 await mkdir(artifactsDir, { recursive: true })
 
-const pack = run("npm", ["pack", "--json", "--pack-destination", artifactsDir])
-const packed = JSON.parse(pack.stdout)
-const tarball = packed[0]?.filename
-if (!tarball) {
-  throw new Error(`npm pack did not return a tarball filename: ${pack.stdout}`)
+const packages = []
+for (const directory of packageDirs) {
+  const manifest = await readPackageJson(directory)
+  const pack = run(
+    "pnpm",
+    ["pack", "--json", "--pack-destination", artifactsDir],
+    packagePath(directory),
+  )
+  const packed = JSON.parse(pack.stdout)
+  const tarball = tarballFilename(packed)
+  if (!tarball) {
+    throw new Error(
+      `pnpm pack did not return a tarball filename for ${manifest.name}: ${pack.stdout}`,
+    )
+  }
+  packages.push({
+    name: manifest.name,
+    version: manifest.version,
+    directory,
+    tarball,
+  })
 }
 
-const sbomFile = `${packageJson.name.replace("/", "-").replace("@", "")}-${packageJson.version}.sbom.cdx.json`
+const sbomFile = `${packageNameForFile(corePackageJson.name)}-${corePackageJson.version}.sbom.cdx.json`
 await writeFile(
   path.join(artifactsDir, sbomFile),
   `${JSON.stringify(await buildCycloneDxSbom(), null, 2)}\n`,
@@ -37,12 +55,12 @@ await writeFile(
   path.join(artifactsDir, "release-manifest.json"),
   `${JSON.stringify(
     {
-      package: packageJson.name,
-      version: packageJson.version,
-      tarball,
+      package: corePackageJson.name,
+      version: corePackageJson.version,
+      packages,
       sbom: sbomFile,
       checksums: "SHA256SUMS",
-      provenance: "npm publish --provenance is enforced by the protected GitHub Actions workflow.",
+      provenance: "pnpm publish --provenance is enforced by the protected GitHub Actions workflow.",
     },
     null,
     2,
@@ -52,9 +70,27 @@ await writeFile(
 
 console.log(`Release artifacts written to ${path.relative(repoRoot, artifactsDir)}`)
 
-function run(command, args) {
+function packagePath(directory) {
+  return path.join(repoRoot, directory)
+}
+
+async function readPackageJson(directory) {
+  return JSON.parse(await readFile(path.join(packagePath(directory), "package.json"), "utf8"))
+}
+
+function tarballFilename(packed) {
+  const entry = Array.isArray(packed) ? packed[0] : packed
+  const filename = entry?.filename ?? entry?.path ?? entry?.name
+  return typeof filename === "string" ? path.basename(filename) : null
+}
+
+function packageNameForFile(packageName) {
+  return packageName.replace("/", "-").replace("@", "")
+}
+
+function run(command, args, cwd = repoRoot) {
   const result = spawnSync(command, args, {
-    cwd: repoRoot,
+    cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   })
@@ -95,14 +131,14 @@ async function buildCycloneDxSbom() {
     metadata: {
       timestamp: new Date().toISOString(),
       tools: [
-        { vendor: "JCode Labs", name: "Mimir release artifacts", version: packageJson.version },
+        { vendor: "JCode Labs", name: "Mimir release artifacts", version: corePackageJson.version },
       ],
       component: {
         type: "library",
-        name: packageJson.name,
-        version: packageJson.version,
-        licenses: [{ license: { id: packageJson.license } }],
-        purl: `pkg:npm/${packageJson.name}@${packageJson.version}`,
+        name: corePackageJson.name,
+        version: corePackageJson.version,
+        licenses: [{ license: { id: corePackageJson.license } }],
+        purl: `pkg:npm/${corePackageJson.name}@${corePackageJson.version}`,
       },
     },
     components,

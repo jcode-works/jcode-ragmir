@@ -1,89 +1,28 @@
 {
-  "name": "@jcode.labs/mimir",
-  "version": "0.3.0",
-  "description": "Mimir: open-source local-first memory and retrieval for private project knowledge.",
+  "name": "jcode-mimir",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Monorepo for the Mimir open-source local RAG packages.",
   "type": "module",
   "license": "MIT",
-  "author": {
-    "name": "Jean-Baptiste Thery",
-    "url": "https://github.com/jb-thery"
-  },
-  "keywords": [
-    "jcode",
-    "mimir",
-    "open-source",
-    "rag",
-    "knowledge-base",
-    "local-first",
-    "mcp",
-    "ollama",
-    "lancedb"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/jcode-works/jcode-mimir.git"
-  },
-  "homepage": "https://github.com/jcode-works/jcode-mimir#readme",
-  "bugs": {
-    "url": "https://github.com/jcode-works/jcode-mimir/issues"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "bin": {
-    "kb": "dist/cli.js"
-  },
-  "files": [
-    "dist",
-    "skills",
-    "README.md",
-    "SECURITY-HARDENING.md",
-    "CHANGELOG.md",
-    "SECURITY.md"
-  ],
-  "publishConfig": {
-    "access": "public"
-  },
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "check": "tsc -p tsconfig.json --noEmit",
+    "build": "pnpm --filter @jcode.labs/mimir-tts build && pnpm --filter @jcode.labs/mimir build",
+    "check": "pnpm --filter @jcode.labs/mimir-tts check && pnpm --filter @jcode.labs/mimir check",
     "commitlint": "commitlint --from=HEAD~1 --to=HEAD --verbose",
     "format": "biome format --write .",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
-    "package:check": "publint",
+    "package:check": "pnpm --filter @jcode.labs/mimir-tts package:check && pnpm --filter @jcode.labs/mimir package:check",
     "release:artifacts": "node scripts/release-artifacts.mjs",
-    "smoke": "node scripts/smoke.mjs",
-    "test": "vitest run",
+    "smoke": "node scripts/smoke.mjs && pnpm --filter @jcode.labs/mimir-tts smoke",
+    "test": "pnpm --filter @jcode.labs/mimir-tts test && pnpm --filter @jcode.labs/mimir test",
     "validate": "pnpm lint && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check && pnpm release:artifacts"
-  },
-  "dependencies": {
-    "@lancedb/lancedb": "^0.30.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "commander": "^14.0.2",
-    "fast-glob": "^3.3.3",
-    "html-to-text": "^9.0.5",
-    "ollama": "^0.6.3",
-    "picocolors": "^1.1.1",
-    "unpdf": "^1.4.0",
-    "yaml": "^2.8.1",
-    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
     "@commitlint/cli": "^21.1.0",
     "@commitlint/config-conventional": "^21.1.0",
-    "@types/html-to-text": "^9.0.4",
-    "@types/node": "^24.10.1",
-    "publint": "^0.3.21",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.15"
-  },
-  "packageManager": "pnpm@11.9.0"
+    "yaml": "^2.8.1"
+  }
 }

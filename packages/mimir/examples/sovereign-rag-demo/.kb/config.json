@@ -1,0 +1,22 @@
+{
+  "rawDir": "raw",
+  "storageDir": ".kb/storage",
+  "sourcesFile": ".kb/sources.txt",
+  "accessLogPath": ".kb/access.log",
+  "embeddingModelPath": ".mimir/models",
+  "tableName": "chunks",
+  "embeddingProvider": "local-hash",
+  "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
+  "transformersAllowRemoteModels": false,
+  "redaction": {
+    "enabled": true,
+    "builtIn": true,
+    "patterns": []
+  },
+  "accessLog": true,
+  "mcpMaxTopK": 10,
+  "topK": 5,
+  "chunkSize": 900,
+  "chunkOverlap": 120,
+  "includeExtensions": [".evidence"]
+}

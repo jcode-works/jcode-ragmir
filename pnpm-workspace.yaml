@@ -1,0 +1,10 @@
+packages:
+  - "."
+  - "packages/*"
+
+strictDepBuilds: true
+
+allowBuilds:
+  onnxruntime-node: true
+  protobufjs: true
+  sharp: true
