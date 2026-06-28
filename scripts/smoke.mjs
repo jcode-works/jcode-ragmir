@@ -50,6 +50,13 @@ try {
   )
   assertIncludes(fixedDoctor.stdout, "errors=0", "doctor --fix should surface ingest errors")
 
+  const readyDoctorFix = await runKb(["doctor", "--fix"], tempRoot)
+  assertIncludes(
+    readyDoctorFix.stdout,
+    "already ready chunks=",
+    "doctor --fix should report an already-ready index clearly",
+  )
+
   const search = await runKb(["search", "French tax residency", "--top-k", "1"], tempRoot)
   assertIncludes(search.stdout, "tax.md", "search should retrieve the tax document")
   assertIncludes(search.stdout, "French tax residency", "search should return indexed content")

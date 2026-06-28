@@ -503,6 +503,8 @@ function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: str
     console.log(
       `  - ingested indexedFiles=${result.ingested.indexedFiles} chunks=${result.ingested.chunks} errors=${result.ingested.errors.length}`,
     )
+  } else if (result.doctor.ready) {
+    console.log(`  - already ready chunks=${result.doctor.chunksIndexed}`)
   } else {
     console.log("  - skipped; add supported files or run doctor --fix when ready")
   }
