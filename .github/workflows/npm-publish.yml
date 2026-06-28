@@ -28,7 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          conclusion="$(gh run list --workflow ci.yml --branch main --commit "$GITHUB_SHA" --json conclusion --jq '.[0].conclusion')"
+          conclusion="$(gh run list --repo jcode-works/jcode-mimir --workflow ci.yml --branch main --commit "$GITHUB_SHA" --json conclusion --jq '.[0].conclusion')"
           test "$conclusion" = "success"
 
       - name: Checkout
