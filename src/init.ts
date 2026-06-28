@@ -15,7 +15,7 @@ const DEFAULT_CONFIG = {
   chunkOverlap: 150,
 };
 
-const GITIGNORE_BLOCK = `\n# JCode Knowledge Base\n.kb/storage/\n.kb/cache/\n.kb/*.local.json\nprivate/**\n!private/\n!private/README.md\n!private/**/\n!private/**/.gitkeep\n`;
+const GITIGNORE_BLOCK = `\n# JCode Mimir\n.kb/storage/\n.kb/cache/\n.kb/*.local.json\nprivate/**\n!private/\n!private/README.md\n!private/**/\n!private/**/.gitkeep\n`;
 
 export async function initProject(cwd = process.cwd()): Promise<string[]> {
   const root = path.resolve(cwd);
@@ -56,7 +56,7 @@ export async function initProject(cwd = process.cwd()): Promise<string[]> {
   const currentGitignore = existsSync(gitignorePath)
     ? await readFile(gitignorePath, "utf8")
     : "";
-  if (!currentGitignore.includes("# JCode Knowledge Base")) {
+  if (!currentGitignore.includes("# JCode Mimir")) {
     await writeFile(gitignorePath, `${currentGitignore.trimEnd()}${GITIGNORE_BLOCK}`, "utf8");
     created.push(path.relative(root, gitignorePath));
   }

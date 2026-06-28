@@ -1,17 +1,17 @@
 {
-  "name": "@jcode-works/knowledge-base",
+  "name": "@jcode-works/mimir",
   "version": "0.1.0",
-  "description": "Reusable local-first RAG knowledge base for private project documents.",
+  "description": "Local-first memory and retrieval for private project knowledge.",
   "type": "module",
   "license": "UNLICENSED",
   "author": "Jean-Baptiste Thery",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jcode-works/jcode-knowledge-base.git"
+    "url": "git+https://github.com/jcode-works/jcode-mimir.git"
   },
-  "homepage": "https://github.com/jcode-works/jcode-knowledge-base#readme",
+  "homepage": "https://github.com/jcode-works/jcode-mimir#readme",
   "bugs": {
-    "url": "https://github.com/jcode-works/jcode-knowledge-base/issues"
+    "url": "https://github.com/jcode-works/jcode-mimir/issues"
   },
   "engines": {
     "node": ">=20"
@@ -29,6 +29,9 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",

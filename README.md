@@ -1,8 +1,8 @@
-# JCode Knowledge Base
+# JCode Mimir
 
-Reusable local-first RAG knowledge base for private project documents.
+Local-first memory and retrieval for private project knowledge.
 
-This package provides a TypeScript CLI and library that can be installed in any Node.js
+JCode Mimir provides a TypeScript CLI and library that can be installed in any Node.js
 repository. It indexes files from the target repository, stores vectors locally with LanceDB,
 and uses Ollama for local embeddings and answers.
 
@@ -27,16 +27,22 @@ Optional answer model:
 ollama pull gemma4
 ```
 
+## Install From npm
+
+```bash
+pnpm add -D @jcode-works/mimir
+```
+
 ## Install From Git
 
 ```bash
-pnpm add -D git+ssh://git@github.com/jcode-works/jcode-knowledge-base.git
+pnpm add -D git+ssh://git@github.com/jcode-works/jcode-mimir.git
 ```
 
 For local development:
 
 ```bash
-pnpm add -D file:../jcode-knowledge-base
+pnpm add -D file:../jcode-mimir
 ```
 
 Before creating an npm tarball later, run:
@@ -124,7 +130,7 @@ Environment overrides:
 ## Library API
 
 ```ts
-import { ingest, search, ask } from "@jcode-works/knowledge-base"
+import { ingest, search, ask } from "@jcode-works/mimir"
 
 await ingest({ rebuild: true })
 const results = await search("vendor invoice status")

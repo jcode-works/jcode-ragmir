@@ -1,4 +1,4 @@
-# JCode Knowledge Base
+# JCode Mimir
 
 ## Working Rules
 
