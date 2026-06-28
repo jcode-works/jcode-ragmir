@@ -56,6 +56,9 @@ jobs:
       - name: Verify npm package metadata
         run: pnpm package:check
 
+      - name: Generate release verification artifacts
+        run: pnpm release:artifacts
+
   commitlint:
     name: Commitlint
     if: github.event_name == 'pull_request'

@@ -17,6 +17,7 @@ try {
 
   const ingest = await runKb(["ingest"], tempRoot)
   assertIncludes(ingest.stdout, "errors=0", "ingest should complete without parse errors")
+  assertIncludes(ingest.stdout, "redactions=", "ingest should report DLP redactions")
 
   const search = await runKb(["search", "French tax residency", "--top-k", "1"], tempRoot)
   assertIncludes(search.stdout, "tax.md", "search should retrieve the tax document")
@@ -36,6 +37,18 @@ try {
   assertIncludes(audit.stdout, "missingFromIndex=0", "audit should find no missing files")
   assertIncludes(audit.stdout, "staleInIndex=0", "audit should find no stale files")
 
+  const security = await runKb(["security-audit", "--json"], tempRoot)
+  assertIncludes(
+    security.stdout,
+    '"zeroTelemetry": true',
+    "security audit should report no telemetry",
+  )
+  assertIncludes(
+    security.stdout,
+    '"classification": "loopback"',
+    "security audit should classify local Ollama",
+  )
+
   await runKb(["install-skill"], tempRoot)
   const skill = await readFile(path.join(tempRoot, ".mimir", "skills", "mimir", "SKILL.md"), "utf8")
   assertIncludes(skill, "name: mimir", "install-skill should copy the bundled skill")
@@ -44,6 +57,9 @@ try {
   assertIncludes(gitignore, ".mimir/", "install-skill should ignore generated agent kit files")
 
   await smokeMcp(tempRoot)
+
+  const destroy = await runKb(["destroy-index", "--yes"], tempRoot)
+  assertIncludes(destroy.stdout, "removed=true", "destroy-index should remove generated storage")
   console.log("Smoke test passed.")
 } finally {
   await fakeOllama.close()
@@ -78,6 +94,7 @@ async function writeFixtureDocuments(cwd) {
       "",
       "French tax residency risk is tied to French clients, a French company, and French invoicing.",
       "The document should be retrieved when the user asks about French tax residency.",
+      "Sensitive maintainer email: maintainer@example.com.",
     ].join("\n"),
     "utf8",
   )

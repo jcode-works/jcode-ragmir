@@ -4,6 +4,7 @@ import { z } from "zod"
 import { loadConfig } from "./config.js"
 import { audit } from "./ingest.js"
 import { ask, search } from "./query.js"
+import { securityAudit } from "./security.js"
 import { countRows } from "./store.js"
 import { VERSION } from "./version.js"
 
@@ -30,6 +31,9 @@ export async function serveMcp(cwd = process.cwd()): Promise<void> {
         sourcesFile: config.sourcesFile,
         embedModel: config.embedModel,
         llmModel: config.llmModel,
+        networkPolicy: config.networkPolicy,
+        redactionEnabled: config.redaction.enabled,
+        mcpMaxTopK: config.mcpMaxTopK,
         chunksIndexed,
       }
 
@@ -47,7 +51,7 @@ export async function serveMcp(cwd = process.cwd()): Promise<void> {
         topK: z.number().int().positive().optional(),
       }),
     },
-    async ({ query, topK }) => textResult(await search(query, searchOptions(cwd, topK))),
+    async ({ query, topK }) => textResult(await search(query, await searchOptions(cwd, topK))),
   )
 
   server.registerTool(
@@ -61,7 +65,7 @@ export async function serveMcp(cwd = process.cwd()): Promise<void> {
         topK: z.number().int().positive().optional(),
       }),
     },
-    async ({ query, topK }) => textResult(await ask(query, searchOptions(cwd, topK))),
+    async ({ query, topK }) => textResult(await ask(query, await searchOptions(cwd, topK))),
   )
 
   server.registerTool(
@@ -72,6 +76,16 @@ export async function serveMcp(cwd = process.cwd()): Promise<void> {
       inputSchema: z.object({}),
     },
     async () => textResult(await audit(cwd)),
+  )
+
+  server.registerTool(
+    "mimir_security_audit",
+    {
+      title: "Mimir Security Audit",
+      description: "Show local privacy, network, redaction, MCP, and gitignore posture.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await securityAudit(cwd)),
   )
 
   await server.connect(new StdioServerTransport())
@@ -88,6 +102,11 @@ function textResult(value: unknown): { content: Array<{ type: "text"; text: stri
   }
 }
 
-function searchOptions(cwd: string, topK: number | undefined): { cwd: string; topK?: number } {
-  return topK === undefined ? { cwd } : { cwd, topK }
+async function searchOptions(
+  cwd: string,
+  topK: number | undefined,
+): Promise<{ cwd: string; topK?: number }> {
+  const config = await loadConfig(cwd)
+  const boundedTopK = Math.min(topK ?? config.topK, config.mcpMaxTopK)
+  return { cwd, topK: boundedTopK }
 }

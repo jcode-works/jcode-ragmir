@@ -5,13 +5,43 @@ export interface Config {
   rawDir: string
   storageDir: string
   sourcesFile: string
+  accessLogPath: string
   tableName: string
   ollamaHost: string
+  networkPolicy: NetworkPolicy
   embedModel: string
   llmModel: string
+  redaction: RedactionConfig
+  accessLog: boolean
+  mcpMaxTopK: number
   topK: number
   chunkSize: number
   chunkOverlap: number
+}
+
+export type NetworkPolicy = "local-only" | "allow-private" | "allow-any"
+
+export interface RedactionConfig {
+  enabled: boolean
+  builtIn: boolean
+  patterns: RedactionPattern[]
+}
+
+export interface RedactionPattern {
+  name: string
+  pattern: string
+  flags?: string | undefined
+  replacement?: string | undefined
+}
+
+export interface RedactionCount {
+  name: string
+  count: number
+}
+
+export interface HostClassification {
+  kind: "loopback" | "private" | "remote" | "invalid"
+  host: string
 }
 
 export interface SourceFile {
@@ -53,6 +83,7 @@ export interface IngestResult {
   indexedFiles: number
   chunks: number
   skippedFiles: number
+  redactions: number
   errors: Array<{ path: string; message: string }>
 }
 
@@ -80,4 +111,47 @@ export interface AuditReport {
   missingFromIndex: string[]
   staleInIndex: string[]
   totalChunks: number
+}
+
+export interface DestroyIndexResult {
+  storageDir: string
+  removed: boolean
+  note: string
+}
+
+export interface SecurityAuditReport {
+  projectRoot: string
+  zeroTelemetry: true
+  network: {
+    policy: NetworkPolicy
+    ollamaHost: string
+    host: string
+    classification: HostClassification["kind"]
+  }
+  redaction: {
+    enabled: boolean
+    builtIn: boolean
+    customPatterns: string[]
+  }
+  accessLog: {
+    enabled: boolean
+    path: string
+    storesRawQueries: false
+  }
+  storage: {
+    path: string
+    gitIgnored: boolean
+    encryptedAtRest: "external-required"
+  }
+  mcp: {
+    maxTopK: number
+    destructiveToolsExposed: false
+  }
+  gitignore: {
+    kbIgnored: boolean
+    mimirIgnored: boolean
+    privateIgnored: boolean
+  }
+  recommendations: string[]
+  warnings: string[]
 }

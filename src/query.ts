@@ -1,6 +1,8 @@
 import { Ollama } from "ollama"
+import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { embedText } from "./embeddings.js"
+import { assertNetworkPolicy } from "./network.js"
 import { openRowsTable } from "./store.js"
 import type { AskResult, SearchOptions, SearchResult } from "./types.js"
 
@@ -25,13 +27,20 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     .limit(options.topK ?? config.topK)
     .toArray()) as SearchRow[]
 
-  return rows.map((row) => ({
+  const results = rows.map((row) => ({
     source: row.source,
     relativePath: row.relativePath,
     chunkIndex: row.chunkIndex,
     text: row.text,
     distance: typeof row._distance === "number" ? row._distance : null,
   }))
+  await recordAccess(config, {
+    action: "search",
+    query,
+    topK: options.topK ?? config.topK,
+    resultCount: results.length,
+  })
+  return results
 }
 
 export async function ask(query: string, options: SearchOptions = {}): Promise<AskResult> {
@@ -52,6 +61,7 @@ export async function ask(query: string, options: SearchOptions = {}): Promise<A
     )
     .join("\n\n---\n\n")
 
+  assertNetworkPolicy(config)
   const client = new Ollama({ host: config.ollamaHost })
   const response = await client.chat({
     model: config.llmModel,
@@ -67,6 +77,13 @@ export async function ask(query: string, options: SearchOptions = {}): Promise<A
       },
     ],
     stream: false,
+  })
+
+  await recordAccess(config, {
+    action: "ask",
+    query,
+    topK: options.topK ?? config.topK,
+    resultCount: sources.length,
   })
 
   return {

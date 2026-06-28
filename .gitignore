@@ -3,6 +3,7 @@ coverage/
 .env
 .DS_Store
 private/**
-.kb/storage/
-.kb/cache/
+.kb/
+.mimir/
 *.tgz
+release-artifacts/

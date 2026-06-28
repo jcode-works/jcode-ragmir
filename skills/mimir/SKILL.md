@@ -20,12 +20,15 @@ private/          # raw documents to ingest
 .kb/config.json   # local Mimir config
 .kb/sources.txt   # optional extra source paths
 .kb/storage/      # generated local index
+.kb/access.log    # metadata-only access log
 ```
 
 ## Data Safety
 
 - Do not commit raw documents, secrets, tax IDs, scans, bank documents, tokens, or generated vector stores.
-- Keep `private/**` and `.kb/storage/**` ignored by Git.
+- Keep `private/**`, `.kb/`, and `.mimir/` ignored by Git.
+- Treat `kb search`, `kb ask`, and MCP results as sensitive because they can contain private
+  source passages even when redaction is enabled.
 - Prefer summaries and citations over dumping long private passages into the chat.
 - If the user asks for a high-stakes answer, identify which facts came from Mimir and which still require professional or official verification.
 
@@ -35,6 +38,7 @@ From the repository root:
 
 ```bash
 pnpm exec kb status
+pnpm exec kb security-audit
 ```
 
 If Mimir is not installed:
@@ -58,10 +62,12 @@ After documents are added or changed:
 ```bash
 pnpm exec kb ingest
 pnpm exec kb audit
+pnpm exec kb security-audit
 pnpm exec kb status
 ```
 
-The audit must show no missing or stale supported files before relying on the index.
+The audit must show no missing or stale supported files before relying on the index. The security
+audit should not show warnings before relying on Mimir for sensitive work.
 
 ## Query Workflow
 
@@ -101,8 +107,12 @@ Available MCP tools:
 - `mimir_search`: retrieve source passages.
 - `mimir_ask`: synthesize an answer with local citations.
 - `mimir_audit`: compare source files with the current index.
+- `mimir_security_audit`: inspect local privacy, network, redaction, MCP, and gitignore posture.
 
 Prefer MCP tools over shell commands when the agent runtime provides them. Use shell commands when MCP is unavailable.
+
+MCP is read-focused and intentionally does not expose index deletion. Use `pnpm exec kb
+destroy-index --yes` from the shell when the user explicitly wants to remove the generated index.
 
 ## Installing This Skill Into A Repository
 

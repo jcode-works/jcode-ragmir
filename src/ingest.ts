@@ -1,10 +1,19 @@
+import { recordAccess } from "./access-log.js"
 import { chunkDocument } from "./chunking.js"
 import { loadConfig } from "./config.js"
 import { embedTexts } from "./embeddings.js"
 import { listSourceFiles } from "./files.js"
 import { parseFile } from "./parsing.js"
+import { redactText, totalRedactions } from "./redaction.js"
 import { openRowsTable, writeRows } from "./store.js"
-import type { AuditReport, IngestOptions, IngestResult, TextChunk, VectorRow } from "./types.js"
+import type {
+  AuditReport,
+  IngestOptions,
+  IngestResult,
+  RedactionCount,
+  TextChunk,
+  VectorRow,
+} from "./types.js"
 
 const EMBED_BATCH_SIZE = 32
 
@@ -13,12 +22,19 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
   const files = await listSourceFiles(config)
   const allChunks: TextChunk[] = []
   const errors: IngestResult["errors"] = []
+  const redactionCounts: RedactionCount[] = []
   let skippedFiles = 0
 
   for (const file of files) {
     try {
       const parsed = await parseFile(file)
-      const chunks = chunkDocument(parsed, config.chunkSize, config.chunkOverlap)
+      const redacted = redactText(parsed.text, config)
+      redactionCounts.push(...redacted.counts)
+      const chunks = chunkDocument(
+        { ...parsed, text: redacted.text },
+        config.chunkSize,
+        config.chunkOverlap,
+      )
       if (chunks.length === 0) {
         skippedFiles += 1
       }
@@ -48,11 +64,17 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
   }
 
   await writeRows(rows, config)
+  await recordAccess(config, {
+    action: "ingest",
+    resultCount: rows.length,
+    redactions: totalRedactions(redactionCounts),
+  })
 
   return {
     indexedFiles: new Set(rows.map((row) => row.relativePath)).size,
     chunks: rows.length,
     skippedFiles,
+    redactions: totalRedactions(redactionCounts),
     errors,
   }
 }

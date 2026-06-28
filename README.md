@@ -110,6 +110,7 @@ pnpm exec kb ingest
 pnpm exec kb search "vendor invoice status"
 pnpm exec kb ask "What do the documents prove?"
 pnpm exec kb audit
+pnpm exec kb security-audit
 pnpm exec kb status
 ```
 
@@ -121,6 +122,7 @@ npx kb ingest
 npx kb search "vendor invoice status"
 npx kb ask "What do the documents prove?"
 npx kb audit
+npx kb security-audit
 npx kb status
 ```
 
@@ -157,6 +159,7 @@ MCP tools exposed:
 - `mimir_search`
 - `mimir_ask`
 - `mimir_audit`
+- `mimir_security_audit`
 
 Print the bundled skill path from the installed package:
 
@@ -175,11 +178,39 @@ your-project/
   .kb/config.json   # local config
   .kb/sources.txt   # optional extra source paths
   .kb/storage/      # generated LanceDB index
+  .kb/access.log    # metadata-only access log
 ```
 
 The package never ships project documents. `kb init` adds gitignore entries for `.kb/`
 and `private/**`, and `kb install-skill` keeps `.mimir/` ignored as generated local agent
 state.
+
+## Confidentiality Defaults
+
+Mimir is designed for private repositories and sensitive local evidence.
+
+- Zero telemetry: no analytics or document content is sent to JCode Labs.
+- Local-only network policy: Ollama must be on loopback by default.
+- Redaction before indexing: common secrets and identifiers are redacted before chunks are
+  embedded and stored.
+- Metadata-only access logs: query hashes and action metadata are logged, not raw queries.
+- MCP is read-focused and bounded by `mcpMaxTopK`.
+- Generated local state is ignored by Git.
+
+Run:
+
+```bash
+pnpm exec kb security-audit --strict
+```
+
+Remove the generated vector index:
+
+```bash
+pnpm exec kb destroy-index --yes
+```
+
+For air-gapped operation, release verification, secure deletion limits, and threat model details,
+read [`SECURITY-HARDENING.md`](./SECURITY-HARDENING.md).
 
 ## Supported Files
 
@@ -200,10 +231,19 @@ state.
   "rawDir": "private",
   "storageDir": ".kb/storage",
   "sourcesFile": ".kb/sources.txt",
+  "accessLogPath": ".kb/access.log",
   "tableName": "chunks",
   "ollamaHost": "http://localhost:11434",
+  "networkPolicy": "local-only",
   "embedModel": "nomic-embed-text",
   "llmModel": "gemma4:latest",
+  "redaction": {
+    "enabled": true,
+    "builtIn": true,
+    "patterns": []
+  },
+  "accessLog": true,
+  "mcpMaxTopK": 10,
   "topK": 5,
   "chunkSize": 1200,
   "chunkOverlap": 150
@@ -215,9 +255,15 @@ Environment overrides:
 - `KB_RAW_DIR`
 - `KB_STORAGE_DIR`
 - `KB_SOURCES_FILE`
+- `KB_ACCESS_LOG_PATH`
 - `KB_OLLAMA_HOST`
+- `KB_NETWORK_POLICY`
 - `KB_EMBED_MODEL`
 - `KB_LLM_MODEL`
+- `KB_REDACTION_ENABLED`
+- `KB_REDACTION_BUILT_IN`
+- `KB_ACCESS_LOG`
+- `KB_MCP_MAX_TOP_K`
 - `KB_TOP_K`
 - `KB_CHUNK_SIZE`
 - `KB_CHUNK_OVERLAP`
@@ -235,6 +281,9 @@ const answer = await ask("What documents support the project timeline?")
 ## Privacy
 
 - Embeddings and answers use local Ollama by default.
+- Remote Ollama hosts are blocked unless `networkPolicy` explicitly allows them.
+- Built-in redaction runs before indexing by default.
+- Access logs store query hashes, not raw queries.
 - The vector index is stored locally.
 - Raw private documents should stay in the target repository's ignored `private/` folder.
 - Do not put secrets or scans inside this package repository.

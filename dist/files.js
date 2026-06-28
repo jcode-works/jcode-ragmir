@@ -30,7 +30,7 @@ export async function listSourceFiles(config) {
             onlyFiles: true,
             dot: false,
             followSymbolicLinks: false,
-            ignore: ["**/.git/**", "**/node_modules/**", "**/.kb/storage/**"],
+            ignore: ["**/.git/**", "**/node_modules/**", "**/.kb/**", "**/.mimir/**"],
         });
         for (const absolutePath of entries) {
             const extension = path.extname(absolutePath).toLowerCase();
