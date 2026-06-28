@@ -42,5 +42,11 @@ describe("setupProject", () => {
     expect(first.ingested).toBeNull()
     expect(second.ingested?.indexedFiles).toBe(1)
     expect(second.doctor.ready).toBe(true)
+    expect(second.doctor.nextSteps).toContain(
+      "Connect Claude Code with .mimir/claude-mcp-server.json, Codex with .mimir/codex-mcp.toml, or another AI with .mimir/mcp.json.",
+    )
+    expect(second.nextSteps).toContain(
+      "Connect Claude Code with .mimir/claude-mcp-server.json, Codex with .mimir/codex-mcp.toml, or another AI with .mimir/mcp.json.",
+    )
   })
 })

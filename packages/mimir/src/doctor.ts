@@ -123,7 +123,10 @@ function nextActions(input: NextActionInput): string[] {
       `Run \`${input.run(["ask", '"your question"'])}\` to produce cited retrieval context.`,
     )
     if (input.agentKitInstalled) {
-      steps.push("Connect an AI with .mimir/mcp.json or load .mimir/skills/mimir/.")
+      steps.push(
+        "Connect Claude Code with .mimir/claude-mcp-server.json, Codex with .mimir/codex-mcp.toml, or another AI with .mimir/mcp.json.",
+      )
+      steps.push("Load .mimir/skills/mimir/ in agents that support skill folders.")
     } else {
       steps.push(
         `Run \`${input.run(["install-skill"])}\` if an AI agent should use the local knowledge base.`,
