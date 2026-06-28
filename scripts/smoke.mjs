@@ -12,19 +12,43 @@ const MCP_REQUEST_TIMEOUT_MS = 10_000
 const MCP_CLOSE_TIMEOUT_MS = 2_000
 
 try {
-  const init = await runKb(["init"], tempRoot)
-  assertIncludes(init.stdout, "Next steps:", "init should tell users what to do next")
+  const setup = await runKb(["setup"], tempRoot)
+  assertIncludes(
+    setup.stdout,
+    "Mimir setup complete.",
+    "setup should complete first-run onboarding",
+  )
+  assertIncludes(setup.stdout, "Agent integration:", "setup should install the agent kit")
+  assertIncludes(setup.stdout, "MCP config:", "setup should point users to the MCP config")
 
   const initialDoctor = await runKb(["doctor"], tempRoot)
   assertIncludes(initialDoctor.stdout, "supportedFiles=0", "doctor should ignore generated README")
   assertIncludes(initialDoctor.stdout, "nextSteps:", "doctor should print actionable next steps")
+  assertIncludes(
+    initialDoctor.stdout,
+    "agentKitInstalled=true",
+    "setup should leave the agent kit installed",
+  )
+
+  const mcpConfig = await readFile(path.join(tempRoot, ".mimir", "mcp.json"), "utf8")
+  assertIncludes(mcpConfig, '"command": "pnpm"', "default generated MCP config should use pnpm")
+  assertIncludes(
+    mcpConfig,
+    '"serve-mcp"',
+    "generated MCP config should launch the Mimir MCP server",
+  )
 
   await configureProject(tempRoot)
   await writeFixtureDocuments(tempRoot)
 
-  const ingest = await runKb(["ingest"], tempRoot)
-  assertIncludes(ingest.stdout, "errors=0", "ingest should complete without parse errors")
-  assertIncludes(ingest.stdout, "redactions=", "ingest should report DLP redactions")
+  const fixedDoctor = await runKb(["doctor", "--fix"], tempRoot)
+  assertIncludes(fixedDoctor.stdout, "Mimir repair complete.", "doctor --fix should repair setup")
+  assertIncludes(
+    fixedDoctor.stdout,
+    "ingested indexedFiles=2",
+    "doctor --fix should ingest supported files when safe",
+  )
+  assertIncludes(fixedDoctor.stdout, "errors=0", "doctor --fix should surface ingest errors")
 
   const search = await runKb(["search", "French tax residency", "--top-k", "1"], tempRoot)
   assertIncludes(search.stdout, "tax.md", "search should retrieve the tax document")

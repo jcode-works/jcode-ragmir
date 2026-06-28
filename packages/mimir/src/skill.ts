@@ -3,6 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { DEFAULT_SKILL_TARGET_DIR, MIMIR_DIR } from "./defaults.js"
 import { ensureMimirGitignore } from "./gitignore.js"
+import { kbCommand } from "./package-manager.js"
 
 export interface InstallSkillOptions {
   cwd?: string
@@ -39,8 +40,24 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
   await cp(bundledSkillPath(PRIMARY_SKILL_NAME), skillPath, { recursive: true, force: true })
   await cp(bundledSkillPath(AUDIO_SKILL_NAME), audioSkillPath, { recursive: true, force: true })
 
-  await writeFile(mcpConfigPath, `${JSON.stringify(mcpConfig(cwd), null, 2)}\n`, "utf8")
-  await writeFile(readmePath, agentKitReadme(skillPath, audioSkillPath, mcpConfigPath), "utf8")
+  const serveCommand = await kbCommand(cwd, ["serve-mcp"])
+  const doctorCommand = await kbCommand(cwd, ["doctor"])
+  await writeFile(
+    mcpConfigPath,
+    `${JSON.stringify(mcpConfig(cwd, serveCommand), null, 2)}\n`,
+    "utf8",
+  )
+  await writeFile(
+    readmePath,
+    agentKitReadme(
+      skillPath,
+      audioSkillPath,
+      mcpConfigPath,
+      serveCommand.display,
+      doctorCommand.display,
+    ),
+    "utf8",
+  )
   const wroteGitignore = await ensureMimirGitignore(cwd)
 
   const written = [
@@ -63,19 +80,25 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
   }
 }
 
-function mcpConfig(cwd: string): unknown {
+function mcpConfig(cwd: string, serveCommand: Awaited<ReturnType<typeof kbCommand>>): unknown {
   return {
     mcpServers: {
       mimir: {
-        command: "pnpm",
-        args: ["exec", "kb", "serve-mcp"],
+        command: serveCommand.command,
+        args: serveCommand.args,
         cwd,
       },
     },
   }
 }
 
-function agentKitReadme(skillPath: string, audioSkillPath: string, mcpConfigPath: string): string {
+function agentKitReadme(
+  skillPath: string,
+  audioSkillPath: string,
+  mcpConfigPath: string,
+  serveCommand: string,
+  doctorCommand: string,
+): string {
   return `# Mimir Agent Kit
 
 This folder contains portable agent instructions for Mimir.
@@ -111,13 +134,13 @@ ${mcpConfigPath}
 Use the MCP server when your agent supports MCP tools. The server command is:
 
 \`\`\`bash
-pnpm exec kb serve-mcp
+${serveCommand}
 \`\`\`
 
 Before relying on retrieved context, run:
 
 \`\`\`bash
-pnpm exec kb doctor
+${doctorCommand}
 \`\`\`
 
 `

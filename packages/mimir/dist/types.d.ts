@@ -1,4 +1,5 @@
 import type { PathLike } from "node:fs";
+import type { PackageManager } from "./package-manager.js";
 export interface Config {
     projectRoot: string;
     rawDir: string;
@@ -107,6 +108,9 @@ export interface DestroyIndexResult {
 export interface DoctorReport {
     projectRoot: string;
     initialized: boolean;
+    packageManager: PackageManager;
+    runCommand: string;
+    agentKitInstalled: boolean;
     rawDir: string;
     storageDir: string;
     embeddingProvider: EmbeddingProvider;

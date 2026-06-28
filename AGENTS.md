@@ -21,6 +21,9 @@
 - Keep public positioning focused on sovereign local RAG for confidential datasets and AI agents.
   Avoid claiming universal binary-file support; unsupported proprietary formats need extraction or
   dedicated parsers.
+- Keep first-run UX centered on `kb setup` for full onboarding and `kb doctor --fix` for safe
+  repairs. `kb init`, `kb install-skill`, and `kb ingest` remain available as explicit lower-level
+  commands.
 - Keep product documentation canonical in the root `README.md`. Package README files under
   `packages/*/README.md` are intentionally minimal npm entrypoints and must link clearly to the
   GitHub root README because npm displays package README files separately.

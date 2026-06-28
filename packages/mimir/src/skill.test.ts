@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -44,5 +44,21 @@ describe("installSkill", () => {
     expect(first.written).toContain(path.join(".mimir", "skills", "mimir-audio-summary"))
     expect(gitignore.match(/^\.kb\/$/gm)).toHaveLength(1)
     expect(gitignore.match(/^\.mimir\/$/gm)).toHaveLength(1)
+  })
+
+  it("uses the target repository package manager in generated MCP config", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-skill-"))
+    tempDirs.push(root)
+    await writeFile(path.join(root, "package-lock.json"), "{}\n", "utf8")
+
+    const result = await installSkill({ cwd: root })
+    const mcpConfig = JSON.parse(await readFile(result.mcpConfigPath, "utf8")) as {
+      mcpServers: { mimir: { command: string; args: string[] } }
+    }
+    const readme = await readFile(result.readmePath, "utf8")
+
+    expect(mcpConfig.mcpServers.mimir.command).toBe("npx")
+    expect(mcpConfig.mcpServers.mimir.args).toEqual(["kb", "serve-mcp"])
+    expect(readme).toContain("npx kb serve-mcp")
   })
 })

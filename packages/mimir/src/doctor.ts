@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
 import { findProjectRoot, loadConfig } from "./config.js"
-import { CONFIG_PATH } from "./defaults.js"
+import { CONFIG_PATH, MIMIR_DIR } from "./defaults.js"
 import { audit } from "./ingest.js"
+import { kbCommand } from "./package-manager.js"
 import { securityAudit } from "./security.js"
 import { countRows } from "./store.js"
 import type { DoctorReport } from "./types.js"
@@ -11,6 +12,8 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
   const projectRoot = findProjectRoot(cwd)
   const initialized = existsSync(path.join(projectRoot, CONFIG_PATH))
   const config = await loadConfig(cwd)
+  const command = await kbCommand(projectRoot, [])
+  const agentKitInstalled = isAgentKitInstalled(projectRoot)
   const [auditReport, securityReport, chunksIndexed] = await Promise.all([
     audit(projectRoot),
     securityAudit(projectRoot),
@@ -24,11 +27,16 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     missingFromIndex: auditReport.missingFromIndex.length,
     staleInIndex: auditReport.staleInIndex.length,
     warnings: securityReport.warnings.length,
+    agentKitInstalled,
+    run: (args) => command.display + (args.length > 0 ? ` ${args.join(" ")}` : ""),
   })
 
   return {
     projectRoot: config.projectRoot,
     initialized,
+    packageManager: command.packageManager,
+    runCommand: command.display,
+    agentKitInstalled,
     rawDir: config.rawDir,
     storageDir: config.storageDir,
     embeddingProvider: config.embeddingProvider,
@@ -58,13 +66,15 @@ interface NextActionInput {
   missingFromIndex: number
   staleInIndex: number
   warnings: number
+  agentKitInstalled: boolean
+  run: (args: string[]) => string
 }
 
 function nextActions(input: NextActionInput): string[] {
   const steps: string[] = []
 
   if (!input.initialized) {
-    steps.push("Run `pnpm exec kb init` to create .kb/config.json and private/.")
+    steps.push(`Run \`${input.run(["setup"])}\` to initialize Mimir and install the agent kit.`)
     return steps
   }
 
@@ -74,21 +84,37 @@ function nextActions(input: NextActionInput): string[] {
   }
 
   if (input.chunksIndexed === 0 || input.missingFromIndex > 0 || input.staleInIndex > 0) {
-    steps.push("Run `pnpm exec kb ingest` to rebuild the local index.")
-    steps.push("Run `pnpm exec kb audit` to verify missingFromIndex=0 and staleInIndex=0.")
+    steps.push(`Run \`${input.run(["doctor", "--fix"])}\` to rebuild stale or missing index data.`)
+    steps.push(`Run \`${input.run(["audit"])}\` to verify missingFromIndex=0 and staleInIndex=0.`)
   }
 
   if (input.warnings > 0) {
-    steps.push("Run `pnpm exec kb security-audit --strict` and fix the reported warnings.")
-  }
-
-  if (steps.length === 0) {
-    steps.push('Run `pnpm exec kb search "your question"` to retrieve source passages.')
-    steps.push('Run `pnpm exec kb ask "your question"` to produce cited retrieval context.')
     steps.push(
-      "Run `pnpm exec kb install-skill` if an AI agent should use the local knowledge base.",
+      `Run \`${input.run(["security-audit", "--strict"])}\` and fix the reported warnings.`,
     )
   }
 
+  if (steps.length === 0) {
+    steps.push(`Run \`${input.run(["search", '"your question"'])}\` to retrieve source passages.`)
+    steps.push(
+      `Run \`${input.run(["ask", '"your question"'])}\` to produce cited retrieval context.`,
+    )
+    if (input.agentKitInstalled) {
+      steps.push("Connect an AI with .mimir/mcp.json or load .mimir/skills/mimir/.")
+    } else {
+      steps.push(
+        `Run \`${input.run(["install-skill"])}\` if an AI agent should use the local knowledge base.`,
+      )
+    }
+  }
+
   return steps
+}
+
+function isAgentKitInstalled(projectRoot: string): boolean {
+  return (
+    existsSync(path.join(projectRoot, MIMIR_DIR, "skills", "mimir", "SKILL.md")) &&
+    existsSync(path.join(projectRoot, MIMIR_DIR, "skills", "mimir-audio-summary", "SKILL.md")) &&
+    existsSync(path.join(projectRoot, MIMIR_DIR, "mcp.json"))
+  )
 }

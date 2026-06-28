@@ -30,6 +30,7 @@ The knowledge base stays local; the final audio is a generated artifact and must
 From the repository root, run:
 
 ```bash
+pnpm exec kb doctor
 pnpm exec kb status
 pnpm exec kb audit
 pnpm exec kb security-audit
@@ -38,12 +39,13 @@ pnpm exec kb security-audit
 If the audit reports missing or stale files, run:
 
 ```bash
-pnpm exec kb ingest
+pnpm exec kb doctor --fix
 pnpm exec kb audit
 ```
 
-Do not create an audio summary from stale or incomplete evidence unless the user explicitly accepts
-that limitation.
+`kb doctor --fix` rebuilds the index only when supported files are present and the privacy posture
+has no warnings. Do not create an audio summary from stale or incomplete evidence unless the user
+explicitly accepts that limitation.
 
 ## 2. Search Deeply Before Writing
 

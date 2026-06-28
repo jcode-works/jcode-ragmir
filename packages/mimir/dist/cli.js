@@ -7,8 +7,10 @@ import { doctor } from "./doctor.js";
 import { audit, ingest } from "./ingest.js";
 import { initProject } from "./init.js";
 import { serveMcp } from "./mcp.js";
+import { kbCommand } from "./package-manager.js";
 import { ask, search } from "./query.js";
 import { securityAudit } from "./security.js";
+import { setupProject } from "./setup.js";
 import { bundledSkillPath, installSkill } from "./skill.js";
 import { countRows } from "./store.js";
 import { VERSION } from "./version.js";
@@ -22,8 +24,18 @@ program
 program
     .command("doctor")
     .description("Diagnose setup, index freshness, privacy posture, and next steps.")
+    .option("--fix", "Create missing scaffolding, install the agent kit, and rebuild stale indexes.")
     .option("--json", "Print machine-readable JSON.")
     .action(async (options) => {
+    if (options.fix) {
+        const result = await setupProject({ cwd: process.cwd() });
+        if (options.json) {
+            console.log(JSON.stringify(result, null, 2));
+            return;
+        }
+        printSetup(result, "Mimir repair complete.");
+        return;
+    }
     const report = await doctor(process.cwd());
     if (options.json) {
         console.log(JSON.stringify(report, null, 2));
@@ -32,24 +44,48 @@ program
     printDoctor(report);
 });
 program
+    .command("setup")
+    .description("Initialize Mimir, install the agent kit, run doctor, and ingest when safe.")
+    .option("--target-dir <path>", "Directory where the skill folder should be copied.", ".mimir/skills")
+    .option("--no-ingest", "Skip automatic indexing even when supported files are present.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options) => {
+    const setupOptions = {
+        cwd: process.cwd(),
+        targetDir: options.targetDir,
+    };
+    addOption(setupOptions, "ingest", options.ingest);
+    const result = await setupProject(setupOptions);
+    if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
+    printSetup(result, "Mimir setup complete.");
+});
+program
     .command("init")
     .description("Create .kb config files and private/ document folder in the current repository.")
     .action(async () => {
     const created = await initProject(process.cwd());
     if (created.length === 0) {
         console.log(pc.green("Already initialized."));
+        const doctorCommand = await kbCommand(process.cwd(), ["doctor"]);
+        console.log(`Run \`${doctorCommand.display}\` to check readiness.`);
         return;
     }
     console.log(pc.green("Created:"));
     for (const file of created) {
         console.log(`  - ${file}`);
     }
+    const ingestCommand = await kbCommand(process.cwd(), ["ingest"]);
+    const doctorCommand = await kbCommand(process.cwd(), ["doctor"]);
+    const searchCommand = await kbCommand(process.cwd(), ["search", "your question"]);
     console.log("");
     console.log(pc.cyan("Next steps:"));
     console.log("  1. Add supported documents under private/");
-    console.log("  2. Run `pnpm exec kb ingest`");
-    console.log("  3. Run `pnpm exec kb doctor`");
-    console.log('  4. Query with `pnpm exec kb search "your question"`');
+    console.log(`  2. Run \`${ingestCommand.display}\``);
+    console.log(`  3. Run \`${doctorCommand.display}\``);
+    console.log(`  4. Query with \`${searchCommand.display}\``);
 });
 program
     .command("ingest")
@@ -73,7 +109,8 @@ program
     .action(async (query, options) => {
     const results = await search(query, withTopK(options.topK));
     if (results.length === 0) {
-        console.error(pc.yellow("No results. Run `kb ingest` first, or add documents."));
+        const repairCommand = await kbCommand(process.cwd(), ["doctor", "--fix"]);
+        console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`));
         process.exitCode = 1;
         return;
     }
@@ -248,6 +285,7 @@ program
     .option("--target-dir <path>", "Directory where the skill folder should be copied.", ".mimir/skills")
     .action(async (options) => {
     const result = await installSkill({ cwd: process.cwd(), targetDir: options.targetDir });
+    const doctorCommand = await kbCommand(process.cwd(), ["doctor"]);
     console.log("Installed Mimir agent kit:");
     for (const file of result.written) {
         console.log(`  - ${file}`);
@@ -259,7 +297,7 @@ program
     console.log("Next steps:");
     console.log("  1. Add the MCP config from .mimir/mcp.json to your agent if it supports MCP.");
     console.log("  2. Load .mimir/skills/mimir/ in agents that support skill folders.");
-    console.log("  3. Run `pnpm exec kb doctor` before relying on retrieved context.");
+    console.log(`  3. Run \`${doctorCommand.display}\` before relying on retrieved context.`);
 });
 try {
     await program.parseAsync(process.argv);
@@ -328,6 +366,9 @@ function printDoctor(report) {
     console.log(`projectRoot=${report.projectRoot}`);
     console.log(`initialized=${report.initialized}`);
     console.log(`ready=${report.ready}`);
+    console.log(`packageManager=${report.packageManager}`);
+    console.log(`runCommand=${report.runCommand}`);
+    console.log(`agentKitInstalled=${report.agentKitInstalled}`);
     console.log(`embeddingProvider=${report.embeddingProvider}`);
     console.log(`transformersAllowRemoteModels=${report.transformersAllowRemoteModels}`);
     console.log(`redactionEnabled=${report.redactionEnabled}`);
@@ -347,6 +388,37 @@ function printDoctor(report) {
     for (const step of report.nextSteps) {
         console.log(`  - ${step}`);
     }
+}
+function printSetup(result, title) {
+    console.log(pc.green(title));
+    console.log(`projectRoot=${result.projectRoot}`);
+    console.log(`packageManager=${result.packageManager}`);
+    console.log(`runCommand=${result.runCommand}`);
+    console.log("");
+    console.log(pc.cyan("Scaffolding:"));
+    if (result.created.length === 0) {
+        console.log("  - already initialized");
+    }
+    else {
+        for (const file of result.created) {
+            console.log(`  - ${file}`);
+        }
+    }
+    console.log("");
+    console.log(pc.cyan("Agent integration:"));
+    console.log(`  - skill: ${result.agentKit.skillPath}`);
+    console.log(`  - audio skill: ${result.agentKit.audioSkillPath}`);
+    console.log(`  - MCP config: ${result.agentKit.mcpConfigPath}`);
+    console.log("");
+    console.log(pc.cyan("Index:"));
+    if (result.ingested) {
+        console.log(`  - ingested indexedFiles=${result.ingested.indexedFiles} chunks=${result.ingested.chunks} errors=${result.ingested.errors.length}`);
+    }
+    else {
+        console.log("  - skipped; add supported files or run doctor --fix when ready");
+    }
+    console.log("");
+    printDoctor(result.doctor);
 }
 function printMaybeJson(value, json) {
     if (json) {

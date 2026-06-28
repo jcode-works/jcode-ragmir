@@ -130,14 +130,44 @@ Maintainer tokens are only needed to publish new versions.
 
 ## Quick Start
 
-Initialize a repository:
+Initialize a repository, install the portable agent kit, run readiness checks, and ingest documents
+when supported files are already present:
 
 ```bash
-pnpm exec kb init
+pnpm exec kb setup
+```
+
+`kb setup` creates or updates:
+
+```plain text
+private/                         # raw documents to ingest
+.kb/config.json                  # local config
+.kb/sources.txt                  # optional extra source paths
+.mimir/skills/mimir/SKILL.md     # portable agent skill
+.mimir/skills/mimir-audio-summary/SKILL.md
+.mimir/mcp.json                  # MCP server config snippet
+.gitignore                       # ignores private/**, .kb/, and .mimir/
+```
+
+It detects the repository package manager and writes `.mimir/mcp.json` with the right command, such
+as `pnpm exec kb serve-mcp`, `npx kb serve-mcp`, `yarn exec kb serve-mcp`, or `bunx kb serve-mcp`.
+
+Check readiness at any time:
+
+```bash
 pnpm exec kb doctor
 ```
 
-`kb init` creates:
+If files are missing from the index, stale, or the setup is incomplete, run:
+
+```bash
+pnpm exec kb doctor --fix
+```
+
+`doctor --fix` performs safe repairs: missing scaffolding, Git ignore entries, agent kit install, and
+index rebuild when supported files are present and the privacy posture has no warnings.
+
+Manual initialization is still available:
 
 ```plain text
 private/          # raw documents to ingest
@@ -182,9 +212,8 @@ does the writing around those passages.
 With npm, use `npx` after installing the package:
 
 ```bash
-npx kb init
+npx kb setup
 npx kb doctor
-npx kb ingest
 npx kb search "approval for offline operation"
 ```
 
@@ -246,7 +275,7 @@ download model files from Hugging Face.
 
 Mimir ships with portable agent skills and a standard MCP server.
 
-Install the agent kit into a repository:
+If `kb setup` was not used, install the agent kit into a repository:
 
 ```bash
 pnpm exec kb install-skill
@@ -344,8 +373,9 @@ your-project/
   .kb/access.log    # metadata-only access log
 ```
 
-The package never ships project documents. `kb init` adds gitignore entries for `.kb/` and
-`private/**`, and `kb install-skill` keeps `.mimir/` ignored as generated local agent state.
+The package never ships project documents. `kb setup` adds gitignore entries for `.kb/`,
+`.mimir/`, and `private/**`. Generated indexes, agent files, and raw documents stay local to the
+target repository.
 
 ## Confidentiality Defaults
 
@@ -476,8 +506,10 @@ Mimir ships two CLIs:
 
 | Command | Use it when |
 | --- | --- |
+| `kb setup` | Initialize Mimir, install the agent kit, run doctor, and ingest when safe. |
 | `kb init` | Create `.kb/config.json`, `.kb/sources.txt`, `private/`, and Git ignore rules. |
 | `kb doctor` | Diagnose setup, index freshness, security warnings, and the next command to run. |
+| `kb doctor --fix` | Create missing scaffolding, install skills/MCP config, and rebuild stale indexes when safe. |
 | `kb ingest` | Parse source files, redact, chunk, embed, and rebuild the local LanceDB index. |
 | `kb audit` | Check whether supported source files are missing from or stale in the index. |
 | `kb search "<query>"` | Retrieve ranked passages without asking an LLM to write an answer. |
@@ -539,12 +571,18 @@ Use `kb doctor` first. It is the shortest path to the next useful action:
 pnpm exec kb doctor
 ```
 
+Use `doctor --fix` when you want Mimir to repair safe setup issues automatically:
+
+```bash
+pnpm exec kb doctor --fix
+```
+
 ### `kb doctor` Says The Project Is Not Initialized
 
 Run:
 
 ```bash
-pnpm exec kb init
+pnpm exec kb setup
 pnpm exec kb doctor
 ```
 
@@ -597,6 +635,12 @@ pnpm exec kb ingest
 pnpm exec kb audit
 ```
 
+Or let doctor perform the safe rebuild:
+
+```bash
+pnpm exec kb doctor --fix
+```
+
 Mimir rebuilds the index on each ingest. The `--rebuild` flag is accepted for compatibility, but
 ingest already rebuilds.
 
@@ -608,10 +652,10 @@ Read the warning lines. Common causes:
 - Redaction was disabled.
 - Transformers.js remote model loading was enabled.
 
-Run `kb init` again if Git ignore entries are missing:
+Run the safe repair command if Git ignore entries are missing:
 
 ```bash
-pnpm exec kb init
+pnpm exec kb doctor --fix
 pnpm exec kb security-audit --strict
 ```
 

@@ -33,7 +33,7 @@ export async function ask(query, options = {}) {
     const sources = await search(query, options);
     if (sources.length === 0) {
         return {
-            answer: "No relevant passages were found. Add documents and run `kb ingest` first.",
+            answer: "No relevant passages were found. Add documents and run `kb doctor --fix` first.",
             sources,
         };
     }

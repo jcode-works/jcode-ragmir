@@ -17,7 +17,7 @@ same evidence through:
 - the `kb` CLI;
 - a TypeScript library API;
 - a local MCP stdio server for compatible AI agents;
-- portable agent skills copied with `kb install-skill`.
+- portable agent skills copied by `kb setup`.
 
 Mimir does not send documents to a hosted RAG service and does not generate final LLM answers in
 core. It returns cited retrieval context so the agent or model you trust can write from local
@@ -39,24 +39,23 @@ pnpm add -D @jcode.labs/mimir
 ## Quick Start
 
 ```bash
-pnpm exec kb init
-pnpm exec kb doctor
-pnpm exec kb ingest
+pnpm exec kb setup
 pnpm exec kb search "your question"
 pnpm exec kb ask "your question"
-pnpm exec kb install-skill
 ```
 
 By default, Mimir indexes documents from `private/`, stores generated state under `.kb/`, and keeps
-agent integration files under `.mimir/`. `kb init` adds the matching Git ignore entries for local
+agent integration files under `.mimir/`. `kb setup` adds the matching Git ignore entries for local
 generated and private data.
+
+Run `pnpm exec kb doctor --fix` later to repair missing setup or rebuild stale indexes.
 
 ## Entry Points
 
 - CLI: `kb`
 - Library import: `@jcode.labs/mimir`
 - MCP server: `pnpm exec kb serve-mcp`
-- Bundled skills: `pnpm exec kb install-skill`
+- Bundled skills: `pnpm exec kb setup` or `pnpm exec kb install-skill`
 
 ## License
 

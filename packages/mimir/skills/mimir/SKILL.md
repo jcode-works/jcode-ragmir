@@ -40,23 +40,30 @@ From the repository root:
 
 ```bash
 pnpm exec kb doctor
-pnpm exec kb status
-pnpm exec kb security-audit
+```
+
+If Mimir is installed but setup is incomplete or the index is stale:
+
+```bash
+pnpm exec kb doctor --fix
 ```
 
 If Mimir is not installed:
 
 ```bash
 pnpm add -D @jcode.labs/mimir
-pnpm exec kb init
+pnpm exec kb setup
 ```
 
 If the package manager is npm:
 
 ```bash
 npm install --save-dev @jcode.labs/mimir
-npx kb init
+npx kb setup
 ```
+
+Use `status`, `audit`, and `security-audit` for deeper checks after `doctor` explains the current
+state.
 
 ## Provider Modes
 
@@ -91,16 +98,16 @@ air-gapped or confidential work and preload model files under `embeddingModelPat
 After documents are added or changed:
 
 ```bash
-pnpm exec kb ingest
-pnpm exec kb doctor
+pnpm exec kb doctor --fix
 pnpm exec kb audit
 pnpm exec kb security-audit
 pnpm exec kb status
 ```
 
-`kb doctor` should show `ready=true` before relying on the index. The audit must show no missing or
-stale supported files, and the security audit should not show warnings before relying on Mimir for
-sensitive work.
+`kb doctor --fix` rebuilds the index only when supported files are present and the privacy posture
+has no warnings. `kb doctor` should show `ready=true` before relying on the index. The audit must
+show no missing or stale supported files, and the security audit should not show warnings before
+relying on Mimir for sensitive work.
 
 ## Query Workflow
 
@@ -169,7 +176,7 @@ destroy-index --yes` from the shell when the user explicitly wants to remove the
 ## Optional Audio Summaries
 
 If the user asks for a listenable or TTS summary, load the optional
-`.mimir/skills/mimir-audio-summary/` skill installed by `pnpm exec kb install-skill`.
+`.mimir/skills/mimir-audio-summary/` skill installed by `pnpm exec kb setup`.
 
 That skill should:
 
@@ -180,7 +187,14 @@ That skill should:
 
 ## Installing This Skill Into A Repository
 
-Run:
+Most repositories should run the full setup command:
+
+```bash
+pnpm exec kb setup
+```
+
+Use the lower-level skill installer only when Mimir is already initialized and you want to refresh
+the local agent kit:
 
 ```bash
 pnpm exec kb install-skill
