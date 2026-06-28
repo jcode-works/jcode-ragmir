@@ -1,10 +1,23 @@
 {
   "name": "@jcode.labs/mimir",
-  "version": "0.1.0",
-  "description": "Local-first memory and retrieval for private project knowledge.",
+  "version": "0.1.1",
+  "description": "JCode Mimir: local-first memory and retrieval for private project knowledge.",
   "type": "module",
-  "license": "UNLICENSED",
-  "author": "Jean-Baptiste Thery",
+  "license": "MIT",
+  "author": {
+    "name": "Jean-Baptiste Thery",
+    "url": "https://github.com/jb-thery"
+  },
+  "keywords": [
+    "jcode",
+    "mimir",
+    "rag",
+    "knowledge-base",
+    "local-first",
+    "mcp",
+    "ollama",
+    "lancedb"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jcode-works/jcode-mimir.git"

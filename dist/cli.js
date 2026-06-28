@@ -10,7 +10,7 @@ const program = new Command();
 program
     .name("kb")
     .description("Local-first RAG knowledge base for private project documents.")
-    .version("0.1.0");
+    .version("0.1.1");
 program
     .command("init")
     .description("Create .kb config files and private/ document folder in the current repository.")

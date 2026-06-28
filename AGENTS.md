@@ -6,6 +6,8 @@
 - Write code, identifiers, commit messages, filenames, and technical comments in English.
 - Keep this repository free of private user documents, scans, tax identifiers, API keys,
   environment files, or generated vector stores.
+- Keep public branding centered on `JCode Mimir`, JCode Labs, and Jean-Baptiste Thery.
+- The package is open source under the MIT License unless the user explicitly changes it.
 - This package must stay reusable across repositories. Resolve project data from the
   caller's working directory or explicit config, not from the package installation path.
 - Use Context7 before changing dependencies or public APIs that rely on external libraries.

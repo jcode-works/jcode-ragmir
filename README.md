@@ -6,9 +6,11 @@ JCode Mimir provides a TypeScript CLI and library that can be installed in any N
 repository. It indexes files from the target repository, stores vectors locally with LanceDB,
 and uses Ollama for local embeddings and answers.
 
+Created by Jean-Baptiste Thery as part of the JCode Labs toolchain.
+
 ## Status
 
-Early public package. The repository is public, but no open-source license is granted yet.
+Early public package. Licensed under the MIT License.
 
 ## Requirements
 
@@ -143,3 +145,7 @@ const answer = await ask("What documents support the project timeline?")
 - The vector index is stored locally.
 - Raw private documents should stay in the target repository's ignored `private/` folder.
 - Do not put secrets or scans inside this package repository.
+
+## License
+
+MIT © Jean-Baptiste Thery.
