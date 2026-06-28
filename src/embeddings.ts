@@ -1,4 +1,5 @@
 import { Ollama } from "ollama"
+import { assertNetworkPolicy } from "./network.js"
 import type { Config } from "./types.js"
 
 export async function embedTexts(texts: string[], config: Config): Promise<number[][]> {
@@ -6,6 +7,7 @@ export async function embedTexts(texts: string[], config: Config): Promise<numbe
     return []
   }
 
+  assertNetworkPolicy(config)
   const client = new Ollama({ host: config.ollamaHost })
   const response = await client.embed({
     model: config.embedModel,

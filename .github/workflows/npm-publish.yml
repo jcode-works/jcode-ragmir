@@ -73,6 +73,15 @@ jobs:
       - name: Verify npm package metadata
         run: pnpm package:check
 
+      - name: Generate release verification artifacts
+        run: pnpm release:artifacts
+
+      - name: Upload release verification artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mimir-release-${{ inputs.version }}
+          path: release-artifacts/
+
       - name: Publish
         run: npm publish --access public --provenance
         env:

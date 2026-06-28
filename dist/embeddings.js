@@ -1,8 +1,10 @@
 import { Ollama } from "ollama";
+import { assertNetworkPolicy } from "./network.js";
 export async function embedTexts(texts, config) {
     if (texts.length === 0) {
         return [];
     }
+    assertNetworkPolicy(config);
     const client = new Ollama({ host: config.ollamaHost });
     const response = await client.embed({
         model: config.embedModel,

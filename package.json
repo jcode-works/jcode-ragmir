@@ -1,6 +1,6 @@
 {
   "name": "@jcode.labs/mimir",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Mimir: open-source local-first memory and retrieval for private project knowledge.",
   "type": "module",
   "license": "MIT",
@@ -42,7 +42,10 @@
   "files": [
     "dist",
     "skills",
-    "README.md"
+    "README.md",
+    "SECURITY-HARDENING.md",
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
   "publishConfig": {
     "access": "public"
@@ -55,9 +58,10 @@
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
     "package:check": "publint",
+    "release:artifacts": "node scripts/release-artifacts.mjs",
     "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
-    "validate": "pnpm lint && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check"
+    "validate": "pnpm lint && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check && pnpm release:artifacts"
   },
   "dependencies": {
     "@lancedb/lancedb": "^0.30.0",

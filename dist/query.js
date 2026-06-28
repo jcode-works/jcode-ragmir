@@ -1,6 +1,8 @@
 import { Ollama } from "ollama";
+import { recordAccess } from "./access-log.js";
 import { loadConfig } from "./config.js";
 import { embedText } from "./embeddings.js";
+import { assertNetworkPolicy } from "./network.js";
 import { openRowsTable } from "./store.js";
 export async function search(query, options = {}) {
     const config = await loadConfig(String(options.cwd ?? process.cwd()));
@@ -13,13 +15,20 @@ export async function search(query, options = {}) {
         .vectorSearch(vector)
         .limit(options.topK ?? config.topK)
         .toArray());
-    return rows.map((row) => ({
+    const results = rows.map((row) => ({
         source: row.source,
         relativePath: row.relativePath,
         chunkIndex: row.chunkIndex,
         text: row.text,
         distance: typeof row._distance === "number" ? row._distance : null,
     }));
+    await recordAccess(config, {
+        action: "search",
+        query,
+        topK: options.topK ?? config.topK,
+        resultCount: results.length,
+    });
+    return results;
 }
 export async function ask(query, options = {}) {
     const config = await loadConfig(String(options.cwd ?? process.cwd()));
@@ -33,6 +42,7 @@ export async function ask(query, options = {}) {
     const context = sources
         .map((source, index) => `[${index + 1}] ${source.relativePath}#${source.chunkIndex}\n${source.text}`)
         .join("\n\n---\n\n");
+    assertNetworkPolicy(config);
     const client = new Ollama({ host: config.ollamaHost });
     const response = await client.chat({
         model: config.llmModel,
@@ -47,6 +57,12 @@ export async function ask(query, options = {}) {
             },
         ],
         stream: false,
+    });
+    await recordAccess(config, {
+        action: "ask",
+        query,
+        topK: options.topK ?? config.topK,
+        resultCount: sources.length,
     });
     return {
         answer: response.message.content,

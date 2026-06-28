@@ -14,6 +14,9 @@
 - `kb init` and `kb install-skill` must keep generated local Mimir state ignored in target
   repositories. By default, add `.kb/`, `.mimir/`, and private raw-document paths to the
   target repository `.gitignore`.
+- Keep confidentiality features low-friction: local-only network policy, redaction before
+  indexing, metadata-only access logs, bounded MCP retrieval, and `security-audit` should work
+  from default config.
 - Use Context7 before changing dependencies or public APIs that rely on external libraries.
 - Run `pnpm validate` before opening a release pull request or publishing. It covers
   Biome, TypeScript, Vitest, build output, production CLI/MCP smoke tests, and npm package
@@ -31,6 +34,8 @@
 - `src/mcp.ts` exposes Mimir as an MCP stdio server for agents.
 - `src/gitignore.ts` owns target-repository `.gitignore` entries for local generated Mimir
   state.
+- `src/security.ts`, `src/network.ts`, `src/redaction.ts`, and `src/access-log.ts` own the
+  privacy and confidentiality hardening layer.
 - `skills/mimir/SKILL.md` is the bundled portable agent skill.
 - `.kb/`, `.mimir/`, and project `private/` folders are local user data or generated agent
   state in target repositories and must not be committed.
