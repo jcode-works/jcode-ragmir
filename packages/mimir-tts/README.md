@@ -1,16 +1,11 @@
-# Mimir TTS
+# Mimir TTS Package
 
-Plug-and-play text-to-speech for Mimir audio summaries.
+`@jcode.labs/mimir-tts` is the standalone text-to-speech package used by Mimir audio summaries.
 
-`@jcode.labs/mimir-tts` has two explicit paths:
+**Full documentation:** https://github.com/jcode-works/jcode-mimir#readme
 
-- Transformers.js WAV for confidential or air-gapped use. This is the default path and does not
-  require Python, ffmpeg, Piper, XTTS, or a local server.
-- Edge MP3 for the same quality path as the global Voice Forge skill. It uses the external
-  `edge-tts` CLI, `fr-FR-DeniseNeural`, and `+0%` rate, and must be requested explicitly.
-
-The Edge path sends the narration text to the online Edge TTS service. Use the Transformers.js path
-for private content.
+This npm README is intentionally short because package READMEs are displayed separately on npm. The
+GitHub root README is the canonical product documentation.
 
 ## Install
 
@@ -18,36 +13,17 @@ for private content.
 pnpm add -D @jcode.labs/mimir-tts
 ```
 
-Install Edge TTS only when you want the highest-quality online MP3 renderer:
-
-```bash
-pipx install edge-tts
-```
-
-## Render
-
-High-quality MP3:
-
-```bash
-pnpm exec mimir-tts render /tmp/MIMIR-SUMMARY-tax.txt \
-  --engine edge \
-  --out .mimir/audio/tax-summary.mp3
-```
-
-Offline/confidential WAV:
-
-```bash
-pnpm exec mimir-tts render summary.txt \
-  --offline \
-  --model-path .mimir/models/tts \
-  --out .mimir/audio/summary.wav
-```
-
-## Doctor
+## Quick Commands
 
 ```bash
 pnpm exec mimir-tts doctor --json
+pnpm exec mimir-tts render /tmp/summary.txt --offline --out .mimir/audio/summary.wav
+pnpm exec mimir-tts render /tmp/summary.txt --engine edge --out .mimir/audio/summary.mp3
 ```
 
-The default engine is `transformers`. The default Transformers.js model is `Xenova/mms-tts-fra`.
-Override it with `--model` or `MIMIR_TTS_MODEL`.
+The default engine is `transformers` for offline/confidential WAV output. Use `--engine edge` only
+when sending narration text to online Edge TTS is acceptable.
+
+## License
+
+MIT (c) Jean-Baptiste Thery.

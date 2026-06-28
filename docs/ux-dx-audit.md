@@ -5,9 +5,8 @@ developer and agent workflow around installation, indexing, querying, safety, au
 
 ## Evidence Reviewed
 
-- Public package README: `packages/mimir/README.md`
-- Root monorepo README: `README.md`
-- TTS README: `packages/mimir-tts/README.md`
+- Root product README: `README.md`
+- npm package entrypoint READMEs: `packages/mimir/README.md`, `packages/mimir-tts/README.md`
 - CLI implementation: `packages/mimir/src/cli.ts`
 - TTS implementation: `packages/mimir-tts/src/index.ts`
 - Agent skills: `packages/mimir/skills/**/SKILL.md`
@@ -23,7 +22,7 @@ developer and agent workflow around installation, indexing, querying, safety, au
 | Readiness | Users had to combine `status`, `audit`, and `security-audit` manually. | Fixed: `kb doctor` summarizes readiness and next steps. |
 | Generated helper files | `private/README.md` was indexed and could pollute retrieval results. | Fixed: generated private README is skipped by source discovery. |
 | Audio confidentiality | `auto` could select online Edge TTS when installed. | Fixed: default path is Transformers.js WAV; Edge MP3 requires `--engine edge`. |
-| Documentation shape | The package README had too much tutorial, reference, and explanation mixed together. | Improved: added getting started, CLI reference, and troubleshooting docs. |
+| Documentation shape | The package README had too much tutorial, reference, and explanation mixed together. | Fixed: the root README is canonical; package README files are minimal npm entrypoints. |
 | Agent onboarding | `install-skill` installed files but gave limited operational guidance. | Fixed: command output now prints agent next steps. |
 
 ## DX Findings
@@ -34,7 +33,7 @@ developer and agent workflow around installation, indexing, querying, safety, au
 | Release safety | npm publish is protected by CI, environment approval, provenance, and explicit version input. | Good. |
 | API clarity | Core exports are small and named, but the README only shows a minimal API snippet. | Partially improved by CLI docs; deeper API docs remain future work. |
 | MCP reference | Tool names are documented, but tool schemas are not deeply documented. | Future work. |
-| Error guidance | Common setup and audio errors were not centralized. | Fixed with troubleshooting docs. |
+| Error guidance | Common setup and audio errors were not centralized. | Fixed in the root README troubleshooting section. |
 | Dist workflow | `dist/` is committed and documented in `CLAUDE.md`; this is unusual but CI-enforced. | Good for this repo, but keep documenting it. |
 
 ## Remaining Product Risks

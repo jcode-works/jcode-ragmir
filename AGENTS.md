@@ -21,6 +21,9 @@
 - Keep public positioning focused on sovereign local RAG for confidential datasets and AI agents.
   Avoid claiming universal binary-file support; unsupported proprietary formats need extraction or
   dedicated parsers.
+- Keep product documentation canonical in the root `README.md`. Package README files under
+  `packages/*/README.md` are intentionally minimal npm entrypoints and must link clearly to the
+  GitHub root README because npm displays package README files separately.
 - Keep optional audio summaries separate from core ingestion/query behavior. The
   `mimir-audio-summary` skill must prefer `kb audio` / `@jcode.labs/mimir-tts`, default to the
   Transformers.js WAV path for offline/confidential rendering, use the Edge MP3 path for global

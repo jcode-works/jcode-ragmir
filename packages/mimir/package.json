@@ -1,6 +1,6 @@
 {
   "name": "@jcode.labs/mimir",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Mimir: open-source sovereign local RAG for confidential datasets and AI agents.",
   "type": "module",
   "license": "MIT",
@@ -28,7 +28,7 @@
     "url": "git+https://github.com/jcode-works/jcode-mimir.git",
     "directory": "packages/mimir"
   },
-  "homepage": "https://github.com/jcode-works/jcode-mimir/tree/main/packages/mimir#readme",
+  "homepage": "https://github.com/jcode-works/jcode-mimir#readme",
   "bugs": {
     "url": "https://github.com/jcode-works/jcode-mimir/issues"
   },
