@@ -11,6 +11,9 @@
 - The package is open source under the MIT License unless the user explicitly changes it.
 - This package must stay reusable across repositories. Resolve project data from the
   caller's working directory or explicit config, not from the package installation path.
+- `kb init` and `kb install-skill` must keep generated local Mimir state ignored in target
+  repositories. By default, add `.kb/`, `.mimir/`, and private raw-document paths to the
+  target repository `.gitignore`.
 - Use Context7 before changing dependencies or public APIs that rely on external libraries.
 - Run `pnpm validate` before opening a release pull request or publishing. It covers
   Biome, TypeScript, Vitest, build output, production CLI/MCP smoke tests, and npm package
@@ -26,5 +29,8 @@
   local LanceDB table.
 - `src/query.ts` performs vector search and local Ollama answer synthesis.
 - `src/mcp.ts` exposes Mimir as an MCP stdio server for agents.
+- `src/gitignore.ts` owns target-repository `.gitignore` entries for local generated Mimir
+  state.
 - `skills/mimir/SKILL.md` is the bundled portable agent skill.
-- `.kb/storage/` and project `private/` folders are user data and must not be committed.
+- `.kb/`, `.mimir/`, and project `private/` folders are local user data or generated agent
+  state in target repositories and must not be committed.
