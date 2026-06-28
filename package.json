@@ -1,6 +1,6 @@
 {
   "name": "jcode-mimir",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "description": "Monorepo for the Mimir open-source local RAG packages.",
   "type": "module",

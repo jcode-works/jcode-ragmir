@@ -25,7 +25,7 @@ pnpm build
 Then run the CLI from this folder:
 
 ```bash
-cd examples/sovereign-rag-demo
+cd packages/mimir/examples/sovereign-rag-demo
 node ../../dist/cli.js security-audit
 node ../../dist/cli.js ingest
 node ../../dist/cli.js search "offline retrieval approval"
