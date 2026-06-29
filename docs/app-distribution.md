@@ -24,6 +24,10 @@ pnpm --filter @jcode.labs/mimir-app tauri:build:linux
 pnpm --filter @jcode.labs/mimir-app tauri:android:build
 ```
 
+Desktop bundles can also be built through the manual **Native App Build** GitHub Actions workflow.
+It uploads CI artifacts for macOS, Windows, and Linux, but it does not create a release, deploy, or
+publish. Public distribution still requires the signing and checksum steps below.
+
 The root `pnpm build` intentionally validates only the frontend bundle for `packages/mimir-app`.
 Native Tauri builds require the platform toolchain, Rust/Cargo, and the platform signing setup.
 The Android release script builds APK artifacts for sideload/direct distribution. iOS has no release
@@ -68,7 +72,8 @@ Windows direct downloads require Authenticode signing before public release:
 Linux artifacts do not use the same platform signing flow, but published checksums are still
 required for every AppImage and Debian package. Run
 `pnpm --filter @jcode.labs/mimir-app release:preflight -- --target linux` on the Linux release
-machine before `tauri:build:linux`.
+machine before `tauri:build:linux`, or run the manual Native App Build workflow with target `linux`
+to produce Linux CI artifacts.
 
 Android APK artifacts require an Android SDK and JDK on the release machine. Run
 `pnpm --filter @jcode.labs/mimir-app release:preflight -- --target android` before

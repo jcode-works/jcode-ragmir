@@ -62,6 +62,9 @@
   until a compliant non-store distribution path exists.
 - Keep direct-download packaging and updater rules in `docs/app-distribution.md`; do not wire the
   Tauri updater with placeholder keys or endpoints.
+- Native desktop CI artifacts may be built only through the manual `Native App Build` workflow. It
+  uploads artifacts for inspection but must not create GitHub releases, deploy, publish, or bypass
+  signing/checksum requirements.
 - Before native app packaging, run `pnpm --filter @jcode.labs/mimir-app release:preflight -- --target
   <macos|windows|linux|android>` on the matching release machine. The preflight may check that
   secret-bearing environment variables are present, but it must never print their values.

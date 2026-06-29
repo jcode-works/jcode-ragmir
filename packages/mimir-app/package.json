@@ -19,9 +19,9 @@
     "tauri:android:dev": "tauri android dev",
     "tauri:android:init": "tauri android init",
     "tauri:build": "tauri build",
-    "tauri:build:linux": "tauri build --bundles deb,appimage",
-    "tauri:build:macos": "tauri build --bundles app,dmg",
-    "tauri:build:windows": "tauri build --bundles nsis,msi",
+    "tauri:build:linux": "tauri build --ci --bundles deb,appimage",
+    "tauri:build:macos": "tauri build --ci --bundles app,dmg",
+    "tauri:build:windows": "tauri build --ci --bundles nsis,msi",
     "tauri:dev": "tauri dev",
     "tauri:ios:dev": "tauri ios dev",
     "tauri:ios:init": "tauri ios init"
