@@ -5,6 +5,8 @@
 Initial paid product: **Mimir Desktop** for developers, consultants, and small teams handling
 confidential dossiers.
 
+The free/paid product boundary is defined in [`open-core-boundary.md`](./open-core-boundary.md).
+
 | Plan | Price to test | Notes |
 | --- | --- | --- |
 | Solo perpetual | EUR 390 one-time | Includes updates for the current major line plus 2 years of updates. |

@@ -38,8 +38,9 @@ The product name visible to users is **Mimir**. The technical core package is **
 lives under `packages/mimir-core`; the public npm package name remains `@jcode.labs/mimir`.
 
 The paid desktop commercialization plan is tracked in
-[`docs/product-commercialization.md`](./docs/product-commercialization.md). No checkout or license
-secret is committed to this repository.
+[`docs/product-commercialization.md`](./docs/product-commercialization.md), with the free/paid
+boundary in [`docs/open-core-boundary.md`](./docs/open-core-boundary.md). No checkout or license secret
+is committed to this repository.
 
 ## Open Source
 
