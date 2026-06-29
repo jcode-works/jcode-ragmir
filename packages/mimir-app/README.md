@@ -24,6 +24,7 @@ pnpm --filter @jcode.labs/mimir-app release:preflight -- --target macos
 pnpm --filter @jcode.labs/mimir-app release:preflight -- --target windows
 pnpm --filter @jcode.labs/mimir-app release:preflight -- --target linux
 pnpm --filter @jcode.labs/mimir-app release:preflight -- --target android
+pnpm --filter @jcode.labs/mimir-app release:preflight:smoke
 ```
 
 Generate checksums after a native bundle exists:

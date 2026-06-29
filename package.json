@@ -18,7 +18,7 @@
     "package:check": "pnpm --filter @jcode.labs/mimir-tts package:check && pnpm --filter @jcode.labs/mimir package:check",
     "public:smoke": "node scripts/public-surface-smoke.mjs",
     "release:artifacts": "node scripts/release-artifacts.mjs",
-    "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/mimir mcp:smoke && pnpm --filter @jcode.labs/mimir-tts smoke && pnpm --filter @jcode.labs/mimir-app license:lemonsqueezy:smoke && pnpm --filter @jcode.labs/mimir-app release:updater-guard:smoke && pnpm --filter @jcode.labs/mimir-app release:checksums:smoke && pnpm --filter @jcode.labs/mimir-app release:manifest:smoke && pnpm --filter @jcode.labs/mimir-license-webhook smoke && pnpm --filter @jcode.labs/mimir-license-webhook cf:dry-run",
+    "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/mimir mcp:smoke && pnpm --filter @jcode.labs/mimir-tts smoke && pnpm --filter @jcode.labs/mimir-app license:lemonsqueezy:smoke && pnpm --filter @jcode.labs/mimir-app release:preflight:smoke && pnpm --filter @jcode.labs/mimir-app release:updater-guard:smoke && pnpm --filter @jcode.labs/mimir-app release:checksums:smoke && pnpm --filter @jcode.labs/mimir-app release:manifest:smoke && pnpm --filter @jcode.labs/mimir-license-webhook smoke && pnpm --filter @jcode.labs/mimir-license-webhook cf:dry-run",
     "test": "pnpm --filter @jcode.labs/mimir-tts test && pnpm --filter @jcode.labs/mimir test",
     "validate": "pnpm lint && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check && pnpm release:artifacts"
   },

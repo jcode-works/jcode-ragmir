@@ -19,6 +19,7 @@
     "release:manifest": "node scripts/native-release-manifest.mjs",
     "release:manifest:smoke": "node scripts/native-release-manifest-smoke.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",
+    "release:preflight:smoke": "node scripts/release-preflight-smoke.mjs",
     "release:updater-guard": "node scripts/updater-guard.mjs",
     "release:updater-guard:smoke": "node scripts/updater-guard-smoke.mjs",
     "tauri": "tauri",

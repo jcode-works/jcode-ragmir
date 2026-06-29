@@ -40,6 +40,9 @@ Before publishing a public direct download:
 - Run `pnpm validate` from the repository root.
 - Run `pnpm --filter @jcode.labs/mimir-app release:preflight -- --target <macos|windows|linux|android>`
   on the matching release machine before building native artifacts.
+- Run `pnpm --filter @jcode.labs/mimir-app release:preflight:smoke` after changing preflight logic;
+  it verifies supported targets, rejects iOS release packaging, and checks that secret-bearing
+  environment values are reported only by variable name.
 - Run `pnpm --filter @jcode.labs/mimir-app release:updater-guard` whenever Tauri updater config
   changes; `release:preflight` also runs the guard before native packaging.
 - Run `pnpm --filter @jcode.labs/mimir-app release:updater-guard:smoke` after changing the guard

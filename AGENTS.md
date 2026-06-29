@@ -79,6 +79,9 @@
 - Before native app packaging, run `pnpm --filter @jcode.labs/mimir-app release:preflight -- --target
   <macos|windows|linux|android>` on the matching release machine. The preflight may check that
   secret-bearing environment variables are present, but it must never print their values.
+- Keep `packages/mimir-app` `release:preflight:smoke` passing. It verifies supported native release
+  targets, keeps iOS out of release packaging, and confirms secret-bearing preflight environment
+  values are not printed.
 - Generate native artifact checksums with `pnpm --filter @jcode.labs/mimir-app release:checksums`
   after Tauri packaging and before publishing direct-download files. The manual Native App Build
   workflow uploads the generated `SHA256SUMS` with the bundle artifacts.
