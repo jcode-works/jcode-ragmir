@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
+import { loadConfig } from "./config.js"
 import { search } from "./query.js"
 import type {
   EvaluationCaseResult,
@@ -30,6 +31,7 @@ const goldenFileSchema = z.union([
 
 export async function evaluateGoldenQueries(options: EvaluationOptions): Promise<EvaluationResult> {
   const cwd = path.resolve(String(options.cwd ?? process.cwd()))
+  const config = await loadConfig(cwd)
   const goldenPath = path.resolve(cwd, String(options.goldenPath))
   const goldenFile = await readGoldenFile(goldenPath)
   const defaultTopK = options.topK ?? goldenFile.topK ?? 3
@@ -63,6 +65,8 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
   const hits = cases.filter((result) => result.hit).length
   return {
     goldenPath,
+    embeddingProvider: config.embeddingProvider,
+    embeddingModel: config.embeddingModel,
     topK: defaultTopK,
     total: cases.length,
     hits,

@@ -140,6 +140,8 @@ export interface EvaluationCaseResult {
 }
 export interface EvaluationResult {
     goldenPath: string;
+    embeddingProvider: EmbeddingProvider;
+    embeddingModel: string;
     topK: number;
     total: number;
     hits: number;

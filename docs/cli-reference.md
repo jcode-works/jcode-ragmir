@@ -98,3 +98,6 @@ local path, then choose an explicit recall threshold:
 ```bash
 mimir --project-root /path/to/workspace evaluate --golden private/golden-queries.json --fail-under 0.8 --json
 ```
+
+The JSON output includes `embeddingProvider` and `embeddingModel`. Use those fields when comparing a
+default local-hash run with a private Transformers semantic run.

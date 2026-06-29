@@ -262,6 +262,7 @@ async function smokeExampleWorkspace() {
     )
     if (
       evaluation.total !== 4 ||
+      evaluation.embeddingProvider !== "local-hash" ||
       evaluation.hits !== 4 ||
       evaluation.misses !== 0 ||
       evaluation.recall !== 1

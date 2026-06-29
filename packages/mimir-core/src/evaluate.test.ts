@@ -31,6 +31,7 @@ describe("evaluateGoldenQueries", () => {
     })
 
     expect(report.total).toBe(4)
+    expect(report.embeddingProvider).toBe("local-hash")
     expect(report.misses).toBe(0)
     expect(report.recall).toBe(1)
     expect(report.cases.every((result) => result.hit)).toBe(true)

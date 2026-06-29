@@ -276,6 +276,9 @@ pnpm exec mimir --project-root /path/to/workspace ingest
 pnpm exec mimir --project-root /path/to/workspace evaluate --golden private/golden-queries.json --fail-under 0.8 --json
 ```
 
+The JSON report includes the active `embeddingProvider` and `embeddingModel`, so you can compare
+default local-hash recall with a private Transformers semantic run without storing the report in Git.
+
 Mimir does not synthesize an LLM answer. It returns cited local passages; your chosen agent or model
 does the writing around those passages.
 
