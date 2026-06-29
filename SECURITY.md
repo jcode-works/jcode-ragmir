@@ -18,4 +18,5 @@ or private document disclosure.
 ## Data Boundary
 
 Mimir is designed to index local project documents. Raw project documents,
-`.kb/storage/`, environment files, and credentials must remain outside commits.
+`.kb/`, `.mimir/`, environment files, credentials, customer records, and commercial validation notes
+must remain outside commits.

@@ -46,9 +46,17 @@ fn run_mimir_command(request: MimirCommandRequest) -> Result<MimirCommandOutput,
     if project_root.is_empty() {
         return Err("Project root is required.".into());
     }
+    let project_root_path = PathBuf::from(project_root);
+    if !project_root_path.is_absolute() {
+        return Err("Project root must be an absolute path.".into());
+    }
+    if !project_root_path.is_dir() {
+        return Err("Project root must be an existing directory.".into());
+    }
+    let project_root = project_root_path.to_string_lossy().into_owned();
 
     let cli_bin = std::env::var("MIMIR_CLI_BIN").unwrap_or_else(|_| "mimir".into());
-    let args = mimir_args(&request, project_root)?;
+    let args = mimir_args(&request, &project_root)?;
     let output = Command::new(cli_bin)
         .args(args)
         .output()

@@ -9,30 +9,34 @@ const keyPair = await webcrypto.subtle.generateKey({ name: "ECDSA", namedCurve: 
 ])
 const privateKey = await webcrypto.subtle.exportKey("jwk", keyPair.privateKey)
 const publicKey = await webcrypto.subtle.exportKey("jwk", keyPair.publicKey)
+const privateKeyPath = args["private-key"] ?? ".mimir/license-private.jwk"
+const publicKeyPath = args["public-key"] ?? ".mimir/license-public.jwk"
+const writtenPrivateKey = await writeKey(privateKeyPath, JSON.stringify(privateKey, null, 2))
+const writtenPublicKey = await writeKey(publicKeyPath, JSON.stringify(publicKey, null, 2))
 
-await writeMaybe(args["private-key"], JSON.stringify(privateKey, null, 2))
-await writeMaybe(args["public-key"], JSON.stringify(publicKey, null, 2))
-
-if (!args["private-key"] && !args["public-key"]) {
+if (args.json) {
   console.log(
     JSON.stringify(
       {
-        privateKeyJwk: privateKey,
-        publicKeyJwk: publicKey,
+        privateKeyPath: writtenPrivateKey,
+        publicKeyPath: writtenPublicKey,
         vitePublicKeyEnv: JSON.stringify(publicKey),
       },
       null,
       2,
     ),
   )
+} else {
+  console.log(`wrote ${writtenPrivateKey}`)
+  console.log(`wrote ${writtenPublicKey}`)
+  console.log("Private key material was written to disk and was not printed.")
 }
 
-async function writeMaybe(target, content) {
-  if (!target) return
+async function writeKey(target, content) {
   const resolved = path.resolve(target)
   await mkdir(path.dirname(resolved), { recursive: true })
   await writeFile(resolved, `${content}\n`, { mode: 0o600 })
-  console.log(`wrote ${resolved}`)
+  return resolved
 }
 
 function parseArgs(values) {

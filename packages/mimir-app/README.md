@@ -83,6 +83,8 @@ pnpm --filter @jcode.labs/mimir-app license:keypair \
   --public-key .mimir/license-public.jwk
 ```
 
+The command writes key files with owner-only permissions and does not print private key material.
+
 Build the app with the public JWK only:
 
 ```bash

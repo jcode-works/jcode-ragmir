@@ -1,7 +1,7 @@
 # FR/EU Sovereign Positioning
 
-This document keeps Mimir's sovereignty, privacy, and legal-vertical positioning precise. It is a
-product and sales enablement note, not legal advice or a compliance certificate.
+This document keeps Mimir's sovereignty, privacy, and legal-vertical positioning precise. It is
+public product guidance, not legal advice or a compliance certificate.
 
 Sources checked on 2026-06-29:
 
@@ -44,7 +44,7 @@ Use these claims in landing pages, sales calls, and documentation:
   control."
 - "Legal-dossier workflows prepare cited work products for professional review; they do not replace
   legal advice."
-- "French-language support and FR/EU-oriented onboarding can be part of the paid offer."
+- "French-language support and FR/EU-oriented onboarding can be part of official support offers."
 
 ## Claims To Avoid
 
@@ -69,10 +69,10 @@ Mimir should keep these evidence points easy to show during buyer review:
 | Security and confidentiality | No hosted document store, no default telemetry, redaction before indexing, metadata-only access logs. |
 | Transparency | CLI and app expose `mimir doctor`, `mimir audit`, `mimir audit --unsupported`, and `mimir security-audit`. |
 | Retention | Users can delete generated `.kb/` and `.mimir/` state locally; Mimir should not retain hosted copies. |
-| Accountability | Public README, security hardening notes, open-core boundary, and reproducible local validation commands. |
+| Accountability | Public README, security hardening notes, source boundary, and reproducible local validation commands. |
 
-For paid support, if JCode ever receives customer documents, excerpts, logs, or screenshots that may
-contain personal data, that support flow becomes a separate operational process. Keep it outside this
+For support, if JCode ever receives customer documents, excerpts, logs, or screenshots that may
+contain personal data, that support flow is a separate operational process. Keep it outside this
 repository and define access, retention, deletion, and customer approval before accepting the data.
 
 ## AI Act-Oriented Position
@@ -108,24 +108,8 @@ The `mimir-legal-dossier` skill must stay aligned with this boundary: it prepare
 cited work products and flags professional-review items. It must not present conclusions as legal
 advice.
 
-## Legal Vertical Validation Script
+## Legal Vertical Validation
 
-Run this only after the developer/consultant v1 has enough signal. Keep names, matters, case
-references, emails, invoices, and customer notes in a private ledger outside the repository.
-
-1. What confidential legal or quasi-legal dossiers do you analyze repeatedly?
-2. Which documents are hardest to search across: contracts, email exports, pleadings, invoices,
-   evidence exhibits, tax notes, or meeting notes?
-3. What prevents you from using hosted AI tools for those dossiers?
-4. Which local proof would you need before trusting a retrieval tool: no upload, source citations,
-   redaction, access logs, offline mode, signed installer, or support contract?
-5. Show the Mimir Core CLI/MCP workflow and the legal-dossier output formats.
-6. Ask for a sanitized sample workflow they would be willing to test.
-7. Ask directly whether they would pay for a signed local desktop client, French-language onboarding,
-   and legal-dossier templates.
-8. Ask what professional responsibility, audit, retention, or confidentiality blocker would stop a
-   purchase.
-9. Record only aggregated outcome data in public docs.
-
-Legal vertical GO requires at least three paid professional customers or paid pilots, not just
-interest in the idea.
+Keep names, matters, case references, emails, invoices, customer notes, and exact validation outcomes
+in a private system outside this repository. Public updates should use only aggregated, sanitized
+findings and synthetic fixtures.

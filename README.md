@@ -30,7 +30,7 @@ This root README is the canonical product documentation for the public npm packa
 | `@jcode.labs/mimir-ui` | Unpublished workspace UI package adapted from the WorkoutGen design foundation for Mimir surfaces. |
 | `@jcode.labs/mimir-landing` | Unpublished Astro static landing package. Product-facing titles stay `Mimir`. |
 | `@jcode.labs/mimir-app` | Unpublished Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses a bounded native command around the `mimir` CLI, with packaged sidecar distribution still planned. |
-| `@jcode.labs/mimir-license-webhook` | Unpublished, undeployed Cloudflare Worker handler for future Lemon Squeezy webhooks and local `MIMIR1` license issuance. |
+| `@jcode.labs/mimir-license-webhook` | Unpublished, undeployed MIT-licensed Cloudflare Worker handler for future Lemon Squeezy webhooks and local `MIMIR1` license issuance. |
 
 The package README files are intentionally short because npm displays each package README
 separately. They point npm readers back to this GitHub documentation.
@@ -38,15 +38,19 @@ separately. They point npm readers back to this GitHub documentation.
 The product name visible to users is **Mimir**. The technical core package is **Mimir Core** and now
 lives under `packages/mimir-core`; the public npm package name remains `@jcode.labs/mimir`.
 
-The paid desktop commercialization plan is tracked in
-[`docs/product-commercialization.md`](./docs/product-commercialization.md), with the free/paid
-boundary in [`docs/open-core-boundary.md`](./docs/open-core-boundary.md). No checkout or license secret
-is committed to this repository.
+The public source and commercial distribution boundary is tracked in
+[`docs/source-boundary.md`](./docs/source-boundary.md) and
+[`docs/commercial-distribution.md`](./docs/commercial-distribution.md). No checkout URL, production
+download URL, customer data, or license secret is committed to this repository.
 
 ## Open Source
 
 Mimir is a public open-source project under the MIT License. It is designed to be inspectable,
 forkable, and usable without a JCode Labs account.
+
+Every tracked package in this repository is visible source. Commercial Mimir app distribution can
+gate official signed builds, support, updates, and hosted license delivery, but it does not make the
+tracked Tauri app or webhook source proprietary.
 
 Contributions are welcome through pull requests. Start with [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 Security reports should stay private and follow [`SECURITY.md`](./SECURITY.md).
@@ -80,9 +84,9 @@ setup and ingest, ask questions with cited local passages, inspect privacy postu
 embedding models explicitly. Google Drive support is implemented as an opt-in local-sync folder flow
 over files already present on disk, not as a default cloud API integration.
 
-The native client is not released, signed, or sold yet. There is no checkout, waitlist, or hosted
-account flow in this repository. When released, it is planned for direct downloads and sideloadable
-installers, not App Store or Play Store distribution.
+The native client is not released, signed, or commercially distributed yet. There is no checkout,
+waitlist, or hosted account flow in this repository. When released, it is planned for direct
+downloads and sideloadable installers, not App Store or Play Store distribution.
 
 The canonical landing and future direct-download release URL is
 [`mimir.jcode.works`](https://mimir.jcode.works). It is prepared as a Cloudflare Workers Static Assets
@@ -712,12 +716,14 @@ pnpm --dir packages/mimir-core pack
   and MCP tool inputs.
 - [`docs/fr-eu-sovereign-positioning.md`](./docs/fr-eu-sovereign-positioning.md): bounded FR/EU
   sovereignty, GDPR, AI Act, and legal-vertical positioning.
+- [`docs/source-boundary.md`](./docs/source-boundary.md): what the public MIT repository contains,
+  and what must stay outside Git.
+- [`docs/commercial-distribution.md`](./docs/commercial-distribution.md): public-safe commercial
+  distribution rules for signed builds, licenses, and support.
 - [`docs/offline-tts-preload.md`](./docs/offline-tts-preload.md): preload and verify the offline
   Transformers.js TTS cache before rendering confidential audio.
 - [`docs/payment-webhook-architecture.md`](./docs/payment-webhook-architecture.md): direct-download
-  checkout, webhook, and local-license architecture for the future paid app.
-- [`docs/private-dogfooding-protocol.md`](./docs/private-dogfooding-protocol.md): run real private
-  corpus and MCP-agent validation without committing client evidence.
+  checkout, webhook, and local-license architecture for future commercial app distribution.
 - [`docs/ux-dx-audit.md`](./docs/ux-dx-audit.md): current UX/DX findings, fixes, and remaining
   product risks.
 

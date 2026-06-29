@@ -36,14 +36,15 @@
   GitHub root README because npm displays package README files separately.
 - Keep long operational references in `docs/` when the root README can link to them cleanly. The
   root README stays the canonical product entrypoint, not a dumping ground for every command table.
-- Use `docs/private-dogfooding-protocol.md` for real-corpus and MCP-agent validation. Keep raw
-  private evidence, generated JSON, reports, screenshots, paths, and client details outside Git; only
-  commit sanitized aggregate findings or synthetic reproductions.
+- Keep real-corpus dogfooding, business validation, pricing tests, customer ledgers, interview notes,
+  generated JSON, reports, screenshots, paths, and client details outside Git. Commit only public-safe
+  aggregate findings or synthetic reproductions.
 - Keep user-facing titles and marketing surfaces branded as `Mimir`. Use `Mimir Core` only for the
   technical core package and developer-facing metadata.
 - Keep public repository surfaces safe to publish: no active checkout URLs, fake download/update URLs
-  under real Mimir domains, private documents, generated `.pid` files, committed secrets, or
-  misleading "private package" wording. `pnpm public:smoke` enforces the cheap checks.
+  under real Mimir domains, private documents, generated `.pid` files, committed secrets, internal
+  GTM/pricing ledgers, or wording that presents tracked MIT source as proprietary or closed source.
+  `pnpm public:smoke` enforces the cheap checks.
 - `packages/mimir-ui` is the shared UI/style foundation adapted from the WorkoutGen landing/UI
   approach. It provides the common Tailwind theme and React primitives for both the landing and the
   Tauri app; do not import WorkoutGen product copy, assets, analytics, or secrets.
@@ -93,7 +94,7 @@
   only inject the public JWK at build time through `VITE_MIMIR_LICENSE_PUBLIC_KEY_JWK`, and use
   `packages/mimir-app` `license:keypair` / `license:issue` scripts for local license operations.
 - Lemon Squeezy integration stays offline until a real webhook service is intentionally deployed:
-  convert exported order/subscription JSON with `license:from-lemonsqueezy`, keep the private
+  convert exported order/subscription JSON with `license:from-lemonsqueezy`, keep the unpublished
   webhook handler in `packages/mimir-license-webhook`, and never commit API keys or webhook secrets.
 - `packages/mimir-app/src/lib/project-registry.ts` owns the app-side local project registry. Store
   selected project roots there and derive `private/` plus `.kb/storage`; keep ingest/query/index
@@ -113,12 +114,13 @@
 - Keep report generation separate from core retrieval. The `mimir-markdown-report` skill writes cited
   Markdown reports under ignored `.mimir/reports/` by default and must distinguish evidence,
   inference, uncertainty, missing documents, and professional-review items.
-- Keep paid-product commercialization decisions in `docs/product-commercialization.md`. Lemon
-  Squeezy is the default payment/license provider for now; Paddle is the fallback, Stripe is not the
-  first choice unless JCode accepts more tax/compliance ownership.
-- Keep hosted checkout and webhook rules in `docs/payment-webhook-architecture.md`. The paid app uses
-  direct-download sales plus local signed licenses; do not introduce App Store, Play Store, hosted
-  document storage, or committed payment/license secrets.
+- Keep the public source boundary in `docs/source-boundary.md`: every tracked package is MIT source.
+  Commercial value can gate official signed builds, support, updates, and hosted license delivery,
+  but tracked app or webhook code must not be described as proprietary.
+- Keep commercial distribution rules in `docs/commercial-distribution.md` and hosted checkout/webhook
+  rules in `docs/payment-webhook-architecture.md`. Do not introduce App Store, Play Store, hosted
+  document storage, committed payment/license secrets, public pricing tests, or customer validation
+  ledgers.
 - Ingestion must be explicit about files it did not index. Preserve `mimir audit --unsupported`,
   unsupported-extension summaries, secret-like file skipping, max file size limits, and checksum-based
   stale detection.
@@ -193,11 +195,12 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   product surfaces.
 - `packages/mimir-landing` owns the static Astro landing page.
 - `packages/mimir-app` owns the Tauri app shell for desktop and mobile.
-- `packages/mimir-license-webhook` owns the unpublished Cloudflare Worker handler for Lemon Squeezy
-  webhook signature verification, KV-backed idempotency records, and local `MIMIR1` license
-  issuance. It must stay undeployed until real provider variants, secrets, storage/idempotency, and a
-  release surface exist. Its `wrangler.jsonc` must keep placeholder KV namespace IDs until real
-  Cloudflare resources are provisioned; use `cf:dry-run` only before protected deployment.
+- `packages/mimir-license-webhook` owns the unpublished MIT-licensed Cloudflare Worker handler for
+  Lemon Squeezy webhook signature verification, KV-backed idempotency records, and local `MIMIR1`
+  license issuance. It must stay undeployed until real provider variants, secrets,
+  storage/idempotency, and a release surface exist. Its `wrangler.jsonc` must keep placeholder KV
+  namespace IDs until real Cloudflare resources are provisioned; use `cf:dry-run` only before
+  protected deployment.
 - The app integrates Mimir Core through the existing `mimir` CLI/MCP surface. Keep the sidecar
   decision and command allowlist in `docs/app-sidecar-architecture.md`; the current native bridge is
   the bounded `run_mimir_command` Tauri command, and `externalBin` stays deferred until real platform

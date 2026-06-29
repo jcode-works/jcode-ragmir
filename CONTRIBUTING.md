@@ -18,8 +18,8 @@ package metadata checks.
 
 - Open pull requests against `main`.
 - Keep changes focused and include tests or smoke coverage for behavior changes.
-- Do not commit private documents, generated vector stores, environment files, tokens, or
-  credentials.
+- Do not commit private documents, generated vector stores, generated `.mimir/` state, environment
+  files, tokens, credentials, customer ledgers, pricing tests, or interview notes.
 - Use conventional commit messages such as `feat: add source parser` or
   `fix: handle empty index`.
 

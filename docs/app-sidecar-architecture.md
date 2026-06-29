@@ -9,7 +9,7 @@ Node sidecar as the intended distribution path. Do not rewrite Mimir Core as Rus
 
 - Mimir Core already owns parsing, redaction, embeddings, LanceDB storage, query, MCP, and audit
   behavior.
-- Reusing `mimir` keeps the MIT core and the paid app on the same tested implementation.
+- Reusing `mimir` keeps the MIT core and the app shell on the same tested implementation.
 - A Rust rewrite would duplicate LanceDB and Transformers.js integration risk before product demand
   is validated.
 - The app can keep a narrow native boundary: project selection, process execution, progress/status,
@@ -20,7 +20,8 @@ Node sidecar as the intended distribution path. Do not rewrite Mimir Core as Rus
 The current app uses a narrow custom Tauri command, `run_mimir_command`, implemented in
 `packages/mimir-app/src-tauri/src/lib.rs`. It does not expose a general shell. The command accepts a
 fixed enum of Mimir workflows, always prepends `--project-root <path>`, always requests `--json`, and
-executes the `mimir` binary from `PATH` or `MIMIR_CLI_BIN`.
+executes the `mimir` binary from `PATH` or `MIMIR_CLI_BIN`. The native boundary rejects empty,
+relative, or non-existent project roots before running the CLI.
 
 The future packaged sidecar path remains:
 

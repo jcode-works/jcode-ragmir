@@ -4,8 +4,8 @@ Mimir Desktop uses direct downloads and sideloadable installers. Payments and li
 therefore stay independent from App Store or Play Store account, review, receipt, and entitlement
 systems.
 
-This document defines the future hosted payment path for `3E.3` without adding secrets or deploying a
-service from this repository.
+This document defines a future hosted payment path without adding secrets or deploying a service from
+this repository.
 
 ## Release Shape
 
@@ -115,11 +115,12 @@ This package is not a deployment target yet. Keep `LEMONSQUEEZY_WEBHOOK_SECRET`,
 `MIMIR_LICENSE_PRIVATE_KEY_JWK`, KV record exports, customer data, order exports, and generated
 production licenses out of the repository and out of public build artifacts.
 
-## Acceptance Gates For `3E.3`
+## Release Gates
 
-`3E.3` can be closed only after all of these are true:
+Commercial checkout and license delivery can be considered release-ready only after all of these are
+true:
 
-- real Lemon Squeezy product variants exist for the selected pricing test;
+- real Lemon Squeezy product variants exist for the released offer;
 - a hosted checkout URL is linked from the release surface after the app is signed and packaged;
 - the webhook verifies provider signatures and is deployed with secrets outside the repository;
 - a test-mode purchase issues a valid local `MIMIR1` license;

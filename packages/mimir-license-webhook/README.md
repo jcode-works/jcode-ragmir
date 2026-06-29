@@ -1,11 +1,11 @@
 # Mimir License Webhook
 
-Unpublished Cloudflare Worker handler for the future Mimir Desktop hosted license path.
+Unpublished MIT-licensed Cloudflare Worker handler for the future Mimir Desktop hosted license path.
 
 This package verifies Lemon Squeezy webhook signatures, converts eligible purchase events into
 local `MIMIR1` license keys, and keeps cancellation/refund-style events as metadata-only records.
-It is not deployed by default and it must never contain Lemon Squeezy secrets, customer data, or
-private license keys.
+It is not deployed by default. The source is public, so it must never contain Lemon Squeezy secrets,
+customer data, or private license keys.
 
 Required runtime bindings:
 

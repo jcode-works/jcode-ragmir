@@ -40,12 +40,13 @@ output in the same commit, or CI fails. This is the single easiest mistake to ma
 - Product name: **Mimir** on the landing, app, README title, and user-facing copy.
 - Core package: **Mimir Core**, published as `@jcode.labs/mimir` from `packages/mimir-core`.
 - TTS package: **Mimir TTS**, published as `@jcode.labs/mimir-tts`.
-- UI package: **Mimir UI**, private workspace package `@jcode.labs/mimir-ui`.
-- Landing package: private workspace package `@jcode.labs/mimir-landing`.
-- App package: private workspace package `@jcode.labs/mimir-app`.
-- CLI binary: **`kb`** (`packages/mimir-core/bin.kb` -> `packages/mimir-core/dist/cli.js`). Commands: `init`,
-  `ingest`, `models pull`, `search`, `ask`, `audit`, `status`, `security-audit`, `destroy-index`,
-  `audio`, `doctor`, `serve-mcp`, `skill-path`, `install-skill`.
+- UI package: **Mimir UI**, unpublished workspace package `@jcode.labs/mimir-ui`.
+- Landing package: unpublished workspace package `@jcode.labs/mimir-landing`.
+- App package: unpublished workspace package `@jcode.labs/mimir-app`.
+- CLI binary: **`mimir`** (`packages/mimir-core/bin.mimir` -> `packages/mimir-core/dist/cli.js`).
+  The `kb` binary remains only as a legacy compatibility alias. Commands: `init`, `ingest`,
+  `models pull`, `search`, `ask`, `audit`, `status`, `security-audit`, `destroy-index`, `audio`,
+  `doctor`, `serve-mcp`, `skill-path`, `install-skill`.
 - TTS CLI binary: **`mimir-tts`** (`packages/mimir-tts/dist/cli.js`). Commands: `doctor`, `render`.
 - Project config/state in the target repo: **`.kb/`** (`config.json`, `sources.txt`, `access.log`,
   `storage/`), raw documents in **`private/`**, agent kit in **`.mimir/`**.
@@ -56,8 +57,9 @@ output in the same commit, or CI fails. This is the single easiest mistake to ma
 ## Architecture and data flow
 
 This is a pnpm workspace monorepo. `packages/mimir-core` and `packages/mimir-tts` are the published
-npm packages. `packages/mimir-ui`, `packages/mimir-landing`, and `packages/mimir-app` are private
-workspace packages for product surfaces. Do not add Turbo unless `pnpm --filter` stops being enough.
+npm packages. `packages/mimir-ui`, `packages/mimir-landing`, and `packages/mimir-app` are
+unpublished workspace packages for product surfaces. Do not add Turbo unless `pnpm --filter` stops
+being enough.
 `@jcode.labs/mimir` depends on `@jcode.labs/mimir-tts` (`workspace:*`), so release builds still keep
 TTS and core in sync.
 
@@ -76,7 +78,7 @@ synthesis in core).
 
 `packages/mimir-tts` is a separate ESM package. It defaults to Transformers.js for offline WAV
 rendering without Python or ffmpeg, and uses `edge-tts` for high-quality MP3 only when explicitly
-requested. Core `kb audio` imports it dynamically.
+requested. Core `mimir audio` imports it dynamically.
 
 `packages/mimir-ui` is the shared Tailwind 4 + React UI layer adapted from the WorkoutGen UI/landing
 foundation, but with Mimir tokens and no WorkoutGen product copy, analytics, CDN paths, or secrets.
@@ -91,9 +93,9 @@ Key behaviors to keep in mind before editing:
   working directory, never from its own install path. Zod validates config; `KB_*` env vars override.
 - **Two embedding providers, not interchangeable at runtime.** `local-hash` (default) is a 384-dim
   sha256 lexical embedding — fully offline, no model, *not semantic*. `transformers` lazily
-  `import()`s `@huggingface/transformers` with `allowRemoteModels` off by default. `kb models pull`
+  `import()`s `@huggingface/transformers` with `allowRemoteModels` off by default. `mimir models pull`
   is the explicit one-time remote-download path for preloading the configured embedding model. The
-  two providers produce different vectors, so **switching providers requires `kb ingest --rebuild`**.
+  two providers produce different vectors, so **switching providers requires `mimir ingest --rebuild`**.
 - **Ingest is incremental by default.** It reuses rows whose checksum, embedding provider, and model
   still match, then overwrites the LanceDB table with reused + rebuilt rows. Use `--rebuild` to force
   every supported file through parsing, redaction, chunking, and embedding again.

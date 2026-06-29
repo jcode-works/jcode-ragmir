@@ -5,11 +5,32 @@ import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const trackedFiles = gitLines(["ls-files"])
+const misleadingSourcePattern = new RegExp(
+  [
+    ["private", "workspace", "package"].join("\\s+"),
+    ["is", "proprietary"].join("\\s+"),
+    String.raw`proprietary\s+(?:Tauri|Mimir|desktop|app|shell)`,
+    ["source", "available", "license"].join("\\s+"),
+  ].join("|"),
+  "giu",
+)
+const internalCommercialPattern = new RegExp(
+  [
+    ["Pricing", "Hypothesis"].join("\\s+"),
+    ["Willingness", "to", "pay"].join("\\s+"),
+    ["Evidence", "Ledger", "Fields"].join("\\s+"),
+  ].join("|"),
+  "gu",
+)
 const pathRules = [
   { pattern: /^\.kb\//u, label: "generated Mimir index/config path" },
   { pattern: /^\.mimir\//u, label: "generated Mimir agent-state path" },
   { pattern: /^private\//u, label: "private raw-document path" },
   { pattern: /(^|\/)[^/]+\.pid$/u, label: "local process/journal file" },
+  {
+    pattern: /^docs\/(?:gtm-validation|private-dogfooding-protocol|dogfooding-frictions)\.md$/u,
+    label: "internal validation document",
+  },
 ]
 const contentRules = [
   {
@@ -43,6 +64,14 @@ const contentRules = [
   {
     pattern: /\bPrivate (?:workspace|Tauri|Astro|Cloudflare Worker|package)\b/gu,
     label: "private package wording in public docs",
+  },
+  {
+    pattern: misleadingSourcePattern,
+    label: "misleading proprietary wording for tracked MIT source",
+  },
+  {
+    pattern: internalCommercialPattern,
+    label: "internal commercial validation wording",
   },
 ]
 
