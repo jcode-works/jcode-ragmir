@@ -29,7 +29,7 @@ This root README is the canonical product documentation for the public npm packa
 | `@jcode.labs/mimir-tts` | Mimir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `mimir audio`. |
 | `@jcode.labs/mimir-ui` | Private workspace UI package adapted from the WorkoutGen design foundation for Mimir surfaces. |
 | `@jcode.labs/mimir-landing` | Private Astro static landing package. Product-facing titles stay `Mimir`. |
-| `@jcode.labs/mimir-app` | Private Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses the planned Mimir sidecar boundary. |
+| `@jcode.labs/mimir-app` | Private Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses a bounded native command around the `mimir` CLI, with packaged sidecar distribution still planned. |
 
 The package README files are intentionally short because npm displays each package README
 separately. They point npm readers back to this GitHub documentation.
@@ -66,6 +66,19 @@ Suggested GitHub Sponsors tiers:
 ## Status
 
 Early public package. APIs may evolve before `1.0.0`.
+
+## Desktop Client Preview
+
+Mimir Core is the open-source product you can use today through the CLI, library, MCP server, and
+portable agent skills.
+
+A cross-platform Mimir desktop/mobile client is being developed in `packages/mimir-app`. Its goal is
+to make local confidential workspaces easier for non-CLI workflows: register a local dossier, run
+setup and ingest, ask questions with cited local passages, inspect privacy posture, and preload
+embedding models explicitly.
+
+The native client is not released, signed, or sold yet. There is no checkout, waitlist, or hosted
+account flow in this repository.
 
 ## What Mimir Is For
 
