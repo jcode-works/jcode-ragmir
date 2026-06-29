@@ -1,6 +1,6 @@
 # Mimir Landing
 
-Private Astro static landing package for the Mimir product surface.
+Unpublished Astro static landing package for the Mimir product surface.
 
 The visible product title stays `Mimir`. The technical core remains `Mimir Core` in developer-facing
 metadata only.

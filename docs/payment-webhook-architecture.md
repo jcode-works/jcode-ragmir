@@ -98,7 +98,7 @@ pnpm --filter @jcode.labs/mimir-app license:lemonsqueezy:smoke
 
 ## Webhook Handler Package
 
-`packages/mimir-license-webhook` contains the private Cloudflare Worker handler for the future hosted
+`packages/mimir-license-webhook` contains the unpublished Cloudflare Worker handler for the future hosted
 path. It verifies Lemon Squeezy's `X-Signature` header against the raw request body, issues local
 `MIMIR1` keys for eligible order/subscription events, and returns metadata-only records for
 cancellation/refund-style events. It requires a KV-compatible `MIMIR_LICENSE_RECORDS` binding so

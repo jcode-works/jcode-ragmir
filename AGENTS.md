@@ -41,6 +41,9 @@
   commit sanitized aggregate findings or synthetic reproductions.
 - Keep user-facing titles and marketing surfaces branded as `Mimir`. Use `Mimir Core` only for the
   technical core package and developer-facing metadata.
+- Keep public repository surfaces safe to publish: no active checkout URLs, fake download/update URLs
+  under real Mimir domains, private documents, generated `.pid` files, committed secrets, or
+  misleading "private package" wording. `pnpm public:smoke` enforces the cheap checks.
 - `packages/mimir-ui` is the shared UI/style foundation adapted from the WorkoutGen landing/UI
   approach. It provides the common Tailwind theme and React primitives for both the landing and the
   Tauri app; do not import WorkoutGen product copy, assets, analytics, or secrets.
@@ -187,7 +190,7 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   product surfaces.
 - `packages/mimir-landing` owns the static Astro landing page.
 - `packages/mimir-app` owns the Tauri app shell for desktop and mobile.
-- `packages/mimir-license-webhook` owns the private Cloudflare Worker handler for Lemon Squeezy
+- `packages/mimir-license-webhook` owns the unpublished Cloudflare Worker handler for Lemon Squeezy
   webhook signature verification, KV-backed idempotency records, and local `MIMIR1` license
   issuance. It must stay undeployed until real provider variants, secrets, storage/idempotency, and a
   release surface exist. Its `wrangler.jsonc` must keep placeholder KV namespace IDs until real

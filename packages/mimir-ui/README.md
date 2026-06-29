@@ -1,6 +1,6 @@
 # Mimir UI
 
-Private workspace package for shared Mimir React primitives and Tailwind theme tokens.
+Unpublished workspace package for shared Mimir React primitives and Tailwind theme tokens.
 
 It is adapted from the WorkoutGen UI/landing approach, but it contains Mimir-specific styling only:
 no WorkoutGen copy, assets, analytics, CDN configuration, or secrets.

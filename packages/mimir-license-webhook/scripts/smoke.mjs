@@ -6,7 +6,7 @@ const env = {
   LEMONSQUEEZY_WEBHOOK_SECRET: "synthetic-webhook-secret",
   MIMIR_LICENSE_PRIVATE_KEY_JWK: JSON.stringify(privateKeyJwk),
   MIMIR_LICENSE_MAJOR_VERSION: "0",
-  MIMIR_LICENSE_DOWNLOAD_URL: "https://mimir.jcode.works/download",
+  MIMIR_LICENSE_DOWNLOAD_URL: "https://downloads.example.invalid/mimir",
   MIMIR_LICENSE_RECORDS: memoryLicenseStore(),
 }
 
@@ -25,7 +25,7 @@ async function smokeOrderLicense(publicKeyJwk) {
   assertEqual(output.action, "license_issued", "order action")
   assertEqual(output.eventName, "order_created", "order eventName")
   assertEqual(output.licenseId, "lemonsqueezy:order:order-synthetic-001", "order licenseId")
-  assertEqual(output.downloadUrl, "https://mimir.jcode.works/download", "order downloadUrl")
+  assertEqual(output.downloadUrl, "https://downloads.example.invalid/mimir", "order downloadUrl")
 
   const payload = await verifyLicenseKey(output.licenseKey, publicKeyJwk)
   assertEqual(payload.product, "mimir-desktop", "payload product")

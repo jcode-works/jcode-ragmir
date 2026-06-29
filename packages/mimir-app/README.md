@@ -1,6 +1,6 @@
 # Mimir App
 
-Private Tauri desktop/mobile shell for Mimir.
+Unpublished Tauri desktop/mobile shell for Mimir.
 
 Root `pnpm build` validates the Vite frontend bundle. Native desktop/mobile builds stay explicit:
 

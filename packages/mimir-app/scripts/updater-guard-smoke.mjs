@@ -53,7 +53,7 @@ try {
     plugins: {
       updater: {
         pubkey: "mimir-updater-public-key-for-smoke-test-0001",
-        endpoints: ["https://updates.mimir.jcode.works/latest.json"],
+        endpoints: ["https://updates.example.invalid/mimir/latest.json"],
       },
     },
   })
