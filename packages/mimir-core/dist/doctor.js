@@ -66,7 +66,7 @@ function nextActions(input) {
     }
     if (input.supportedFiles === 0) {
         if (input.skippedFiles > 0) {
-            steps.push("Mimir found files, but none are currently indexable. Run `kb audit --unsupported` to inspect skipped files.");
+            steps.push("Mimir found files, but none are currently indexable. Run `mimir audit --unsupported` to inspect skipped files.");
         }
         else {
             steps.push("Add supported files under private/ or list extra source paths in .kb/sources.txt.");
@@ -82,7 +82,7 @@ function nextActions(input) {
     }
     if (steps.length === 0) {
         if (input.unsupportedFiles > 0) {
-            steps.push("Run `kb audit --unsupported` to inspect files skipped because their type is not supported.");
+            steps.push("Run `mimir audit --unsupported` to inspect files skipped because their type is not supported.");
         }
         if (input.embeddingProvider === "local-hash") {
             steps.push(`For natural-language Q&A, run \`${input.run(["models", "pull"])}\`, set embeddingProvider=transformers, then run \`${input.run(["ingest", "--rebuild"])}\`.`);
@@ -90,7 +90,7 @@ function nextActions(input) {
         steps.push(`Run \`${input.run(["search", '"your question"'])}\` to retrieve source passages.`);
         steps.push(`Run \`${input.run(["ask", '"your question"'])}\` to produce cited retrieval context.`);
         if (input.agentKitInstalled) {
-            steps.push("Run `kb install-agent --agents claude` or another targeted agent list for native skill discovery.");
+            steps.push("Run `mimir install-agent --agents claude` or another targeted agent list for native skill discovery.");
             steps.push("Wire the matching MCP helper from .mimir/ when the agent should call Mimir tools directly.");
         }
         else {

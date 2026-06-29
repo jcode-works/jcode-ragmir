@@ -20,7 +20,8 @@ const SEARCH_TEXT_PREVIEW_LENGTH = 900;
 const TTS_PACKAGE_NAME = "@jcode.labs/mimir-tts";
 const program = new Command();
 program
-    .name("kb")
+    .name("mimir")
+    .alias("kb")
     .description("Local-first RAG knowledge base for private project documents.")
     .version(VERSION)
     .option("--project-root <path>", "Run project-scoped commands against this local workspace.");
@@ -44,7 +45,7 @@ modelsCommand
     console.log("Next steps:");
     console.log("  1. Set `embeddingProvider` to `transformers` in .kb/config.json.");
     console.log("  2. Keep `transformersAllowRemoteModels` false for confidential indexing.");
-    console.log("  3. Run `kb ingest --rebuild` so existing vectors use the semantic model.");
+    console.log("  3. Run `mimir ingest --rebuild` so existing vectors use the semantic model.");
 });
 program
     .command("doctor")
@@ -229,7 +230,7 @@ program
         }
     }
     else if (report.skippedFiles.length > 0) {
-        console.log(pc.yellow("Run `kb audit --unsupported` to list skipped file paths."));
+        console.log(pc.yellow("Run `mimir audit --unsupported` to list skipped file paths."));
     }
     if (report.missingFromIndex.length > 0 || report.staleInIndex.length > 0) {
         process.exitCode = 1;
@@ -364,7 +365,7 @@ program
         return;
     }
     if (!textFile) {
-        console.error(pc.red("Missing text file. Use `kb audio <text-file>`."));
+        console.error(pc.red("Missing text file. Use `mimir audio <text-file>`."));
         process.exitCode = 1;
         return;
     }
@@ -421,7 +422,7 @@ program
     console.log(`Agent setup guide: ${result.agentSetupPath}`);
     console.log("");
     console.log("Next steps:");
-    console.log("  1. Run `kb install-agent --agents claude` or another targeted agent list.");
+    console.log("  1. Run `mimir install-agent --agents claude` or another targeted agent list.");
     console.log("  2. Add the MCP config from .mimir/ to the same agent when MCP tools are needed.");
     console.log(`  3. Run \`${doctorCommand.display}\` before relying on retrieved context.`);
 });

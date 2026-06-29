@@ -53,23 +53,23 @@ describe("installSkill", () => {
     expect(audioSkill).toContain("name: mimir-audio-summary")
     expect(reportSkill).toContain("name: mimir-markdown-report")
     expect(mcpConfig.mcpServers.mimir.command).toBe("pnpm")
-    expect(mcpConfig.mcpServers.mimir.args).toEqual(["exec", "kb", "serve-mcp"])
+    expect(mcpConfig.mcpServers.mimir.args).toEqual(["exec", "mimir", "serve-mcp"])
     expect(mcpConfig.mcpServers.mimir.cwd).toBe(root)
     expect(claudeConfig).toEqual({
       type: "stdio",
       command: "pnpm",
-      args: ["exec", "kb", "serve-mcp"],
+      args: ["exec", "mimir", "serve-mcp"],
     })
     expect(codexConfig).toContain("[mcp_servers.mimir]")
     expect(codexConfig).toContain('command = "pnpm"')
-    expect(codexConfig).toContain('args = ["exec", "kb", "serve-mcp"]')
+    expect(codexConfig).toContain('args = ["exec", "mimir", "serve-mcp"]')
     expect(codexConfig).toContain(`cwd = ${JSON.stringify(root)}`)
     expect(codexConfig).toContain("[[skills.config]]")
     expect(codexConfig).toContain(path.join(root, ".mimir", "skills", "mimir"))
     expect(kimiConfig.mcpServers.mimir.env.MIMIR_PROJECT_ROOT).toBe(root)
     expect(opencodeConfig.mcp.mimir).toEqual({
       type: "local",
-      command: ["pnpm", "exec", "kb", "serve-mcp"],
+      command: ["pnpm", "exec", "mimir", "serve-mcp"],
       enabled: true,
       environment: { MIMIR_PROJECT_ROOT: root },
     })
@@ -115,10 +115,10 @@ describe("installSkill", () => {
     const readme = await readFile(result.readmePath, "utf8")
 
     expect(mcpConfig.mcpServers.mimir.command).toBe("npx")
-    expect(mcpConfig.mcpServers.mimir.args).toEqual(["kb", "serve-mcp"])
+    expect(mcpConfig.mcpServers.mimir.args).toEqual(["mimir", "serve-mcp"])
     expect(codexConfig).toContain('command = "npx"')
-    expect(codexConfig).toContain('args = ["kb", "serve-mcp"]')
-    expect(readme).toContain("npx kb serve-mcp")
+    expect(codexConfig).toContain('args = ["mimir", "serve-mcp"]')
+    expect(readme).toContain("npx mimir serve-mcp")
   })
 })
 

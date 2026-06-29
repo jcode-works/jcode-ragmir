@@ -30,7 +30,7 @@ private/          # raw documents to ingest
 
 - Do not commit raw documents, secrets, tax IDs, scans, bank documents, tokens, or generated vector stores.
 - Keep `private/**`, `.kb/`, and `.mimir/` ignored by Git.
-- Treat `kb search`, `kb ask`, and MCP results as sensitive because they can contain private
+- Treat `mimir search`, `mimir ask`, and MCP results as sensitive because they can contain private
   source passages even when redaction is enabled.
 - Prefer summaries and citations over dumping long private passages into the chat.
 - If the user asks for a high-stakes answer, identify which facts came from Mimir and which still require professional or official verification.
@@ -40,27 +40,27 @@ private/          # raw documents to ingest
 From the repository root:
 
 ```bash
-pnpm exec kb doctor
+pnpm exec mimir doctor
 ```
 
 If Mimir is installed but setup is incomplete or the index is stale:
 
 ```bash
-pnpm exec kb doctor --fix
+pnpm exec mimir doctor --fix
 ```
 
 If Mimir is not installed:
 
 ```bash
 pnpm add -D @jcode.labs/mimir
-pnpm exec kb setup
+pnpm exec mimir setup
 ```
 
 If the package manager is npm:
 
 ```bash
 npm install --save-dev @jcode.labs/mimir
-npx kb setup
+npx mimir setup
 ```
 
 Use `status`, `audit`, and `security-audit` for deeper checks after `doctor` explains the current
@@ -76,7 +76,7 @@ Default retrieval mode:
 }
 ```
 
-This supports ingestion, search, MCP retrieval, and `kb ask` with cited passages without a model
+This supports ingestion, search, MCP retrieval, and `mimir ask` with cited passages without a model
 server. It is lexical/hash retrieval, not model-semantic search. Do not present it as equivalent to
 semantic embeddings.
 
@@ -95,8 +95,8 @@ This uses Transformers.js for embeddings only. Keep `transformersAllowRemoteMode
 air-gapped or confidential work and preload model files under `embeddingModelPath`:
 
 ```bash
-pnpm exec kb models pull
-pnpm exec kb ingest --rebuild
+pnpm exec mimir models pull
+pnpm exec mimir ingest --rebuild
 ```
 
 ## Ingestion Workflow
@@ -104,16 +104,16 @@ pnpm exec kb ingest --rebuild
 After documents are added or changed:
 
 ```bash
-pnpm exec kb doctor --fix
-pnpm exec kb audit
-pnpm exec kb audit --unsupported
-pnpm exec kb security-audit
-pnpm exec kb status
+pnpm exec mimir doctor --fix
+pnpm exec mimir audit
+pnpm exec mimir audit --unsupported
+pnpm exec mimir security-audit
+pnpm exec mimir status
 ```
 
-`kb doctor --fix` updates the index only when supported files are present and the privacy posture
-has no warnings. Normal `kb ingest` reuses unchanged rows; use `kb ingest --rebuild` after changing
-embedding provider/model or chunking settings. `kb doctor` should show `ready=true` before relying on
+`mimir doctor --fix` updates the index only when supported files are present and the privacy posture
+has no warnings. Normal `mimir ingest` reuses unchanged rows; use `mimir ingest --rebuild` after changing
+embedding provider/model or chunking settings. `mimir doctor` should show `ready=true` before relying on
 the index. The audit must show no missing or stale supported files, and the security audit should not
 show warnings before relying on Mimir for sensitive work.
 
@@ -125,17 +125,17 @@ bounded by `mcpMaxTopK`, and raise `--top-k` only when the first results are too
 Use search when you need exact source passages:
 
 ```bash
-pnpm exec kb search "your query"
+pnpm exec mimir search "your query"
 ```
 
 Use ask when you need cited context for the current agent or an external LLM:
 
 ```bash
-pnpm exec kb ask "your question"
+pnpm exec mimir ask "your question"
 ```
 
 Ground answers in returned sources. If search results are weak, say that the current index does not
-prove the point and ask for the missing document. `kb ask` returns cited passages rather than LLM
+prove the point and ask for the missing document. `mimir ask` returns cited passages rather than LLM
 synthesis. Use those passages as context for the current agent, or tell the user that generative
 synthesis needs a trusted external LLM or model runtime.
 
@@ -144,7 +144,7 @@ synthesis needs a trusted external LLM or model runtime.
 For broad summaries, audits, planning, or institutional dossiers, do not rely on one query. Build a
 small retrieval plan first:
 
-- check `kb audit` and `kb security-audit`;
+- check `mimir audit` and `mimir security-audit`;
 - query the main topic;
 - query names, dates, amounts, obligations, risks, decisions, and missing evidence separately;
 - compare the strongest passages across files;
@@ -164,14 +164,14 @@ If the agent supports MCP, configure a server for the repository:
   "mcpServers": {
     "mimir": {
       "command": "pnpm",
-      "args": ["exec", "kb", "serve-mcp"],
+      "args": ["exec", "mimir", "serve-mcp"],
       "cwd": "/absolute/path/to/the/repository"
     }
   }
 }
 ```
 
-For Claude Code, run this from the target repository root after `pnpm exec kb setup`:
+For Claude Code, run this from the target repository root after `pnpm exec mimir setup`:
 
 ```bash
 claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
@@ -191,7 +191,7 @@ For OpenCode, merge `.mimir/opencode.jsonc` into the OpenCode config layer used 
 For Cline, add `.mimir/cline-mcp.json` under `mcpServers` in Cline's MCP configuration.
 
 For other MCP clients that cannot set `cwd`, set `MIMIR_PROJECT_ROOT=/absolute/path/to/repository`
-when launching `kb serve-mcp`.
+when launching `mimir serve-mcp`.
 
 Available MCP tools:
 
@@ -203,13 +203,13 @@ Available MCP tools:
 
 Prefer MCP tools over shell commands when the agent runtime provides them. Use shell commands when MCP is unavailable.
 
-MCP is read-focused and intentionally does not expose index deletion. Use `pnpm exec kb
+MCP is read-focused and intentionally does not expose index deletion. Use `pnpm exec mimir
 destroy-index --yes` from the shell when the user explicitly wants to remove the generated index.
 
 ## Optional Audio Summaries
 
 If the user asks for a listenable or TTS summary, load the optional
-`.mimir/skills/mimir-audio-summary/` skill installed by `pnpm exec kb setup`.
+`.mimir/skills/mimir-audio-summary/` skill installed by `pnpm exec mimir setup`.
 
 The audio skill should:
 
@@ -221,7 +221,7 @@ The audio skill should:
 ## Optional Markdown Reports
 
 If the user asks for a Markdown report, dossier, audit memo, planning note, or decision brief, load
-the optional `.mimir/skills/mimir-markdown-report/` skill installed by `pnpm exec kb setup`.
+the optional `.mimir/skills/mimir-markdown-report/` skill installed by `pnpm exec mimir setup`.
 
 The report skill should:
 
@@ -236,14 +236,14 @@ The report skill should:
 Most repositories should run the full setup command:
 
 ```bash
-pnpm exec kb setup
+pnpm exec mimir setup
 ```
 
 Use the lower-level skill installer only when Mimir is already initialized and you want to refresh
 the local agent kit:
 
 ```bash
-pnpm exec kb install-skill
+pnpm exec mimir install-skill
 ```
 
 This creates:
@@ -265,9 +265,9 @@ This creates:
 For native discovery, install only the agent the user uses:
 
 ```bash
-pnpm exec kb install-agent --agents claude
-pnpm exec kb install-agent --agents kimi
-pnpm exec kb install-agent --agents claude,codex,kimi,opencode,cline
+pnpm exec mimir install-agent --agents claude
+pnpm exec mimir install-agent --agents kimi
+pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 By default this writes project-scope skill folders such as `.claude/skills/`, `.kimi/skills/`,

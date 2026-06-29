@@ -50,7 +50,7 @@ Retrieval is lexical/hash-based rather than model-semantic.
 
 ## Agent Report Prompt
 
-After running `kb setup` in a real project, an MCP-compatible agent can use the generated
+After running `mimir setup` in a real project, an MCP-compatible agent can use the generated
 `.mimir/mcp.json`. For this synthetic demo, ask an agent:
 
 ```plain text

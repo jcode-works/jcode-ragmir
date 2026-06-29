@@ -13,7 +13,9 @@
 - The package is open source under the MIT License unless the user explicitly changes it.
 - This package must stay reusable across repositories. Resolve project data from the
   caller's working directory or explicit config, not from the package installation path.
-- `kb init` and `kb install-skill` must keep generated local Mimir state ignored in target
+- The public CLI name is `mimir`; keep `kb` only as a legacy compatibility alias. New docs,
+  generated agent configs, landing copy, and setup guidance should use `mimir ...` commands.
+- `mimir init` and `mimir install-skill` must keep generated local Mimir state ignored in target
   repositories. By default, add `.kb/`, `.mimir/`, and private raw-document paths to the
   target repository `.gitignore`.
 - Keep confidentiality features low-friction: local-hash retrieval by default, optional
@@ -23,9 +25,9 @@
 - Keep public positioning focused on sovereign local RAG for confidential datasets and AI agents.
   Avoid claiming universal binary-file support; unsupported proprietary formats need extraction or
   dedicated parsers.
-- Keep first-run UX centered on `kb setup` for full onboarding and `kb doctor --fix` for safe
-  repairs. `kb init`, `kb install-skill`, and `kb ingest` remain available as explicit lower-level
-  commands.
+- Keep first-run UX centered on `mimir setup` for full onboarding and `mimir doctor --fix` for safe
+  repairs. `mimir init`, `mimir install-skill`, and `mimir ingest` remain available as explicit
+  lower-level commands.
 - Keep product documentation canonical in the root `README.md`. Package README files under
   `packages/*/README.md` are intentionally minimal npm entrypoints and must link clearly to the
   GitHub root README because npm displays package README files separately.
@@ -36,8 +38,15 @@
 - `packages/mimir-ui` is the shared UI/style foundation adapted from the WorkoutGen landing/UI
   approach. It provides the common Tailwind theme and React primitives for both the landing and the
   Tauri app; do not import WorkoutGen product copy, assets, analytics, or secrets.
+- Prefer the shared shadcn-style primitives from `packages/mimir-ui` for landing and app surfaces.
+  Tune reusable component variants or theme tokens before adding per-use raw color, typography, or
+  shape overrides; primary buttons should stay rounded pill buttons.
 - `packages/mimir-landing` is the Astro static landing package. It must stay telemetry-free by
   default; do not add PostHog. If analytics are needed later, prefer Cloudflare Web Analytics.
+- Mimir landing should keep the broad WorkoutGen landing signals when content changes: Astro i18n
+  routes, dark-first theme, self-hosted Inter, the shared `MimirBackground` port of WorkoutGen's
+  animated particle/canvas background, rounded pill nav, and language switching. Do not flatten it
+  into a generic single-language static page or replace the background with an unrelated imitation.
 - `packages/mimir-app` is the cross-platform Tauri desktop/mobile shell. Root `pnpm build` validates
   the frontend bundle only; native `tauri build`, `tauri ios *`, and `tauri android *` commands stay
   explicit and are not part of npm release validation.
@@ -45,7 +54,7 @@
   selected project roots there and derive `private/` plus `.kb/storage`; keep ingest/query/index
   truth in Mimir Core through the sidecar/CLI surface.
 - Keep optional audio summaries separate from core ingestion/query behavior. The
-  `mimir-audio-summary` skill must prefer `kb audio` / `@jcode.labs/mimir-tts`, default to the
+  `mimir-audio-summary` skill must prefer `mimir audio` / `@jcode.labs/mimir-tts`, default to the
   Transformers.js WAV path for offline/confidential rendering, use the Edge MP3 path for global
   Voice Forge quality only when online TTS is explicitly acceptable, and keep generated audio under
   ignored local Mimir state.
@@ -55,7 +64,7 @@
 - Keep paid-product commercialization decisions in `docs/product-commercialization.md`. Lemon
   Squeezy is the default payment/license provider for now; Paddle is the fallback, Stripe is not the
   first choice unless JCode accepts more tax/compliance ownership.
-- Ingestion must be explicit about files it did not index. Preserve `kb audit --unsupported`,
+- Ingestion must be explicit about files it did not index. Preserve `mimir audit --unsupported`,
   unsupported-extension summaries, secret-like file skipping, max file size limits, and checksum-based
   stale detection.
 - Keep the repository as a simple pnpm workspace monorepo. Add Turbo only if multiple packages or
@@ -103,10 +112,11 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 ## Architecture
 
 - `packages/mimir-core` is Mimir Core, published as `@jcode.labs/mimir`.
-- `packages/mimir-core/src/cli.ts` exposes the `kb` CLI.
-- The `kb` CLI supports global `--project-root <path>` for sidecar/app usage. Prefer it when a
+- `packages/mimir-core/src/cli.ts` exposes the `mimir` CLI and keeps `kb` as a legacy alias.
+- The `mimir` CLI supports global `--project-root <path>` for sidecar/app usage. Prefer it when a
   process cannot or should not change cwd for each selected knowledge base.
-- `packages/mimir-core/src/doctor.ts` owns the user-facing readiness diagnosis behind `kb doctor`.
+- `packages/mimir-core/src/doctor.ts` owns the user-facing readiness diagnosis behind
+  `mimir doctor`.
 - `packages/mimir-core/src/config.ts` resolves `.kb/config.json` from the target repository.
 - `packages/mimir-core/src/defaults.ts` owns shared default paths, provider defaults, and generated-state ignore
   constants. Keep config/init/security/gitignore aligned through this module instead of copying
@@ -120,13 +130,13 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `packages/mimir-core/src/query.ts` performs hybrid retrieval (vector candidates plus bounded lexical
   BM25 scoring) and returns cited retrieval context; LLM synthesis belongs outside Mimir core.
 - `packages/mimir-core/src/mcp.ts` exposes Mimir as an MCP stdio server for agents.
-- `packages/mimir-tts` is the standalone TTS package used by `kb audio`; it uses `edge-tts` for
+- `packages/mimir-tts` is the standalone TTS package used by `mimir audio`; it uses `edge-tts` for
   high-quality MP3 when available and Transformers.js for offline WAV rendering.
 - `packages/mimir-ui` owns shared React UI primitives and Tailwind theme tokens used by Mimir
   product surfaces.
 - `packages/mimir-landing` owns the static Astro landing page.
 - `packages/mimir-app` owns the Tauri app shell for desktop and mobile.
-- The app integrates Mimir Core through a Node sidecar around the existing `kb` CLI/MCP surface.
+- The app integrates Mimir Core through a Node sidecar around the existing `mimir` CLI/MCP surface.
   Keep the decision and command allowlist in `docs/app-sidecar-architecture.md`; do not add
   Tauri `externalBin` entries until real platform sidecar binaries exist.
 - `packages/mimir-core/src/gitignore.ts` owns target-repository `.gitignore` entries for local generated Mimir
@@ -138,15 +148,15 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `packages/mimir-core/skills/mimir-audio-summary/SKILL.md` is the optional bundled audio-summary skill.
 - `packages/mimir-core/skills/mimir-markdown-report/SKILL.md` is the optional bundled Markdown-report
   skill.
-- `kb setup` must keep generating agent-specific MCP helpers for easy local use:
+- `mimir setup` must keep generating agent-specific MCP helpers for easy local use:
   `.mimir/claude-mcp-server.json` for `claude mcp add-json`, `.mimir/codex-mcp.toml` for Codex
   config layers, `.mimir/kimi-mcp.json` for Kimi, `.mimir/opencode.jsonc` for OpenCode, and
   `.mimir/cline-mcp.json` for Cline.
-- `kb install-agent` owns native skill discovery for the main supported coding agents. Keep
+- `mimir install-agent` owns native skill discovery for the main supported coding agents. Keep
   `--agents claude|codex|kimi|opencode|cline` targeted so a user can install only the agent they use,
   with project scope by default and user scope available through `--scope user`.
 - Keep `.mimir/skills/` as the canonical skill source in target repositories. Native agent folders
-  created by `kb install-agent` should link to that source by default; use copy mode only as a
+  created by `mimir install-agent` should link to that source by default; use copy mode only as a
   compatibility fallback for runtimes or filesystems that cannot follow symlinks.
 - `packages/mimir-core/examples/sovereign-rag-demo` is the tracked synthetic test workspace for manual
   and package validation.

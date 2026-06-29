@@ -24,7 +24,7 @@ describe("doctor", () => {
     expect(uninitialized.packageManager).toBe("pnpm")
     expect(uninitialized.agentKitInstalled).toBe(false)
     expect(uninitialized.nextSteps).toEqual([
-      "Run `pnpm exec kb setup` to initialize Mimir and install the agent kit.",
+      "Run `pnpm exec mimir setup` to initialize Mimir and install the agent kit.",
     ])
 
     await initProject(root)
@@ -41,7 +41,7 @@ describe("doctor", () => {
     expect(withEvidence.supportedFiles).toBe(1)
     expect(withEvidence.chunksIndexed).toBe(0)
     expect(withEvidence.nextSteps).toContain(
-      "Run `pnpm exec kb doctor --fix` to rebuild stale or missing index data.",
+      "Run `pnpm exec mimir doctor --fix` to rebuild stale or missing index data.",
     )
   })
 })

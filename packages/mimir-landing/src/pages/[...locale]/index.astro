@@ -1,0 +1,109 @@
+---
+import { LandingHero } from "../../components/landing-hero"
+import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
+import Layout from "../../layouts/layout.astro"
+
+export function getStaticPaths() {
+  return locales.map((locale) => ({
+    params: { locale: locale === defaultLang ? undefined : locale },
+  }))
+}
+
+const locale = (Astro.params.locale as string | undefined) ?? defaultLang
+const { t, translations } = await useTranslations(locale)
+const alternateLocales = locales.map((entry) => ({
+  locale: entry,
+  label: languages[entry],
+  href: getLocalizedUrl("/", entry),
+}))
+const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://mimir.jcode.works").href
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Mimir",
+        item: pageUrl,
+      },
+    ],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": "https://mimir.jcode.works/#software",
+    name: "Mimir",
+    description: t("seo_home_description"),
+    url: pageUrl,
+    codeRepository: "https://github.com/jcode-works/jcode-mimir",
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Any",
+    isAccessibleForFree: true,
+    license: "https://github.com/jcode-works/jcode-mimir/blob/main/LICENSE",
+    programmingLanguage: "TypeScript",
+    inLanguage: ["en", "fr"],
+    featureList: [
+      "Local-first document indexing",
+      "Cited retrieval context",
+      "MCP server for AI agents",
+      "Redaction before indexing",
+      "Metadata-only access logs",
+    ],
+    publisher: {
+      "@type": "Organization",
+      name: "JCode Labs",
+      url: "https://github.com/jcode-works",
+    },
+    author: {
+      "@type": "Person",
+      name: "Jean-Baptiste Thery",
+      url: "https://github.com/jb-thery",
+    },
+  },
+]
+---
+
+<Layout
+  title={t("seo_home_title")}
+  description={t("seo_home_description")}
+  keywords={t("seo_home_keywords")}
+  author={t("seo_author")}
+  robots={t("seo_robots")}
+  ogImageAlt={t("seo_image_alt")}
+  locale={locale}
+  availableLocales={locales}
+  structuredData={structuredData}
+>
+  <Fragment slot="head">
+    {locale === defaultLang && (
+      <script is:inline>
+        ;(() => {
+          function safeGet(key) {
+            try {
+              return localStorage.getItem(key)
+            } catch {
+              return null
+            }
+          }
+          const saved = safeGet("mimir-locale") || safeGet("i18nextLng")
+          if (saved === "fr" && location.pathname === "/") {
+            location.replace("/fr/")
+          }
+        })()
+      </script>
+    )}
+  </Fragment>
+
+  <LandingHero
+    client:load
+    alternateLocales={alternateLocales}
+    locale={locale}
+    localizedHomeUrl={getLocalizedUrl("/", locale)}
+    localizedLibraryUrl={`${getLocalizedUrl("/", locale)}#library`}
+    localizedUseCasesUrl={`${getLocalizedUrl("/", locale)}#use-cases`}
+    localizedDesktopUrl={`${getLocalizedUrl("/", locale)}#desktop`}
+    translations={translations}
+  />
+</Layout>

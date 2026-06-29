@@ -93,7 +93,7 @@ function nextActions(input: NextActionInput): string[] {
   if (input.supportedFiles === 0) {
     if (input.skippedFiles > 0) {
       steps.push(
-        "Mimir found files, but none are currently indexable. Run `kb audit --unsupported` to inspect skipped files.",
+        "Mimir found files, but none are currently indexable. Run `mimir audit --unsupported` to inspect skipped files.",
       )
     } else {
       steps.push(
@@ -117,7 +117,7 @@ function nextActions(input: NextActionInput): string[] {
   if (steps.length === 0) {
     if (input.unsupportedFiles > 0) {
       steps.push(
-        "Run `kb audit --unsupported` to inspect files skipped because their type is not supported.",
+        "Run `mimir audit --unsupported` to inspect files skipped because their type is not supported.",
       )
     }
     if (input.embeddingProvider === "local-hash") {
@@ -131,7 +131,7 @@ function nextActions(input: NextActionInput): string[] {
     )
     if (input.agentKitInstalled) {
       steps.push(
-        "Run `kb install-agent --agents claude` or another targeted agent list for native skill discovery.",
+        "Run `mimir install-agent --agents claude` or another targeted agent list for native skill discovery.",
       )
       steps.push(
         "Wire the matching MCP helper from .mimir/ when the agent should call Mimir tools directly.",

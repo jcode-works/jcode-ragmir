@@ -28,16 +28,16 @@ sanitized report is safe to commit or share.
 From the repository root:
 
 ```bash
-pnpm exec kb doctor
-pnpm exec kb audit
-pnpm exec kb security-audit
+pnpm exec mimir doctor
+pnpm exec mimir audit
+pnpm exec mimir security-audit
 ```
 
 If files are missing, stale, or setup is incomplete:
 
 ```bash
-pnpm exec kb doctor --fix
-pnpm exec kb audit --unsupported
+pnpm exec mimir doctor --fix
+pnpm exec mimir audit --unsupported
 ```
 
 Do not write a final report from stale evidence unless the user explicitly accepts that limitation.
@@ -47,9 +47,9 @@ Do not write a final report from stale evidence unless the user explicitly accep
 For a broad report, use multiple targeted retrieval passes instead of one generic query:
 
 ```bash
-pnpm exec kb search "<main report topic>" --top-k 8
-pnpm exec kb search "<people, dates, amounts, obligations, risks, decisions>" --top-k 8
-pnpm exec kb ask "<specific synthesis question>" --top-k 8
+pnpm exec mimir search "<main report topic>" --top-k 8
+pnpm exec mimir search "<people, dates, amounts, obligations, risks, decisions>" --top-k 8
+pnpm exec mimir ask "<specific synthesis question>" --top-k 8
 ```
 
 When MCP is available, prefer `mimir_search`, `mimir_ask`, `mimir_audit`, and

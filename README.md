@@ -26,10 +26,10 @@ This root README is the canonical product documentation for the public npm packa
 | Package | Role |
 | --- | --- |
 | `@jcode.labs/mimir` | Mimir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples. |
-| `@jcode.labs/mimir-tts` | Mimir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `kb audio`. |
+| `@jcode.labs/mimir-tts` | Mimir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `mimir audio`. |
 | `@jcode.labs/mimir-ui` | Private workspace UI package adapted from the WorkoutGen design foundation for Mimir surfaces. |
 | `@jcode.labs/mimir-landing` | Private Astro static landing package. Product-facing titles stay `Mimir`. |
-| `@jcode.labs/mimir-app` | Private Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses the planned `kb` sidecar boundary. |
+| `@jcode.labs/mimir-app` | Private Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses the planned Mimir sidecar boundary. |
 
 The package README files are intentionally short because npm displays each package README
 separately. They point npm readers back to this GitHub documentation.
@@ -106,7 +106,7 @@ context.
 - A repository where generated local folders can be ignored by Git.
 - No model runtime is required for the default `embeddingProvider: "local-hash"` mode.
 - Optional semantic embeddings use Transformers.js with local model files under `.mimir/models` by
-  default. Use `kb models pull` when remote model download is acceptable, then keep
+  default. Use `mimir models pull` when remote model download is acceptable, then keep
   `transformersAllowRemoteModels` false for confidential indexing.
 - Generated answers are intentionally outside Mimir core. Use Claude, Codex, OpenAI, a local model
   MCP server, or another trusted model runtime to synthesize from Mimir's cited context.
@@ -147,10 +147,10 @@ Initialize a repository, install the portable agent kit, run readiness checks, a
 when supported files are already present:
 
 ```bash
-pnpm exec kb setup
+pnpm exec mimir setup
 ```
 
-`kb setup` creates or updates:
+`mimir setup` creates or updates:
 
 ```plain text
 private/                         # raw documents to ingest
@@ -170,18 +170,18 @@ private/                         # raw documents to ingest
 ```
 
 It detects the repository package manager and writes the MCP helper files with the right command:
-`pnpm exec kb serve-mcp`, `npx kb serve-mcp`, `yarn exec kb serve-mcp`, or `bunx kb serve-mcp`.
+`pnpm exec mimir serve-mcp`, `npx mimir serve-mcp`, `yarn exec mimir serve-mcp`, or `bunx mimir serve-mcp`.
 
 Check readiness at any time:
 
 ```bash
-pnpm exec kb doctor
+pnpm exec mimir doctor
 ```
 
 If files are missing from the index, stale, or the setup is incomplete, run:
 
 ```bash
-pnpm exec kb doctor --fix
+pnpm exec mimir doctor --fix
 ```
 
 `doctor --fix` performs safe repairs: missing scaffolding, Git ignore entries, agent kit install, and
@@ -208,30 +208,30 @@ private/
 Build the local index:
 
 ```bash
-pnpm exec kb ingest
-pnpm exec kb doctor
+pnpm exec mimir ingest
+pnpm exec mimir doctor
 ```
 
-When the index is ready, `kb doctor` prints `ready=true`. `kb ingest` and `kb audit` also report
+When the index is ready, `mimir doctor` prints `ready=true`. `mimir ingest` and `mimir audit` also report
 files that were discovered but not indexed because the type is unsupported, the file is too large,
 or the file name looks like a secret/private key.
 
 List skipped paths explicitly:
 
 ```bash
-pnpm exec kb audit --unsupported
+pnpm exec mimir audit --unsupported
 ```
 
 Retrieve exact passages:
 
 ```bash
-pnpm exec kb search "approval for offline operation"
+pnpm exec mimir search "approval for offline operation"
 ```
 
 Return cited retrieval context for an agent or model:
 
 ```bash
-pnpm exec kb ask "What evidence supports offline operation?"
+pnpm exec mimir ask "What evidence supports offline operation?"
 ```
 
 Mimir does not synthesize an LLM answer. It returns cited local passages; your chosen agent or model
@@ -240,9 +240,9 @@ does the writing around those passages.
 With npm, use `npx` after installing the package:
 
 ```bash
-npx kb setup
-npx kb doctor
-npx kb search "approval for offline operation"
+npx mimir setup
+npx mimir doctor
+npx mimir search "approval for offline operation"
 ```
 
 ## Choose A Retrieval Mode
@@ -265,12 +265,12 @@ lexical/hash-based, not semantic.
 Commands:
 
 ```bash
-pnpm exec kb ingest
-pnpm exec kb search "offline retrieval approval"
-pnpm exec kb ask "What evidence supports offline operation?"
+pnpm exec mimir ingest
+pnpm exec mimir search "offline retrieval approval"
+pnpm exec mimir ask "What evidence supports offline operation?"
 ```
 
-`kb ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
+`mimir ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
 passages to any LLM or agent you trust.
 
 ### Optional Semantic Embeddings With Transformers.js
@@ -291,31 +291,31 @@ Use this when you want better semantic retrieval while keeping Mimir core free o
 Commands:
 
 ```bash
-pnpm exec kb models pull
-pnpm exec kb ingest
-pnpm exec kb ask "Which passages support offline operation?"
+pnpm exec mimir models pull
+pnpm exec mimir ingest
+pnpm exec mimir ask "Which passages support offline operation?"
 ```
 
-`kb models pull` intentionally allows a one-time download from Hugging Face into
+`mimir models pull` intentionally allows a one-time download from Hugging Face into
 `embeddingModelPath`. Keep `transformersAllowRemoteModels` false for confidential or air-gapped
-indexing after the model files are present. Re-run `kb ingest --rebuild` after changing embedding
+indexing after the model files are present. Re-run `mimir ingest --rebuild` after changing embedding
 provider or model so stored vectors match the active configuration.
 
 ## Agent Skills And MCP
 
 Mimir ships with portable agent skills and a standard MCP server.
 
-Use `kb setup` for the normal path, or install only the agent layer later:
+Use `mimir setup` for the normal path, or install only the agent layer later:
 
 ```bash
-pnpm exec kb install-skill
-pnpm exec kb install-agent --agents claude,codex,kimi,opencode,cline
+pnpm exec mimir install-skill
+pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 Start the MCP server from the repository root when a compatible agent needs tool access:
 
 ```bash
-pnpm exec kb serve-mcp
+pnpm exec mimir serve-mcp
 ```
 
 The MCP server exposes `mimir_status`, `mimir_search`, `mimir_ask`, `mimir_audit`, and
@@ -331,9 +331,9 @@ Mimir includes a plug-and-play text-to-speech path for listenable summaries.
 For the same quality path as the global Voice Forge skill, install `edge-tts` and render MP3:
 
 ```bash
-pnpm exec kb audio --doctor
+pnpm exec mimir audio --doctor
 pipx install edge-tts
-pnpm exec kb audio /tmp/MIMIR-SUMMARY-project.txt \
+pnpm exec mimir audio /tmp/MIMIR-SUMMARY-project.txt \
   --engine edge \
   --out .mimir/audio/project-summary.mp3
 ```
@@ -342,11 +342,11 @@ The Edge path uses the online Microsoft Edge TTS service through the `edge-tts` 
 when sending the narration text to that service is acceptable. MP3 output requires explicit
 `--engine edge` for this reason.
 
-By default, `kb audio` uses the Transformers.js WAV path. For confidential or air-gapped work,
+By default, `mimir audio` uses the Transformers.js WAV path. For confidential or air-gapped work,
 preload Transformers.js-compatible model files and render WAV offline:
 
 ```bash
-pnpm exec kb audio /tmp/MIMIR-SUMMARY-project.txt \
+pnpm exec mimir audio /tmp/MIMIR-SUMMARY-project.txt \
   --engine transformers \
   --offline \
   --model-path .mimir/models/tts \
@@ -379,7 +379,7 @@ your-project/
   .kb/access.log    # metadata-only access log
 ```
 
-The package never ships project documents. `kb setup` adds gitignore entries for `.kb/`,
+The package never ships project documents. `mimir setup` adds gitignore entries for `.kb/`,
 `.mimir/`, and `private/**`. Generated indexes, agent files, and raw documents stay local to the
 target repository.
 
@@ -400,13 +400,13 @@ Mimir is designed for private repositories and sensitive local evidence.
 Run:
 
 ```bash
-pnpm exec kb security-audit --strict
+pnpm exec mimir security-audit --strict
 ```
 
 Remove the generated vector index:
 
 ```bash
-pnpm exec kb destroy-index --yes
+pnpm exec mimir destroy-index --yes
 ```
 
 `destroy-index` does not securely erase SSD or copy-on-write storage. For strong deletion
@@ -451,7 +451,7 @@ Custom UTF-8 text extensions can be enabled without changing code:
 Or through:
 
 ```bash
-KB_INCLUDE_EXTENSIONS=".transcript,.evidence" pnpm exec kb ingest
+KB_INCLUDE_EXTENSIONS=".transcript,.evidence" pnpm exec mimir ingest
 ```
 
 Images, scans, audio/video files, old proprietary Office binaries such as `.doc`, and other formats
@@ -524,12 +524,12 @@ Environment overrides:
 
 Mimir ships two CLIs:
 
-- `kb`: the main local RAG, MCP, skills, security, and audio command.
-- `mimir-tts`: the standalone text-to-speech renderer used by `kb audio`.
+- `mimir`: the main local RAG, MCP, skills, security, and audio command. `kb` remains a legacy alias for compatibility.
+- `mimir-tts`: the standalone text-to-speech renderer used by `mimir audio`.
 
-Most users start with `kb setup`, `kb doctor`, `kb ingest`, `kb search`, `kb ask`, and
-`kb security-audit`. Use `kb models pull` before semantic offline ingestion when remote model
-download is acceptable, and `kb ingest --rebuild` after switching embedding provider or model.
+Most users start with `mimir setup`, `mimir doctor`, `mimir ingest`, `mimir search`, `mimir ask`, and
+`mimir security-audit`. Use `mimir models pull` before semantic offline ingestion when remote model
+download is acceptable, and `mimir ingest --rebuild` after switching embedding provider or model.
 
 The full command and option table lives in [`docs/cli-reference.md`](./docs/cli-reference.md).
 
@@ -545,16 +545,16 @@ const answer = await ask("What documents support the project timeline?")
 
 ## Troubleshooting
 
-Use `kb doctor` first. It is the shortest path to the next useful action:
+Use `mimir doctor` first. It is the shortest path to the next useful action:
 
 ```bash
-pnpm exec kb doctor
+pnpm exec mimir doctor
 ```
 
 Use `doctor --fix` when you want Mimir to repair safe setup issues automatically:
 
 ```bash
-pnpm exec kb doctor --fix
+pnpm exec mimir doctor --fix
 ```
 
 Common fixes for empty indexes, weak search, strict security audit failures, and TTS setup live in

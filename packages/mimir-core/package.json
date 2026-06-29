@@ -42,6 +42,7 @@
     }
   },
   "bin": {
+    "mimir": "dist/cli.js",
     "kb": "dist/cli.js"
   },
   "files": [

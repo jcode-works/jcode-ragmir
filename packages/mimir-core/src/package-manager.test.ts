@@ -20,8 +20,8 @@ describe("package manager detection", () => {
     expect(await detectPackageManager(root)).toBe("pnpm")
     await expect(kbCommand(root, ["doctor"])).resolves.toMatchObject({
       command: "pnpm",
-      args: ["exec", "kb", "doctor"],
-      display: "pnpm exec kb doctor",
+      args: ["exec", "mimir", "doctor"],
+      display: "pnpm exec mimir doctor",
     })
   })
 
@@ -34,8 +34,8 @@ describe("package manager detection", () => {
     expect(await detectPackageManager(root)).toBe("npm")
     await expect(kbCommand(root, ["serve-mcp"])).resolves.toMatchObject({
       command: "npx",
-      args: ["kb", "serve-mcp"],
-      display: "npx kb serve-mcp",
+      args: ["mimir", "serve-mcp"],
+      display: "npx mimir serve-mcp",
     })
   })
 

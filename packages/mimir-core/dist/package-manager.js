@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+const MIMIR_CLI_BIN = "mimir";
 export async function detectPackageManager(cwd = process.cwd()) {
     const root = path.resolve(cwd);
     const packageManager = await packageJsonManager(root);
@@ -63,26 +64,26 @@ async function packageJsonManager(root) {
 function commandArgsFor(packageManager, args) {
     switch (packageManager) {
         case "npm":
-            return { command: "npx", args: ["kb", ...args] };
+            return { command: "npx", args: [MIMIR_CLI_BIN, ...args] };
         case "yarn":
-            return { command: "yarn", args: ["exec", "kb", ...args] };
+            return { command: "yarn", args: ["exec", MIMIR_CLI_BIN, ...args] };
         case "bun":
-            return { command: "bunx", args: ["kb", ...args] };
+            return { command: "bunx", args: [MIMIR_CLI_BIN, ...args] };
         case "pnpm":
-            return { command: "pnpm", args: ["exec", "kb", ...args] };
+            return { command: "pnpm", args: ["exec", MIMIR_CLI_BIN, ...args] };
     }
 }
 function displayCommand(packageManager, args) {
     const suffix = args.map(formatArg).join(" ");
     switch (packageManager) {
         case "npm":
-            return `npx kb${suffix ? ` ${suffix}` : ""}`;
+            return `npx ${MIMIR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`;
         case "yarn":
-            return `yarn exec kb${suffix ? ` ${suffix}` : ""}`;
+            return `yarn exec ${MIMIR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`;
         case "bun":
-            return `bunx kb${suffix ? ` ${suffix}` : ""}`;
+            return `bunx ${MIMIR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`;
         case "pnpm":
-            return `pnpm exec kb${suffix ? ` ${suffix}` : ""}`;
+            return `pnpm exec ${MIMIR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`;
     }
 }
 function formatArg(arg) {

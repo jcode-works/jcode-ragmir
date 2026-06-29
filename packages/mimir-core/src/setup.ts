@@ -64,8 +64,8 @@ function canAutoIngest(report: DoctorReport): boolean {
 function setupNextSteps(report: DoctorReport): string[] {
   if (report.ready) {
     return [
-      "Ask questions with the search or ask command shown by `kb doctor`.",
-      "Run `kb install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Ask questions with the search or ask command shown by `mimir doctor`.",
+      "Run `mimir install-agent --agents claude` or another targeted agent list for native skill discovery.",
       "Wire the matching MCP helper from .mimir/ when the agent should call Mimir tools directly.",
     ]
   }

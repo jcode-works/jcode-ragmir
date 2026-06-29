@@ -17,7 +17,7 @@ The knowledge base stays local; the final audio is a generated artifact and must
 
 - Treat the source documents, retrieved passages, generated narration, and final audio as sensitive.
 - Do not use online TTS for confidential content unless the user explicitly allows it.
-- Prefer `pnpm exec kb audio` or `pnpm exec mimir-tts render` for plug-and-play output.
+- Prefer `pnpm exec mimir audio` or `pnpm exec mimir-tts render` for plug-and-play output.
 - Use `--engine transformers --offline` when model files are already present and remote model
   loading is not allowed.
 - Use `--engine edge` only when online TTS is acceptable and global Voice Forge quality is required.
@@ -30,21 +30,21 @@ The knowledge base stays local; the final audio is a generated artifact and must
 From the repository root, run:
 
 ```bash
-pnpm exec kb doctor
-pnpm exec kb status
-pnpm exec kb audit
-pnpm exec kb audit --unsupported
-pnpm exec kb security-audit
+pnpm exec mimir doctor
+pnpm exec mimir status
+pnpm exec mimir audit
+pnpm exec mimir audit --unsupported
+pnpm exec mimir security-audit
 ```
 
 If the audit reports missing or stale files, run:
 
 ```bash
-pnpm exec kb doctor --fix
-pnpm exec kb audit --unsupported
+pnpm exec mimir doctor --fix
+pnpm exec mimir audit --unsupported
 ```
 
-`kb doctor --fix` rebuilds the index only when supported files are present and the privacy posture
+`mimir doctor --fix` rebuilds the index only when supported files are present and the privacy posture
 has no warnings. Do not create an audio summary from stale or incomplete evidence unless the user
 explicitly accepts that limitation.
 
@@ -55,9 +55,9 @@ Use Mimir search or MCP tools to gather evidence before drafting the narration.
 For a broad summary, run multiple searches:
 
 ```bash
-pnpm exec kb search "<main topic>" --top-k 8
-pnpm exec kb search "<people, dates, money, obligations, risks, or decisions>" --top-k 8
-pnpm exec kb ask "<specific synthesis question>" --top-k 8
+pnpm exec mimir search "<main topic>" --top-k 8
+pnpm exec mimir search "<people, dates, money, obligations, risks, or decisions>" --top-k 8
+pnpm exec mimir ask "<specific synthesis question>" --top-k 8
 ```
 
 When MCP is available, prefer `mimir_search`, `mimir_ask`, `mimir_audit`, and
@@ -93,7 +93,7 @@ mkdir -p .mimir/audio
 For global Voice Forge quality on non-confidential text, render with Edge MP3:
 
 ```bash
-pnpm exec kb audio /tmp/MIMIR-SUMMARY-<subject-kebab>.txt \
+pnpm exec mimir audio /tmp/MIMIR-SUMMARY-<subject-kebab>.txt \
   --engine edge \
   --out .mimir/audio/MIMIR-SUMMARY-<subject-kebab>.mp3
 ```
@@ -104,7 +104,7 @@ the narration text to that service is acceptable.
 For confidential or air-gapped operation, preload the model files under `.mimir/models/tts` and run:
 
 ```bash
-pnpm exec kb audio /tmp/MIMIR-SUMMARY-<subject-kebab>.txt \
+pnpm exec mimir audio /tmp/MIMIR-SUMMARY-<subject-kebab>.txt \
   --engine transformers \
   --offline \
   --model-path .mimir/models/tts \

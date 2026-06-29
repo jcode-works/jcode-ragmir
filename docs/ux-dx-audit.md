@@ -18,8 +18,8 @@ developer and agent workflow around installation, indexing, querying, safety, au
 
 | Area | Finding | Status |
 | --- | --- | --- |
-| First run | `kb init` created useful files but did not tell users what to do next. | Fixed: `kb init` now prints next steps. |
-| Readiness | Users had to combine `status`, `audit`, and `security-audit` manually. | Fixed: `kb doctor` summarizes readiness and next steps. |
+| First run | `mimir init` created useful files but did not tell users what to do next. | Fixed: `mimir init` now prints next steps. |
+| Readiness | Users had to combine `status`, `audit`, and `security-audit` manually. | Fixed: `mimir doctor` summarizes readiness and next steps. |
 | Generated helper files | `private/README.md` was indexed and could pollute retrieval results. | Fixed: generated private README is skipped by source discovery. |
 | Audio confidentiality | `auto` could select online Edge TTS when installed. | Fixed: default path is Transformers.js WAV; Edge MP3 requires `--engine edge`. |
 | Documentation shape | The package README had too much tutorial, reference, and explanation mixed together. | Fixed: the root README is canonical; package README files are minimal npm entrypoints. |
@@ -27,7 +27,7 @@ developer and agent workflow around installation, indexing, querying, safety, au
 | Ingestion visibility | Unsupported files were ignored silently, which made users overestimate coverage. | Fixed: `ingest`, `audit`, and `audit --unsupported` report skipped files by reason. |
 | Report generation | Users had audio summaries but no dedicated Markdown-report workflow. | Fixed: `mimir-markdown-report` skill writes cited reports under ignored local state. |
 | Stale detection | Audit compared paths but did not detect changed file content. | Fixed: audit now uses stored checksums to flag stale indexed content. |
-| Semantic model preload | Users had to infer how to warm the Transformers.js cache. | Fixed: `kb models pull` downloads the configured embedding model into `embeddingModelPath`. |
+| Semantic model preload | Users had to infer how to warm the Transformers.js cache. | Fixed: `mimir models pull` downloads the configured embedding model into `embeddingModelPath`. |
 
 ## DX Findings
 
@@ -45,7 +45,7 @@ developer and agent workflow around installation, indexing, querying, safety, au
 - `local-hash` is intentionally low-friction but not semantic. The docs must continue to say this
   clearly so users do not overtrust retrieval quality.
 - Transformers.js offline TTS still depends on preloaded model files. Embedding preload now has
-  `kb models pull`, but fully air-gapped TTS still needs a dedicated preload workflow.
+  `mimir models pull`, but fully air-gapped TTS still needs a dedicated preload workflow.
 - MCP access is read-focused but still exposes private retrieved passages to the connected agent.
   Team/RBAC support remains out of scope.
 - `audit --unsupported` intentionally lists relative paths only; users still need to avoid pasting

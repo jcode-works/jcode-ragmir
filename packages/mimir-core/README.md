@@ -14,10 +14,10 @@ Mimir lets a Node.js repository keep a local knowledge base next to its private 
 supported local files, stores the generated retrieval index in the target repository, and exposes the
 same evidence through:
 
-- the `kb` CLI;
+- the `mimir` CLI (`kb` remains a legacy alias);
 - a TypeScript library API;
 - a local MCP stdio server for compatible AI agents;
-- portable agent skills copied by `kb setup`, including audio and Markdown-report workflows.
+- portable agent skills copied by `mimir setup`, including audio and Markdown-report workflows.
 
 Mimir does not send documents to a hosted RAG service and does not generate final LLM answers in
 core. It returns cited retrieval context so the agent or model you trust can write from local
@@ -39,29 +39,29 @@ pnpm add -D @jcode.labs/mimir
 ## Quick Start
 
 ```bash
-pnpm exec kb setup
-pnpm exec kb search "your question"
-pnpm exec kb ask "your question"
+pnpm exec mimir setup
+pnpm exec mimir search "your question"
+pnpm exec mimir ask "your question"
 ```
 
 By default, Mimir indexes documents from `private/`, reports unsupported/skipped files during
 ingestion, stores generated state under `.kb/`, and keeps agent integration files under `.mimir/`.
-`kb setup` adds the matching Git ignore entries for local generated and private data.
+`mimir setup` adds the matching Git ignore entries for local generated and private data.
 
-Run `pnpm exec kb doctor --fix` later to repair missing setup or rebuild stale indexes.
-For better semantic Q&A, run `pnpm exec kb models pull`, switch `.kb/config.json` to
-`embeddingProvider: "transformers"`, then run `pnpm exec kb ingest --rebuild`.
+Run `pnpm exec mimir doctor --fix` later to repair missing setup or rebuild stale indexes.
+For better semantic Q&A, run `pnpm exec mimir models pull`, switch `.kb/config.json` to
+`embeddingProvider: "transformers"`, then run `pnpm exec mimir ingest --rebuild`.
 
 ## Entry Points
 
-- CLI: `kb`
+- CLI: `mimir`
 - Library import: `@jcode.labs/mimir`
-- MCP server: `pnpm exec kb serve-mcp`
-- Bundled skills: `pnpm exec kb setup` or `pnpm exec kb install-skill`
+- MCP server: `pnpm exec mimir serve-mcp`
+- Bundled skills: `pnpm exec mimir setup` or `pnpm exec mimir install-skill`
 
 ## Claude Code And Codex
 
-After `pnpm exec kb setup`, use `pnpm exec kb install-agent --agents claude`, `--agents kimi`, or a
+After `pnpm exec mimir setup`, use `pnpm exec mimir install-agent --agents claude`, `--agents kimi`, or a
 comma-separated list for native agent skill discovery. Native agent folders link back to
 `.mimir/skills/` by default so there is one original skill source. Mimir Core also generates MCP
 helpers for Claude Code, Codex, Kimi, OpenCode, and Cline under `.mimir/`. See the canonical GitHub

@@ -2,14 +2,14 @@
 
 ## Decision
 
-The Mimir app will embed Mimir Core through a Node sidecar that runs the existing `kb` CLI/MCP
+The Mimir app will embed Mimir Core through a Node sidecar that runs the existing `mimir` CLI/MCP
 surface. Do not rewrite Mimir Core as Rust bindings for v1.
 
 ## Rationale
 
 - Mimir Core already owns parsing, redaction, embeddings, LanceDB storage, query, MCP, and audit
   behavior.
-- Reusing `kb` keeps the MIT core and the paid app on the same tested implementation.
+- Reusing `mimir` keeps the MIT core and the paid app on the same tested implementation.
 - A Rust rewrite would duplicate LanceDB and Transformers.js integration risk before product demand
   is validated.
 - The app can keep a narrow native boundary: project selection, process execution, progress/status,
@@ -19,7 +19,7 @@ surface. Do not rewrite Mimir Core as Rust bindings for v1.
 
 The intended Tauri v2 path is:
 
-1. Build or package a platform-specific Mimir Core sidecar binary that exposes bounded `kb`
+1. Build or package a platform-specific Mimir Core sidecar binary that exposes bounded `mimir`
    workflows.
 2. Add that binary to `bundle.externalBin` in `packages/mimir-app/src-tauri/tauri.conf.json`.
 3. Add `@tauri-apps/plugin-shell` on the frontend and `tauri-plugin-shell` on the Rust side.
@@ -36,19 +36,19 @@ The app should start with a small allowlist:
 
 | Workflow | Sidecar command |
 | --- | --- |
-| Readiness | `kb doctor --json` |
-| Safe repair | `kb doctor --fix --json` |
-| Status | `kb status --json` |
-| Ingest | `kb ingest --json` |
-| Force rebuild | `kb ingest --rebuild --json` |
-| Search | `kb search "<query>" --json` |
-| Ask context | `kb ask "<question>" --json` |
-| Privacy audit | `kb security-audit --json` |
-| Unsupported files | `kb audit --unsupported --json` |
-| Model preload | `kb models pull --json` |
+| Readiness | `mimir doctor --json` |
+| Safe repair | `mimir doctor --fix --json` |
+| Status | `mimir status --json` |
+| Ingest | `mimir ingest --json` |
+| Force rebuild | `mimir ingest --rebuild --json` |
+| Search | `mimir search "<query>" --json` |
+| Ask context | `mimir ask "<question>" --json` |
+| Privacy audit | `mimir security-audit --json` |
+| Unsupported files | `mimir audit --unsupported --json` |
+| Model preload | `mimir models pull --json` |
 
 The UI must pass an explicit project root for each selected knowledge base with
-`kb --project-root "<path>" ...` and keep generated state inside that project (`.kb/`, `.mimir/`)
+`mimir --project-root "<path>" ...` and keep generated state inside that project (`.kb/`, `.mimir/`)
 unless the user intentionally chooses another local folder.
 
 ## Deferred Work

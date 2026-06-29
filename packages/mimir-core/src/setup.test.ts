@@ -27,7 +27,7 @@ describe("setupProject", () => {
     expect(result.doctor.agentKitInstalled).toBe(true)
     expect(result.ingested).toBeNull()
     expect(mcpConfig.mcpServers.mimir.command).toBe("pnpm")
-    expect(mcpConfig.mcpServers.mimir.args).toEqual(["exec", "kb", "serve-mcp"])
+    expect(mcpConfig.mcpServers.mimir.args).toEqual(["exec", "mimir", "serve-mcp"])
   })
 
   it("auto-ingests supported files when the privacy posture is clean", async () => {
@@ -43,10 +43,10 @@ describe("setupProject", () => {
     expect(second.ingested?.indexedFiles).toBe(1)
     expect(second.doctor.ready).toBe(true)
     expect(second.doctor.nextSteps).toContain(
-      "Run `kb install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Run `mimir install-agent --agents claude` or another targeted agent list for native skill discovery.",
     )
     expect(second.nextSteps).toContain(
-      "Run `kb install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Run `mimir install-agent --agents claude` or another targeted agent list for native skill discovery.",
     )
   })
 })
