@@ -2,8 +2,8 @@
 
 ## Decision
 
-The Mimir app will embed Mimir Core through a Node sidecar that runs the existing `mimir` CLI/MCP
-surface. Do not rewrite Mimir Core as Rust bindings for v1.
+The Mimir app embeds Mimir Core through the existing `mimir` CLI/MCP surface, with a packaged
+Node sidecar as the intended distribution path. Do not rewrite Mimir Core as Rust bindings for v1.
 
 ## Rationale
 
@@ -17,12 +17,18 @@ surface. Do not rewrite Mimir Core as Rust bindings for v1.
 
 ## Tauri Boundary
 
-The intended Tauri v2 path is:
+The current app uses a narrow custom Tauri command, `run_mimir_command`, implemented in
+`packages/mimir-app/src-tauri/src/lib.rs`. It does not expose a general shell. The command accepts a
+fixed enum of Mimir workflows, always prepends `--project-root <path>`, always requests `--json`, and
+executes the `mimir` binary from `PATH` or `MIMIR_CLI_BIN`.
+
+The future packaged sidecar path remains:
 
 1. Build or package a platform-specific Mimir Core sidecar binary that exposes bounded `mimir`
    workflows.
 2. Add that binary to `bundle.externalBin` in `packages/mimir-app/src-tauri/tauri.conf.json`.
-3. Add `@tauri-apps/plugin-shell` on the frontend and `tauri-plugin-shell` on the Rust side.
+3. Add `@tauri-apps/plugin-shell` on the frontend and `tauri-plugin-shell` on the Rust side only if
+   the packaged sidecar needs the official shell-plugin path.
 4. Grant only explicit sidecar permissions in
    `packages/mimir-app/src-tauri/capabilities/default.json`.
 5. Call the sidecar through `Command.sidecar(...)`, with a fixed command allowlist.
@@ -54,7 +60,5 @@ unless the user intentionally chooses another local folder.
 ## Deferred Work
 
 - Native sidecar binary build pipeline.
-- Tauri shell plugin wiring.
 - Progress events for long ingests.
-- Multi-project registry and recent projects.
 - Signed macOS/Windows packaging.

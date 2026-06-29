@@ -29,6 +29,15 @@ import {
 } from "lucide-react"
 import { type DragEvent, type FormEvent, useEffect, useState } from "react"
 import {
+  type AskResult,
+  type DoctorReport,
+  runAsk,
+  runDoctor,
+  runIngest,
+  runSecurityAudit,
+  type SecurityAuditReport,
+} from "./lib/mimir-sidecar.js"
+import {
   createProject,
   loadActiveProjectId,
   loadProjects,
@@ -55,6 +64,11 @@ export function App(): React.JSX.Element {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(() => loadActiveProjectId())
   const [projectRoot, setProjectRoot] = useState("")
   const [dropStatus, setDropStatus] = useState("Drop a folder or paste its local path.")
+  const [runtimeMessage, setRuntimeMessage] = useState("Native Mimir runtime is idle.")
+  const [isRunning, setIsRunning] = useState(false)
+  const [question, setQuestion] = useState("")
+  const [askResult, setAskResult] = useState<AskResult | null>(null)
+  const [securityReport, setSecurityReport] = useState<SecurityAuditReport | null>(null)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
 
   useEffect(() => {
@@ -77,7 +91,7 @@ export function App(): React.JSX.Element {
     const existingProject = projects.find((project) => project.projectRoot === normalizedRoot)
     const project = existingProject ?? createProject({ projectRoot: normalizedRoot })
     setProjects((currentProjects) => upsertProject(currentProjects, project))
-    setActiveProjectId(project.id)
+    selectProject(project.id)
     setProjectRoot("")
     setDropStatus(`${project.name} is registered locally.`)
   }
@@ -98,7 +112,126 @@ export function App(): React.JSX.Element {
   }
 
   function handleRemoveProject(projectId: string): void {
+    if (projectId === activeProjectId) {
+      setAskResult(null)
+      setSecurityReport(null)
+    }
     setProjects((currentProjects) => removeProject(currentProjects, projectId))
+  }
+
+  function selectProject(projectId: string): void {
+    setActiveProjectId(projectId)
+    setAskResult(null)
+    setSecurityReport(null)
+  }
+
+  async function handleRefreshProject(project: MimirProject): Promise<void> {
+    await runProjectCommand("Refreshing project status", project, async () => {
+      const report = await runDoctor(project.projectRoot)
+      updateProjectFromDoctor(project, report)
+      setRuntimeMessage(
+        report.ready ? "Project is ready." : (report.nextSteps.at(0) ?? "Review project status."),
+      )
+    })
+  }
+
+  async function handleRepairProject(project: MimirProject): Promise<void> {
+    await runProjectCommand("Running safe repair", project, async () => {
+      const report = await runDoctor(project.projectRoot, true)
+      updateProjectFromDoctor(project, report)
+      setRuntimeMessage(
+        report.ready
+          ? "Repair complete. Project is ready."
+          : (report.nextSteps.at(0) ?? "Repair complete."),
+      )
+    })
+  }
+
+  async function handleIngestProject(project: MimirProject): Promise<void> {
+    replaceProject({ ...project, status: "indexing", progress: Math.max(project.progress, 35) })
+    await runProjectCommand("Ingesting project documents", project, async () => {
+      const ingestResult = await runIngest(project.projectRoot)
+      const report = await runDoctor(project.projectRoot)
+      updateProjectFromDoctor(project, report)
+      setRuntimeMessage(
+        `Ingest complete: ${ingestResult.indexedFiles} indexed files, ${ingestResult.chunks} chunks.`,
+      )
+    })
+  }
+
+  async function handleAskSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault()
+    if (!activeProject) {
+      setRuntimeMessage("Select a project before asking Mimir.")
+      return
+    }
+
+    const trimmedQuestion = question.trim()
+    if (!trimmedQuestion) {
+      setRuntimeMessage("Question is required.")
+      return
+    }
+
+    await runProjectCommand("Running retrieval", activeProject, async () => {
+      const result = await runAsk(activeProject.projectRoot, trimmedQuestion)
+      setAskResult(result)
+      setRuntimeMessage(
+        `Retrieved ${result.sources.length} cited source${result.sources.length === 1 ? "" : "s"}.`,
+      )
+    })
+  }
+
+  async function handleSecurityAudit(): Promise<void> {
+    if (!activeProject) {
+      setRuntimeMessage("Select a project before running the privacy audit.")
+      return
+    }
+
+    await runProjectCommand("Running privacy audit", activeProject, async () => {
+      const report = await runSecurityAudit(activeProject.projectRoot)
+      setSecurityReport(report)
+      setRuntimeMessage(
+        report.warnings.length === 0
+          ? "Privacy audit passed."
+          : `Privacy audit found ${report.warnings.length} warning${report.warnings.length === 1 ? "" : "s"}.`,
+      )
+    })
+  }
+
+  async function runProjectCommand(
+    label: string,
+    project: MimirProject,
+    action: () => Promise<void>,
+  ): Promise<void> {
+    setIsRunning(true)
+    setRuntimeMessage(`${label}...`)
+    try {
+      await action()
+    } catch (error) {
+      replaceProject({ ...project, status: "needs-review", progress: project.progress })
+      setRuntimeMessage(error instanceof Error ? error.message : "Native Mimir runtime failed.")
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
+  function updateProjectFromDoctor(project: MimirProject, report: DoctorReport): void {
+    replaceProject({
+      ...project,
+      rawDir: report.rawDir,
+      storageDir: report.storageDir,
+      filesIndexed: report.indexedFiles,
+      chunksIndexed: report.chunksIndexed,
+      progress: projectProgress(report),
+      status: projectStatusFromDoctor(report),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  function replaceProject(project: MimirProject): void {
+    setProjects((currentProjects) =>
+      currentProjects.map((entry) => (entry.id === project.id ? project : entry)),
+    )
   }
 
   return (
@@ -152,6 +285,9 @@ export function App(): React.JSX.Element {
               <p className="text-xs leading-5 text-muted-foreground">
                 {activeProject?.storageDir ?? "Select a local project to create a workspace."}
               </p>
+              <p className="text-xs leading-5 text-muted-foreground" aria-live="polite">
+                {runtimeMessage}
+              </p>
             </div>
           </div>
         </aside>
@@ -181,17 +317,37 @@ export function App(): React.JSX.Element {
             <ProjectsView
               activeProjectId={activeProjectId}
               dropStatus={dropStatus}
+              isRunning={isRunning}
               onDrop={handleDrop}
+              onIngestProject={handleIngestProject}
               onProjectRootChange={setProjectRoot}
               onProjectSubmit={handleProjectSubmit}
+              onRefreshProject={handleRefreshProject}
               onRemoveProject={handleRemoveProject}
-              onSelectProject={setActiveProjectId}
+              onRepairProject={handleRepairProject}
+              onSelectProject={selectProject}
               projectRoot={projectRoot}
               projects={projects}
             />
           ) : null}
-          {view === "retrieval" ? <RetrievalView activeProject={activeProject} /> : null}
-          {view === "privacy" ? <PrivacyView activeProject={activeProject} /> : null}
+          {view === "retrieval" ? (
+            <RetrievalView
+              activeProject={activeProject}
+              askResult={askResult}
+              isRunning={isRunning}
+              onAskSubmit={handleAskSubmit}
+              onQuestionChange={setQuestion}
+              question={question}
+            />
+          ) : null}
+          {view === "privacy" ? (
+            <PrivacyView
+              activeProject={activeProject}
+              isRunning={isRunning}
+              onRunSecurityAudit={handleSecurityAudit}
+              securityReport={securityReport}
+            />
+          ) : null}
         </section>
       </div>
     </main>
@@ -201,10 +357,14 @@ export function App(): React.JSX.Element {
 interface ProjectsViewProps {
   activeProjectId: string | null
   dropStatus: string
+  isRunning: boolean
   onDrop: (event: DragEvent<HTMLButtonElement>) => void
+  onIngestProject: (project: MimirProject) => Promise<void>
   onProjectRootChange: (projectRoot: string) => void
   onProjectSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onRefreshProject: (project: MimirProject) => Promise<void>
   onRemoveProject: (projectId: string) => void
+  onRepairProject: (project: MimirProject) => Promise<void>
   onSelectProject: (projectId: string) => void
   projectRoot: string
   projects: MimirProject[]
@@ -213,10 +373,14 @@ interface ProjectsViewProps {
 function ProjectsView({
   activeProjectId,
   dropStatus,
+  isRunning,
   onDrop,
+  onIngestProject,
   onProjectRootChange,
   onProjectSubmit,
+  onRefreshProject,
   onRemoveProject,
+  onRepairProject,
   onSelectProject,
   projectRoot,
   projects,
@@ -277,6 +441,37 @@ function ProjectsView({
                   <span>{project.chunksIndexed} chunks</span>
                 </div>
                 <Progress value={project.progress} />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    disabled={isRunning}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    onClick={() => onRefreshProject(project)}
+                  >
+                    <RefreshCw aria-hidden="true" />
+                    Refresh
+                  </Button>
+                  <Button
+                    disabled={isRunning}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    onClick={() => onRepairProject(project)}
+                  >
+                    <CheckCircle2 aria-hidden="true" />
+                    Setup
+                  </Button>
+                  <Button
+                    disabled={isRunning}
+                    size="sm"
+                    type="button"
+                    onClick={() => onIngestProject(project)}
+                  >
+                    <FolderPlus aria-hidden="true" />
+                    Ingest
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
@@ -334,10 +529,27 @@ interface ProjectPanelProps {
   activeProject: MimirProject | null
 }
 
-function RetrievalView({ activeProject }: ProjectPanelProps): React.JSX.Element {
-  const retrievedContext = activeProject
-    ? `No retrieval has been run for ${activeProject.name} in this app session.`
-    : "Select a local project before running retrieval."
+interface RetrievalViewProps extends ProjectPanelProps {
+  askResult: AskResult | null
+  isRunning: boolean
+  onAskSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  onQuestionChange: (question: string) => void
+  question: string
+}
+
+function RetrievalView({
+  activeProject,
+  askResult,
+  isRunning,
+  onAskSubmit,
+  onQuestionChange,
+  question,
+}: RetrievalViewProps): React.JSX.Element {
+  const retrievedContext =
+    askResult?.answer ??
+    (activeProject
+      ? `No retrieval has been run for ${activeProject.name} in this app session.`
+      : "Select a local project before running retrieval.")
 
   return (
     <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
@@ -347,17 +559,19 @@ function RetrievalView({ activeProject }: ProjectPanelProps): React.JSX.Element 
           <CardDescription>Retrieval context with source citations.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <form className="grid gap-3 md:grid-cols-[1fr_auto]" onSubmit={onAskSubmit}>
             <Input
               aria-label="Question"
-              disabled={!activeProject}
+              disabled={!activeProject || isRunning}
+              onChange={(event) => onQuestionChange(event.currentTarget.value)}
               placeholder="What proves offline operation?"
+              value={question}
             />
-            <Button disabled={!activeProject}>
+            <Button disabled={!activeProject || isRunning} type="submit">
               <MessageSquareText aria-hidden="true" />
               Ask
             </Button>
-          </div>
+          </form>
           <Textarea aria-label="Retrieved context" readOnly value={retrievedContext} />
         </CardContent>
       </Card>
@@ -368,26 +582,64 @@ function RetrievalView({ activeProject }: ProjectPanelProps): React.JSX.Element 
           <CardDescription>Ranked passages from the active knowledge base.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="rounded-md border border-dashed border-border bg-background p-5 text-sm text-muted-foreground">
-            {activeProject
-              ? `${activeProject.rawDir} is ready for cited passages after the first retrieval run.`
-              : "No project selected."}
-          </div>
+          {askResult && askResult.sources.length > 0 ? (
+            askResult.sources.map((source, index) => (
+              <div
+                className="rounded-md border border-border bg-background p-4"
+                key={`${source.relativePath}-${source.chunkIndex}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-sm font-semibold">
+                    [{index + 1}] {source.relativePath}
+                  </p>
+                  <Badge variant="outline">chunk {source.chunkIndex}</Badge>
+                </div>
+                <p className="mt-3 line-clamp-5 text-sm leading-6 text-muted-foreground">
+                  {source.text}
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-md border border-dashed border-border bg-background p-5 text-sm text-muted-foreground">
+              {activeProject
+                ? `${activeProject.rawDir} is ready for cited passages after the first retrieval run.`
+                : "No project selected."}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
   )
 }
 
-function PrivacyView({ activeProject }: ProjectPanelProps): React.JSX.Element {
-  const auditRows = privacyRows(activeProject)
+interface PrivacyViewProps extends ProjectPanelProps {
+  isRunning: boolean
+  onRunSecurityAudit: () => Promise<void>
+  securityReport: SecurityAuditReport | null
+}
+
+function PrivacyView({
+  activeProject,
+  isRunning,
+  onRunSecurityAudit,
+  securityReport,
+}: PrivacyViewProps): React.JSX.Element {
+  const auditRows = privacyRows(activeProject, securityReport)
 
   return (
     <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
       <Card className="bg-card/90">
         <CardHeader>
-          <CardTitle>Privacy audit</CardTitle>
-          <CardDescription>Current posture for the selected workspace.</CardDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle>Privacy audit</CardTitle>
+              <CardDescription>Current posture for the selected workspace.</CardDescription>
+            </div>
+            <Button disabled={!activeProject || isRunning} size="sm" onClick={onRunSecurityAudit}>
+              <ShieldCheck aria-hidden="true" />
+              Run audit
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {auditRows.map((row) => (
@@ -428,18 +680,18 @@ function PrivacyView({ activeProject }: ProjectPanelProps): React.JSX.Element {
           <ControlTile
             icon={<ShieldCheck aria-hidden="true" />}
             title="Redaction"
-            value="Built-in patterns"
+            value={securityReport ? redactionLabel(securityReport) : "Built-in patterns"}
           />
           <ControlTile icon={<RefreshCw aria-hidden="true" />} title="Ingest" value="Incremental" />
           <ControlTile
             icon={<Brain aria-hidden="true" />}
             title="Models"
-            value="Explicit preload"
+            value={securityReport?.providers.embeddingModel ?? "Explicit preload"}
           />
           <ControlTile
             icon={<Activity aria-hidden="true" />}
             title="Access log"
-            value="Metadata only"
+            value={securityReport ? accessLogLabel(securityReport) : "Metadata only"}
           />
           <ControlTile
             icon={<HardDrive aria-hidden="true" />}
@@ -468,11 +720,40 @@ function ControlTile({ icon, title, value }: ControlTileProps): React.JSX.Elemen
   )
 }
 
-function privacyRows(project: MimirProject | null): Array<{
+function privacyRows(
+  project: MimirProject | null,
+  report: SecurityAuditReport | null,
+): Array<{
   label: string
   value: string
   state: "ok" | "warn"
 }> {
+  if (report) {
+    return [
+      { label: "Telemetry", value: "Off", state: report.zeroTelemetry ? "ok" : "warn" },
+      {
+        label: "Remote models",
+        value: report.providers.transformersAllowRemoteModels ? "Allowed" : "Disabled",
+        state: report.providers.transformersAllowRemoteModels ? "warn" : "ok",
+      },
+      {
+        label: "Redaction",
+        value: redactionLabel(report),
+        state: report.redaction.enabled && report.redaction.builtIn ? "ok" : "warn",
+      },
+      {
+        label: "Generated state",
+        value: report.storage.path,
+        state: report.storage.gitIgnored ? "ok" : "warn",
+      },
+      {
+        label: "Warnings",
+        value: report.warnings.length === 0 ? "None" : report.warnings.join("; "),
+        state: report.warnings.length === 0 ? "ok" : "warn",
+      },
+    ]
+  }
+
   return [
     { label: "Telemetry", value: "Off", state: "ok" },
     { label: "Remote models", value: "Disabled by default", state: "ok" },
@@ -484,6 +765,31 @@ function privacyRows(project: MimirProject | null): Array<{
     },
     { label: "Unsupported files", value: "Awaiting audit", state: "warn" },
   ]
+}
+
+function projectProgress(report: DoctorReport): number {
+  if (report.ready) return 100
+  if (!report.initialized) return 0
+  if (report.chunksIndexed > 0) return 75
+  if (report.supportedFiles > 0) return 45
+  return 20
+}
+
+function projectStatusFromDoctor(report: DoctorReport): ProjectStatus {
+  if (!report.initialized) return "needs-setup"
+  if (report.ready) return "ready"
+  return "needs-review"
+}
+
+function redactionLabel(report: SecurityAuditReport): string {
+  if (report.redaction.enabled && report.redaction.builtIn) return "Built-in patterns"
+  if (report.redaction.enabled) return "Custom only"
+  return "Disabled"
+}
+
+function accessLogLabel(report: SecurityAuditReport): string {
+  if (!report.accessLog.enabled) return "Disabled"
+  return report.accessLog.storesRawQueries ? "Review raw query storage" : "Metadata only"
 }
 
 function projectStatusLabel(status: ProjectStatus): string {
