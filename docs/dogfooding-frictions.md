@@ -3,6 +3,9 @@
 This ledger tracks product frictions found while using Mimir locally. Keep private client details and
 raw evidence outside the repository.
 
+Use [`private-dogfooding-protocol.md`](./private-dogfooding-protocol.md) before recording any
+real-corpus or agent-MCP result here.
+
 | Priority | Friction | Current impact | Next action |
 | --- | --- | --- | --- |
 | P0 | Semantic mode still requires an explicit model preload and rebuild. | Users can stay on `local-hash` and think they have semantic retrieval, but the manual config edit is removed. | Use `mimir models pull --enable` and keep `mimir doctor` guidance sharp until real dogfooding proves a stronger default. |
@@ -18,3 +21,4 @@ raw evidence outside the repository.
 | 2026-06-29 | MCP stdio smoke against `examples/sovereign-rag-demo` | Passed: 5 tools listed, 5 chunks indexed, `mimir_search` returned 2 results, `mimir_ask` returned 2 cited sources. | Ignored `.kb/storage/` and `.kb/access.log` under the synthetic demo. |
 | 2026-06-29 | `mimir audio` on a synthetic dogfooding summary | Edge MP3 render passed; offline Transformers render failed because `Xenova/mms-tts-fra` was not preloaded under `.mimir/models/tts`. | Ignored `.mimir/audio/dogfood-summary.txt` and `.mimir/audio/dogfood-summary.mp3`. |
 | 2026-06-29 | Offline TTS preload documentation pass | Added a non-sensitive preload and offline-check workflow for `mimir audio` and `mimir-tts render`; no model download was performed. | No private input or model cache committed. |
+| 2026-06-29 | Private dogfooding protocol pass | Added the command protocol and sanitized ledger shape needed for real private corpus and MCP-agent validation. | No private corpus was run or committed. |

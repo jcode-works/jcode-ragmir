@@ -36,6 +36,9 @@
   GitHub root README because npm displays package README files separately.
 - Keep long operational references in `docs/` when the root README can link to them cleanly. The
   root README stays the canonical product entrypoint, not a dumping ground for every command table.
+- Use `docs/private-dogfooding-protocol.md` for real-corpus and MCP-agent validation. Keep raw
+  private evidence, generated JSON, reports, screenshots, paths, and client details outside Git; only
+  commit sanitized aggregate findings or synthetic reproductions.
 - Keep user-facing titles and marketing surfaces branded as `Mimir`. Use `Mimir Core` only for the
   technical core package and developer-facing metadata.
 - `packages/mimir-ui` is the shared UI/style foundation adapted from the WorkoutGen landing/UI

@@ -706,6 +706,8 @@ pnpm --dir packages/mimir-core pack
   sovereignty, GDPR, AI Act, and legal-vertical positioning.
 - [`docs/offline-tts-preload.md`](./docs/offline-tts-preload.md): preload and verify the offline
   Transformers.js TTS cache before rendering confidential audio.
+- [`docs/private-dogfooding-protocol.md`](./docs/private-dogfooding-protocol.md): run real private
+  corpus and MCP-agent validation without committing client evidence.
 - [`docs/ux-dx-audit.md`](./docs/ux-dx-audit.md): current UX/DX findings, fixes, and remaining
   product risks.
 
