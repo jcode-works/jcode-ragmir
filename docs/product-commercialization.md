@@ -89,8 +89,15 @@ The app now has a local signed-license path:
 Subscription-style licenses map `renews_at` / explicit `--expires-at` to both the update window and
 runtime expiration. Perpetual purchases omit runtime expiration and keep the per-major update window.
 
+The hosted checkout and webhook architecture is defined in
+[`payment-webhook-architecture.md`](./payment-webhook-architecture.md). It keeps the sales path
+compatible with direct-download releases: hosted checkout for payment, a small webhook service for
+license issuance, local license validation in the app, and no App Store or Play Store entitlement
+dependency.
+
 ## Deferred Implementation
 
 - Create Lemon Squeezy product and variants.
-- Wire hosted checkout links into the landing.
-- Automate hosted webhook handling for purchases, renewals, refunds, and license events.
+- Wire hosted checkout links into the direct-download release surface.
+- Automate hosted webhook handling for purchases, renewals, refunds, cancellations, and license
+  events.

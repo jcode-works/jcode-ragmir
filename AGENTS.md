@@ -103,6 +103,9 @@
 - Keep paid-product commercialization decisions in `docs/product-commercialization.md`. Lemon
   Squeezy is the default payment/license provider for now; Paddle is the fallback, Stripe is not the
   first choice unless JCode accepts more tax/compliance ownership.
+- Keep hosted checkout and webhook rules in `docs/payment-webhook-architecture.md`. The paid app uses
+  direct-download sales plus local signed licenses; do not introduce App Store, Play Store, hosted
+  document storage, or committed payment/license secrets.
 - Ingestion must be explicit about files it did not index. Preserve `mimir audit --unsupported`,
   unsupported-extension summaries, secret-like file skipping, max file size limits, and checksum-based
   stale detection.
