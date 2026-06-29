@@ -15,7 +15,14 @@ export interface MimirProject {
   chunksIndexed: number
   progress: number
   status: ProjectStatus
+  autoIngestEnabled: boolean
+  lastAutoIngestAt: string | null
   updatedAt: string
+}
+
+type StoredMimirProject = Omit<MimirProject, "autoIngestEnabled" | "lastAutoIngestAt"> & {
+  autoIngestEnabled?: boolean
+  lastAutoIngestAt?: string | null
 }
 
 export function createProject(input: { projectRoot: string; name?: string }): MimirProject {
@@ -35,6 +42,8 @@ export function createProject(input: { projectRoot: string; name?: string }): Mi
     chunksIndexed: 0,
     progress: 0,
     status: "needs-setup",
+    autoIngestEnabled: false,
+    lastAutoIngestAt: null,
     updatedAt: now,
   }
 }
@@ -51,7 +60,9 @@ export function loadProjects(storage = browserStorage()): MimirProject[] {
 
   try {
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter(isMimirProject) : []
+    return Array.isArray(parsed)
+      ? parsed.filter(isStoredMimirProject).map(normalizeStoredProject)
+      : []
   } catch {
     return []
   }
@@ -84,7 +95,15 @@ export function upsertProject(projects: MimirProject[], project: MimirProject): 
   }
 
   return projects.map((entry, index) =>
-    index === existingIndex ? { ...project, id: entry.id, updatedAt: project.updatedAt } : entry,
+    index === existingIndex
+      ? {
+          ...project,
+          id: entry.id,
+          autoIngestEnabled: entry.autoIngestEnabled,
+          lastAutoIngestAt: entry.lastAutoIngestAt,
+          updatedAt: project.updatedAt,
+        }
+      : entry,
   )
 }
 
@@ -128,7 +147,15 @@ export function joinProjectPath(projectRoot: string, ...segments: string[]): str
   return [projectRoot, ...segments].join(separator)
 }
 
-function isMimirProject(value: unknown): value is MimirProject {
+function normalizeStoredProject(project: StoredMimirProject): MimirProject {
+  return {
+    ...project,
+    autoIngestEnabled: project.autoIngestEnabled ?? false,
+    lastAutoIngestAt: project.lastAutoIngestAt ?? null,
+  }
+}
+
+function isStoredMimirProject(value: unknown): value is StoredMimirProject {
   if (!isRecord(value)) {
     return false
   }
@@ -142,6 +169,10 @@ function isMimirProject(value: unknown): value is MimirProject {
     typeof value.chunksIndexed === "number" &&
     typeof value.progress === "number" &&
     isProjectStatus(value.status) &&
+    (value.autoIngestEnabled === undefined || typeof value.autoIngestEnabled === "boolean") &&
+    (value.lastAutoIngestAt === undefined ||
+      value.lastAutoIngestAt === null ||
+      typeof value.lastAutoIngestAt === "string") &&
     typeof value.updatedAt === "string"
   )
 }

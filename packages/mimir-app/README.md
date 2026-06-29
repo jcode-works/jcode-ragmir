@@ -28,6 +28,10 @@ The current shell consumes JSON from `mimir doctor`, `mimir status`, `mimir inge
 status, cited retrieval, privacy posture, explicit model preloading, Markdown reports, and local
 audio report rendering.
 
+Registered projects can opt into watched-folder mode from the Projects view. This is a local polling
+layer over incremental `mimir ingest`: it re-indexes the selected project every 5 minutes, stores the
+setting only in local app storage, and does not add a cloud connector or background daemon.
+
 ## Distribution
 
 The app is designed for direct downloads and sideloadable installers, not App Store or Play Store

@@ -31,7 +31,7 @@ import {
   TriangleAlert,
   Volume2,
 } from "lucide-react"
-import { type DragEvent, type FormEvent, useEffect, useState } from "react"
+import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react"
 import {
   clearLicenseKey,
   type LicenseValidation,
@@ -72,6 +72,8 @@ const EMPTY_LICENSE_VALIDATION: LicenseValidation = {
   status: "empty",
   message: "No license key is installed.",
 }
+const AUTO_INGEST_POLL_MS = 30_000
+const AUTO_INGEST_INTERVAL_MS = 5 * 60 * 1000
 
 export function App(): React.JSX.Element {
   const [view, setView] = useState<View>("projects")
@@ -89,7 +91,11 @@ export function App(): React.JSX.Element {
   const [licenseValidation, setLicenseValidation] =
     useState<LicenseValidation>(EMPTY_LICENSE_VALIDATION)
   const [isLicenseChecking, setIsLicenseChecking] = useState(false)
+  const projectsRef = useRef(projects)
+  const isRunningRef = useRef(isRunning)
+  const autoIngestRunnerRef = useRef<(project: MimirProject) => Promise<void>>(async () => {})
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
+  autoIngestRunnerRef.current = runAutoIngestProject
 
   useEffect(() => {
     let isCurrent = true
@@ -105,7 +111,26 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     saveProjects(projects)
+    projectsRef.current = projects
   }, [projects])
+
+  useEffect(() => {
+    isRunningRef.current = isRunning
+  }, [isRunning])
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      if (isRunningRef.current) {
+        return
+      }
+      const project = projectsRef.current.find(shouldAutoIngestProject)
+      if (project) {
+        void autoIngestRunnerRef.current(project)
+      }
+    }, AUTO_INGEST_POLL_MS)
+
+    return () => window.clearInterval(timerId)
+  }, [])
 
   useEffect(() => {
     if (activeProjectId && projects.some((project) => project.id === activeProjectId)) {
@@ -239,6 +264,44 @@ export function App(): React.JSX.Element {
     })
   }
 
+  async function runAutoIngestProject(project: MimirProject): Promise<void> {
+    const startedAt = new Date().toISOString()
+    const watchedProject = {
+      ...project,
+      status: "indexing" as const,
+      progress: Math.max(project.progress, 35),
+      lastAutoIngestAt: startedAt,
+    }
+    replaceProject(watchedProject)
+    await runProjectCommand("Auto-ingesting watched folder", watchedProject, async () => {
+      const ingestResult = await runIngest(project.projectRoot)
+      const [report, status] = await Promise.all([
+        runDoctor(project.projectRoot),
+        runStatus(project.projectRoot),
+      ])
+      updateProjectFromDoctor(watchedProject, report, { lastAutoIngestAt: startedAt })
+      setStatusReport(status)
+      setRuntimeMessage(
+        `Watched folder indexed: ${ingestResult.indexedFiles} indexed files, ${ingestResult.chunks} chunks.`,
+      )
+    })
+  }
+
+  function handleToggleAutoIngest(project: MimirProject): void {
+    const autoIngestEnabled = !project.autoIngestEnabled
+    replaceProject({
+      ...project,
+      autoIngestEnabled,
+      lastAutoIngestAt: autoIngestEnabled ? project.lastAutoIngestAt : null,
+      updatedAt: new Date().toISOString(),
+    })
+    setRuntimeMessage(
+      autoIngestEnabled
+        ? `${project.name} will auto-ingest local changes every 5 minutes.`
+        : `${project.name} auto-ingest is disabled.`,
+    )
+  }
+
   async function handleAskSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     if (!activeProject) {
@@ -342,9 +405,14 @@ export function App(): React.JSX.Element {
     }
   }
 
-  function updateProjectFromDoctor(project: MimirProject, report: DoctorReport): void {
+  function updateProjectFromDoctor(
+    project: MimirProject,
+    report: DoctorReport,
+    updates: Partial<Pick<MimirProject, "lastAutoIngestAt">> = {},
+  ): void {
     replaceProject({
       ...project,
+      ...updates,
       rawDir: report.rawDir,
       storageDir: report.storageDir,
       filesIndexed: report.indexedFiles,
@@ -463,6 +531,7 @@ export function App(): React.JSX.Element {
               onRemoveProject={handleRemoveProject}
               onRepairProject={handleRepairProject}
               onSelectProject={selectProject}
+              onToggleAutoIngest={handleToggleAutoIngest}
               projectRoot={projectRoot}
               projects={projects}
               statusReport={statusReport}
@@ -519,6 +588,7 @@ interface ProjectsViewProps {
   onRemoveProject: (projectId: string) => void
   onRepairProject: (project: MimirProject) => Promise<void>
   onSelectProject: (projectId: string) => void
+  onToggleAutoIngest: (project: MimirProject) => void
   projectRoot: string
   projects: MimirProject[]
   statusReport: StatusReport | null
@@ -538,6 +608,7 @@ function ProjectsView({
   onRemoveProject,
   onRepairProject,
   onSelectProject,
+  onToggleAutoIngest,
   projectRoot,
   projects,
   statusReport,
@@ -630,7 +701,18 @@ function ProjectsView({
                     <FolderPlus aria-hidden="true" />
                     Ingest
                   </Button>
+                  <label className="flex min-h-8 items-center gap-2 rounded-full border border-border bg-card px-3 text-xs font-semibold text-muted-foreground">
+                    <input
+                      checked={project.autoIngestEnabled}
+                      className="size-3.5 accent-primary"
+                      disabled={isRunning}
+                      onChange={() => onToggleAutoIngest(project)}
+                      type="checkbox"
+                    />
+                    Watch
+                  </label>
                 </div>
+                <p className="text-xs text-muted-foreground">{autoIngestLabel(project)}</p>
               </div>
             </div>
           ))}
@@ -1116,6 +1198,25 @@ function redactionLabel(report: SecurityAuditReport): string {
 function accessLogLabel(report: SecurityAuditReport): string {
   if (!report.accessLog.enabled) return "Disabled"
   return report.accessLog.storesRawQueries ? "Review raw query storage" : "Metadata only"
+}
+
+function shouldAutoIngestProject(project: MimirProject): boolean {
+  if (!project.autoIngestEnabled || project.status === "indexing") {
+    return false
+  }
+  if (!project.lastAutoIngestAt) {
+    return true
+  }
+  return Date.now() - new Date(project.lastAutoIngestAt).getTime() >= AUTO_INGEST_INTERVAL_MS
+}
+
+function autoIngestLabel(project: MimirProject): string {
+  if (!project.autoIngestEnabled) {
+    return "Manual ingest only."
+  }
+  return project.lastAutoIngestAt
+    ? `Watched folder, last auto-ingest ${formatDate(project.lastAutoIngestAt)}.`
+    : "Watched folder, first auto-ingest pending."
 }
 
 function licenseStatusLabel(validation: LicenseValidation): string {

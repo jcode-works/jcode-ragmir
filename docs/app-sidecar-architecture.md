@@ -65,9 +65,14 @@ unless the user intentionally chooses another local folder.
 For audio reports, `run_mimir_command` writes the current retrieval report text under ignored
 `.mimir/audio/` first, then passes that generated text file to `mimir audio --offline --json`.
 
+For watched folders, the app does not expose a broader filesystem watcher. It stores an opt-in flag
+per registered local project and periodically calls the existing incremental `mimir ingest --json`
+workflow through the same bounded command surface.
+
 ## Deferred Work
 
 - Native sidecar binary build pipeline.
 - Progress events for long ingests.
 - Signed macOS/Windows packaging.
 - Tauri updater wiring after release signing keys and update endpoint are ready.
+- Google Drive connector.
