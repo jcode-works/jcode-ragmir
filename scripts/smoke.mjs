@@ -57,6 +57,39 @@ try {
     "doctor --fix should report an already-ready index clearly",
   )
 
+  const statusJson = parseJson((await runKb(["status", "--json"], tempRoot)).stdout, "status JSON")
+  if (typeof statusJson.chunksIndexed !== "number" || statusJson.chunksIndexed <= 0) {
+    throw new Error(`status --json should expose chunksIndexed, got ${statusJson.chunksIndexed}`)
+  }
+
+  const ingestJson = parseJson((await runKb(["ingest", "--json"], tempRoot)).stdout, "ingest JSON")
+  if (!Array.isArray(ingestJson.errors) || ingestJson.errors.length !== 0) {
+    throw new Error(`ingest --json should expose an empty errors array, got ${ingestJson.errors}`)
+  }
+
+  const searchJson = parseJson(
+    (await runKb(["search", "French tax residency", "--top-k", "1", "--json"], tempRoot)).stdout,
+    "search JSON",
+  )
+  if (searchJson.results?.[0]?.relativePath !== "private/tax.md") {
+    throw new Error(`search --json should return tax.md, got ${JSON.stringify(searchJson)}`)
+  }
+
+  const askJson = parseJson(
+    (
+      await runKb(
+        ["ask", "What proves the French tax residency risk?", "--top-k", "1", "--json"],
+        tempRoot,
+      )
+    ).stdout,
+    "ask JSON",
+  )
+  if (!askJson.answer?.includes("Mimir returns retrieval context only")) {
+    throw new Error(
+      `ask --json should expose retrieval-only answer, got ${JSON.stringify(askJson)}`,
+    )
+  }
+
   const search = await runKb(["search", "French tax residency", "--top-k", "1"], tempRoot)
   assertIncludes(search.stdout, "tax.md", "search should retrieve the tax document")
   assertIncludes(search.stdout, "French tax residency", "search should return indexed content")
@@ -445,5 +478,13 @@ function mcpText(response) {
 function assertIncludes(actual, expected, message) {
   if (!actual.includes(expected)) {
     throw new Error(`${message}\nExpected to find: ${expected}\nActual:\n${actual}`)
+  }
+}
+
+function parseJson(stdout, label) {
+  try {
+    return JSON.parse(stdout)
+  } catch (error) {
+    throw new Error(`${label} should be valid JSON.\n${error}\nActual:\n${stdout}`)
   }
 }

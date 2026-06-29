@@ -38,6 +38,7 @@ The app should start with a small allowlist:
 | --- | --- |
 | Readiness | `kb doctor --json` |
 | Safe repair | `kb doctor --fix --json` |
+| Status | `kb status --json` |
 | Ingest | `kb ingest --json` |
 | Force rebuild | `kb ingest --rebuild --json` |
 | Search | `kb search "<query>" --json` |

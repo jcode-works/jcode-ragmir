@@ -137,10 +137,19 @@ program
   .command("ingest")
   .description("Parse changed documents, redact, chunk, embed locally, and update LanceDB.")
   .option("--rebuild", "Force a full local index rebuild instead of reusing unchanged rows.")
-  .action(async (options: { rebuild?: boolean }) => {
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { rebuild?: boolean; json?: boolean }) => {
     const ingestOptions: Parameters<typeof ingest>[0] = { cwd: process.cwd() }
     addOption(ingestOptions, "rebuild", options.rebuild)
     const result = await ingest(ingestOptions)
+    if (options.json) {
+      console.log(JSON.stringify(result, null, 2))
+      if (result.errors.length > 0) {
+        process.exitCode = 1
+      }
+      return
+    }
+
     console.log(
       pc.green(
         `Done. discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} redactions=${result.redactions} errors=${result.errors.length}`,
@@ -166,8 +175,17 @@ program
   .description("Retrieve the most relevant passages without calling an LLM.")
   .argument("<query>", "Search query.")
   .option("-k, --top-k <number>", "Number of passages to return.", parsePositiveInt)
-  .action(async (query: string, options: { topK?: number }) => {
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (query: string, options: { topK?: number; json?: boolean }) => {
     const results = await search(query, withTopK(options.topK))
+    if (options.json) {
+      console.log(JSON.stringify({ query, results }, null, 2))
+      if (results.length === 0) {
+        process.exitCode = 1
+      }
+      return
+    }
+
     if (results.length === 0) {
       const repairCommand = await kbCommand(process.cwd(), ["doctor", "--fix"])
       console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`))
@@ -189,8 +207,17 @@ program
   .description("Return cited retrieval context for a question without calling an LLM.")
   .argument("<query>", "Question to answer.")
   .option("-k, --top-k <number>", "Number of passages to use.", parsePositiveInt)
-  .action(async (query: string, options: { topK?: number }) => {
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (query: string, options: { topK?: number; json?: boolean }) => {
     const result = await ask(query, withTopK(options.topK))
+    if (options.json) {
+      console.log(JSON.stringify({ query, ...result }, null, 2))
+      if (result.sources.length === 0) {
+        process.exitCode = 1
+      }
+      return
+    }
+
     console.log(`\n${result.answer}\n`)
     if (result.sources.length > 0) {
       console.log(pc.dim("Sources:"))
@@ -244,9 +271,37 @@ program
 program
   .command("status")
   .description("Show active configuration and index row count.")
-  .action(async () => {
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }) => {
     const config = await loadConfig(process.cwd())
     const rows = await countRows(config)
+    const status = {
+      projectRoot: config.projectRoot,
+      rawDir: config.rawDir,
+      storageDir: config.storageDir,
+      sourcesFile: config.sourcesFile,
+      accessLogPath: config.accessLogPath,
+      embeddingModelPath: config.embeddingModelPath,
+      embeddingProvider: config.embeddingProvider,
+      embeddingModel: config.embeddingModel,
+      transformersAllowRemoteModels: config.transformersAllowRemoteModels,
+      redactionEnabled: config.redaction.enabled,
+      accessLog: config.accessLog,
+      mcpMaxTopK: config.mcpMaxTopK,
+      topK: config.topK,
+      chunkSize: config.chunkSize,
+      chunkOverlap: config.chunkOverlap,
+      maxFileBytes: config.maxFileBytes,
+      ingestConcurrency: config.ingestConcurrency,
+      embeddingBatchSize: config.embeddingBatchSize,
+      includeExtensions: config.includeExtensions,
+      chunksIndexed: rows,
+    }
+    if (options.json) {
+      console.log(JSON.stringify(status, null, 2))
+      return
+    }
+
     console.log(`projectRoot=${config.projectRoot}`)
     console.log(`rawDir=${config.rawDir}`)
     console.log(`storageDir=${config.storageDir}`)

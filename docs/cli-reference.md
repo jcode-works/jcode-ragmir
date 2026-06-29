@@ -53,7 +53,7 @@ Mimir ships two CLIs:
 | Option | Applies to | Meaning |
 | --- | --- | --- |
 | `--top-k <number>` | `search`, `ask` | Number of passages to return. |
-| `--json` | `doctor`, `audit`, `security-audit`, `audio --doctor`, `mimir-tts doctor` | Print machine-readable JSON. |
+| `--json` | `doctor`, `ingest`, `search`, `ask`, `audit`, `status`, `security-audit`, `audio --doctor`, `mimir-tts doctor` | Print machine-readable JSON. |
 | `--unsupported` | `audit` | List skipped file paths and reasons. |
 | `--strict` | `security-audit` | Exit non-zero when warnings exist. |
 | `--offline` | `audio`, `mimir-tts render` | Disable remote model downloads and force the local Transformers.js path. |
