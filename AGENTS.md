@@ -53,6 +53,9 @@
 - Distribute the Mimir app through direct downloads and sideloadable installers, not App Store or
   Play Store flows. Desktop installers and Android APK-style distribution are first-class; iOS stays
   deferred until a compliant non-store channel is chosen.
+- Keep Android release packaging on the APK/direct-sideload path with
+  `pnpm --filter @jcode.labs/mimir-app tauri:android:build`; do not add an iOS release build script
+  until a compliant non-store distribution path exists.
 - Keep direct-download packaging and updater rules in `docs/app-distribution.md`; do not wire the
   Tauri updater with placeholder keys or endpoints.
 - App license validation is local and per-major. Keep private signing keys out of the repository;

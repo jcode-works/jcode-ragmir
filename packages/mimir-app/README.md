@@ -14,6 +14,7 @@ pnpm --filter @jcode.labs/mimir-app tauri:ios:init
 pnpm --filter @jcode.labs/mimir-app tauri:ios:dev
 pnpm --filter @jcode.labs/mimir-app tauri:android:init
 pnpm --filter @jcode.labs/mimir-app tauri:android:dev
+pnpm --filter @jcode.labs/mimir-app tauri:android:build
 ```
 
 The app uses `@jcode.labs/mimir-ui` for shared styling and should keep privacy controls visible by
@@ -37,6 +38,9 @@ setting only in local app storage, and does not add a cloud connector or backgro
 The app is designed for direct downloads and sideloadable installers, not App Store or Play Store
 distribution. Desktop installers and Android APK-style releases are the initial target channels; iOS
 distribution remains deferred until a compliant non-store path is selected.
+
+There is intentionally no iOS release build script yet. Keep iOS limited to local init/dev commands
+until a compliant non-store distribution channel is selected.
 
 See [`../../docs/app-distribution.md`](../../docs/app-distribution.md) for the direct-download
 release runbook.

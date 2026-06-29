@@ -14,6 +14,7 @@
     "license:keypair": "node scripts/license-keypair.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:android:build": "tauri android build --apk",
     "tauri:android:dev": "tauri android dev",
     "tauri:android:init": "tauri android init",
     "tauri:build": "tauri build",

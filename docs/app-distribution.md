@@ -21,10 +21,13 @@ Run native packaging explicitly from the app package:
 pnpm --filter @jcode.labs/mimir-app tauri:build:macos
 pnpm --filter @jcode.labs/mimir-app tauri:build:windows
 pnpm --filter @jcode.labs/mimir-app tauri:build:linux
+pnpm --filter @jcode.labs/mimir-app tauri:android:build
 ```
 
 The root `pnpm build` intentionally validates only the frontend bundle for `packages/mimir-app`.
 Native Tauri builds require the platform toolchain, Rust/Cargo, and the platform signing setup.
+The Android release script builds APK artifacts for sideload/direct distribution. iOS has no release
+script until a compliant non-store channel is selected.
 
 ## Release Requirements
 
