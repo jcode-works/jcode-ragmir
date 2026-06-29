@@ -82,8 +82,9 @@
 - App license validation is local and per-major. Keep private signing keys out of the repository;
   only inject the public JWK at build time through `VITE_MIMIR_LICENSE_PUBLIC_KEY_JWK`, and use
   `packages/mimir-app` `license:keypair` / `license:issue` scripts for local license operations.
-- Lemon Squeezy integration stays offline until a real webhook service exists: convert exported
-  order/subscription JSON with `license:from-lemonsqueezy`, never commit API keys or webhook secrets.
+- Lemon Squeezy integration stays offline until a real webhook service is intentionally deployed:
+  convert exported order/subscription JSON with `license:from-lemonsqueezy`, keep the private
+  webhook handler in `packages/mimir-license-webhook`, and never commit API keys or webhook secrets.
 - `packages/mimir-app/src/lib/project-registry.ts` owns the app-side local project registry. Store
   selected project roots there and derive `private/` plus `.kb/storage`; keep ingest/query/index
   truth in Mimir Core through the sidecar/CLI surface.
@@ -182,6 +183,9 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   product surfaces.
 - `packages/mimir-landing` owns the static Astro landing page.
 - `packages/mimir-app` owns the Tauri app shell for desktop and mobile.
+- `packages/mimir-license-webhook` owns the private Cloudflare Worker handler for Lemon Squeezy
+  webhook signature verification and local `MIMIR1` license issuance. It must stay undeployed until
+  real provider variants, secrets, storage/idempotency, and a release surface exist.
 - The app integrates Mimir Core through the existing `mimir` CLI/MCP surface. Keep the sidecar
   decision and command allowlist in `docs/app-sidecar-architecture.md`; the current native bridge is
   the bounded `run_mimir_command` Tauri command, and `externalBin` stays deferred until real platform

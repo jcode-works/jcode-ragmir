@@ -96,6 +96,23 @@ order plus subscription fixtures without provider credentials:
 pnpm --filter @jcode.labs/mimir-app license:lemonsqueezy:smoke
 ```
 
+## Webhook Handler Package
+
+`packages/mimir-license-webhook` contains the private Cloudflare Worker handler for the future hosted
+path. It verifies Lemon Squeezy's `X-Signature` header against the raw request body, issues local
+`MIMIR1` keys for eligible order/subscription events, and returns metadata-only records for
+cancellation/refund-style events until storage and support workflows exist.
+
+The package has a synthetic smoke test with generated local keys and no provider credentials:
+
+```bash
+pnpm --filter @jcode.labs/mimir-license-webhook smoke
+```
+
+This package is not a deployment target yet. Keep `LEMONSQUEEZY_WEBHOOK_SECRET`,
+`MIMIR_LICENSE_PRIVATE_KEY_JWK`, customer data, order exports, and generated production licenses out
+of the repository and out of public build artifacts.
+
 ## Acceptance Gates For `3E.3`
 
 `3E.3` can be closed only after all of these are true:

@@ -15,6 +15,7 @@ packages/mimir-app/src-tauri/target/
 packages/mimir-app/src-tauri/gen/
 packages/mimir-landing/.astro/
 packages/mimir-landing/dist/
+packages/mimir-license-webhook/dist/
 
 # Tracked synthetic examples. Keep generated example runtime state ignored.
 !packages/mimir-core/examples/
