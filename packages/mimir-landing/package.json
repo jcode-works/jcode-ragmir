@@ -7,6 +7,8 @@
   "license": "MIT",
   "scripts": {
     "build": "astro check && astro build",
+    "cf:dry-run": "pnpm build && wrangler deploy --dry-run",
+    "cf:preview": "pnpm build && wrangler dev --local --port 8787",
     "check": "astro check",
     "dev": "astro dev",
     "preview": "astro preview"
@@ -28,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3"
+    "@types/react-dom": "19.2.3",
+    "wrangler": "^4.105.0"
   }
 }

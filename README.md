@@ -82,6 +82,10 @@ The native client is not released, signed, or sold yet. There is no checkout, wa
 account flow in this repository. When released, it is planned for direct downloads and sideloadable
 installers, not App Store or Play Store distribution.
 
+The canonical landing and future direct-download release URL is
+[`mimir.jcode.works`](https://mimir.jcode.works). It is prepared as a Cloudflare Workers Static Assets
+site, but public deployment remains a separate release action.
+
 ## What Mimir Is For
 
 - Build a local RAG knowledge base inside any repository.

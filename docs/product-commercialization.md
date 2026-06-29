@@ -40,6 +40,10 @@ Canonical landing domain: **mimir.jcode.works**. The domain is reserved for the 
 direct-download release surface. Do not use App Store or Play Store URLs as the primary product
 destination.
 
+Landing hosting uses Cloudflare Workers Static Assets from `packages/mimir-landing/wrangler.jsonc`.
+The configuration may be validated locally with `pnpm --filter @jcode.labs/mimir-landing cf:dry-run`,
+but deployment and custom-domain activation remain manual release actions from a protected branch.
+
 ## Distribution Model
 
 Distribute Mimir Desktop through direct downloads and sideloadable installers, not through App Store

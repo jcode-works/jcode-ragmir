@@ -43,6 +43,10 @@
   shape overrides; primary buttons should stay rounded pill buttons.
 - `packages/mimir-landing` is the Astro static landing package. It must stay telemetry-free by
   default; do not add PostHog. If analytics are needed later, prefer Cloudflare Web Analytics.
+- The landing deploy target is Cloudflare Workers Static Assets through
+  `packages/mimir-landing/wrangler.jsonc` and the canonical domain `mimir.jcode.works`. Keep
+  Cloudflare account IDs, tokens, and analytics secrets out of the repository; use local dry-runs
+  before any protected-branch deployment.
 - Mimir landing should keep the broad WorkoutGen landing signals when content changes: Astro i18n
   routes, dark-first theme, self-hosted Inter, the shared `MimirBackground` port of WorkoutGen's
   animated particle/canvas background, rounded pill nav, and language switching. Do not flatten it
