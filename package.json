@@ -1,6 +1,6 @@
 {
   "name": "jcode-mimir",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "private": true,
   "description": "Monorepo for Mimir Core and open-source Mimir add-ons.",
   "type": "module",

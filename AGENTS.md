@@ -112,6 +112,9 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `kb install-agent` owns native skill discovery for the main supported coding agents. Keep
   `--agents claude|codex|kimi|opencode|cline` targeted so a user can install only the agent they use,
   with project scope by default and user scope available through `--scope user`.
+- Keep `.mimir/skills/` as the canonical skill source in target repositories. Native agent folders
+  created by `kb install-agent` should link to that source by default; use copy mode only as a
+  compatibility fallback for runtimes or filesystems that cannot follow symlinks.
 - `packages/mimir/examples/sovereign-rag-demo` is the tracked synthetic test workspace for manual
   and package validation.
 - `.kb/`, `.mimir/`, and project `private/` folders are local user data or generated agent

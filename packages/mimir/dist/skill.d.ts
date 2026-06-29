@@ -1,5 +1,6 @@
 export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline";
 export type AgentInstallScope = "project" | "user";
+export type AgentInstallMode = "link" | "copy";
 export interface InstallSkillOptions {
     cwd?: string;
     targetDir?: string;
@@ -22,6 +23,7 @@ export interface InstallAgentSkillsOptions {
     cwd?: string;
     agents?: readonly AgentTarget[];
     scope?: AgentInstallScope;
+    mode?: AgentInstallMode;
     homeDir?: string;
     env?: Record<string, string | undefined>;
 }
@@ -29,6 +31,7 @@ export interface AgentSkillInstallation {
     agent: AgentTarget;
     label: string;
     scope: AgentInstallScope;
+    mode: AgentInstallMode;
     targetDir: string;
     skillPaths: string[];
 }

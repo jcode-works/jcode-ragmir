@@ -1,6 +1,6 @@
 {
   "name": "@jcode.labs/mimir",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "description": "Mimir Core: open-source sovereign local RAG for confidential datasets and AI agents.",
   "type": "module",
   "license": "MIT",

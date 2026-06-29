@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { lstat, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -123,7 +123,7 @@ describe("installSkill", () => {
 })
 
 describe("installAgentSkills", () => {
-  it("copies selected skills into native project-scope agent folders", async () => {
+  it("links selected skills into native project-scope agent folders by default", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-agent-"))
     tempDirs.push(root)
 
@@ -137,11 +137,36 @@ describe("installAgentSkills", () => {
       "claude",
       "kimi",
     ])
-    expect(existsSync(path.join(root, ".claude", "skills", "mimir", "SKILL.md"))).toBe(true)
-    expect(existsSync(path.join(root, ".kimi", "skills", "mimir", "SKILL.md"))).toBe(true)
+    expect(result.installations.map((installation) => installation.mode)).toEqual(["link", "link"])
+    const claudeSkillDir = path.join(root, ".claude", "skills", "mimir")
+    const kimiSkillDir = path.join(root, ".kimi", "skills", "mimir")
+    expect(existsSync(path.join(claudeSkillDir, "SKILL.md"))).toBe(true)
+    expect(existsSync(path.join(kimiSkillDir, "SKILL.md"))).toBe(true)
+    expect((await lstat(claudeSkillDir)).isSymbolicLink()).toBe(true)
+    expect((await lstat(kimiSkillDir)).isSymbolicLink()).toBe(true)
+    const canonicalSkillDir = await realpath(path.join(root, ".mimir", "skills", "mimir"))
+    expect(await realpath(claudeSkillDir)).toBe(canonicalSkillDir)
+    expect(await realpath(kimiSkillDir)).toBe(canonicalSkillDir)
     expect(existsSync(path.join(root, ".codex", "skills", "mimir", "SKILL.md"))).toBe(false)
     expect(result.written).toContain(path.join(".claude", "skills", "mimir"))
     expect(result.written).toContain(path.join(".kimi", "skills", "mimir-markdown-report"))
+  })
+
+  it("can copy skills when symlinks are not wanted", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-agent-"))
+    tempDirs.push(root)
+
+    const result = await installAgentSkills({
+      cwd: root,
+      agents: ["cline"],
+      scope: "project",
+      mode: "copy",
+    })
+
+    const clineSkillDir = path.join(root, ".cline", "skills", "mimir")
+    expect(result.installations[0]?.mode).toBe("copy")
+    expect(existsSync(path.join(clineSkillDir, "SKILL.md"))).toBe(true)
+    expect((await lstat(clineSkillDir)).isSymbolicLink()).toBe(false)
   })
 
   it("uses user-scope directories and environment overrides", async () => {
@@ -153,12 +178,14 @@ describe("installAgentSkills", () => {
       cwd: root,
       agents: ["opencode"],
       scope: "user",
+      mode: "copy",
       homeDir: home,
       env: { OPENCODE_SKILLS_DIR: "~/custom-opencode-skills" },
     })
 
     const targetDir = path.join(home, "custom-opencode-skills")
     expect(result.installations[0]?.targetDir).toBe(targetDir)
+    expect(result.installations[0]?.mode).toBe("copy")
     expect(existsSync(path.join(targetDir, "mimir", "SKILL.md"))).toBe(true)
     expect(result.written).toContain(path.join(targetDir, "mimir"))
   })

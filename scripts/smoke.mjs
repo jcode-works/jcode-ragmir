@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { cp, lstat, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -134,23 +134,29 @@ try {
   assertIncludes(gitignore, ".mimir/", "install-skill should ignore generated agent kit files")
 
   await runKb(["install-agent", "--agents", "claude,kimi"], tempRoot)
-  const claudeNativeSkill = await readFile(
-    path.join(tempRoot, ".claude", "skills", "mimir", "SKILL.md"),
-    "utf8",
-  )
-  const kimiNativeSkill = await readFile(
-    path.join(tempRoot, ".kimi", "skills", "mimir", "SKILL.md"),
-    "utf8",
-  )
+  const claudeNativeSkillDir = path.join(tempRoot, ".claude", "skills", "mimir")
+  const kimiNativeSkillDir = path.join(tempRoot, ".kimi", "skills", "mimir")
+  const claudeNativeSkill = await readFile(path.join(claudeNativeSkillDir, "SKILL.md"), "utf8")
+  const kimiNativeSkill = await readFile(path.join(kimiNativeSkillDir, "SKILL.md"), "utf8")
   assertIncludes(
     claudeNativeSkill,
     "name: mimir",
-    "install-agent should install the Claude project skill",
+    "install-agent should expose the Claude project skill",
   )
   assertIncludes(
     kimiNativeSkill,
     "name: mimir",
-    "install-agent should install the Kimi project skill",
+    "install-agent should expose the Kimi project skill",
+  )
+  await assertSymlinkTarget(
+    claudeNativeSkillDir,
+    path.join(tempRoot, ".mimir", "skills", "mimir"),
+    "Claude project skill should link to the canonical Mimir skill",
+  )
+  await assertSymlinkTarget(
+    kimiNativeSkillDir,
+    path.join(tempRoot, ".mimir", "skills", "mimir"),
+    "Kimi project skill should link to the canonical Mimir skill",
   )
 
   await smokeMcp(tempRoot)
@@ -161,6 +167,18 @@ try {
   console.log("Smoke test passed.")
 } finally {
   await rm(tempRoot, { recursive: true, force: true })
+}
+
+async function assertSymlinkTarget(actualPath, expectedTarget, message) {
+  const stats = await lstat(actualPath)
+  if (!stats.isSymbolicLink()) {
+    throw new Error(`${message}: expected a symlink at ${actualPath}`)
+  }
+  const target = await realpath(actualPath)
+  const expected = await realpath(expectedTarget)
+  if (target !== expected) {
+    throw new Error(`${message}: expected ${expected}, got ${target}`)
+  }
 }
 
 async function smokeExampleWorkspace() {

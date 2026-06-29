@@ -60,9 +60,10 @@ Run `pnpm exec kb doctor --fix` later to repair missing setup or rebuild stale i
 ## Claude Code And Codex
 
 After `pnpm exec kb setup`, use `pnpm exec kb install-agent --agents claude`, `--agents kimi`, or a
-comma-separated list for native agent skill discovery. Mimir Core also generates MCP helpers for
-Claude Code, Codex, Kimi, OpenCode, and Cline under `.mimir/`. See the canonical GitHub README for
-the full agent demo.
+comma-separated list for native agent skill discovery. Native agent folders link back to
+`.mimir/skills/` by default so there is one original skill source. Mimir Core also generates MCP
+helpers for Claude Code, Codex, Kimi, OpenCode, and Cline under `.mimir/`. See the canonical GitHub
+README for the full agent demo.
 
 ## License
 

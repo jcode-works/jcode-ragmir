@@ -11,7 +11,12 @@ export { redactText } from "./redaction.js"
 export { securityAudit } from "./security.js"
 export type { SetupResult } from "./setup.js"
 export { setupProject } from "./setup.js"
-export type { AgentInstallScope, AgentSkillInstallation, AgentTarget } from "./skill.js"
+export type {
+  AgentInstallMode,
+  AgentInstallScope,
+  AgentSkillInstallation,
+  AgentTarget,
+} from "./skill.js"
 export {
   bundledSkillPath,
   installAgentSkills,

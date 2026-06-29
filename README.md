@@ -328,8 +328,9 @@ pnpm exec kb install-agent --agents kimi
 pnpm exec kb install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
-By default, `install-agent` writes project-scope skill folders. Add `--scope user` for global
-installations.
+By default, `install-agent` writes project-scope skill folders as links back to `.mimir/skills/`.
+That keeps one original version of every skill. Add `--scope user` for global installations, or
+`--mode copy` only when an agent/runtime cannot follow symlinked skill directories.
 
 | Agent | Project skill directory | Main MCP helper |
 | --- | --- | --- |
@@ -397,7 +398,9 @@ kimi --mcp-config-file .mimir/kimi-mcp.json
 ```
 
 Kimi can discover project skills from `.kimi/skills/`. The MCP config can also be installed in
-Kimi's global MCP file if you intentionally want a global setup.
+Kimi's global MCP file if you intentionally want a global setup. If you prefer not to create a
+`.kimi/skills/` discovery folder, Kimi can also be launched directly with
+`kimi --skills-dir .mimir/skills --mcp-config-file .mimir/kimi-mcp.json`.
 
 ### OpenCode
 

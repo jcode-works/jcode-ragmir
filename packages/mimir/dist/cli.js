@@ -336,18 +336,20 @@ program
     .description("Install Mimir skills into native Claude, Codex, Kimi, OpenCode, or Cline folders.")
     .option("--agents <list>", `Comma-separated agents: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`, "all")
     .option("--scope <scope>", "Install scope: project or user.", "project")
+    .option("--mode <mode>", "Expose skills as links or physical copies: link or copy.", "link")
     .option("--json", "Print machine-readable JSON.")
     .action(async (options) => {
     const scope = parseAgentInstallScope(options.scope);
+    const mode = parseAgentInstallMode(options.mode);
     const agents = parseAgentTargets(options.agents);
-    const result = await installAgentSkills({ cwd: process.cwd(), agents, scope });
+    const result = await installAgentSkills({ cwd: process.cwd(), agents, scope, mode });
     if (options.json) {
         console.log(JSON.stringify(result, null, 2));
         return;
     }
     console.log(`Installed Mimir skills for ${scope}-scope agent discovery:`);
     for (const installation of result.installations) {
-        console.log(`  - ${installation.label}: ${installation.targetDir}`);
+        console.log(`  - ${installation.label}: ${installation.targetDir} (${installation.mode})`);
     }
     console.log("");
     console.log("MCP helper files:");
@@ -359,9 +361,10 @@ program
     console.log(`  - Cline: ${result.projectKit.clineConfigPath}`);
     console.log("");
     console.log("Next steps:");
-    console.log("  1. Restart or reload the selected agent so it discovers the new SKILL.md files.");
-    console.log("  2. Wire the matching MCP helper if the agent should call Mimir tools directly.");
-    console.log(`  3. Run \`${(await kbCommand(process.cwd(), ["doctor"])).display}\`.`);
+    console.log("  1. Keep editing the canonical skills under .mimir/skills/.");
+    console.log("  2. Restart or reload the selected agent so it discovers the exposed SKILL.md files.");
+    console.log("  3. Wire the matching MCP helper if the agent should call Mimir tools directly.");
+    console.log(`  4. Run \`${(await kbCommand(process.cwd(), ["doctor"])).display}\`.`);
 });
 try {
     await program.parseAsync(process.argv);
@@ -431,6 +434,12 @@ function parseAgentInstallScope(value) {
         return value;
     }
     throw new Error("Expected --scope to be project or user.");
+}
+function parseAgentInstallMode(value) {
+    if (value === "link" || value === "copy") {
+        return value;
+    }
+    throw new Error("Expected --mode to be link or copy.");
 }
 function printDoctor(report) {
     console.log(`projectRoot=${report.projectRoot}`);

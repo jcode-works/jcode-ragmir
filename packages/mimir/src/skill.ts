@@ -1,4 +1,4 @@
-import { cp, mkdir, writeFile } from "node:fs/promises"
+import { cp, mkdir, rm, symlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { DEFAULT_SKILL_TARGET_DIR, MIMIR_DIR } from "./defaults.js"
@@ -7,6 +7,7 @@ import { kbCommand } from "./package-manager.js"
 
 export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
 export type AgentInstallScope = "project" | "user"
+export type AgentInstallMode = "link" | "copy"
 
 export interface InstallSkillOptions {
   cwd?: string
@@ -32,6 +33,7 @@ export interface InstallAgentSkillsOptions {
   cwd?: string
   agents?: readonly AgentTarget[]
   scope?: AgentInstallScope
+  mode?: AgentInstallMode
   homeDir?: string
   env?: Record<string, string | undefined>
 }
@@ -40,6 +42,7 @@ export interface AgentSkillInstallation {
   agent: AgentTarget
   label: string
   scope: AgentInstallScope
+  mode: AgentInstallMode
   targetDir: string
   skillPaths: string[]
 }
@@ -271,6 +274,7 @@ export async function installAgentSkills(
 ): Promise<InstallAgentSkillsResult> {
   const cwd = path.resolve(options.cwd ?? process.cwd())
   const scope = options.scope ?? "project"
+  const requestedMode = options.mode ?? "link"
   const homeDir = path.resolve(options.homeDir ?? process.env.HOME ?? process.cwd())
   const env = options.env ?? process.env
   const agents = options.agents ?? SUPPORTED_AGENT_TARGETS
@@ -284,19 +288,14 @@ export async function installAgentSkills(
     const targetDir = agentTargetDir(agent, scope, cwd, homeDir, env)
     await mkdir(targetDir, { recursive: true })
 
-    const skillPaths: string[] = []
-    for (const skillName of SKILL_NAMES) {
-      const source = path.join(sourceDir, skillName)
-      const target = path.join(targetDir, skillName)
-      await cp(source, target, { recursive: true, force: true })
-      skillPaths.push(target)
-      written.push(displayPath(cwd, target))
-    }
+    const { mode, skillPaths } = await exposeAgentSkills(sourceDir, targetDir, requestedMode)
+    written.push(...skillPaths.map((skillPath) => displayPath(cwd, skillPath)))
 
     installations.push({
       agent,
       label: destination.label,
       scope,
+      mode,
       targetDir,
       skillPaths,
     })
@@ -318,6 +317,59 @@ async function copyBundledSkills(targetDir: string): Promise<void> {
       }),
     ),
   )
+}
+
+async function exposeAgentSkills(
+  sourceDir: string,
+  targetDir: string,
+  requestedMode: AgentInstallMode,
+): Promise<{ mode: AgentInstallMode; skillPaths: string[] }> {
+  if (requestedMode === "copy") {
+    return copyAgentSkills(sourceDir, targetDir)
+  }
+
+  try {
+    return await linkAgentSkills(sourceDir, targetDir)
+  } catch {
+    return copyAgentSkills(sourceDir, targetDir)
+  }
+}
+
+async function linkAgentSkills(
+  sourceDir: string,
+  targetDir: string,
+): Promise<{ mode: AgentInstallMode; skillPaths: string[] }> {
+  const skillPaths: string[] = []
+  for (const skillName of SKILL_NAMES) {
+    const source = path.join(sourceDir, skillName)
+    const target = path.join(targetDir, skillName)
+    await replaceWithDirectorySymlink(source, target)
+    skillPaths.push(target)
+  }
+  return { mode: "link", skillPaths }
+}
+
+async function copyAgentSkills(
+  sourceDir: string,
+  targetDir: string,
+): Promise<{ mode: AgentInstallMode; skillPaths: string[] }> {
+  const skillPaths: string[] = []
+  for (const skillName of SKILL_NAMES) {
+    const source = path.join(sourceDir, skillName)
+    const target = path.join(targetDir, skillName)
+    await rm(target, { recursive: true, force: true })
+    await cp(source, target, { recursive: true, force: true })
+    skillPaths.push(target)
+  }
+  return { mode: "copy", skillPaths }
+}
+
+async function replaceWithDirectorySymlink(source: string, target: string): Promise<void> {
+  if (path.resolve(source) === path.resolve(target)) {
+    return
+  }
+  await rm(target, { recursive: true, force: true })
+  await symlink(source, target, process.platform === "win32" ? "junction" : "dir")
 }
 
 function agentTargetDir(
@@ -513,7 +565,8 @@ ${input.installAgentCommand}
 
 Use \`--agents claude\`, \`--agents kimi\`, or a comma-separated list when the user only uses one
 agent. Use \`--scope user\` for global installs and \`--scope project\` for repository-local agent
-folders.
+folders. By default, native agent folders link back to \`.mimir/skills/\` so there is one source of
+truth. Use \`--mode copy\` only when an agent or filesystem cannot follow symlinks.
 
 Detailed setup notes:
 
@@ -586,8 +639,9 @@ interface AgentSetupGuideInput {
 function agentSetupGuide(input: AgentSetupGuideInput): string {
   return `# Mimir Agent Setup
 
-Mimir keeps the repository-local source of truth under \`.mimir/skills/\`. Install only the agents
-you use.
+Mimir keeps the repository-local source of truth under \`.mimir/skills/\`. Native agent folders link
+to that source by default, so there is one original version to update. Install only the agents you
+use.
 
 ## Install Native Skills
 
@@ -601,6 +655,7 @@ Examples:
 ${input.installAgentCommand.replace("claude,kimi", "claude")}
 ${input.installAgentCommand.replace("claude,kimi", "kimi")}
 ${input.installAgentCommand.replace("claude,kimi", "claude,codex,kimi,opencode,cline")}
+${input.installAgentCommand.replace("claude,kimi", "cline")} --mode copy
 \`\`\`
 
 Default project-scope targets:
@@ -615,6 +670,9 @@ Default project-scope targets:
 
 Override paths with \`CLAUDE_SKILLS_DIR\`, \`CODEX_SKILLS_DIR\`, \`KIMI_SKILLS_DIR\`,
 \`OPENCODE_SKILLS_DIR\`, or \`CLINE_SKILLS_DIR\`.
+
+Use \`--mode copy\` only when an agent runtime does not follow symlinked skill directories. When using
+copy mode, rerun \`install-agent\` after refreshing \`.mimir/skills/\`.
 
 ## Skill Folders
 

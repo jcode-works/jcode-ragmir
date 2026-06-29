@@ -262,7 +262,9 @@ pnpm exec kb install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 By default this writes project-scope skill folders such as `.claude/skills/`, `.kimi/skills/`,
-`.opencode/skills/`, or `.cline/skills/`. Add `--scope user` for global installs.
+`.opencode/skills/`, or `.cline/skills/` as links back to `.mimir/skills/`. That keeps one original
+skill source. Add `--scope user` for global installs, or `--mode copy` only when an agent/runtime
+cannot follow symlinked skill directories.
 
 Agents that understand skill folders can load `.mimir/skills/mimir/` directly when native discovery
 is not installed. Other agents can read `.mimir/README.md` and `.mimir/mcp.json`.
