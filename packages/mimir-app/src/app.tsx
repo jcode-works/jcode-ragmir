@@ -17,78 +17,88 @@ import {
   Database,
   FileSearch,
   FolderOpen,
+  FolderPlus,
   HardDrive,
   LockKeyhole,
   MessageSquareText,
+  Plus,
   RefreshCw,
   ShieldCheck,
+  Trash2,
   TriangleAlert,
 } from "lucide-react"
-import { type DragEvent, useState } from "react"
+import { type DragEvent, type FormEvent, useEffect, useState } from "react"
+import {
+  createProject,
+  loadActiveProjectId,
+  loadProjects,
+  type MimirProject,
+  normalizeProjectRoot,
+  type ProjectStatus,
+  removeProject,
+  saveActiveProjectId,
+  saveProjects,
+  upsertProject,
+} from "./lib/project-registry.js"
 
 type View = "projects" | "retrieval" | "privacy"
 
-const projects = [
-  {
-    name: "Client RFP",
-    files: 128,
-    status: "Indexed",
-    path: "~/Projects/client-rfp/private",
-    progress: 100,
-  },
-  {
-    name: "Architecture notes",
-    files: 42,
-    status: "Watching",
-    path: "~/Projects/architecture/private",
-    progress: 78,
-  },
-  {
-    name: "Legal review",
-    files: 17,
-    status: "Local only",
-    path: "~/Projects/legal-review/private",
-    progress: 100,
-  },
-]
-
-const citations = [
-  {
-    source: "operations-brief.md",
-    text: "approved runtime: encrypted disk, local retrieval, no telemetry",
-  },
-  {
-    source: "security-policy.yaml",
-    text: "remote model loading disabled; access log stores metadata only",
-  },
-  {
-    source: "dataset-inventory.csv",
-    text: "unsupported files are tracked separately before professional review",
-  },
-]
-
-const auditRows = [
-  { label: "Telemetry", value: "Off", state: "ok" },
-  { label: "Remote models", value: "Disabled", state: "ok" },
-  { label: "Redaction", value: "Before indexing", state: "ok" },
-  { label: "Git ignore", value: ".kb/ .mimir/ private/**", state: "ok" },
-  { label: "Unsupported files", value: "3 pending review", state: "warn" },
-]
-
 const modelRows = [
   { label: "Provider", value: "Transformers.js", detail: "Semantic retrieval" },
-  { label: "Embedding model", value: "mixedbread xsmall", detail: "Cached locally" },
+  { label: "Embedding model", value: "Configured per project", detail: ".kb/config.json" },
   { label: "Fallback", value: "Local hash", detail: "No model runtime" },
 ]
 
 export function App(): React.JSX.Element {
   const [view, setView] = useState<View>("projects")
-  const [dropStatus, setDropStatus] = useState("Drop a folder or choose one from disk.")
+  const [projects, setProjects] = useState<MimirProject[]>(() => loadProjects())
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => loadActiveProjectId())
+  const [projectRoot, setProjectRoot] = useState("")
+  const [dropStatus, setDropStatus] = useState("Drop a folder or paste its local path.")
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
+
+  useEffect(() => {
+    saveProjects(projects)
+  }, [projects])
+
+  useEffect(() => {
+    if (activeProjectId && projects.some((project) => project.id === activeProjectId)) {
+      saveActiveProjectId(activeProjectId)
+      return
+    }
+
+    const firstProjectId = projects.at(0)?.id ?? null
+    setActiveProjectId(firstProjectId)
+    saveActiveProjectId(firstProjectId)
+  }, [activeProjectId, projects])
+
+  function registerProject(root: string): void {
+    const normalizedRoot = normalizeProjectRoot(root)
+    const existingProject = projects.find((project) => project.projectRoot === normalizedRoot)
+    const project = existingProject ?? createProject({ projectRoot: normalizedRoot })
+    setProjects((currentProjects) => upsertProject(currentProjects, project))
+    setActiveProjectId(project.id)
+    setProjectRoot("")
+    setDropStatus(`${project.name} is registered locally.`)
+  }
+
+  function handleProjectSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault()
+    try {
+      registerProject(projectRoot)
+    } catch (error) {
+      setDropStatus(error instanceof Error ? error.message : "Project root is required.")
+    }
+  }
 
   function handleDrop(event: DragEvent<HTMLButtonElement>): void {
     event.preventDefault()
     const itemCount = event.dataTransfer.items.length || event.dataTransfer.files.length
-    setDropStatus(`${itemCount} local item${itemCount === 1 ? "" : "s"} ready for sidecar ingest.`)
+    setDropStatus(`${itemCount} local item${itemCount === 1 ? "" : "s"} detected.`)
+  }
+
+  function handleRemoveProject(projectId: string): void {
+    setProjects((currentProjects) => removeProject(currentProjects, projectId))
   }
 
   return (
@@ -135,10 +145,12 @@ export function App(): React.JSX.Element {
           <div className="mt-6 rounded-lg border border-border bg-background p-4">
             <p className="text-sm font-semibold">Runtime</p>
             <div className="mt-3 space-y-3">
-              <Badge variant="success">Sidecar boundary</Badge>
-              <Progress value={78} aria-label="Index freshness" />
+              <Badge variant={activeProject ? statusBadge(activeProject.status) : "outline"}>
+                {activeProject ? projectStatusLabel(activeProject.status) : "No project"}
+              </Badge>
+              <Progress value={activeProject?.progress ?? 0} aria-label="Index freshness" />
               <p className="text-xs leading-5 text-muted-foreground">
-                `kb` workflows stay isolated until the native sidecar is packaged.
+                {activeProject?.storageDir ?? "Select a local project to create a workspace."}
               </p>
             </div>
           </div>
@@ -153,22 +165,33 @@ export function App(): React.JSX.Element {
                   Local dossiers, cited retrieval.
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Project state stays under the selected workspace. Mimir Core remains the tested
-                  engine behind the app boundary.
+                  {activeProject
+                    ? `${activeProject.name} keeps generated state under ${activeProject.storageDir}.`
+                    : "Project state stays under the selected workspace."}
                 </p>
               </div>
-              <Button>
-                <FolderOpen aria-hidden="true" />
-                Add folder
+              <Button onClick={() => setView("projects")}>
+                <Plus aria-hidden="true" />
+                Add project
               </Button>
             </div>
           </header>
 
           {view === "projects" ? (
-            <ProjectsView dropStatus={dropStatus} onDrop={handleDrop} />
+            <ProjectsView
+              activeProjectId={activeProjectId}
+              dropStatus={dropStatus}
+              onDrop={handleDrop}
+              onProjectRootChange={setProjectRoot}
+              onProjectSubmit={handleProjectSubmit}
+              onRemoveProject={handleRemoveProject}
+              onSelectProject={setActiveProjectId}
+              projectRoot={projectRoot}
+              projects={projects}
+            />
           ) : null}
-          {view === "retrieval" ? <RetrievalView /> : null}
-          {view === "privacy" ? <PrivacyView /> : null}
+          {view === "retrieval" ? <RetrievalView activeProject={activeProject} /> : null}
+          {view === "privacy" ? <PrivacyView activeProject={activeProject} /> : null}
         </section>
       </div>
     </main>
@@ -176,11 +199,28 @@ export function App(): React.JSX.Element {
 }
 
 interface ProjectsViewProps {
+  activeProjectId: string | null
   dropStatus: string
   onDrop: (event: DragEvent<HTMLButtonElement>) => void
+  onProjectRootChange: (projectRoot: string) => void
+  onProjectSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onRemoveProject: (projectId: string) => void
+  onSelectProject: (projectId: string) => void
+  projectRoot: string
+  projects: MimirProject[]
 }
 
-function ProjectsView({ dropStatus, onDrop }: ProjectsViewProps): React.JSX.Element {
+function ProjectsView({
+  activeProjectId,
+  dropStatus,
+  onDrop,
+  onProjectRootChange,
+  onProjectSubmit,
+  onRemoveProject,
+  onSelectProject,
+  projectRoot,
+  projects,
+}: ProjectsViewProps): React.JSX.Element {
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
       <Card className="bg-card/90">
@@ -189,21 +229,52 @@ function ProjectsView({ dropStatus, onDrop }: ProjectsViewProps): React.JSX.Elem
           <CardDescription>Local knowledge bases stored per workspace.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {projects.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border bg-background p-5 text-sm text-muted-foreground">
+              Add the root folder of a Mimir workspace to start tracking it here.
+            </div>
+          ) : null}
+
           {projects.map((project) => (
-            <div className="rounded-md border border-border bg-background p-3" key={project.name}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{project.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{project.path}</p>
-                </div>
-                <Badge variant={project.progress === 100 ? "success" : "outline"}>
-                  {project.status}
-                </Badge>
+            <div className="rounded-md border border-border bg-background p-3" key={project.id}>
+              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <button
+                  type="button"
+                  className="min-w-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => onSelectProject(project.id)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{project.name}</p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {project.projectRoot}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={
+                        project.id === activeProjectId ? "success" : statusBadge(project.status)
+                      }
+                    >
+                      {project.id === activeProjectId
+                        ? "Active"
+                        : projectStatusLabel(project.status)}
+                    </Badge>
+                  </div>
+                </button>
+                <Button
+                  aria-label={`Remove ${project.name}`}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onRemoveProject(project.id)}
+                >
+                  <Trash2 aria-hidden="true" />
+                </Button>
               </div>
               <div className="mt-3 grid gap-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{project.files} files</span>
-                  <span>{project.progress}%</span>
+                  <span>{project.filesIndexed} files</span>
+                  <span>{project.chunksIndexed} chunks</span>
                 </div>
                 <Progress value={project.progress} />
               </div>
@@ -218,14 +289,27 @@ function ProjectsView({ dropStatus, onDrop }: ProjectsViewProps): React.JSX.Elem
           <CardDescription>Folders become local Mimir workspaces.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <form className="grid gap-3 md:grid-cols-[1fr_auto]" onSubmit={onProjectSubmit}>
+            <Input
+              aria-label="Project root"
+              onChange={(event) => onProjectRootChange(event.currentTarget.value)}
+              placeholder="/Users/me/Projects/client-rfp"
+              value={projectRoot}
+            />
+            <Button type="submit">
+              <FolderPlus aria-hidden="true" />
+              Add
+            </Button>
+          </form>
+
           <button
             type="button"
-            className="flex min-h-44 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-background p-6 text-center outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-h-36 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-background p-6 text-center outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onDragOver={(event) => event.preventDefault()}
             onDrop={onDrop}
           >
             <FolderOpen className="size-8 text-muted-foreground" aria-hidden="true" />
-            <p className="font-semibold">Add a local folder</p>
+            <p className="font-semibold">Drop a local folder</p>
             <p className="max-w-sm text-sm leading-6 text-muted-foreground" aria-live="polite">
               {dropStatus}
             </p>
@@ -246,7 +330,15 @@ function ProjectsView({ dropStatus, onDrop }: ProjectsViewProps): React.JSX.Elem
   )
 }
 
-function RetrievalView(): React.JSX.Element {
+interface ProjectPanelProps {
+  activeProject: MimirProject | null
+}
+
+function RetrievalView({ activeProject }: ProjectPanelProps): React.JSX.Element {
+  const retrievedContext = activeProject
+    ? `No retrieval has been run for ${activeProject.name} in this app session.`
+    : "Select a local project before running retrieval."
+
   return (
     <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
       <Card className="bg-card/90">
@@ -256,19 +348,17 @@ function RetrievalView(): React.JSX.Element {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-            <Input aria-label="Question" defaultValue="What proves offline operation?" />
-            <Button>
+            <Input
+              aria-label="Question"
+              disabled={!activeProject}
+              placeholder="What proves offline operation?"
+            />
+            <Button disabled={!activeProject}>
               <MessageSquareText aria-hidden="true" />
               Ask
             </Button>
           </div>
-          <Textarea
-            aria-label="Retrieved context"
-            readOnly
-            value={citations
-              .map((item, index) => `[${index + 1}] ${item.source}: ${item.text}`)
-              .join("\n\n")}
-          />
+          <Textarea aria-label="Retrieved context" readOnly value={retrievedContext} />
         </CardContent>
       </Card>
 
@@ -278,25 +368,20 @@ function RetrievalView(): React.JSX.Element {
           <CardDescription>Ranked passages from the active knowledge base.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {citations.map((citation, index) => (
-            <div
-              className="rounded-md border border-border bg-background p-3"
-              key={citation.source}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <Badge variant="outline">Source {index + 1}</Badge>
-                <span className="text-xs text-muted-foreground">{citation.source}</span>
-              </div>
-              <p className="mt-3 text-sm leading-6">{citation.text}</p>
-            </div>
-          ))}
+          <div className="rounded-md border border-dashed border-border bg-background p-5 text-sm text-muted-foreground">
+            {activeProject
+              ? `${activeProject.rawDir} is ready for cited passages after the first retrieval run.`
+              : "No project selected."}
+          </div>
         </CardContent>
       </Card>
     </div>
   )
 }
 
-function PrivacyView(): React.JSX.Element {
+function PrivacyView({ activeProject }: ProjectPanelProps): React.JSX.Element {
+  const auditRows = privacyRows(activeProject)
+
   return (
     <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
       <Card className="bg-card/90">
@@ -338,7 +423,7 @@ function PrivacyView(): React.JSX.Element {
           <ControlTile
             icon={<LockKeyhole aria-hidden="true" />}
             title="Local state"
-            value=".kb/ and .mimir/"
+            value={activeProject?.storageDir ?? ".kb/storage"}
           />
           <ControlTile
             icon={<ShieldCheck aria-hidden="true" />}
@@ -358,8 +443,8 @@ function PrivacyView(): React.JSX.Element {
           />
           <ControlTile
             icon={<HardDrive aria-hidden="true" />}
-            title="Storage"
-            value="Workspace scoped"
+            title="Workspace"
+            value={activeProject?.projectRoot ?? "Not selected"}
           />
         </CardContent>
       </Card>
@@ -378,7 +463,42 @@ function ControlTile({ icon, title, value }: ControlTileProps): React.JSX.Elemen
     <div className="rounded-md border border-border bg-background p-3">
       <div className="flex items-center gap-2 text-muted-foreground [&_svg]:size-4">{icon}</div>
       <p className="mt-3 font-semibold">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{value}</p>
+      <p className="mt-1 truncate text-xs text-muted-foreground">{value}</p>
     </div>
   )
+}
+
+function privacyRows(project: MimirProject | null): Array<{
+  label: string
+  value: string
+  state: "ok" | "warn"
+}> {
+  return [
+    { label: "Telemetry", value: "Off", state: "ok" },
+    { label: "Remote models", value: "Disabled by default", state: "ok" },
+    { label: "Redaction", value: "Before indexing", state: "ok" },
+    {
+      label: "Generated state",
+      value: project ? project.storageDir : "No project selected",
+      state: project ? "ok" : "warn",
+    },
+    { label: "Unsupported files", value: "Awaiting audit", state: "warn" },
+  ]
+}
+
+function projectStatusLabel(status: ProjectStatus): string {
+  switch (status) {
+    case "ready":
+      return "Ready"
+    case "indexing":
+      return "Indexing"
+    case "needs-review":
+      return "Review"
+    case "needs-setup":
+      return "Needs setup"
+  }
+}
+
+function statusBadge(status: ProjectStatus): "success" | "outline" {
+  return status === "ready" ? "success" : "outline"
 }

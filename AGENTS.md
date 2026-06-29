@@ -41,6 +41,9 @@
 - `packages/mimir-app` is the cross-platform Tauri desktop/mobile shell. Root `pnpm build` validates
   the frontend bundle only; native `tauri build`, `tauri ios *`, and `tauri android *` commands stay
   explicit and are not part of npm release validation.
+- `packages/mimir-app/src/lib/project-registry.ts` owns the app-side local project registry. Store
+  selected project roots there and derive `private/` plus `.kb/storage`; keep ingest/query/index
+  truth in Mimir Core through the sidecar/CLI surface.
 - Keep optional audio summaries separate from core ingestion/query behavior. The
   `mimir-audio-summary` skill must prefer `kb audio` / `@jcode.labs/mimir-tts`, default to the
   Transformers.js WAV path for offline/confidential rendering, use the Edge MP3 path for global
