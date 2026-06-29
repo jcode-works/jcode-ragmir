@@ -12,6 +12,16 @@ const MCP_REQUEST_TIMEOUT_MS = 10_000
 const MCP_CLOSE_TIMEOUT_MS = 2_000
 
 try {
+  const help = await runKb(["--help"], tempRoot)
+  if (!help.stdout.startsWith("Usage: mimir ")) {
+    throw new Error(`CLI help should expose Mimir as the public command.\nActual:\n${help.stdout}`)
+  }
+  assertNotIncludes(
+    help.stdout,
+    "mimir|kb",
+    "CLI help should not advertise the legacy kb compatibility alias",
+  )
+
   const setup = await runKb(["setup"], tempRoot)
   assertIncludes(
     setup.stdout,
@@ -503,6 +513,12 @@ function mcpText(response) {
 function assertIncludes(actual, expected, message) {
   if (!actual.includes(expected)) {
     throw new Error(`${message}\nExpected to find: ${expected}\nActual:\n${actual}`)
+  }
+}
+
+function assertNotIncludes(actual, unexpected, message) {
+  if (actual.includes(unexpected)) {
+    throw new Error(`${message}\nDid not expect to find: ${unexpected}\nActual:\n${actual}`)
   }
 }
 
