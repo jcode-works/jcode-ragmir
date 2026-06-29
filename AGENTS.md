@@ -53,6 +53,11 @@
 - Prefer the shared shadcn-style primitives from `packages/mimir-ui` for landing and app surfaces.
   Tune reusable component variants or theme tokens before adding per-use raw color, typography, or
   shape overrides; primary buttons should stay rounded pill buttons.
+- Keep shadcn CLI configuration explicit in `packages/mimir-ui/components.json` and
+  `packages/mimir-landing/components.json`. Use `pnpm dlx shadcn@latest info -c
+  packages/mimir-ui` for shared primitives and `pnpm dlx shadcn@latest info -c
+  packages/mimir-landing` for the Astro landing surface; do not duplicate landing-local UI
+  components when an export from `@jcode.labs/mimir-ui` fits.
 - `packages/mimir-landing` is the Astro static landing package. It must stay telemetry-free by
   default; do not add PostHog. If analytics are needed later, prefer Cloudflare Web Analytics.
 - The landing deploy target is Cloudflare Workers Static Assets through

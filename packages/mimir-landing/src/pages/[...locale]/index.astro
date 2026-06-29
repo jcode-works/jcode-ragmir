@@ -95,6 +95,8 @@ const structuredData = [
       "Local-first document indexing",
       "Cited retrieval context",
       "MCP server for AI agents",
+      "Agent setup for Claude, Codex, Kimi, OpenCode, and Cline",
+      "Planned desktop client distributed through direct downloads",
       "Redaction before indexing",
       "Metadata-only access logs",
     ],
@@ -157,6 +159,7 @@ const structuredData = [
     client:load
     alternateLocales={alternateLocales}
     locale={locale}
+    localizedAgentsUrl={`${getLocalizedUrl("/", locale)}#agents`}
     localizedHomeUrl={getLocalizedUrl("/", locale)}
     localizedLibraryUrl={`${getLocalizedUrl("/", locale)}#library`}
     localizedUseCasesUrl={`${getLocalizedUrl("/", locale)}#use-cases`}
