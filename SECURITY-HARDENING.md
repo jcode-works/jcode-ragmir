@@ -212,7 +212,7 @@ workspace packages with provenance:
 
 ```bash
 pnpm --dir packages/mimir-tts publish --access public --provenance --no-git-checks
-pnpm --dir packages/mimir publish --access public --provenance --no-git-checks
+pnpm --dir packages/mimir-core publish --access public --provenance --no-git-checks
 ```
 
 Release artifacts include:

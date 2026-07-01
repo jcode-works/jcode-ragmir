@@ -1,0 +1,18 @@
+{
+  "name": "@jcode.labs/mimir-license-webhook",
+  "version": "0.4.10",
+  "private": true,
+  "description": "Unpublished MIT-licensed Cloudflare Worker handler for Mimir Desktop license webhooks.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cf:dry-run": "pnpm build && wrangler deploy --dry-run",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "smoke": "pnpm build && node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "wrangler": "^4.105.0"
+  }
+}

@@ -1,0 +1,11 @@
+@import "@jcode.labs/mimir-ui/globals.css";
+
+#root {
+  min-height: 100vh;
+}
+
+.desktop-shell {
+  background:
+    radial-gradient(circle at top left, color-mix(in oklch, var(--accent) 24%, transparent), transparent 32rem),
+    linear-gradient(135deg, var(--background), color-mix(in oklch, var(--background) 82%, var(--accent)));
+}

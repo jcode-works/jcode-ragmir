@@ -7,7 +7,7 @@ import YAML from "yaml"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const artifactsDir = path.join(repoRoot, "release-artifacts")
-const corePackageDir = "packages/mimir"
+const corePackageDir = "packages/mimir-core"
 const packageDirs = ["packages/mimir-tts", corePackageDir]
 const corePackageJson = await readPackageJson(corePackageDir)
 

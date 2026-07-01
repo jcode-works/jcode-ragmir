@@ -39,6 +39,9 @@ pnpm exec mimir-tts render /tmp/summary.txt --engine edge --out .mimir/audio/sum
 The default engine is `transformers` for offline/confidential WAV output. Use `--engine edge` only
 when sending narration text to online Edge TTS is acceptable.
 
+For fully offline use, preload the Transformers.js model with non-sensitive text before rendering
+confidential narration. See the root `docs/offline-tts-preload.md` guide.
+
 ## License
 
 MIT (c) Jean-Baptiste Thery.

@@ -47,7 +47,7 @@ jobs:
 
       - name: Verify version input
         run: |
-          test "$(node -p "require('./packages/mimir/package.json').version")" = "${{ inputs.version }}"
+          test "$(node -p "require('./packages/mimir-core/package.json').version")" = "${{ inputs.version }}"
           test "$(node -p "require('./packages/mimir-tts/package.json').version")" = "${{ inputs.version }}"
 
       - name: Install dependencies
@@ -69,7 +69,7 @@ jobs:
         run: pnpm smoke
 
       - name: Verify generated dist is committed
-        run: git diff --exit-code -- packages/mimir/dist packages/mimir-tts/dist
+        run: git diff --exit-code -- packages/mimir-core/dist packages/mimir-tts/dist
 
       - name: Verify npm package metadata
         run: pnpm package:check
@@ -89,6 +89,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish Mimir
-        run: pnpm --dir packages/mimir publish --access public --provenance --no-git-checks
+        run: pnpm --dir packages/mimir-core publish --access public --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

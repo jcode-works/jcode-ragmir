@@ -1,0 +1,29 @@
+{
+  "topK": 3,
+  "queries": [
+    {
+      "id": "dataset-rejection",
+      "query": "Which dataset was rejected for confidential tests?",
+      "expectedPaths": ["raw/dataset-inventory.csv"]
+    },
+    {
+      "id": "offline-tts",
+      "query": "What proves offline text-to-speech is required?",
+      "expectedPaths": ["raw/incident-timeline.jsonl", "raw/review-notes.evidence"]
+    },
+    {
+      "id": "usage-review-owner",
+      "query": "Who owns the usage review?",
+      "expectedPaths": [
+        "raw/operations-brief.md",
+        "raw/security-policy.yaml",
+        "raw/review-notes.evidence"
+      ]
+    },
+    {
+      "id": "model-loading-disabled",
+      "query": "Which document says remote model loading is disabled?",
+      "expectedPaths": ["raw/incident-timeline.jsonl", "raw/security-policy.yaml"]
+    }
+  ]
+}

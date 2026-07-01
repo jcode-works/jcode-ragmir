@@ -1,9 +1,0 @@
-.kb/
-!.kb/
-!.kb/config.json
-!.kb/sources.txt
-.kb/storage/
-.kb/access.log
-.mimir/
-node_modules/
-private/**

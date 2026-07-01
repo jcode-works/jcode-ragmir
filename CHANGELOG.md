@@ -30,7 +30,7 @@
 - Add optional Transformers.js semantic embeddings through `embeddingProvider: "transformers"`.
 - Remove Ollama providers and keep `embeddingProvider: "local-hash"` as the no-model default.
 - Move the repository to a simple pnpm workspace monorepo without adding Turbo.
-- Move the core `@jcode.labs/mimir` package into `packages/mimir`.
+- Move the core `@jcode.labs/mimir` package into `packages/mimir-core`.
 - Add `@jcode.labs/mimir-tts` for plug-and-play JS/ONNX WAV rendering without Python or ffmpeg.
 - Add `kb audio` and update the audio-summary skill to use Mimir TTS before advanced fallback
   engines.

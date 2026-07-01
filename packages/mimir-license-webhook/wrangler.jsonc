@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mimir-license-webhook",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-30",
+  "observability": {
+    "enabled": true
+  },
+  "kv_namespaces": [
+    {
+      "binding": "MIMIR_LICENSE_RECORDS",
+      "id": "replace-with-production-kv-namespace-id",
+      "preview_id": "replace-with-preview-kv-namespace-id"
+    }
+  ]
+}

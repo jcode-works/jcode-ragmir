@@ -6,7 +6,13 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["*.cjs", "*.json", "scripts/**/*.mjs", "packages/*/src/**/*.ts"]
+    "includes": [
+      "*.cjs",
+      "*.json",
+      "scripts/**/*.mjs",
+      "packages/*/scripts/**/*.mjs",
+      "packages/*/src/**/*.{ts,tsx}"
+    ]
   },
   "formatter": {
     "enabled": true,

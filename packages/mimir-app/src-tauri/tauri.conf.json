@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mimir",
+  "version": "0.4.10",
+  "identifier": "works.jcode.mimir",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Mimir",
+        "width": 1180,
+        "height": 820,
+        "minWidth": 390,
+        "minHeight": 720
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "connect-src": "ipc: http://ipc.localhost",
+        "font-src": "'self'",
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "Sovereign local RAG for confidential dossiers.",
+    "longDescription": "Mimir is a local-first document retrieval app for confidential dossiers and AI agents."
+  }
+}

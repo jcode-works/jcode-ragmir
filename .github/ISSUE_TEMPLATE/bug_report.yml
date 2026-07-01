@@ -22,7 +22,7 @@ body:
     id: version
     attributes:
       label: Mimir version
-      placeholder: "pnpm exec kb --version"
+      placeholder: "pnpm exec mimir --version"
     validations:
       required: true
   - type: textarea
