@@ -160,17 +160,20 @@ export async function inventorySourceFiles(config) {
         if (!existsSync(root)) {
             continue;
         }
-        const entries = (await fg("**/*", {
-            cwd: root,
-            absolute: true,
-            onlyFiles: true,
-            dot: true,
-            followSymbolicLinks: false,
-            ignore: ["**/.git/**", "**/node_modules/**", "**/.kb/**", "**/.mimir/**"],
-            objectMode: true,
-            stats: true,
-            unique: true,
-        }));
+        const rootInfo = await stat(root);
+        const entries = rootInfo.isDirectory()
+            ? (await fg("**/*", {
+                cwd: root,
+                absolute: true,
+                onlyFiles: true,
+                dot: true,
+                followSymbolicLinks: false,
+                ignore: ["**/.git/**", "**/node_modules/**", "**/.kb/**", "**/.mimir/**"],
+                objectMode: true,
+                stats: true,
+                unique: true,
+            }))
+            : [{ path: root, stats: { size: rootInfo.size, mtimeMs: rootInfo.mtimeMs } }];
         for (const entry of entries) {
             const absolutePath = path.isAbsolute(entry.path) ? entry.path : path.resolve(root, entry.path);
             const relativePath = path.relative(config.projectRoot, absolutePath);
@@ -180,7 +183,9 @@ export async function inventorySourceFiles(config) {
             discoveredFiles += 1;
             const extension = path.extname(absolutePath).toLowerCase();
             const info = entry.stats ?? (await stat(absolutePath));
-            const source = path.relative(root, absolutePath) || path.basename(absolutePath);
+            const source = rootInfo.isDirectory()
+                ? path.relative(root, absolutePath) || path.basename(absolutePath)
+                : relativePath || path.basename(absolutePath);
             const skipped = skippedSourceFile(absolutePath, relativePath, source, extension, info.size);
             if (skipped) {
                 skippedFiles.set(absolutePath, skipped);

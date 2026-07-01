@@ -164,4 +164,26 @@ describe("listSourceFiles", () => {
 
     expect(files.map((file) => file.relativePath)).toEqual([".mimir/raw/legacy.doc"])
   })
+
+  it("indexes single files listed in the sources file", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-source-file-"))
+    tempDirs.push(root)
+
+    await mkdir(path.join(root, ".mimir"), { recursive: true })
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await mkdir(path.join(root, "external"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "sources.txt"), "external/README.md\n", "utf8")
+    await writeFile(path.join(root, "external", "README.md"), "external evidence\n", "utf8")
+
+    const files = await listSourceFiles(testConfig(root))
+
+    expect(files.map((file) => ({ relativePath: file.relativePath, source: file.source }))).toEqual(
+      [
+        {
+          relativePath: "external/README.md",
+          source: "external/README.md",
+        },
+      ],
+    )
+  })
 })
