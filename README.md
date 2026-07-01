@@ -3,6 +3,7 @@
 [![CI](https://github.com/jcode-works/jcode-mimir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-mimir/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/jcode-works/jcode-mimir/actions/workflows/codeql.yml/badge.svg)](https://github.com/jcode-works/jcode-mimir/actions/workflows/codeql.yml)
 [![npm](https://img.shields.io/npm/v/@jcode.labs/mimir)](https://www.npmjs.com/package/@jcode.labs/mimir)
+[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/mimir?label=downloads%2Fmonth)](https://www.npmjs.com/package/@jcode.labs/mimir)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jcode-works/jcode-mimir/blob/main/LICENSE)
 
 Open-source, sovereign local RAG for confidential datasets and AI agents.
