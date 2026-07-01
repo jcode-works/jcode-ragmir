@@ -1,0 +1,29 @@
+# Mimir
+
+> Open-source, sovereign local RAG for confidential datasets and AI agents: a TypeScript CLI,
+> library, MCP server, and portable agent skills that index local files, store vectors with
+> LanceDB, and return cited retrieval context to the calling coding agent.
+
+Mimir Core (`@jcode.labs/mimir`, npm) ingests local files from the target repository, redacts
+secrets and PII before anything is embedded, and serves cited passages through a CLI (`mimir ...`),
+an MCP server (`mimir serve-mcp`), a TypeScript library, and portable skills for Claude Code, Codex,
+Kimi Code CLI, OpenCode, and Cline. It does not perform LLM answer synthesis itself; `mimir ask`
+returns cited passages only, and synthesis stays with the calling agent or model. Mimir TTS
+(`@jcode.labs/mimir-tts`, npm) renders offline audio summaries.
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/README.md): overview, install, quick start, developer use cases, full CLI walkthrough
+- [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/cli-reference.md): every `mimir` command and flag
+- [API reference](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/api-reference.md): library exports and MCP tools
+- [Agent integration](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/agent-integration.md): wiring Mimir into Claude Code, Codex, Kimi Code CLI, OpenCode, Cline
+- [Troubleshooting](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/troubleshooting.md)
+- [Contributing](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/CONTRIBUTING.md): dev setup (mise-pinned Node.js toolchain), pull request and Git Flow conventions
+
+## Optional
+
+- [Source boundary](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/source-boundary.md): open-core split between Mimir Core and add-ons
+- [Offline TTS preload](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/offline-tts-preload.md)
+- [FR/EU sovereign positioning](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/fr-eu-sovereign-positioning.md)
+- [Security hardening](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/SECURITY-HARDENING.md)
+- [Security policy](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/SECURITY.md)

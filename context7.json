@@ -1,0 +1,29 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Mimir",
+  "description": "Open-source, sovereign local RAG for confidential datasets and AI agents. TypeScript CLI, library, MCP server, and portable agent skills that index local files, store vectors with LanceDB, and return cited retrieval context.",
+  "excludeFolders": [
+    "node_modules",
+    "packages/mimir-core/dist",
+    "packages/mimir-tts/dist",
+    "packages/mimir-app/dist",
+    "packages/mimir-app/src-tauri/target",
+    "packages/mimir-app/src-tauri/gen",
+    "packages/mimir-landing/dist",
+    "packages/mimir-landing/.astro",
+    "packages/mimir-core/examples",
+    "release-artifacts",
+    "private",
+    ".mimir",
+    ".gitnexus",
+    ".git"
+  ],
+  "excludeFiles": ["CHANGELOG.md", "pnpm-lock.yaml"],
+  "rules": [
+    "Mimir Core returns cited retrieval context only; it does not synthesize answers itself.",
+    "The `local-hash` embedding provider (default) is a lexical sha256 embedding, not semantic; use `transformers` for semantic retrieval.",
+    "Switching `embeddingProvider` requires `mimir ingest --rebuild`, since the two providers produce incompatible vectors.",
+    "Run `mimir doctor --fix` after upgrading or misconfiguration to repair scaffolding, `.gitignore` entries, and the agent skill install.",
+    "Config resolves from the caller's working directory (`.mimir/config.json`), never from the package install path."
+  ]
+}

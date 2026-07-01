@@ -470,6 +470,13 @@ pnpm exec mimir install-skill
 pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
+The bundled skill is also directly installable from this repository with the
+[skills.sh](https://skills.sh) CLI, without adding Mimir as a dependency first:
+
+```bash
+npx skills add https://github.com/jcode-works/jcode-mimir/tree/main/packages/mimir-core/skills/mimir
+```
+
 Main agent examples:
 
 ```bash
@@ -905,6 +912,8 @@ pnpm --dir packages/mimir-core pack
   checkout, webhook, and local-license architecture for future commercial app distribution.
 - [`docs/ux-dx-audit.md`](./docs/ux-dx-audit.md): current UX/DX findings, fixes, and remaining
   product risks.
+- [`llms.txt`](./llms.txt): LLM-oriented index of this repository's documentation, following the
+  [llms.txt](https://llmstxt.org/) convention; consumed by tools like Context7.
 
 ## License
 
