@@ -126,6 +126,53 @@ describe("installSkill", () => {
     expect(codexConfig).toContain('args = ["mimir", "serve-mcp"]')
     expect(readme).toContain("npx mimir serve-mcp")
   })
+
+  it("can generate selected agent helpers with a custom MCP command", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-skill-"))
+    tempDirs.push(root)
+
+    await installSkill({ cwd: root })
+    const result = await installSkill({
+      cwd: root,
+      agents: ["claude", "codex"],
+      mcpServerName: "project-docs",
+      mcpCommand: "./scripts/serve-mcp.sh",
+      mcpArgs: ["--stdio"],
+    })
+    const mcpConfig = JSON.parse(await readFile(result.mcpConfigPath, "utf8")) as {
+      mcpServers: Record<string, { command: string; args: string[]; cwd: string }>
+    }
+    const claudeConfig = JSON.parse(await readFile(result.claudeConfigPath, "utf8")) as {
+      command: string
+      args: string[]
+    }
+    const codexConfig = await readFile(result.codexConfigPath, "utf8")
+    const readme = await readFile(result.readmePath, "utf8")
+
+    expect(Object.keys(mcpConfig.mcpServers)).toEqual(["project-docs"])
+    expect(mcpConfig.mcpServers["project-docs"]?.command).toBe("./scripts/serve-mcp.sh")
+    expect(mcpConfig.mcpServers["project-docs"]?.args).toEqual(["--stdio"])
+    expect(claudeConfig).toEqual({
+      type: "stdio",
+      command: "./scripts/serve-mcp.sh",
+      args: ["--stdio"],
+    })
+    expect(codexConfig).toContain("[mcp_servers.project-docs]")
+    expect(codexConfig).toContain('command = "./scripts/serve-mcp.sh"')
+    expect(codexConfig).toContain('args = ["--stdio"]')
+    expect(result.agentHelpers.map((helper) => helper.agent)).toEqual(["claude", "codex"])
+    expect(result.written).toContain(path.join(".mimir", "claude-mcp-server.json"))
+    expect(result.written).toContain(path.join(".mimir", "codex-mcp.toml"))
+    expect(result.written).not.toContain(path.join(".mimir", "kimi-mcp.json"))
+    expect(result.written).not.toContain(path.join(".mimir", "opencode.jsonc"))
+    expect(result.written).not.toContain(path.join(".mimir", "cline-mcp.json"))
+    expect(existsSync(path.join(root, ".mimir", "kimi-mcp.json"))).toBe(false)
+    expect(existsSync(path.join(root, ".mimir", "opencode.jsonc"))).toBe(false)
+    expect(existsSync(path.join(root, ".mimir", "cline-mcp.json"))).toBe(false)
+    expect(readme).toContain("project-docs")
+    expect(readme).toContain("./scripts/serve-mcp.sh --stdio")
+    expect(readme).not.toContain("kimi --mcp-config-file")
+  })
 })
 
 describe("installAgentSkills", () => {

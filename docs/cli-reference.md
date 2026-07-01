@@ -32,6 +32,7 @@ Mimir ships two CLIs:
 | Command | Use it when |
 | --- | --- |
 | `mimir install-skill` | Copy portable agent skills and an MCP config snippet into `.mimir/`. |
+| `mimir install-agent --agents <list>` | Expose Mimir skills in native Claude, Codex, Kimi, OpenCode, or Cline discovery folders. |
 | `mimir skill-path` | Print the package-bundled skill path for agents that load installed package skills. |
 | `mimir serve-mcp` | Start the MCP stdio server for compatible agents. |
 
@@ -58,6 +59,10 @@ Mimir ships two CLIs:
 | Option | Applies to | Meaning |
 | --- | --- | --- |
 | `--project-root <path>` | all project-scoped `mimir` commands | Run against a specific local workspace instead of the current directory. |
+| `--agents <list>` | `setup`, `install-skill`, `install-agent` | Select agent helpers or native skill folders: `all`, `claude`, `codex`, `kimi`, `opencode`, `cline`, or a comma-separated list. |
+| `--mcp-name <name>` | `setup`, `install-skill` | Set the MCP server name used in generated helper files. |
+| `--mcp-command <command>` | `setup`, `install-skill` | Use a repository wrapper or custom executable as the generated MCP stdio command. |
+| `--mcp-arg <arg>` | `setup`, `install-skill` | Add one argument to `--mcp-command`; repeat for multiple arguments. Use `--mcp-arg=--flag` for dash-prefixed values. |
 | `--top-k <number>` | `search`, `ask`, `research`, `evaluate` | Number of passages to return or keep. |
 | `--fail-under <recall>` | `evaluate` | Exit non-zero only when recall is below a threshold from `0` to `1`; without this option evaluation remains strict and fails on any miss. |
 | `--days <number>` | `usage-report` | Number of recent days to include in the metadata-only usage summary. |

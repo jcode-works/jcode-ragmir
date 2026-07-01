@@ -4,6 +4,10 @@ export type AgentInstallMode = "link" | "copy";
 export interface InstallSkillOptions {
     cwd?: string;
     targetDir?: string;
+    agents?: readonly AgentTarget[];
+    mcpServerName?: string;
+    mcpCommand?: string;
+    mcpArgs?: readonly string[];
 }
 export interface InstallSkillResult {
     skillPath: string;
@@ -18,6 +22,10 @@ export interface InstallSkillResult {
     clineConfigPath: string;
     agentSetupPath: string;
     readmePath: string;
+    agentHelpers: AgentHelperFile[];
+    mcpServerName: string;
+    mcpCommand: string;
+    mcpArgs: string[];
     written: string[];
 }
 export interface InstallAgentSkillsOptions {
@@ -40,6 +48,11 @@ export interface InstallAgentSkillsResult {
     projectKit: InstallSkillResult;
     installations: AgentSkillInstallation[];
     written: string[];
+}
+export interface AgentHelperFile {
+    agent: AgentTarget;
+    label: string;
+    path: string;
 }
 export declare const SUPPORTED_AGENT_TARGETS: readonly AgentTarget[];
 export declare function bundledSkillPath(skillName?: string): string;

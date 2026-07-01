@@ -11,6 +11,18 @@ export async function setupProject(options = {}) {
     if (options.targetDir !== undefined) {
         installOptions.targetDir = options.targetDir;
     }
+    if (options.agents !== undefined) {
+        installOptions.agents = options.agents;
+    }
+    if (options.mcpServerName !== undefined) {
+        installOptions.mcpServerName = options.mcpServerName;
+    }
+    if (options.mcpCommand !== undefined) {
+        installOptions.mcpCommand = options.mcpCommand;
+    }
+    if (options.mcpArgs !== undefined) {
+        installOptions.mcpArgs = options.mcpArgs;
+    }
     const agentKit = await installSkill(installOptions);
     let report = await doctor(cwd);
     let ingested = null;

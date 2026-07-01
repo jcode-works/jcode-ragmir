@@ -14,13 +14,18 @@ export { redactText } from "./redaction.js"
 export { compactResearchReport, compactSearchResults, research } from "./research.js"
 export { securityAudit } from "./security.js"
 export { enableSemanticEmbeddings } from "./semantic-config.js"
-export type { SetupResult } from "./setup.js"
+export type { SetupOptions, SetupResult } from "./setup.js"
 export { setupProject } from "./setup.js"
 export type {
+  AgentHelperFile,
   AgentInstallMode,
   AgentInstallScope,
   AgentSkillInstallation,
   AgentTarget,
+  InstallAgentSkillsOptions,
+  InstallAgentSkillsResult,
+  InstallSkillOptions,
+  InstallSkillResult,
 } from "./skill.js"
 export {
   bundledSkillPath,

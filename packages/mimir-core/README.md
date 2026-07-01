@@ -60,6 +60,9 @@ cat .mimir/opencode.jsonc
 cat .mimir/cline-mcp.json
 ```
 
+Use `pnpm exec mimir setup --agents claude,codex --mcp-command ./scripts/serve-mcp.sh` when a
+repository should generate only selected MCP helpers or launch through a local wrapper.
+
 By default, Mimir keeps local config, raw documents, generated indexes, access logs, models, reports,
 audio, and agent helper files under a single ignored `.mimir/` project folder. It reports
 unsupported/skipped files during ingestion and reports supported files that produced no extractable

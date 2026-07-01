@@ -106,6 +106,7 @@ function isAgentKitInstalled(projectRoot) {
         path.join(projectRoot, MIMIR_DIR, "skills", "mimir", "SKILL.md"),
         path.join(projectRoot, MIMIR_DIR, "skills", "mimir-audio-summary", "SKILL.md"),
         path.join(projectRoot, MIMIR_DIR, "skills", "mimir-markdown-report", "SKILL.md"),
+        path.join(projectRoot, MIMIR_DIR, "skills", "mimir-legal-dossier", "SKILL.md"),
         path.join(projectRoot, MIMIR_DIR, "mcp.json"),
         path.join(projectRoot, MIMIR_DIR, "agent-setup.md"),
     ];

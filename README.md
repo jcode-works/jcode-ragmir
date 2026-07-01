@@ -269,6 +269,12 @@ Fresh setup keeps local state under one ignored `.mimir/` folder:
 
 It detects the repository package manager and writes the MCP helper files with the right command:
 `pnpm exec mimir serve-mcp`, `npx mimir serve-mcp`, `yarn exec mimir serve-mcp`, or `bunx mimir serve-mcp`.
+When a repository needs a wrapper script or only a subset of agent helpers, make that explicit during
+setup:
+
+```bash
+pnpm exec mimir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
+```
 
 For the usual agent-first workflow, expose Mimir to the coding assistants used in the repository:
 
@@ -467,6 +473,7 @@ Use `mimir setup` for the normal path, or install only the agent layer later:
 
 ```bash
 pnpm exec mimir install-skill
+pnpm exec mimir install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
 pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
