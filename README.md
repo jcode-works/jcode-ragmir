@@ -19,6 +19,24 @@ Created by Jean-Baptiste Thery and published under the JCode Labs npm scope.
 
 Built by Jean-Baptiste Thery, freelance full-stack/AI tooling engineer at JCode Labs.
 
+## Developer Use Cases
+
+Mimir is designed for agent-assisted development when the useful context is local, private, and
+spread across repositories, specifications, exports, and synced folders.
+
+| Use case | What it enables |
+| --- | --- |
+| Index a repository's documentation | Ask Claude Code, Codex, Kimi Code CLI, OpenCode, Cline, or another agent to implement features from local README files, architecture notes, API contracts, ADRs, and runbooks. |
+| Code from a specification or `cahier des charges` | Turn a local PRD, tender response, client brief, or engineering spec into an implementation plan, acceptance checklist, and cited change guidance. |
+| Work from a downloaded Google Drive folder | Point Mimir at files synced locally through Google Drive for desktop, then let the agent retrieve context without uploading the corpus to a hosted RAG service. |
+| Onboard to a legacy codebase | Ask where a flow is implemented, which modules own a responsibility, which docs explain a behavior, and what to read before changing risky code. |
+| Keep multiple agents on the same evidence | Install the same project skills and MCP server for Claude Code, Codex, Kimi Code CLI, OpenCode, and Cline so each tool retrieves from the same local index. |
+| Prepare implementation and review work | Generate cited task breakdowns, migration notes, release checklists, QA plans, and code-review context from the same local sources the team uses. |
+| Audit local knowledge coverage | Check which supported files were indexed, which formats were skipped, whether secrets are likely present, and whether golden queries still retrieve expected evidence. |
+
+The workflow stays simple: keep files on disk, run `mimir ingest`, connect your coding agent through
+MCP or portable skills, then ask it to work from cited local passages.
+
 ## At A Glance
 
 Mimir is the local evidence layer for AI agents: put documents in a repository, index them locally,
@@ -172,25 +190,6 @@ site, but public deployment remains a separate release action.
 Mimir is not a hosted SaaS, not a remote vector database, and not a certified high-assurance system.
 For regulated or state-grade environments, pair it with encrypted disks, controlled machines,
 release verification, and an external security review.
-
-## Use Cases
-
-Mimir is useful whenever source material should stay local but an AI agent still needs grounded
-context.
-
-| Use case | Example questions |
-| --- | --- |
-| Understand a code repository | "Where is authentication implemented?", "What depends on this module?", "Summarize the payment flow." |
-| Understand architecture | "What services exist?", "What are the data boundaries?", "Which components are risky to change?" |
-| Analyze specifications | "What does the technical spec require?", "Which requirements are still unclear?", "Generate an implementation checklist." |
-| Work through a request for proposal or tender | "What are the mandatory constraints?", "Which documents prove compliance?", "What risks should be clarified?" |
-| Study courses and training material | "Summarize chapter three.", "Create revision questions.", "Compare these two concepts." |
-| Analyze a book or long report | "Extract the main thesis.", "Find recurring arguments.", "Create a chapter-by-chapter brief." |
-| Build an internal knowledge base | "What is the policy for incident review?", "Who owns this process?", "Which source says that?" |
-| Prepare meetings or decisions | "Give me a one-page briefing.", "What is missing before deciding?", "List action items and evidence." |
-| Ask questions over offline documents | "Which files mention local-only operation?", "What evidence supports this claim?" |
-| Generate audio briefings | "Create a listenable high-quality or offline summary of the current dossier." |
-| Generate Markdown reports | "Write a cited local report with findings, risks, next actions, and sources." |
 
 ## Requirements
 
