@@ -22,9 +22,9 @@ describe("store", () => {
     await writeRows(
       [
         {
-          id: "private/evidence.md#0",
-          source: "private",
-          relativePath: "private/evidence.md",
+          id: ".mimir/raw/evidence.md#0",
+          source: "evidence.md",
+          relativePath: ".mimir/raw/evidence.md",
           chunkIndex: 0,
           text: "Local evidence.",
           checksum: "checksum",

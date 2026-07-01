@@ -1,5 +1,7 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import * as lancedb from "@lancedb/lancedb";
+const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json";
 export async function writeRows(rows, config) {
     await mkdir(config.storageDir, { recursive: true });
     const db = await lancedb.connect(config.storageDir);
@@ -14,6 +16,31 @@ export async function writeRows(rows, config) {
     await db.createTable(config.tableName, records, {
         mode: "overwrite",
     });
+}
+export async function writeEmptyTextFiles(records, config) {
+    const manifestPath = path.join(config.storageDir, EMPTY_TEXT_FILES_MANIFEST);
+    if (records.length === 0) {
+        await rm(manifestPath, { force: true });
+        return;
+    }
+    await mkdir(config.storageDir, { recursive: true });
+    const sortedRecords = [...records].sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+    await writeFile(manifestPath, JSON.stringify({ version: 1, files: sortedRecords }, null, 2), "utf8");
+}
+export async function readEmptyTextFiles(config) {
+    try {
+        const manifest = JSON.parse(await readFile(path.join(config.storageDir, EMPTY_TEXT_FILES_MANIFEST), "utf8"));
+        if (!isRecord(manifest) || !Array.isArray(manifest.files)) {
+            return [];
+        }
+        return manifest.files.filter(isEmptyTextFileRecord);
+    }
+    catch (error) {
+        if (isNodeError(error) && error.code === "ENOENT") {
+            return [];
+        }
+        throw error;
+    }
 }
 export async function openRowsTable(config) {
     const db = await lancedb.connect(config.storageDir);
@@ -56,5 +83,14 @@ function hasIndexedNumberGetter(value) {
         typeof value.length === "number" &&
         "get" in value &&
         typeof value.get === "function");
+}
+function isEmptyTextFileRecord(value) {
+    return (isRecord(value) && typeof value.relativePath === "string" && typeof value.checksum === "string");
+}
+function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isNodeError(error) {
+    return error instanceof Error && "code" in error;
 }
 //# sourceMappingURL=store.js.map

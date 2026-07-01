@@ -18,18 +18,19 @@ Treat the repository where the user is working as the source of truth. Mimir dat
 Default project layout:
 
 ```plain text
-private/          # raw documents to ingest
-.kb/config.json   # local Mimir config
-.kb/sources.txt   # optional extra source paths
-.kb/storage/      # generated local index
-.kb/access.log    # metadata-only access log
-.mimir/reports/   # generated local Markdown reports
+.mimir/config.json   # local Mimir config
+.mimir/sources.txt   # optional extra source paths
+.mimir/raw/          # raw documents to ingest
+.mimir/storage/      # generated local index
+.mimir/access.log    # metadata-only access log
+.mimir/reports/      # generated local Markdown reports
 ```
 
 ## Data Safety
 
 - Do not commit raw documents, secrets, tax IDs, scans, bank documents, tokens, or generated vector stores.
-- Keep `private/**`, `.kb/`, and `.mimir/` ignored by Git.
+- Keep `.mimir/` ignored by Git. Legacy projects using `private/**` or `.kb/` must keep those paths
+  ignored too.
 - Treat `mimir search`, `mimir ask`, and MCP results as sensitive because they can contain private
   source passages even when redaction is enabled.
 - Prefer summaries and citations over dumping long private passages into the chat.

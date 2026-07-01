@@ -24,6 +24,10 @@ export interface Config {
   includeExtensions: string[]
   pdfOcrCommand: string[]
   pdfOcrTimeoutMs: number
+  imageOcrCommand: string[]
+  imageOcrTimeoutMs: number
+  legacyWordCommand: string[]
+  legacyWordTimeoutMs: number
 }
 
 export type AccessLogAction = "ingest" | "search" | "ask" | "evaluate" | "destroy-index"
@@ -195,6 +199,7 @@ export interface AuditReport {
   indexedFiles: Array<{ source: string; chunks: number }>
   supportedFiles: string[]
   skippedFiles: SkippedSourceFile[]
+  emptyTextFiles: string[]
   unsupportedExtensions: Array<{ extension: string; count: number }>
   missingFromIndex: string[]
   staleInIndex: string[]
@@ -261,9 +266,9 @@ export interface SecurityAuditReport {
     destructiveToolsExposed: false
   }
   gitignore: {
-    kbIgnored: boolean
+    legacyKbIgnored: boolean
     mimirIgnored: boolean
-    privateIgnored: boolean
+    legacyPrivateIgnored: boolean
   }
   recommendations: string[]
   warnings: string[]

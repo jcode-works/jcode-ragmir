@@ -19,7 +19,7 @@ interface RankedRow {
   combinedScore: number
 }
 
-const MIN_VECTOR_CANDIDATES = 20
+const MIN_VECTOR_CANDIDATES = 80
 const VECTOR_CANDIDATE_MULTIPLIER = 4
 const HYBRID_TEXT_SCAN_LIMIT = 5_000
 const VECTOR_SCORE_WEIGHT = 0.55
@@ -39,7 +39,7 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   const vector = await embedText(query, config)
   const vectorRows = (await table
     .vectorSearch(vector)
-    .limit(Math.max(MIN_VECTOR_CANDIDATES, topK * VECTOR_CANDIDATE_MULTIPLIER))
+    .limit(vectorCandidateLimit(topK))
     .toArray()) as SearchRow[]
   const textRows = (await table.query().limit(HYBRID_TEXT_SCAN_LIMIT).toArray()) as SearchRow[]
   const rows = rankHybridRows(query, vectorRows, textRows).slice(0, topK)
@@ -58,6 +58,10 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     resultCount: results.length,
   })
   return results
+}
+
+export function vectorCandidateLimit(topK: number): number {
+  return Math.max(MIN_VECTOR_CANDIDATES, topK * VECTOR_CANDIDATE_MULTIPLIER)
 }
 
 export async function ask(query: string, options: SearchOptions = {}): Promise<AskResult> {

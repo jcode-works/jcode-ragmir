@@ -39,6 +39,10 @@ export function testConfig(
     includeExtensions: [...DEFAULT_CONFIG.includeExtensions],
     pdfOcrCommand: [...DEFAULT_CONFIG.pdfOcrCommand],
     pdfOcrTimeoutMs: DEFAULT_CONFIG.pdfOcrTimeoutMs,
+    imageOcrCommand: [...DEFAULT_CONFIG.imageOcrCommand],
+    imageOcrTimeoutMs: DEFAULT_CONFIG.imageOcrTimeoutMs,
+    legacyWordCommand: [...DEFAULT_CONFIG.legacyWordCommand],
+    legacyWordTimeoutMs: DEFAULT_CONFIG.legacyWordTimeoutMs,
   }
 
   return { ...config, ...configOverrides }

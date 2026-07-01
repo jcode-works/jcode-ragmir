@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
-import { search } from "./query.js"
+import { search, vectorCandidateLimit } from "./query.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -17,18 +17,24 @@ afterEach(async () => {
 })
 
 describe("search", () => {
+  it("keeps a broad vector candidate pool for small result sets", () => {
+    expect(vectorCandidateLimit(1)).toBe(80)
+    expect(vectorCandidateLimit(5)).toBe(80)
+    expect(vectorCandidateLimit(25)).toBe(100)
+  })
+
   it("uses lexical evidence in addition to vector candidates", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-query-"))
     tempDirs.push(root)
     await initProject(root)
-    await mkdir(path.join(root, "private"), { recursive: true })
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
     await writeFile(
-      path.join(root, "private", "security-policy.md"),
+      path.join(root, ".mimir", "raw", "security-policy.md"),
       "Access tokens must be rotated every 30 days and stored outside source control.\n",
       "utf8",
     )
     await writeFile(
-      path.join(root, "private", "operations.md"),
+      path.join(root, ".mimir", "raw", "operations.md"),
       "The weekly operations review covers facilities, staffing, and maintenance windows.\n",
       "utf8",
     )
@@ -37,7 +43,7 @@ describe("search", () => {
     const results = await search("token rotation source control", { cwd: root, topK: 1 })
 
     expect(results).toHaveLength(1)
-    expect(results[0]?.relativePath).toBe("private/security-policy.md")
+    expect(results[0]?.relativePath).toBe(".mimir/raw/security-policy.md")
   })
 
   it("retrieves expected evidence from the sovereign RAG demo golden set", async () => {

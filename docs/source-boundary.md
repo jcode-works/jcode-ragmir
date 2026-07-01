@@ -3,6 +3,10 @@
 Mimir is a public MIT-licensed repository. Treat every tracked source file, package, workflow,
 example, and document as visible, forkable, modifiable, and reusable by anyone under the MIT License.
 
+This repository must never describe tracked source as proprietary, closed source, source-available,
+or private-commercial code. If a file is committed here, the working assumption is simple: it is MIT
+source.
+
 ## What Is Open Source Here
 
 The repository intentionally contains:
@@ -56,7 +60,7 @@ Keep the public repository limited to:
 Keep outside Git:
 
 - private documents and client corpora;
-- `.kb/`, `.mimir/`, `.pid`, raw reports, audio files, and vector stores;
+- `.mimir/`, `.pid`, raw reports, audio files, vector stores, and legacy `.kb/` state;
 - API keys, webhook secrets, signing keys, certificates, and environment files;
 - customer names, emails, invoices, order exports, and support evidence;
 - internal pricing tests, pre-sales ledgers, interview notes, and GO/NO-GO records.

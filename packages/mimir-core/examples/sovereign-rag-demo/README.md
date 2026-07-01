@@ -12,7 +12,7 @@ This folder must never contain real-world sensitive, regulated, or production do
 - CSV dataset inventories.
 - JSONL incident timelines.
 - YAML policy metadata.
-- A custom `.evidence` text extension enabled through `.kb/config.json`.
+- A custom `.evidence` text extension enabled through `.mimir/config.json`.
 - Unsupported/skipped-file reporting with recommendations through `audit --unsupported`.
 
 ## Run From This Repository Checkout
@@ -63,7 +63,7 @@ files reported by the audit.
 
 ## Switch To Transformers Semantic Mode
 
-To compare no-model retrieval with semantic local retrieval, change `.kb/config.json`:
+To compare no-model retrieval with semantic local retrieval, change `.mimir/config.json`:
 
 ```json
 {
@@ -88,8 +88,6 @@ node ../../dist/cli.js evaluate --golden golden-queries.json --fail-under 0.8 --
 Generated state stays local and ignored:
 
 ```plain text
-.kb/storage/
-.kb/access.log
 .mimir/
 ```
 

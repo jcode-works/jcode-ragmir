@@ -2,7 +2,12 @@ import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
-import { CONFIG_PATH, DEFAULT_CONFIG } from "./defaults.js"
+import {
+  CONFIG_PATH,
+  DEFAULT_CONFIG,
+  LEGACY_CONFIG_PATH,
+  LEGACY_DEFAULT_CONFIG,
+} from "./defaults.js"
 import type { Config } from "./types.js"
 
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
@@ -44,32 +49,69 @@ const rawConfigSchema = z.object({
   includeExtensions: z.array(z.string().min(1)).default(DEFAULT_CONFIG.includeExtensions),
   pdfOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.pdfOcrCommand),
   pdfOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.pdfOcrTimeoutMs),
+  imageOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.imageOcrCommand),
+  imageOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.imageOcrTimeoutMs),
+  legacyWordCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.legacyWordCommand),
+  legacyWordTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.legacyWordTimeoutMs),
 })
 
 type RawConfig = z.infer<typeof rawConfigSchema>
 
+interface ProjectConfigFile {
+  projectRoot: string
+  configPath: string
+  legacy: boolean
+}
+
 export function findProjectRoot(start = process.cwd()): string {
+  return findProjectConfig(start).projectRoot
+}
+
+export function findProjectConfig(start = process.cwd()): ProjectConfigFile {
   let current = path.resolve(start)
 
   while (true) {
     if (existsSync(path.join(current, CONFIG_PATH))) {
-      return current
+      return {
+        projectRoot: current,
+        configPath: path.join(current, CONFIG_PATH),
+        legacy: false,
+      }
+    }
+
+    if (existsSync(path.join(current, LEGACY_CONFIG_PATH))) {
+      return {
+        projectRoot: current,
+        configPath: path.join(current, LEGACY_CONFIG_PATH),
+        legacy: true,
+      }
     }
 
     const parent = path.dirname(current)
     if (parent === current) {
-      return path.resolve(start)
+      const projectRoot = path.resolve(start)
+      return {
+        projectRoot,
+        configPath: path.join(projectRoot, CONFIG_PATH),
+        legacy: false,
+      }
     }
     current = parent
   }
 }
 
 export async function loadConfig(start = process.cwd()): Promise<Config> {
-  const projectRoot = findProjectRoot(start)
-  const configFile = path.join(projectRoot, CONFIG_PATH)
-  const raw: unknown = existsSync(configFile) ? JSON.parse(await readFile(configFile, "utf8")) : {}
+  const projectConfig = findProjectConfig(start)
+  const hasConfig = existsSync(projectConfig.configPath)
+  const raw: unknown = hasConfig ? JSON.parse(await readFile(projectConfig.configPath, "utf8")) : {}
+  if (!isRecord(raw)) {
+    throw new Error(
+      `${path.relative(projectConfig.projectRoot, projectConfig.configPath)} must contain a JSON object.`,
+    )
+  }
+  const defaults = projectConfig.legacy ? LEGACY_DEFAULT_CONFIG : DEFAULT_CONFIG
 
-  const parsed = rawConfigSchema.parse(raw)
+  const parsed = rawConfigSchema.parse({ ...defaults, ...raw })
   const withEnv = applyEnv(parsed)
 
   if (withEnv.chunkOverlap >= withEnv.chunkSize) {
@@ -77,12 +119,12 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
   }
 
   return {
-    projectRoot,
-    rawDir: resolveFromRoot(projectRoot, withEnv.rawDir),
-    storageDir: resolveFromRoot(projectRoot, withEnv.storageDir),
-    sourcesFile: resolveFromRoot(projectRoot, withEnv.sourcesFile),
-    accessLogPath: resolveFromRoot(projectRoot, withEnv.accessLogPath),
-    embeddingModelPath: resolveFromRoot(projectRoot, withEnv.embeddingModelPath),
+    projectRoot: projectConfig.projectRoot,
+    rawDir: resolveFromRoot(projectConfig.projectRoot, withEnv.rawDir),
+    storageDir: resolveFromRoot(projectConfig.projectRoot, withEnv.storageDir),
+    sourcesFile: resolveFromRoot(projectConfig.projectRoot, withEnv.sourcesFile),
+    accessLogPath: resolveFromRoot(projectConfig.projectRoot, withEnv.accessLogPath),
+    embeddingModelPath: resolveFromRoot(projectConfig.projectRoot, withEnv.embeddingModelPath),
     tableName: withEnv.tableName,
     embeddingProvider: withEnv.embeddingProvider,
     embeddingModel: withEnv.embeddingModel,
@@ -99,6 +141,10 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     includeExtensions: normalizeExtensions(withEnv.includeExtensions),
     pdfOcrCommand: withEnv.pdfOcrCommand,
     pdfOcrTimeoutMs: withEnv.pdfOcrTimeoutMs,
+    imageOcrCommand: withEnv.imageOcrCommand,
+    imageOcrTimeoutMs: withEnv.imageOcrTimeoutMs,
+    legacyWordCommand: withEnv.legacyWordCommand,
+    legacyWordTimeoutMs: withEnv.legacyWordTimeoutMs,
   }
 }
 
@@ -109,34 +155,111 @@ function resolveFromRoot(projectRoot: string, input: string): string {
 function applyEnv(config: RawConfig): RawConfig {
   return {
     ...config,
-    rawDir: process.env.KB_RAW_DIR ?? config.rawDir,
-    storageDir: process.env.KB_STORAGE_DIR ?? config.storageDir,
-    sourcesFile: process.env.KB_SOURCES_FILE ?? config.sourcesFile,
-    accessLogPath: process.env.KB_ACCESS_LOG_PATH ?? config.accessLogPath,
-    embeddingProvider: readEmbeddingProviderEnv("KB_EMBEDDING_PROVIDER", config.embeddingProvider),
-    embeddingModel: process.env.KB_EMBEDDING_MODEL ?? config.embeddingModel,
-    embeddingModelPath: process.env.KB_EMBEDDING_MODEL_PATH ?? config.embeddingModelPath,
+    rawDir: readStringEnv("MIMIR_RAW_DIR", "KB_RAW_DIR", config.rawDir),
+    storageDir: readStringEnv("MIMIR_STORAGE_DIR", "KB_STORAGE_DIR", config.storageDir),
+    sourcesFile: readStringEnv("MIMIR_SOURCES_FILE", "KB_SOURCES_FILE", config.sourcesFile),
+    accessLogPath: readStringEnv(
+      "MIMIR_ACCESS_LOG_PATH",
+      "KB_ACCESS_LOG_PATH",
+      config.accessLogPath,
+    ),
+    embeddingProvider: readEmbeddingProviderEnv(
+      "MIMIR_EMBEDDING_PROVIDER",
+      "KB_EMBEDDING_PROVIDER",
+      config.embeddingProvider,
+    ),
+    embeddingModel: readStringEnv(
+      "MIMIR_EMBEDDING_MODEL",
+      "KB_EMBEDDING_MODEL",
+      config.embeddingModel,
+    ),
+    embeddingModelPath: readStringEnv(
+      "MIMIR_EMBEDDING_MODEL_PATH",
+      "KB_EMBEDDING_MODEL_PATH",
+      config.embeddingModelPath,
+    ),
     transformersAllowRemoteModels: readBooleanEnv(
+      "MIMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS",
       "KB_TRANSFORMERS_ALLOW_REMOTE_MODELS",
       config.transformersAllowRemoteModels,
     ),
     redaction: {
       ...config.redaction,
-      enabled: readBooleanEnv("KB_REDACTION_ENABLED", config.redaction.enabled),
-      builtIn: readBooleanEnv("KB_REDACTION_BUILT_IN", config.redaction.builtIn),
+      enabled: readBooleanEnv(
+        "MIMIR_REDACTION_ENABLED",
+        "KB_REDACTION_ENABLED",
+        config.redaction.enabled,
+      ),
+      builtIn: readBooleanEnv(
+        "MIMIR_REDACTION_BUILT_IN",
+        "KB_REDACTION_BUILT_IN",
+        config.redaction.builtIn,
+      ),
     },
-    accessLog: readBooleanEnv("KB_ACCESS_LOG", config.accessLog),
-    mcpMaxTopK: readPositiveIntEnv("KB_MCP_MAX_TOP_K", config.mcpMaxTopK),
-    topK: readPositiveIntEnv("KB_TOP_K", config.topK),
-    chunkSize: readPositiveIntEnv("KB_CHUNK_SIZE", config.chunkSize),
-    chunkOverlap: readNonNegativeIntEnv("KB_CHUNK_OVERLAP", config.chunkOverlap),
-    maxFileBytes: readPositiveIntEnv("KB_MAX_FILE_BYTES", config.maxFileBytes),
-    ingestConcurrency: readPositiveIntEnv("KB_INGEST_CONCURRENCY", config.ingestConcurrency),
-    embeddingBatchSize: readPositiveIntEnv("KB_EMBEDDING_BATCH_SIZE", config.embeddingBatchSize),
-    includeExtensions: readExtensionsEnv("KB_INCLUDE_EXTENSIONS", config.includeExtensions),
-    pdfOcrCommand: readJsonStringArrayEnv("KB_PDF_OCR_COMMAND", config.pdfOcrCommand),
-    pdfOcrTimeoutMs: readPositiveIntEnv("KB_PDF_OCR_TIMEOUT_MS", config.pdfOcrTimeoutMs),
+    accessLog: readBooleanEnv("MIMIR_ACCESS_LOG", "KB_ACCESS_LOG", config.accessLog),
+    mcpMaxTopK: readPositiveIntEnv("MIMIR_MCP_MAX_TOP_K", "KB_MCP_MAX_TOP_K", config.mcpMaxTopK),
+    topK: readPositiveIntEnv("MIMIR_TOP_K", "KB_TOP_K", config.topK),
+    chunkSize: readPositiveIntEnv("MIMIR_CHUNK_SIZE", "KB_CHUNK_SIZE", config.chunkSize),
+    chunkOverlap: readNonNegativeIntEnv(
+      "MIMIR_CHUNK_OVERLAP",
+      "KB_CHUNK_OVERLAP",
+      config.chunkOverlap,
+    ),
+    maxFileBytes: readPositiveIntEnv(
+      "MIMIR_MAX_FILE_BYTES",
+      "KB_MAX_FILE_BYTES",
+      config.maxFileBytes,
+    ),
+    ingestConcurrency: readPositiveIntEnv(
+      "MIMIR_INGEST_CONCURRENCY",
+      "KB_INGEST_CONCURRENCY",
+      config.ingestConcurrency,
+    ),
+    embeddingBatchSize: readPositiveIntEnv(
+      "MIMIR_EMBEDDING_BATCH_SIZE",
+      "KB_EMBEDDING_BATCH_SIZE",
+      config.embeddingBatchSize,
+    ),
+    includeExtensions: readExtensionsEnv(
+      "MIMIR_INCLUDE_EXTENSIONS",
+      "KB_INCLUDE_EXTENSIONS",
+      config.includeExtensions,
+    ),
+    pdfOcrCommand: readJsonStringArrayEnv(
+      "MIMIR_PDF_OCR_COMMAND",
+      "KB_PDF_OCR_COMMAND",
+      config.pdfOcrCommand,
+    ),
+    pdfOcrTimeoutMs: readPositiveIntEnv(
+      "MIMIR_PDF_OCR_TIMEOUT_MS",
+      "KB_PDF_OCR_TIMEOUT_MS",
+      config.pdfOcrTimeoutMs,
+    ),
+    imageOcrCommand: readJsonStringArrayEnv(
+      "MIMIR_IMAGE_OCR_COMMAND",
+      "KB_IMAGE_OCR_COMMAND",
+      config.imageOcrCommand,
+    ),
+    imageOcrTimeoutMs: readPositiveIntEnv(
+      "MIMIR_IMAGE_OCR_TIMEOUT_MS",
+      "KB_IMAGE_OCR_TIMEOUT_MS",
+      config.imageOcrTimeoutMs,
+    ),
+    legacyWordCommand: readJsonStringArrayEnv(
+      "MIMIR_LEGACY_WORD_COMMAND",
+      "KB_LEGACY_WORD_COMMAND",
+      config.legacyWordCommand,
+    ),
+    legacyWordTimeoutMs: readPositiveIntEnv(
+      "MIMIR_LEGACY_WORD_TIMEOUT_MS",
+      "KB_LEGACY_WORD_TIMEOUT_MS",
+      config.legacyWordTimeoutMs,
+    ),
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function normalizeExtensions(extensions: string[]): string[] {
@@ -152,14 +275,19 @@ function normalizeExtensions(extensions: string[]): string[] {
 
 function readEmbeddingProviderEnv(
   name: string,
+  legacyName: string,
   fallback: RawConfig["embeddingProvider"],
 ): RawConfig["embeddingProvider"] {
-  const parsed = embeddingProviderSchema.safeParse(process.env[name])
+  const parsed = embeddingProviderSchema.safeParse(process.env[name] ?? process.env[legacyName])
   return parsed.success ? parsed.data : fallback
 }
 
-function readBooleanEnv(name: string, fallback: boolean): boolean {
-  const raw = process.env[name]?.toLowerCase()
+function readStringEnv(name: string, legacyName: string, fallback: string): string {
+  return process.env[name] ?? process.env[legacyName] ?? fallback
+}
+
+function readBooleanEnv(name: string, legacyName: string, fallback: boolean): boolean {
+  const raw = (process.env[name] ?? process.env[legacyName])?.toLowerCase()
   if (raw === "1" || raw === "true" || raw === "yes") {
     return true
   }
@@ -169,8 +297,8 @@ function readBooleanEnv(name: string, fallback: boolean): boolean {
   return fallback
 }
 
-function readPositiveIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name]
+function readPositiveIntEnv(name: string, legacyName: string, fallback: number): number {
+  const raw = process.env[name] ?? process.env[legacyName]
   if (!raw) {
     return fallback
   }
@@ -178,8 +306,8 @@ function readPositiveIntEnv(name: string, fallback: number): number {
   return Number.isInteger(value) && value > 0 ? value : fallback
 }
 
-function readNonNegativeIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name]
+function readNonNegativeIntEnv(name: string, legacyName: string, fallback: number): number {
+  const raw = process.env[name] ?? process.env[legacyName]
   if (!raw) {
     return fallback
   }
@@ -187,16 +315,16 @@ function readNonNegativeIntEnv(name: string, fallback: number): number {
   return Number.isInteger(value) && value >= 0 ? value : fallback
 }
 
-function readExtensionsEnv(name: string, fallback: string[]): string[] {
-  const raw = process.env[name]
+function readExtensionsEnv(name: string, legacyName: string, fallback: string[]): string[] {
+  const raw = process.env[name] ?? process.env[legacyName]
   if (!raw) {
     return fallback
   }
   return raw.split(",")
 }
 
-function readJsonStringArrayEnv(name: string, fallback: string[]): string[] {
-  const raw = process.env[name]
+function readJsonStringArrayEnv(name: string, legacyName: string, fallback: string[]): string[] {
+  const raw = process.env[name] ?? process.env[legacyName]
   if (!raw) {
     return fallback
   }

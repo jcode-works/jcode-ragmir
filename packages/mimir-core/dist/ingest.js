@@ -5,7 +5,7 @@ import { embedTexts } from "./embeddings.js";
 import { inventorySourceFiles, summarizeUnsupportedExtensions } from "./files.js";
 import { parseFile } from "./parsing.js";
 import { redactText, totalRedactions } from "./redaction.js";
-import { openRowsTable, readRows, writeRows } from "./store.js";
+import { openRowsTable, readEmptyTextFiles, readRows, writeEmptyTextFiles, writeRows, } from "./store.js";
 const MAX_AUDIT_ROWS = 100_000;
 export async function ingest(options = {}) {
     const config = await loadConfig(String(options.cwd ?? process.cwd()));
@@ -71,6 +71,10 @@ export async function ingest(options = {}) {
     }
     const indexRows = [...reusableRows, ...rows];
     await writeRows(indexRows, config);
+    await writeEmptyTextFiles(emptyTextFiles.flatMap((relativePath) => {
+        const file = currentFiles.get(relativePath);
+        return file ? [{ relativePath, checksum: file.checksum }] : [];
+    }), config);
     await recordAccess(config, {
         action: "ingest",
         resultCount: indexRows.length,
@@ -120,13 +124,15 @@ export async function audit(cwd = process.cwd()) {
     const files = inventory.supportedFiles;
     const supportedFiles = files.map((file) => file.relativePath);
     const table = await openRowsTable(config);
+    const emptyTextFiles = await currentEmptyTextFiles(config, files);
     if (!table) {
         return {
             indexedFiles: [],
             supportedFiles,
             skippedFiles: inventory.skippedFiles,
+            emptyTextFiles: [...emptyTextFiles],
             unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
-            missingFromIndex: supportedFiles,
+            missingFromIndex: supportedFiles.filter((file) => !emptyTextFiles.has(file)),
             staleInIndex: [],
             totalChunks: 0,
         };
@@ -151,8 +157,9 @@ export async function audit(cwd = process.cwd()) {
             .map(([source, chunks]) => ({ source, chunks })),
         supportedFiles,
         skippedFiles: inventory.skippedFiles,
+        emptyTextFiles: [...emptyTextFiles].sort(),
         unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
-        missingFromIndex: supportedFiles.filter((file) => !indexedSet.has(file)),
+        missingFromIndex: supportedFiles.filter((file) => !indexedSet.has(file) && !emptyTextFiles.has(file)),
         staleInIndex: [...indexedSet]
             .filter((file) => {
             if (!supportedSet.has(file)) {
@@ -165,6 +172,16 @@ export async function audit(cwd = process.cwd()) {
             .sort(),
         totalChunks: rows.length,
     };
+}
+async function currentEmptyTextFiles(config, files) {
+    const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]));
+    const emptyTextFiles = new Set();
+    for (const record of await readEmptyTextFiles(config)) {
+        if (currentChecksums.get(record.relativePath) === record.checksum) {
+            emptyTextFiles.add(record.relativePath);
+        }
+    }
+    return emptyTextFiles;
 }
 async function mapLimit(items, concurrency, worker) {
     const results = new Array(items.length);

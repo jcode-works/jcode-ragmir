@@ -1,15 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { findProjectRoot } from "./config.js";
-import { CONFIG_PATH, DEFAULT_CONFIG } from "./defaults.js";
+import { findProjectConfig } from "./config.js";
+import { DEFAULT_CONFIG } from "./defaults.js";
 import { initProject } from "./init.js";
 export async function enableSemanticEmbeddings(cwd = process.cwd()) {
-    const projectRoot = findProjectRoot(cwd);
-    await initProject(projectRoot);
-    const configPath = path.join(projectRoot, CONFIG_PATH);
-    const rawConfig = JSON.parse(await readFile(configPath, "utf8"));
+    await initProject(cwd);
+    const projectConfig = findProjectConfig(cwd);
+    const rawConfig = JSON.parse(await readFile(projectConfig.configPath, "utf8"));
     if (!isRecord(rawConfig)) {
-        throw new Error(`${CONFIG_PATH} must contain a JSON object.`);
+        throw new Error(`${projectConfig.configPath} must contain a JSON object.`);
     }
     const embeddingModel = typeof rawConfig.embeddingModel === "string"
         ? rawConfig.embeddingModel
@@ -24,9 +22,9 @@ export async function enableSemanticEmbeddings(cwd = process.cwd()) {
         embeddingModelPath,
         transformersAllowRemoteModels: false,
     };
-    await writeFile(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
+    await writeFile(projectConfig.configPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
     return {
-        configPath,
+        configPath: projectConfig.configPath,
         embeddingProvider: "transformers",
         embeddingModel,
         embeddingModelPath,

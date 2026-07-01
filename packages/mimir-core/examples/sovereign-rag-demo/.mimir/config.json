@@ -1,8 +1,8 @@
 {
   "rawDir": "raw",
-  "storageDir": ".kb/storage",
-  "sourcesFile": ".kb/sources.txt",
-  "accessLogPath": ".kb/access.log",
+  "storageDir": ".mimir/storage",
+  "sourcesFile": ".mimir/sources.txt",
+  "accessLogPath": ".mimir/access.log",
   "embeddingModelPath": ".mimir/models",
   "tableName": "chunks",
   "embeddingProvider": "local-hash",

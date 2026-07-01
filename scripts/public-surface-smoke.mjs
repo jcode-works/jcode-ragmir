@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process"
+import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -87,6 +88,9 @@ for (const file of trackedFiles) {
 
 for (const file of trackedFiles) {
   const absolutePath = path.join(repoRoot, file)
+  if (!existsSync(absolutePath)) {
+    continue
+  }
   const buffer = await readFile(absolutePath)
   if (buffer.includes(0)) {
     continue

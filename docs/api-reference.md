@@ -29,10 +29,13 @@ const results = await search("offline approval", { cwd: "/path/to/local/workspac
 
 Creates the local Mimir scaffolding:
 
-- `.kb/config.json`
-- `.kb/sources.txt`
-- `private/`
-- `.gitignore` entries for `.kb/`, `.mimir/`, and `private/**`
+- `.mimir/config.json`
+- `.mimir/sources.txt`
+- `.mimir/raw/`
+- `.gitignore` entries for `.mimir/`
+
+When a project already has legacy `.kb/config.json`, `initProject` preserves that config instead of
+creating a second active config.
 
 ```ts
 import { initProject } from "@jcode.labs/mimir"
@@ -66,8 +69,9 @@ Useful result fields:
 
 ### `loadConfig(start?)`
 
-Finds `.kb/config.json` by walking upward from `start`, applies defaults and `KB_*` environment
-overrides, and returns resolved absolute paths.
+Finds `.mimir/config.json` by walking upward from `start`, falls back to legacy `.kb/config.json`
+when present, applies defaults and `MIMIR_*` environment overrides, and returns resolved absolute
+paths. Legacy `KB_*` aliases are still accepted.
 
 ```ts
 import { loadConfig } from "@jcode.labs/mimir"
@@ -110,7 +114,8 @@ const report = await audit("/path/to/workspace")
 ```
 
 Use `missingFromIndex` and `staleInIndex` to decide whether to run `ingest` or `ingest({ rebuild:
-true })`.
+true })`. `emptyTextFiles` lists supported files that were processed but produced no indexable text;
+they are not treated as missing while their checksum remains unchanged.
 
 ### `search(query, options?)`
 
@@ -169,7 +174,7 @@ This intentionally allows remote model loading for the bootstrap call. Keep
 
 ### `enableSemanticEmbeddings(cwd?)`
 
-Switches `.kb/config.json` to the safe semantic path:
+Switches the active Mimir config to the safe semantic path:
 
 - `embeddingProvider: "transformers"`
 - existing or default `embeddingModel`
@@ -242,7 +247,8 @@ Returns `{ text, counts }`.
 
 ### `destroyIndex(cwd?)`
 
-Deletes generated `.kb/storage` index files.
+Deletes generated `.mimir/storage` index files, or the configured legacy storage directory when a
+legacy project still uses `.kb/config.json`.
 
 ```ts
 import { destroyIndex } from "@jcode.labs/mimir"

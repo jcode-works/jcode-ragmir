@@ -1,20 +1,22 @@
 import type { Config } from "./types.js"
 
-export const KB_DIR = ".kb"
 export const MIMIR_DIR = ".mimir"
-export const PRIVATE_DIR = "private"
-export const CONFIG_PATH = `${KB_DIR}/config.json`
+export const LEGACY_KB_DIR = ".kb"
+export const LEGACY_PRIVATE_DIR = "private"
+export const MIMIR_RAW_DIR = `${MIMIR_DIR}/raw`
+export const CONFIG_PATH = `${MIMIR_DIR}/config.json`
+export const LEGACY_CONFIG_PATH = `${LEGACY_KB_DIR}/config.json`
 export const DEFAULT_SKILL_TARGET_DIR = `${MIMIR_DIR}/skills`
 
-export const KB_GITIGNORE_ENTRY = `${KB_DIR}/`
 export const MIMIR_GITIGNORE_ENTRY = `${MIMIR_DIR}/`
-export const PRIVATE_GITIGNORE_ENTRY = `${PRIVATE_DIR}/**`
+export const LEGACY_KB_GITIGNORE_ENTRY = `${LEGACY_KB_DIR}/`
+export const LEGACY_PRIVATE_GITIGNORE_ENTRY = `${LEGACY_PRIVATE_DIR}/**`
 
 export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
-  rawDir: PRIVATE_DIR,
-  storageDir: `${KB_DIR}/storage`,
-  sourcesFile: `${KB_DIR}/sources.txt`,
-  accessLogPath: `${KB_DIR}/access.log`,
+  rawDir: MIMIR_RAW_DIR,
+  storageDir: `${MIMIR_DIR}/storage`,
+  sourcesFile: `${MIMIR_DIR}/sources.txt`,
+  accessLogPath: `${MIMIR_DIR}/access.log`,
   embeddingModelPath: `${MIMIR_DIR}/models`,
   tableName: "chunks",
   embeddingProvider: "local-hash",
@@ -36,4 +38,16 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   includeExtensions: [],
   pdfOcrCommand: [],
   pdfOcrTimeoutMs: 120_000,
+  imageOcrCommand: [],
+  imageOcrTimeoutMs: 120_000,
+  legacyWordCommand: [],
+  legacyWordTimeoutMs: 120_000,
+}
+
+export const LEGACY_DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
+  ...DEFAULT_CONFIG,
+  rawDir: LEGACY_PRIVATE_DIR,
+  storageDir: `${LEGACY_KB_DIR}/storage`,
+  sourcesFile: `${LEGACY_KB_DIR}/sources.txt`,
+  accessLogPath: `${LEGACY_KB_DIR}/access.log`,
 }

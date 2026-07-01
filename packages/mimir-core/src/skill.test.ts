@@ -102,9 +102,9 @@ describe("installSkill", () => {
     expect(first.written).toContain(path.join(".mimir", "opencode.jsonc"))
     expect(first.written).toContain(path.join(".mimir", "cline-mcp.json"))
     expect(first.written).toContain(path.join(".mimir", "agent-setup.md"))
-    expect(gitignore.match(/^\.kb\/$/gm)).toHaveLength(1)
     expect(gitignore.match(/^\.mimir\/$/gm)).toHaveLength(1)
-    expect(gitignore.match(/^private\/\*\*$/gm)).toHaveLength(1)
+    expect(gitignore).not.toContain(".kb/")
+    expect(gitignore).not.toContain("private/**")
     expect(gitignore).not.toContain("!private/")
   })
 

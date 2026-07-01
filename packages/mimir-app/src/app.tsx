@@ -1062,7 +1062,7 @@ function PrivacyView({
           <ControlTile
             icon={<LockKeyhole aria-hidden="true" />}
             title="Local state"
-            value={activeProject?.storageDir ?? ".kb/storage"}
+            value={activeProject?.storageDir ?? ".mimir/storage"}
           />
           <ControlTile
             icon={<ShieldCheck aria-hidden="true" />}
@@ -1384,7 +1384,7 @@ function modelStatusRows(report: StatusReport | null): Array<{
   if (!report) {
     return [
       { label: "Provider", value: "Awaiting status", detail: "Run Refresh on the active project." },
-      { label: "Embedding model", value: "Configured per project", detail: ".kb/config.json" },
+      { label: "Embedding model", value: "Configured per project", detail: ".mimir/config.json" },
       { label: "Model cache", value: ".mimir/models", detail: "Ignored local Mimir state." },
       { label: "Remote loading", value: "Disabled by default", detail: "Enable only to preload." },
     ]

@@ -33,6 +33,27 @@ describe("parseFile", () => {
     expect(parsed.text).toContain("Risk owner")
   })
 
+  it("uses an opt-in text command for legacy Word files", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-doc-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "legacy.doc")
+    const docScriptPath = path.join(root, "doc-wrapper.mjs")
+    await writeFile(filePath, "fake legacy Word bytes", "utf8")
+    await writeFile(
+      docScriptPath,
+      "process.stdout.write('Legacy Word text for ' + process.env.MIMIR_LEGACY_WORD_PATH + ' ' + process.argv.at(-1))\n",
+      "utf8",
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".doc"), {
+      legacyWordCommand: [process.execPath, docScriptPath, "{input}"],
+      legacyWordTimeoutMs: 5_000,
+    })
+
+    expect(parsed.text).toContain("Legacy Word text for")
+    expect(parsed.text).toContain("legacy.doc")
+  })
+
   it("extracts shared strings and values from xlsx files", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-xlsx-"))
     tempDirs.push(root)
@@ -46,6 +67,38 @@ describe("parseFile", () => {
 
     expect(parsed.text).toContain("# Finance & Ops")
     expect(parsed.text).toContain("Invoice\t\t24000\tPaid")
+  })
+
+  it("extracts text from legacy xls workbooks across sheets", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-xls-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "legacy-dataset.xls")
+    const workbook = spreadsheetUtils.book_new()
+    spreadsheetUtils.book_append_sheet(
+      workbook,
+      spreadsheetUtils.aoa_to_sheet([
+        ["Metric", "Value"],
+        ["Budget", 12000],
+      ]),
+      "Finance",
+    )
+    spreadsheetUtils.book_append_sheet(
+      workbook,
+      spreadsheetUtils.aoa_to_sheet([
+        ["Owner", "PAC"],
+        ["Status", "Active"],
+      ]),
+      "Contacts",
+    )
+    await writeFile(filePath, writeWorkbook(workbook, { bookType: "xls", type: "buffer" }))
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".xls"))
+
+    expect(parsed.text).toContain("# Finance")
+    expect(parsed.text).toContain("Metric\tValue")
+    expect(parsed.text).toContain("Budget\t12000")
+    expect(parsed.text).toContain("# Contacts")
+    expect(parsed.text).toContain("Owner\tPAC")
   })
 
   it("extracts text from pptx slides and speaker notes", async () => {
@@ -102,6 +155,27 @@ describe("parseFile", () => {
     expect(parsed.text).toContain("scan.pdf")
   })
 
+  it("uses an opt-in OCR command for image files", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-image-ocr-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "diagram.png")
+    const ocrScriptPath = path.join(root, "image-ocr-wrapper.mjs")
+    await writeFile(filePath, "fake image bytes", "utf8")
+    await writeFile(
+      ocrScriptPath,
+      "process.stdout.write('Image OCR text for ' + process.env.MIMIR_IMAGE_PATH + ' ' + process.argv.at(-1))\n",
+      "utf8",
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".png"), {
+      imageOcrCommand: [process.execPath, ocrScriptPath, "{input}"],
+      imageOcrTimeoutMs: 5_000,
+    })
+
+    expect(parsed.text).toContain("Image OCR text for")
+    expect(parsed.text).toContain("diagram.png")
+  })
+
   it("extracts text from epub html entries", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-epub-"))
     tempDirs.push(root)
@@ -116,6 +190,24 @@ describe("parseFile", () => {
     const parsed = await parseFile(sourceFile(root, filePath, ".epub"))
 
     expect(parsed.text).toContain("SOVEREIGN REPORT")
+  })
+
+  it("omits long embedded base64 payloads from text files", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-base64-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "notes.md")
+    const base64Payload = "A".repeat(320)
+    await writeFile(
+      filePath,
+      `Useful context before.\n![diagram](data:image/png;base64,${base64Payload})\nUseful context after.\n`,
+      "utf8",
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".md"))
+
+    expect(parsed.text).toContain("Useful context before.")
+    expect(parsed.text).toContain("Useful context after.")
+    expect(parsed.text).not.toContain(base64Payload)
   })
 })
 

@@ -48,9 +48,11 @@ output in the same commit, or CI fails. This is the single easiest mistake to ma
   `models pull`, `search`, `ask`, `audit`, `status`, `security-audit`, `destroy-index`, `audio`,
   `doctor`, `serve-mcp`, `skill-path`, `install-skill`.
 - TTS CLI binary: **`mimir-tts`** (`packages/mimir-tts/dist/cli.js`). Commands: `doctor`, `render`.
-- Project config/state in the target repo: **`.kb/`** (`config.json`, `sources.txt`, `access.log`,
-  `storage/`), raw documents in **`private/`**, agent kit in **`.mimir/`**.
-- Environment overrides: **`KB_*`** (e.g. `KB_EMBEDDING_PROVIDER`, `KB_CHUNK_SIZE`).
+- Project config/state in the target repo: **`.mimir/`** (`config.json`, `sources.txt`, `raw/`,
+  `storage/`, `access.log`, `skills/`, reports, audio, and model caches). **`.kb/`** and
+  **`private/`** are legacy compatibility paths only.
+- Environment overrides: **`MIMIR_*`** (e.g. `MIMIR_EMBEDDING_PROVIDER`, `MIMIR_CHUNK_SIZE`).
+  **`KB_*`** aliases remain only for existing automation.
 - MCP tools exposed to agents: **`mimir_*`** (`mimir_status`, `mimir_search`, `mimir_ask`,
   `mimir_audit`, `mimir_security_audit`).
 
@@ -89,8 +91,9 @@ desktop/mobile builds are explicit `pnpm --filter @jcode.labs/mimir-app tauri:*`
 Key behaviors to keep in mind before editing:
 
 - **Config resolution is caller-relative.** `loadConfig` walks up from `cwd` looking for
-  `.kb/config.json` (`findProjectRoot`). The package must resolve project data from the caller's
-  working directory, never from its own install path. Zod validates config; `KB_*` env vars override.
+  `.mimir/config.json`, with fallback to legacy `.kb/config.json`. The package must resolve project
+  data from the caller's working directory, never from its own install path. Zod validates config;
+  `MIMIR_*` env vars override, with `KB_*` kept as legacy aliases.
 - **Two embedding providers, not interchangeable at runtime.** `local-hash` (default) is a 384-dim
   sha256 lexical embedding — fully offline, no model, *not semantic*. `transformers` lazily
   `import()`s `@huggingface/transformers` with `allowRemoteModels` off by default. `mimir models pull`
@@ -101,8 +104,8 @@ Key behaviors to keep in mind before editing:
   every supported file through parsing, redaction, chunking, and embedding again.
 - **Privacy is a feature, not a side effect.** Redaction runs before embedding, the access log stores
   query hashes/metadata only (`access-log.ts`), MCP top-K is clamped to `mcpMaxTopK`, and
-  `gitignore.ts` keeps `.kb/`, `.mimir/`, `private/**` ignored in target repos. `security-audit`
-  reports this posture and `--strict` exits non-zero on warnings. Preserve these guarantees.
+  `gitignore.ts` keeps `.mimir/` ignored in target repos. `security-audit` also preserves legacy
+  warnings when a project still uses `.kb/` or `private/**`. Preserve these guarantees.
 
 Coding conventions (KISS, DRY, YAGNI, SOLID as applied here) live in `AGENTS.md`.
 
@@ -117,3 +120,47 @@ Coding conventions (KISS, DRY, YAGNI, SOLID as applied here) live in `AGENTS.md`
 
 Release policy (no local publish, no direct push to `main`, protected `Publish npm` workflow) lives
 in `AGENTS.md`. The workflow publishes `@jcode.labs/mimir-tts` before `@jcode.labs/mimir`.
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **jcode-mimir** (2537 symbols, 4246 relationships, 216 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/jcode-mimir/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/jcode-mimir/clusters` | All functional areas |
+| `gitnexus://repo/jcode-mimir/processes` | All execution flows |
+| `gitnexus://repo/jcode-mimir/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
 import { cp, lstat, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -30,6 +31,12 @@ try {
   )
   assertIncludes(setup.stdout, "Agent integration:", "setup should install the agent kit")
   assertIncludes(setup.stdout, "MCP config:", "setup should point users to the MCP config")
+  if (existsSync(path.join(tempRoot, ".kb"))) {
+    throw new Error("setup should not create a legacy .kb directory for new projects")
+  }
+  if (existsSync(path.join(tempRoot, "private"))) {
+    throw new Error("setup should not create a private directory for new projects")
+  }
 
   const initialDoctor = await runKb(["doctor"], tempRoot)
   assertIncludes(initialDoctor.stdout, "supportedFiles=0", "doctor should ignore generated README")
@@ -98,7 +105,7 @@ try {
     (await runKb(["search", "French tax residency", "--top-k", "1", "--json"], tempRoot)).stdout,
     "search JSON",
   )
-  if (searchJson.results?.[0]?.relativePath !== "private/tax.md") {
+  if (searchJson.results?.[0]?.relativePath !== ".mimir/raw/tax.md") {
     throw new Error(`search --json should return tax.md, got ${JSON.stringify(searchJson)}`)
   }
 
@@ -155,12 +162,12 @@ try {
   const unsupportedAudit = await runKb(["audit", "--unsupported"], tempRoot)
   assertIncludes(
     unsupportedAudit.stdout,
-    "skipped: private/scan.png reason=unsupported-extension",
+    "skipped: .mimir/raw/scan.png reason=unsupported-extension",
     "audit --unsupported should list unsupported image files",
   )
   assertIncludes(
     unsupportedAudit.stdout,
-    "Run local OCR and save the text as a supported text file",
+    "Configure imageOcrCommand for local image OCR",
     "audit --unsupported should recommend OCR for image files",
   )
 
@@ -197,7 +204,7 @@ try {
   )
 
   const audioMp3WithoutEngine = await runKbFailure(
-    ["audio", path.join(tempRoot, "private", "tax.md"), "--out", ".mimir/audio/tax.mp3"],
+    ["audio", path.join(tempRoot, ".mimir", "raw", "tax.md"), "--out", ".mimir/audio/tax.mp3"],
     tempRoot,
   )
   assertIncludes(
@@ -219,8 +226,9 @@ try {
     "install-skill should copy the optional audio summary skill",
   )
   const gitignore = await readFile(path.join(tempRoot, ".gitignore"), "utf8")
-  assertIncludes(gitignore, ".kb/", "init should ignore the Mimir config and index directory")
-  assertIncludes(gitignore, ".mimir/", "install-skill should ignore generated agent kit files")
+  assertIncludes(gitignore, ".mimir/", "setup should ignore local Mimir state")
+  assertNotIncludes(gitignore, ".kb/", "setup should not add legacy .kb ignore rules")
+  assertNotIncludes(gitignore, "private/**", "setup should not add legacy private ignore rules")
 
   await runKb(["install-agent", "--agents", "claude,kimi"], tempRoot)
   const claudeNativeSkillDir = path.join(tempRoot, ".claude", "skills", "mimir")
@@ -299,7 +307,7 @@ async function smokeExampleWorkspace() {
     )
     assertIncludes(
       unsupportedAudit.stdout,
-      "Run local OCR and save the text as a supported text file",
+      "Configure imageOcrCommand for local image OCR",
       "example audit should recommend OCR for image-only source evidence",
     )
 
@@ -414,7 +422,7 @@ async function smokeExampleWorkspace() {
 }
 
 async function configureProject(cwd) {
-  const configPath = path.join(cwd, ".kb", "config.json")
+  const configPath = path.join(cwd, ".mimir", "config.json")
   const config = JSON.parse(await readFile(configPath, "utf8"))
   await writeFile(
     configPath,
@@ -435,7 +443,7 @@ async function configureProject(cwd) {
 
 async function writeFixtureDocuments(cwd) {
   await writeFile(
-    path.join(cwd, "private", "tax.md"),
+    path.join(cwd, ".mimir", "raw", "tax.md"),
     [
       "# Tax situation",
       "",
@@ -446,7 +454,7 @@ async function writeFixtureDocuments(cwd) {
     "utf8",
   )
   await writeFile(
-    path.join(cwd, "private", "thailand.md"),
+    path.join(cwd, ".mimir", "raw", "thailand.md"),
     [
       "# Thailand situation",
       "",
@@ -454,7 +462,11 @@ async function writeFixtureDocuments(cwd) {
     ].join("\n"),
     "utf8",
   )
-  await writeFile(path.join(cwd, "private", "scan.png"), "synthetic image placeholder\n", "utf8")
+  await writeFile(
+    path.join(cwd, ".mimir", "raw", "scan.png"),
+    "synthetic image placeholder\n",
+    "utf8",
+  )
 }
 
 async function runKb(args, cwd) {
@@ -549,7 +561,7 @@ async function smokeMcp(cwd) {
           queries: [
             {
               query: "What proves the French tax residency risk?",
-              expectedPaths: ["private/tax.md"],
+              expectedPaths: [".mimir/raw/tax.md"],
             },
           ],
         },

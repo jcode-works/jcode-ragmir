@@ -7,7 +7,7 @@ describe("chunkDocument", () => {
     const doc: ParsedDocument = {
       file: {
         absolutePath: "/tmp/example.md",
-        relativePath: "private/example.md",
+        relativePath: ".mimir/raw/example.md",
         source: "example.md",
         extension: ".md",
         bytes: 100,
@@ -20,7 +20,7 @@ describe("chunkDocument", () => {
     const chunks = chunkDocument(doc, 35, 8)
 
     expect(chunks.length).toBeGreaterThan(1)
-    expect(chunks[0]?.relativePath).toBe("private/example.md")
+    expect(chunks[0]?.relativePath).toBe(".mimir/raw/example.md")
     expect(chunks.every((chunk) => chunk.text.length > 0)).toBe(true)
   })
 })

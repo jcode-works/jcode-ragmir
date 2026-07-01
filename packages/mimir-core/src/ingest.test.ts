@@ -18,9 +18,9 @@ describe("ingest", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-ingest-"))
     tempDirs.push(root)
     await initProject(root)
-    await mkdir(path.join(root, "private"), { recursive: true })
-    await writeFile(path.join(root, "private", "evidence.md"), "First version.\n", "utf8")
-    await writeFile(path.join(root, "private", "scan.heic"), "unsupported image\n", "utf8")
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "raw", "evidence.md"), "First version.\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "scan.heic"), "unsupported image\n", "utf8")
 
     const result = await ingest({ cwd: root })
     expect(result.discoveredFiles).toBe(2)
@@ -31,14 +31,14 @@ describe("ingest", () => {
     expect(result.emptyTextFiles).toEqual([])
     expect(result.unsupportedExtensions).toEqual([{ extension: ".heic", count: 1 }])
 
-    await writeFile(path.join(root, "private", "evidence.md"), "Changed version.\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "evidence.md"), "Changed version.\n", "utf8")
     const report = await audit(root)
 
     expect(report.missingFromIndex).toEqual([])
-    expect(report.staleInIndex).toEqual(["private/evidence.md"])
+    expect(report.staleInIndex).toEqual([".mimir/raw/evidence.md"])
     expect(report.skippedFiles).toEqual([
       expect.objectContaining({
-        relativePath: "private/scan.heic",
+        relativePath: ".mimir/raw/scan.heic",
         reason: "unsupported-extension",
       }),
     ])
@@ -48,12 +48,12 @@ describe("ingest", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-ingest-"))
     tempDirs.push(root)
     await initProject(root)
-    await mkdir(path.join(root, "private"), { recursive: true })
-    await writeFile(path.join(root, "private", "alpha.md"), "Alpha evidence.\n", "utf8")
-    await writeFile(path.join(root, "private", "beta.md"), "Beta evidence.\n", "utf8")
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "raw", "alpha.md"), "Alpha evidence.\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "beta.md"), "Beta evidence.\n", "utf8")
 
     const first = await ingest({ cwd: root })
-    await writeFile(path.join(root, "private", "beta.md"), "Changed beta evidence.\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "beta.md"), "Changed beta evidence.\n", "utf8")
     const second = await ingest({ cwd: root })
 
     expect(first.indexedFiles).toBe(2)
@@ -66,8 +66,8 @@ describe("ingest", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-empty-text-"))
     tempDirs.push(root)
     await initProject(root)
-    await mkdir(path.join(root, "private"), { recursive: true })
-    await writeFile(path.join(root, "private", "scan.pdf"), createBlankPdf())
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "raw", "scan.pdf"), createBlankPdf())
 
     const result = await ingest({ cwd: root })
 
@@ -76,7 +76,11 @@ describe("ingest", () => {
     expect(result.indexedFiles).toBe(0)
     expect(result.chunks).toBe(0)
     expect(result.skippedFiles).toBe(1)
-    expect(result.emptyTextFiles).toEqual(["private/scan.pdf"])
+    expect(result.emptyTextFiles).toEqual([".mimir/raw/scan.pdf"])
+
+    const report = await audit(root)
+    expect(report.emptyTextFiles).toEqual([".mimir/raw/scan.pdf"])
+    expect(report.missingFromIndex).toEqual([])
   })
 })
 

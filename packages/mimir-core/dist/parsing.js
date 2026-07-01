@@ -9,12 +9,29 @@ import { extractText, getDocumentProxy } from "unpdf";
 import { read as readWorkbook, utils as spreadsheetUtils } from "xlsx";
 import YAML from "yaml";
 const MAX_OFFICE_XML_ENTRY_BYTES = 25_000_000;
-const MAX_OCR_STDIO_BYTES = 25_000_000;
+const MAX_EXTERNAL_TEXT_STDIO_BYTES = 25_000_000;
+const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu;
+const OCR_IMAGE_EXTENSIONS = new Set([
+    ".avif",
+    ".bmp",
+    ".gif",
+    ".heic",
+    ".heif",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".tif",
+    ".tiff",
+    ".webp",
+]);
 export async function parseFile(file, options = {}) {
     let text;
     switch (file.extension) {
         case ".pdf":
             text = await parsePdf(file.absolutePath, options);
+            break;
+        case ".doc":
+            text = await parseLegacyWord(file.absolutePath, options);
             break;
         case ".docx":
             text = await parseDocx(file.absolutePath);
@@ -22,8 +39,22 @@ export async function parseFile(file, options = {}) {
         case ".pptx":
             text = await parsePptx(file.absolutePath);
             break;
+        case ".xls":
         case ".xlsx":
             text = await parseXlsx(file.absolutePath);
+            break;
+        case ".avif":
+        case ".bmp":
+        case ".gif":
+        case ".heic":
+        case ".heif":
+        case ".jpeg":
+        case ".jpg":
+        case ".png":
+        case ".tif":
+        case ".tiff":
+        case ".webp":
+            text = await parseImage(file.absolutePath, file.extension, options);
             break;
         case ".odt":
         case ".ods":
@@ -87,6 +118,33 @@ async function parseXlsx(filePath) {
         }
     }
     return sheets.join("\n\n");
+}
+async function parseImage(filePath, extension, options) {
+    if (!OCR_IMAGE_EXTENSIONS.has(extension)) {
+        return "";
+    }
+    if (!options.imageOcrCommand || options.imageOcrCommand.length === 0) {
+        return "";
+    }
+    return runExternalTextCommand(filePath, {
+        command: options.imageOcrCommand,
+        cwd: options.projectRoot,
+        label: "OCR command",
+        timeoutMs: options.imageOcrTimeoutMs ?? 120_000,
+        pathEnvName: "MIMIR_IMAGE_PATH",
+    });
+}
+async function parseLegacyWord(filePath, options) {
+    if (!options.legacyWordCommand || options.legacyWordCommand.length === 0) {
+        return "";
+    }
+    return runExternalTextCommand(filePath, {
+        command: options.legacyWordCommand,
+        cwd: options.projectRoot,
+        label: "legacy Word command",
+        timeoutMs: options.legacyWordTimeoutMs ?? 120_000,
+        pathEnvName: "MIMIR_LEGACY_WORD_PATH",
+    });
 }
 async function parseOpenDocument(filePath) {
     const entries = unzipOfficeFile(await readFile(filePath));
@@ -194,10 +252,16 @@ async function parsePdf(filePath, options) {
     if (!options.pdfOcrCommand || options.pdfOcrCommand.length === 0) {
         return result.text;
     }
-    return runPdfOcr(filePath, options);
+    return runExternalTextCommand(filePath, {
+        command: options.pdfOcrCommand,
+        cwd: options.projectRoot,
+        label: "OCR command",
+        timeoutMs: options.pdfOcrTimeoutMs ?? 120_000,
+        pathEnvName: "MIMIR_PDF_PATH",
+    });
 }
-async function runPdfOcr(filePath, options) {
-    const command = options.pdfOcrCommand ?? [];
+async function runExternalTextCommand(filePath, options) {
+    const command = options.command ?? [];
     const [executable, ...configuredArgs] = command;
     if (!executable) {
         return "";
@@ -209,7 +273,8 @@ async function runPdfOcr(filePath, options) {
     }
     return new Promise((resolve, reject) => {
         const child = spawn(executable, args, {
-            env: { ...process.env, MIMIR_PDF_PATH: filePath },
+            cwd: options.cwd,
+            env: { ...process.env, [options.pathEnvName]: filePath },
             stdio: ["ignore", "pipe", "pipe"],
         });
         let stdout = "";
@@ -219,40 +284,40 @@ async function runPdfOcr(filePath, options) {
         const timeout = setTimeout(() => {
             didTimeout = true;
             child.kill("SIGTERM");
-        }, options.pdfOcrTimeoutMs ?? 120_000);
+        }, options.timeoutMs);
         child.stdout.setEncoding("utf8");
         child.stderr.setEncoding("utf8");
         child.stdout.on("data", (chunk) => {
             stdout += chunk;
-            if (Buffer.byteLength(stdout, "utf8") > MAX_OCR_STDIO_BYTES) {
+            if (Buffer.byteLength(stdout, "utf8") > MAX_EXTERNAL_TEXT_STDIO_BYTES) {
                 outputTooLarge = true;
                 child.kill("SIGTERM");
             }
         });
         child.stderr.on("data", (chunk) => {
             stderr += chunk;
-            if (Buffer.byteLength(stderr, "utf8") > MAX_OCR_STDIO_BYTES) {
+            if (Buffer.byteLength(stderr, "utf8") > MAX_EXTERNAL_TEXT_STDIO_BYTES) {
                 outputTooLarge = true;
                 child.kill("SIGTERM");
             }
         });
         child.on("error", (error) => {
             clearTimeout(timeout);
-            reject(new Error(`PDF OCR command failed to start: ${error.message}`));
+            reject(new Error(`${options.label} failed to start: ${error.message}`));
         });
         child.on("close", (code) => {
             clearTimeout(timeout);
             if (didTimeout) {
-                reject(new Error("PDF OCR command timed out."));
+                reject(new Error(`${options.label} timed out.`));
                 return;
             }
             if (outputTooLarge) {
-                reject(new Error("PDF OCR command produced too much output."));
+                reject(new Error(`${options.label} produced too much output.`));
                 return;
             }
             if (code !== 0) {
                 const detail = stderr.trim();
-                reject(new Error(detail ? `PDF OCR command failed: ${detail}` : "PDF OCR command failed."));
+                reject(new Error(detail ? `${options.label} failed: ${detail}` : `${options.label} failed.`));
                 return;
             }
             resolve(stdout);
@@ -261,6 +326,7 @@ async function runPdfOcr(filePath, options) {
 }
 function normalizeText(input) {
     return input
+        .replace(LONG_BASE64_TEXT_PATTERN, " ")
         .replace(/\r\n/g, "\n")
         .replace(/[ \t]+\n/g, "\n")
         .replace(/\n{4,}/g, "\n\n\n")

@@ -18,38 +18,75 @@ describe("listSourceFiles", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-files-"))
     tempDirs.push(root)
 
-    await mkdir(path.join(root, "private", "nested"), { recursive: true })
-    await mkdir(path.join(root, "private", ".kb"), { recursive: true })
-    await mkdir(path.join(root, "private", ".mimir"), { recursive: true })
-    await writeFile(path.join(root, "private", "events.jsonl"), '{"event":"login"}\n', "utf8")
-    await writeFile(path.join(root, "private", "schema.sql"), "select 1;\n", "utf8")
+    await mkdir(path.join(root, ".mimir", "raw", "nested"), { recursive: true })
+    await mkdir(path.join(root, ".mimir", "raw", ".kb"), { recursive: true })
+    await mkdir(path.join(root, ".mimir", "raw", ".mimir"), { recursive: true })
+    await mkdir(path.join(root, ".mimir", "raw", ".mvn", "wrapper"), { recursive: true })
+    await mkdir(path.join(root, ".mimir", "raw", ".vscode"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "raw", ".env"), "SECRET=hidden\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", ".gitignore"), "node_modules/\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", ".gitkeep"), "", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", ".gitlab-ci.yml"), "stages: [test]\n", "utf8")
     await writeFile(
-      path.join(root, "private", "component.vue"),
+      path.join(root, ".mimir", "raw", ".mvn", "wrapper", "maven-wrapper.properties"),
+      "distributionUrl=https://example.invalid/maven.zip\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".mimir", "raw", ".vscode", "settings.json"),
+      '{"editor.tabSize":2}\n',
+      "utf8",
+    )
+    await writeFile(path.join(root, ".mimir", "raw", "events.jsonl"), '{"event":"login"}\n', "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "example.bat"), "echo evidence\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "example.cmd"), "echo evidence\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "schema.sql"), "select 1;\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "settings.example"), "name=value\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "settings.exemple"), "name=value\n", "utf8")
+    await writeFile(
+      path.join(root, ".mimir", "raw", "component.vue"),
       "<template>Evidence</template>\n",
       "utf8",
     )
     await writeFile(
-      path.join(root, "private", "loader.mjs"),
+      path.join(root, ".mimir", "raw", "loader.mjs"),
       "export const evidence = true\n",
       "utf8",
     )
-    await writeFile(path.join(root, "private", "captions.vtt"), "WEBVTT\n\nEvidence\n", "utf8")
-    await writeFile(path.join(root, "private", "notes.transcript"), "call notes\n", "utf8")
-    await writeFile(path.join(root, "private", "README.md"), "generated helper\n", "utf8")
-    await writeFile(path.join(root, "private", "image.png"), "not indexed\n", "utf8")
-    await writeFile(path.join(root, "private", "private.pem"), "not indexed\n", "utf8")
-    await writeFile(path.join(root, "private", ".kb", "index.md"), "ignored\n", "utf8")
-    await writeFile(path.join(root, "private", ".mimir", "agent.md"), "ignored\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "mvnw"), "#!/bin/sh\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "sequence.mmd"), "sequenceDiagram\n", "utf8")
+    await writeFile(
+      path.join(root, ".mimir", "raw", "captions.vtt"),
+      "WEBVTT\n\nEvidence\n",
+      "utf8",
+    )
+    await writeFile(path.join(root, ".mimir", "raw", "notes.transcript"), "call notes\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "README.md"), "generated helper\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "image.png"), "not indexed\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "legacy.doc"), "not indexed\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "private.pem"), "not indexed\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", ".kb", "index.md"), "ignored\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", ".mimir", "agent.md"), "ignored\n", "utf8")
 
     const files = await listSourceFiles(testConfig(root, { includeExtensions: [".transcript"] }))
 
     expect(files.map((file) => file.relativePath)).toEqual([
-      "private/captions.vtt",
-      "private/component.vue",
-      "private/events.jsonl",
-      "private/loader.mjs",
-      "private/notes.transcript",
-      "private/schema.sql",
+      ".mimir/raw/.gitignore",
+      ".mimir/raw/.gitlab-ci.yml",
+      ".mimir/raw/.mvn/wrapper/maven-wrapper.properties",
+      ".mimir/raw/.vscode/settings.json",
+      ".mimir/raw/captions.vtt",
+      ".mimir/raw/component.vue",
+      ".mimir/raw/events.jsonl",
+      ".mimir/raw/example.bat",
+      ".mimir/raw/example.cmd",
+      ".mimir/raw/loader.mjs",
+      ".mimir/raw/mvnw",
+      ".mimir/raw/notes.transcript",
+      ".mimir/raw/schema.sql",
+      ".mimir/raw/sequence.mmd",
+      ".mimir/raw/settings.example",
+      ".mimir/raw/settings.exemple",
     ])
 
     const inventory = await inventorySourceFiles(
@@ -59,24 +96,72 @@ describe("listSourceFiles", () => {
     expect(inventory.skippedFiles).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          relativePath: "private/image.png",
-          reason: "unsupported-extension",
-          recommendation:
-            "Run local OCR and save the text as a supported text file, or convert to an OCRed PDF before ingesting.",
-        }),
-        expect.objectContaining({
-          relativePath: "private/private.pem",
+          relativePath: ".mimir/raw/.env",
           reason: "sensitive-name",
           recommendation:
             "Review manually; secret-like files are skipped to avoid indexing credentials or private keys.",
         }),
         expect.objectContaining({
-          relativePath: "private/component.vue",
+          relativePath: ".mimir/raw/.gitkeep",
+          reason: "unsupported-extension",
+        }),
+        expect.objectContaining({
+          relativePath: ".mimir/raw/image.png",
+          reason: "unsupported-extension",
+          recommendation:
+            "Configure imageOcrCommand for local image OCR, save extracted text as a supported text file, or convert to an OCRed PDF before ingesting.",
+        }),
+        expect.objectContaining({
+          relativePath: ".mimir/raw/legacy.doc",
+          reason: "unsupported-extension",
+          recommendation:
+            "Configure legacyWordCommand for local legacy Word extraction, or convert to DOCX, PDF, HTML, or text before ingesting.",
+        }),
+        expect.objectContaining({
+          relativePath: ".mimir/raw/private.pem",
+          reason: "sensitive-name",
+          recommendation:
+            "Review manually; secret-like files are skipped to avoid indexing credentials or private keys.",
+        }),
+        expect.objectContaining({
+          relativePath: ".mimir/raw/component.vue",
           reason: "oversized",
           recommendation:
             "Split, compress, or raise maxFileBytes only after confirming the file is safe and useful.",
         }),
       ]),
     )
+  })
+
+  it("indexes image files only when an OCR command is configured", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-image-files-"))
+    tempDirs.push(root)
+
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "raw", "diagram.png"), "fake image bytes", "utf8")
+
+    await expect(listSourceFiles(testConfig(root))).resolves.toEqual([])
+
+    const files = await listSourceFiles(
+      testConfig(root, { imageOcrCommand: [process.execPath, "image-ocr-wrapper.mjs"] }),
+    )
+
+    expect(files.map((file) => file.relativePath)).toEqual([".mimir/raw/diagram.png"])
+  })
+
+  it("indexes legacy Word files only when a text extraction command is configured", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-doc-files-"))
+    tempDirs.push(root)
+
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "raw", "legacy.doc"), "fake doc bytes", "utf8")
+
+    await expect(listSourceFiles(testConfig(root))).resolves.toEqual([])
+
+    const files = await listSourceFiles(
+      testConfig(root, { legacyWordCommand: [process.execPath, "doc-wrapper.mjs"] }),
+    )
+
+    expect(files.map((file) => file.relativePath)).toEqual([".mimir/raw/legacy.doc"])
   })
 })

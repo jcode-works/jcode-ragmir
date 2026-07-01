@@ -3,7 +3,7 @@ import { existsSync } from "node:fs"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import fg from "fast-glob"
-import { PRIVATE_DIR } from "./defaults.js"
+import { DEFAULT_CONFIG, LEGACY_PRIVATE_DIR } from "./defaults.js"
 import type {
   Config,
   SkippedSourceFile,
@@ -12,7 +12,10 @@ import type {
   SourceInventory,
 } from "./types.js"
 
-const GENERATED_SOURCE_README = `${PRIVATE_DIR}/README.md`
+const GENERATED_SOURCE_READMES = new Set([
+  `${DEFAULT_CONFIG.rawDir}/README.md`,
+  `${LEGACY_PRIVATE_DIR}/README.md`,
+])
 const NO_EXTENSION = "(none)"
 const SENSITIVE_FILE_NAMES = new Set([
   ".env",
@@ -47,6 +50,7 @@ const OCR_IMAGE_EXTENSIONS = new Set([
   ".tiff",
   ".webp",
 ])
+const LEGACY_WORD_EXTENSIONS = new Set([".doc"])
 const TRANSCRIPTION_EXTENSIONS = new Set([
   ".aac",
   ".aiff",
@@ -60,15 +64,29 @@ const TRANSCRIPTION_EXTENSIONS = new Set([
   ".wav",
   ".webm",
 ])
+const DEFAULT_SUPPORTED_FILE_NAMES = new Set([
+  ".dockerignore",
+  ".gitignore",
+  ".npmignore",
+  "dockerfile",
+  "gemfile",
+  "gradlew",
+  "makefile",
+  "mvnw",
+  "procfile",
+  "rakefile",
+])
 
 export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".atom",
   ".adoc",
   ".astro",
   ".bash",
+  ".bat",
   ".c",
   ".cjs",
   ".cfg",
+  ".cmd",
   ".conf",
   ".cpp",
   ".cs",
@@ -79,6 +97,8 @@ export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".docx",
   ".eml",
   ".epub",
+  ".example",
+  ".exemple",
   ".go",
   ".h",
   ".hpp",
@@ -97,6 +117,7 @@ export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".md",
   ".mdown",
   ".mdx",
+  ".mmd",
   ".mjs",
   ".mts",
   ".ndjson",
@@ -131,6 +152,7 @@ export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".vtt",
   ".vue",
   ".xml",
+  ".xls",
   ".xlsx",
   ".yaml",
   ".yml",
@@ -155,7 +177,7 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
       cwd: root,
       absolute: true,
       onlyFiles: true,
-      dot: false,
+      dot: true,
       followSymbolicLinks: false,
       ignore: ["**/.git/**", "**/node_modules/**", "**/.kb/**", "**/.mimir/**"],
       objectMode: true,
@@ -166,7 +188,7 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
     for (const entry of entries) {
       const absolutePath = path.isAbsolute(entry.path) ? entry.path : path.resolve(root, entry.path)
       const relativePath = path.relative(config.projectRoot, absolutePath)
-      if (relativePath === GENERATED_SOURCE_README) {
+      if (GENERATED_SOURCE_READMES.has(relativePath)) {
         continue
       }
       discoveredFiles += 1
@@ -181,7 +203,7 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
         continue
       }
 
-      if (!supportedExtensions(config).has(extension)) {
+      if (!isSupportedSourceFile(absolutePath, extension, config)) {
         const normalizedExtension = extension || NO_EXTENSION
         skippedFiles.set(absolutePath, {
           relativePath,
@@ -232,7 +254,19 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
 }
 
 export function supportedExtensions(config: Config): Set<string> {
-  return new Set([...DEFAULT_SUPPORTED_EXTENSIONS, ...config.includeExtensions])
+  return new Set([
+    ...DEFAULT_SUPPORTED_EXTENSIONS,
+    ...(config.imageOcrCommand.length > 0 ? OCR_IMAGE_EXTENSIONS : []),
+    ...(config.legacyWordCommand.length > 0 ? LEGACY_WORD_EXTENSIONS : []),
+    ...config.includeExtensions,
+  ])
+}
+
+function isSupportedSourceFile(absolutePath: string, extension: string, config: Config): boolean {
+  if (supportedExtensions(config).has(extension)) {
+    return true
+  }
+  return DEFAULT_SUPPORTED_FILE_NAMES.has(path.basename(absolutePath).toLowerCase())
 }
 
 export function summarizeUnsupportedExtensions(
@@ -297,7 +331,10 @@ function skippedRecommendation(reason: SkippedSourceReason, extension: string): 
     return "Split, compress, or raise maxFileBytes only after confirming the file is safe and useful."
   }
   if (OCR_IMAGE_EXTENSIONS.has(extension)) {
-    return "Run local OCR and save the text as a supported text file, or convert to an OCRed PDF before ingesting."
+    return "Configure imageOcrCommand for local image OCR, save extracted text as a supported text file, or convert to an OCRed PDF before ingesting."
+  }
+  if (LEGACY_WORD_EXTENSIONS.has(extension)) {
+    return "Configure legacyWordCommand for local legacy Word extraction, or convert to DOCX, PDF, HTML, or text before ingesting."
   }
   if (TRANSCRIPTION_EXTENSIONS.has(extension)) {
     return "Transcribe to text, VTT, or SRT before ingesting."

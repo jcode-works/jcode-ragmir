@@ -19,6 +19,56 @@ Created by Jean-Baptiste Thery and published under the JCode Labs npm scope.
 
 Built by Jean-Baptiste Thery, freelance full-stack/AI tooling engineer at JCode Labs.
 
+## At A Glance
+
+Mimir is the local evidence layer for AI agents: put documents in a repository, index them locally,
+then let your CLI, MCP-compatible agent, or bundled skills retrieve cited passages without uploading
+the corpus to a hosted RAG service.
+
+```mermaid
+flowchart TD
+  subgraph Workspace["Your repository"]
+    Docs["Local files<br/>docs, specs, code, PDFs"]
+    Config[".mimir/config.json<br/>.mimir/raw/"]
+    Index[".mimir/storage<br/>local LanceDB index"]
+  end
+
+  subgraph Mimir["Mimir Core"]
+    Ingest["mimir ingest<br/>parse, redact, chunk"]
+    Retrieve["mimir search / ask<br/>rank cited passages"]
+    Audit["doctor, audit,<br/>security-audit, evaluate"]
+  end
+
+  subgraph Agents["Developer tools"]
+    CLI["Terminal"]
+    MCP["MCP server"]
+    Skills["Portable agent skills"]
+    LLM["Claude, Codex,<br/>or your trusted model"]
+  end
+
+  Docs --> Ingest
+  Config --> Ingest
+  Ingest --> Index
+  Index --> Retrieve
+  Index --> Audit
+  Retrieve --> CLI
+  Retrieve --> MCP
+  Skills --> MCP
+  MCP --> LLM
+```
+
+The fastest useful path:
+
+```bash
+pnpm add -D @jcode.labs/mimir
+pnpm exec mimir setup
+pnpm exec mimir doctor --fix
+pnpm exec mimir ask "What does this repository say about deployment?"
+```
+
+Use it when an agent needs grounded context over private specs, codebases, legal dossiers, tenders,
+course material, project archives, or meeting notes, but the files should remain on your machine.
+
 ## Packages
 
 This root README is the canonical product documentation for the public npm packages.
@@ -177,12 +227,14 @@ when supported files are already present:
 pnpm exec mimir setup
 ```
 
-`mimir setup` creates or updates:
+Fresh setup keeps local state under one ignored `.mimir/` folder:
 
 ```plain text
-private/                         # raw documents to ingest
-.kb/config.json                  # local config
-.kb/sources.txt                  # optional extra source paths
+.mimir/config.json               # local config
+.mimir/sources.txt               # optional extra source paths
+.mimir/raw/                      # raw documents to ingest
+.mimir/storage/                  # generated LanceDB index after ingest
+.mimir/access.log                # metadata-only access log after use
 .mimir/skills/mimir/SKILL.md     # portable agent skill
 .mimir/skills/mimir-audio-summary/SKILL.md
 .mimir/skills/mimir-markdown-report/SKILL.md
@@ -194,7 +246,7 @@ private/                         # raw documents to ingest
 .mimir/opencode.jsonc            # OpenCode config snippet
 .mimir/cline-mcp.json            # Cline MCP config
 .mimir/agent-setup.md            # agent-specific setup guide
-.gitignore                       # ignores private/**, .kb/, and .mimir/
+.gitignore                       # ignores .mimir/
 ```
 
 It detects the repository package manager and writes the MCP helper files with the right command:
@@ -218,16 +270,16 @@ index rebuild when supported files are present and the privacy posture has no wa
 Manual initialization is still available:
 
 ```plain text
-private/          # raw documents to ingest
-.kb/config.json   # local config
-.kb/sources.txt   # optional extra source paths
-.gitignore        # ignores private/**, .kb/, and .mimir/
+.mimir/config.json   # local config
+.mimir/sources.txt   # optional extra source paths
+.mimir/raw/          # raw documents to ingest
+.gitignore           # ignores .mimir/
 ```
 
-Put supported files under `private/`:
+Put supported files under `.mimir/raw/`:
 
 ```plain text
-private/
+.mimir/raw/
   policy.md
   meeting-notes.pdf
   requirements.docx
@@ -279,7 +331,7 @@ local path, then use a threshold that matches the evaluation phase:
 
 ```bash
 pnpm exec mimir --project-root /path/to/workspace ingest
-pnpm exec mimir --project-root /path/to/workspace evaluate --golden private/golden-queries.json --fail-under 0.8 --json
+pnpm exec mimir --project-root /path/to/workspace evaluate --golden .mimir/evaluations/golden-queries.json --fail-under 0.8 --json
 ```
 
 The JSON report includes the active `embeddingProvider` and `embeddingModel`, so you can compare
@@ -305,7 +357,7 @@ Mimir has two embedding modes.
 Use this when you want a fully local, no-model smoke test or a dependency-light setup. Retrieval is
 lexical/hash-based, not semantic.
 
-`.kb/config.json`:
+`.mimir/config.json`:
 
 ```json
 {
@@ -328,7 +380,7 @@ passages to any LLM or agent you trust.
 
 Use this when you want better semantic retrieval while keeping Mimir core free of an LLM server.
 
-`.kb/config.json`:
+`.mimir/config.json`:
 
 ```json
 {
@@ -348,7 +400,7 @@ pnpm exec mimir ask "Which passages support offline operation?"
 ```
 
 `mimir models pull` intentionally allows a one-time download from Hugging Face into
-`embeddingModelPath`. With `--enable`, it also switches `.kb/config.json` to
+`embeddingModelPath`. With `--enable`, it also switches `.mimir/config.json` to
 `embeddingProvider: "transformers"` while keeping `transformersAllowRemoteModels` false for
 confidential or air-gapped indexing. Re-run `mimir ingest --rebuild` after changing embedding
 provider or model so stored vectors match the active configuration.
@@ -428,16 +480,20 @@ where you run the CLI:
 
 ```plain text
 your-project/
-  private/          # raw documents to ingest
-  .kb/config.json   # local config
-  .kb/sources.txt   # optional extra source paths
-  .kb/storage/      # generated LanceDB index
-  .kb/access.log    # metadata-only access log
+  .mimir/config.json   # local config
+  .mimir/sources.txt   # optional extra source paths
+  .mimir/raw/          # raw documents to ingest
+  .mimir/storage/      # generated LanceDB index
+  .mimir/access.log    # metadata-only access log
 ```
 
-The package never ships project documents. `mimir setup` adds gitignore entries for `.kb/`,
-`.mimir/`, and `private/**`. Generated indexes, agent files, and raw documents stay local to the
-target repository.
+The package never ships project documents. `mimir setup` adds a `.mimir/` gitignore entry, so
+generated indexes, agent files, raw documents, reports, models, audio, and access logs stay local to
+the target repository.
+
+Legacy projects that already have `.kb/config.json` keep working. In that mode, Mimir preserves the
+old defaults (`private/`, `.kb/storage`, `.kb/sources.txt`, `.kb/access.log`) and accepts existing
+`KB_*` environment variables. New setup and docs use `.mimir/` and `MIMIR_*`.
 
 ## Confidentiality Defaults
 
@@ -485,18 +541,24 @@ Mimir supports common text, document, data, config, log, and source-code files o
 - HTML: `.html`, `.htm`
 - EPUB: `.epub`
 - PDF: `.pdf`
-- Office/OpenDocument: `.docx`, `.pptx`, `.xlsx`, `.odt`, `.ods`, `.odp`
+- Office/OpenDocument: `.docx`, `.pptx`, `.xls`, `.xlsx`, `.odt`, `.ods`, `.odp`
+- Legacy Word: `.doc` only when an explicit local `legacyWordCommand` is configured
 - Rich text: `.rtf`
 - Notebook: `.ipynb`
 - Subtitles/calendars/mail: `.vtt`, `.srt`, `.ics`, `.eml`
 - Line data and logs: `.jsonl`, `.ndjson`, `.log`
 - XML feeds and documents: `.xml`, `.rss`, `.atom`, `.svg`
-- Config and data files: `.toml`, `.ini`, `.conf`, `.cfg`, `.properties`, `.sql`
+- Config and data files: `.toml`, `.ini`, `.conf`, `.cfg`, `.properties`, `.sql`, `.example`,
+  `.exemple`
+- Common project metadata: `.gitignore`, `.dockerignore`, `.npmignore`, `.gitlab-ci.yml`,
+  `.vscode/settings.json`, Maven wrapper `.properties`
 - Source code: `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.py`, `.go`, `.rs`,
   `.java`, `.rb`, `.php`, `.cs`, `.c`, `.cpp`, `.h`, `.hpp`, `.css`, `.scss`, `.vue`, `.svelte`,
-  `.astro`, `.sh`, `.bash`, `.ps1`
+  `.astro`, `.sh`, `.bash`, `.bat`, `.cmd`, `.ps1`
+- Common extensionless text wrappers: `mvnw`, `gradlew`, `Dockerfile`, `Makefile`, `Procfile`,
+  `Gemfile`, `Rakefile`
 - Documentation/code review text: `.rst`, `.adoc`, `.tex`, `.diff`, `.patch`, `.markdown`,
-  `.mdown`
+  `.mdown`, `.mmd`
 
 Custom UTF-8 text extensions can be enabled without changing code:
 
@@ -509,34 +571,38 @@ Custom UTF-8 text extensions can be enabled without changing code:
 Or through:
 
 ```bash
-KB_INCLUDE_EXTENSIONS=".transcript,.evidence" pnpm exec mimir ingest
+MIMIR_INCLUDE_EXTENSIONS=".transcript,.evidence" pnpm exec mimir ingest
 ```
 
-Images, audio/video files, old proprietary Office binaries such as `.doc`, and other formats that are
-not listed are not useful to Mimir as-is. They can still be valuable source evidence, but they should
-be OCRed, transcribed, converted, or exported to text/PDF/HTML first. `mimir audit --unsupported`
-prints per-file recommendations for these skipped formats. Scanned PDFs can use an explicit
-`pdfOcrCommand` wrapper when you accept running local OCR tooling. If a supported file parses to no
-text, `mimir ingest --json` reports it under `emptyTextFiles`. Mimir intentionally avoids pretending
-that every binary format can be indexed safely without extraction logic.
+Audio/video files and formats that are not listed are not useful to Mimir as-is. They can still be
+valuable source evidence, but they should be transcribed, converted, or exported to text/PDF/HTML
+first. `mimir audit --unsupported` prints per-file recommendations for these skipped formats.
+Scanned PDFs can use an explicit `pdfOcrCommand` wrapper when you accept running local OCR tooling.
+Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` stay unsupported by default, but
+can be indexed through an explicit local `imageOcrCommand` wrapper. Old `.doc` Word binaries stay
+unsupported by default, but can be indexed through an explicit local `legacyWordCommand` wrapper
+when your workstation has a trusted extractor. If a supported file parses to no text, `mimir ingest
+--json` reports it under `emptyTextFiles`. Mimir intentionally avoids pretending that every binary
+format can be indexed safely without extraction logic.
 
 Secret-like files such as `.env`, `.npmrc`, private keys, and certificates are skipped by default.
 Convert safe examples to a normal text format before ingestion.
 
-Sensitive key/certificate-like files such as `.pem`, `.key`, `.p12`, `.pfx`, `.jks`, `.gpg`, and
-common secret filenames such as `.env`, `.npmrc`, `.netrc`, and `.pgpass` are skipped by default even
-if they sit under a source directory.
+Dotfiles are discovered so useful project metadata is not silently missed. Sensitive
+key/certificate-like files such as `.pem`, `.key`, `.p12`, `.pfx`, `.jks`, `.gpg`, and common secret
+filenames such as `.env`, `.npmrc`, `.netrc`, and `.pgpass` are skipped by default even if they sit
+under a source directory.
 
 ## Configuration Reference
 
-Default `.kb/config.json`:
+Default `.mimir/config.json`:
 
 ```json
 {
-  "rawDir": "private",
-  "storageDir": ".kb/storage",
-  "sourcesFile": ".kb/sources.txt",
-  "accessLogPath": ".kb/access.log",
+  "rawDir": ".mimir/raw",
+  "storageDir": ".mimir/storage",
+  "sourcesFile": ".mimir/sources.txt",
+  "accessLogPath": ".mimir/access.log",
   "embeddingModelPath": ".mimir/models",
   "tableName": "chunks",
   "embeddingProvider": "local-hash",
@@ -557,38 +623,50 @@ Default `.kb/config.json`:
   "embeddingBatchSize": 32,
   "includeExtensions": [],
   "pdfOcrCommand": [],
-  "pdfOcrTimeoutMs": 120000
+  "pdfOcrTimeoutMs": 120000,
+  "imageOcrCommand": [],
+  "imageOcrTimeoutMs": 120000,
+  "legacyWordCommand": [],
+  "legacyWordTimeoutMs": 120000
 }
 ```
 
 Environment overrides:
 
-- `KB_RAW_DIR`
-- `KB_STORAGE_DIR`
-- `KB_SOURCES_FILE`
-- `KB_ACCESS_LOG_PATH`
-- `KB_EMBEDDING_PROVIDER`
-- `KB_EMBEDDING_MODEL`
-- `KB_EMBEDDING_MODEL_PATH`
-- `KB_TRANSFORMERS_ALLOW_REMOTE_MODELS`
-- `KB_REDACTION_ENABLED`
-- `KB_REDACTION_BUILT_IN`
-- `KB_ACCESS_LOG`
-- `KB_MCP_MAX_TOP_K`
-- `KB_TOP_K`
-- `KB_CHUNK_SIZE`
-- `KB_CHUNK_OVERLAP`
-- `KB_MAX_FILE_BYTES`
-- `KB_INGEST_CONCURRENCY`
-- `KB_EMBEDDING_BATCH_SIZE`
-- `KB_INCLUDE_EXTENSIONS`
-- `KB_PDF_OCR_COMMAND` as a JSON array, for example `["mimir-pdf-ocr","{input}"]`
-- `KB_PDF_OCR_TIMEOUT_MS`
+- `MIMIR_RAW_DIR`
+- `MIMIR_STORAGE_DIR`
+- `MIMIR_SOURCES_FILE`
+- `MIMIR_ACCESS_LOG_PATH`
+- `MIMIR_EMBEDDING_PROVIDER`
+- `MIMIR_EMBEDDING_MODEL`
+- `MIMIR_EMBEDDING_MODEL_PATH`
+- `MIMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS`
+- `MIMIR_REDACTION_ENABLED`
+- `MIMIR_REDACTION_BUILT_IN`
+- `MIMIR_ACCESS_LOG`
+- `MIMIR_MCP_MAX_TOP_K`
+- `MIMIR_TOP_K`
+- `MIMIR_CHUNK_SIZE`
+- `MIMIR_CHUNK_OVERLAP`
+- `MIMIR_MAX_FILE_BYTES`
+- `MIMIR_INGEST_CONCURRENCY`
+- `MIMIR_EMBEDDING_BATCH_SIZE`
+- `MIMIR_INCLUDE_EXTENSIONS`
+- `MIMIR_PDF_OCR_COMMAND` as a JSON array, for example `["mimir-pdf-ocr","{input}"]`
+- `MIMIR_PDF_OCR_TIMEOUT_MS`
+- `MIMIR_IMAGE_OCR_COMMAND` as a JSON array, for example `["mimir-image-ocr","{input}"]`
+- `MIMIR_IMAGE_OCR_TIMEOUT_MS`
+- `MIMIR_LEGACY_WORD_COMMAND` as a JSON array, for example `["mimir-doc-text","{input}"]`
+- `MIMIR_LEGACY_WORD_TIMEOUT_MS`
 
-`pdfOcrCommand` is opt-in and only runs when normal PDF text extraction returns no text. The command
-is executed without a shell, receives `MIMIR_PDF_PATH`, replaces `{input}` placeholders with the PDF
-path, and must print UTF-8 text to stdout. Standalone image files are not OCRed directly by Mimir
-Core; OCR them to a supported text file or convert them to an OCRed PDF before ingestion.
+Legacy `KB_*` aliases remain accepted for existing automation.
+
+`pdfOcrCommand` is opt-in and only runs when normal PDF text extraction returns no text.
+`imageOcrCommand` is also opt-in; image files are treated as supported only when it is configured.
+`legacyWordCommand` is opt-in; `.doc` files are treated as supported only when it is configured.
+External text commands are executed from the target project root without a shell, receive
+`MIMIR_PDF_PATH`, `MIMIR_IMAGE_PATH`, or `MIMIR_LEGACY_WORD_PATH`, replace `{input}` placeholders
+with the source path, and must print UTF-8 text to stdout.
 
 ## CLI Reference
 

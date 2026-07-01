@@ -22,7 +22,7 @@ describe("setupProject", () => {
       mcpServers: { mimir: { command: string; args: string[] } }
     }
 
-    expect(result.created).toContain(path.join(".kb", "config.json"))
+    expect(result.created).toContain(path.join(".mimir", "config.json"))
     expect(result.doctor.initialized).toBe(true)
     expect(result.doctor.agentKitInstalled).toBe(true)
     expect(result.ingested).toBeNull()
@@ -36,7 +36,11 @@ describe("setupProject", () => {
     await writeFile(path.join(root, "package.json"), '{"packageManager":"pnpm@11.9.0"}\n', "utf8")
 
     const first = await setupProject({ cwd: root, ingest: false })
-    await writeFile(path.join(root, "private", "evidence.md"), "Useful local evidence.\n", "utf8")
+    await writeFile(
+      path.join(root, ".mimir", "raw", "evidence.md"),
+      "Useful local evidence.\n",
+      "utf8",
+    )
     const second = await setupProject({ cwd: root })
 
     expect(first.ingested).toBeNull()

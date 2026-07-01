@@ -65,10 +65,10 @@ Mimir should keep these evidence points easy to show during buyer review:
 | GDPR-oriented theme | Mimir evidence |
 | --- | --- |
 | Purpose and minimization | Users choose explicit folders; unsupported files are reported; remote models require an explicit action. |
-| Local control | Raw documents, `.kb/`, `.mimir/`, reports, audio, and agent configs remain local and ignored by Git. |
+| Local control | Raw documents, indexes, reports, audio, and agent configs remain under local `.mimir/` state ignored by Git. |
 | Security and confidentiality | No hosted document store, no default telemetry, redaction before indexing, metadata-only access logs. |
 | Transparency | CLI and app expose `mimir doctor`, `mimir audit`, `mimir audit --unsupported`, and `mimir security-audit`. |
-| Retention | Users can delete generated `.kb/` and `.mimir/` state locally; Mimir should not retain hosted copies. |
+| Retention | Users can delete generated `.mimir/` state locally; Mimir should not retain hosted copies. |
 | Accountability | Public README, security hardening notes, source boundary, and reproducible local validation commands. |
 
 For support, if JCode ever receives customer documents, excerpts, logs, or screenshots that may

@@ -52,6 +52,10 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()) {
             includeExtensions: config.includeExtensions,
             pdfOcrCommand: config.pdfOcrCommand,
             pdfOcrTimeoutMs: config.pdfOcrTimeoutMs,
+            imageOcrCommand: config.imageOcrCommand,
+            imageOcrTimeoutMs: config.imageOcrTimeoutMs,
+            legacyWordCommand: config.legacyWordCommand,
+            legacyWordTimeoutMs: config.legacyWordTimeoutMs,
             chunksIndexed,
         };
         return textResult(output);

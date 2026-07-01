@@ -2,7 +2,13 @@ import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { loadConfig } from "./config.js"
-import { KB_GITIGNORE_ENTRY, MIMIR_GITIGNORE_ENTRY, PRIVATE_GITIGNORE_ENTRY } from "./defaults.js"
+import {
+  LEGACY_KB_DIR,
+  LEGACY_KB_GITIGNORE_ENTRY,
+  LEGACY_PRIVATE_DIR,
+  LEGACY_PRIVATE_GITIGNORE_ENTRY,
+  MIMIR_GITIGNORE_ENTRY,
+} from "./defaults.js"
 import type { SecurityAuditReport } from "./types.js"
 
 export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditReport> {
@@ -10,9 +16,18 @@ export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditR
   const gitignore = await readGitignore(config.projectRoot)
   const warnings: string[] = []
 
-  const kbIgnored = hasGitignoreEntry(gitignore, KB_GITIGNORE_ENTRY)
+  const legacyKbIgnored = hasGitignoreEntry(gitignore, LEGACY_KB_GITIGNORE_ENTRY)
   const mimirIgnored = hasGitignoreEntry(gitignore, MIMIR_GITIGNORE_ENTRY)
-  const privateIgnored = hasGitignoreEntry(gitignore, PRIVATE_GITIGNORE_ENTRY)
+  const legacyPrivateIgnored = hasGitignoreEntry(gitignore, LEGACY_PRIVATE_GITIGNORE_ENTRY)
+  const usesLegacyKb = [config.storageDir, config.sourcesFile, config.accessLogPath].some(
+    (filePath) => usesProjectDirectory(config.projectRoot, filePath, LEGACY_KB_DIR),
+  )
+  const usesLegacyPrivate = usesProjectDirectory(
+    config.projectRoot,
+    config.rawDir,
+    LEGACY_PRIVATE_DIR,
+  )
+  const storageGitIgnored = isPathIgnored(config.projectRoot, config.storageDir, gitignore)
 
   if (config.embeddingProvider === "transformers" && config.transformersAllowRemoteModels) {
     warnings.push(
@@ -22,14 +37,14 @@ export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditR
   if (!config.redaction.enabled) {
     warnings.push("Redaction is disabled; secrets and identifiers may be embedded in the index.")
   }
-  if (!kbIgnored) {
-    warnings.push(`${KB_GITIGNORE_ENTRY} is not ignored by Git.`)
-  }
   if (!mimirIgnored) {
     warnings.push(`${MIMIR_GITIGNORE_ENTRY} is not ignored by Git.`)
   }
-  if (!privateIgnored) {
-    warnings.push(`${PRIVATE_GITIGNORE_ENTRY} is not ignored by Git.`)
+  if (usesLegacyKb && !legacyKbIgnored) {
+    warnings.push(`${LEGACY_KB_GITIGNORE_ENTRY} is not ignored by Git.`)
+  }
+  if (usesLegacyPrivate && !legacyPrivateIgnored) {
+    warnings.push(`${LEGACY_PRIVATE_GITIGNORE_ENTRY} is not ignored by Git.`)
   }
 
   return {
@@ -54,7 +69,7 @@ export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditR
     },
     storage: {
       path: config.storageDir,
-      gitIgnored: kbIgnored,
+      gitIgnored: storageGitIgnored,
       encryptedAtRest: "external-required",
     },
     mcp: {
@@ -62,9 +77,9 @@ export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditR
       destructiveToolsExposed: false,
     },
     gitignore: {
-      kbIgnored,
+      legacyKbIgnored,
       mimirIgnored,
-      privateIgnored,
+      legacyPrivateIgnored,
     },
     recommendations: [
       "Run Mimir inside an encrypted disk, VM, or container volume for at-rest encryption.",
@@ -92,4 +107,25 @@ async function readGitignore(projectRoot: string): Promise<Set<string>> {
 
 function hasGitignoreEntry(lines: Set<string>, entry: string): boolean {
   return lines.has(entry)
+}
+
+function usesProjectDirectory(projectRoot: string, filePath: string, directory: string): boolean {
+  const relativePath = normalizeRelativePath(projectRoot, filePath)
+  return relativePath === directory || relativePath.startsWith(`${directory}/`)
+}
+
+function isPathIgnored(projectRoot: string, filePath: string, lines: Set<string>): boolean {
+  const relativePath = normalizeRelativePath(projectRoot, filePath)
+  const segments = relativePath.split("/")
+  for (let index = 1; index <= segments.length; index += 1) {
+    const prefix = segments.slice(0, index).join("/")
+    if (lines.has(prefix) || lines.has(`${prefix}/`) || lines.has(`${prefix}/**`)) {
+      return true
+    }
+  }
+  return false
+}
+
+function normalizeRelativePath(projectRoot: string, filePath: string): string {
+  return path.relative(projectRoot, filePath).split(path.sep).join("/")
 }

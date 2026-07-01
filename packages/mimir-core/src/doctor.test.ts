@@ -33,11 +33,11 @@ describe("doctor", () => {
     expect(initialized.initialized).toBe(true)
     expect(initialized.supportedFiles).toBe(0)
     expect(initialized.nextSteps).toEqual([
-      "Add supported files under private/ or list extra source paths in .kb/sources.txt.",
+      "Add supported files under .mimir/raw/ or list extra source paths in .mimir/sources.txt.",
     ])
 
-    await mkdir(path.join(root, "private"), { recursive: true })
-    await writeFile(path.join(root, "private", "evidence.md"), "Local evidence.\n", "utf8")
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "raw", "evidence.md"), "Local evidence.\n", "utf8")
     const withEvidence = await doctor(root)
     expect(withEvidence.supportedFiles).toBe(1)
     expect(withEvidence.chunksIndexed).toBe(0)
@@ -51,7 +51,7 @@ describe("doctor", () => {
     tempDirs.push(root)
 
     await initProject(root)
-    await writeFile(path.join(root, "private", "evidence.md"), "Local evidence.\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "evidence.md"), "Local evidence.\n", "utf8")
     await ingest({ cwd: root })
     const ready = await doctor(root)
 

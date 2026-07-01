@@ -27,7 +27,7 @@ cited work products for review by the user or a qualified professional.
 ## Recommended Redaction Patterns
 
 If a legal dossier includes professional secrecy, case identifiers, or French personal identifiers,
-add project-local redaction patterns in `.kb/config.json` before indexing. Keep patterns scoped to the
+add project-local redaction patterns in `.mimir/config.json` before indexing. Keep patterns scoped to the
 dossier and test them on non-sensitive samples first.
 
 ```json

@@ -10,11 +10,11 @@ Mimir ships two CLIs:
 | Command | Use it when |
 | --- | --- |
 | `mimir setup` | Initialize Mimir, install the agent kit, run doctor, and ingest when safe. |
-| `mimir init` | Create `.kb/config.json`, `.kb/sources.txt`, `private/`, and Git ignore rules. |
+| `mimir init` | Create `.mimir/config.json`, `.mimir/sources.txt`, `.mimir/raw/`, and Git ignore rules. |
 | `mimir doctor` | Diagnose setup, index freshness, security warnings, and the next command to run. |
 | `mimir doctor --fix` | Create missing scaffolding, install skills/MCP config, and update stale indexes when safe. |
 | `mimir models pull` | Download the configured Transformers.js embedding model into `embeddingModelPath`. |
-| `mimir models pull --enable` | Download the embedding model and switch `.kb/config.json` to safe Transformers embeddings. |
+| `mimir models pull --enable` | Download the embedding model and switch Mimir config to safe Transformers embeddings. |
 | `mimir ingest` | Parse changed source files, redact, chunk, embed, and update the local LanceDB index. |
 | `mimir ingest --rebuild` | Force a full re-index, required after switching embedding provider or model. |
 | `mimir audit` | Check whether supported source files are missing from or stale in the index. |
@@ -38,7 +38,7 @@ Mimir ships two CLIs:
 
 | Command | Use it when |
 | --- | --- |
-| `mimir destroy-index --yes` | Delete generated `.kb/storage` index files. |
+| `mimir destroy-index --yes` | Delete generated `.mimir/storage` index files. |
 | `mimir security-audit --strict` | Fail the command when privacy warnings are present. |
 
 ## Audio
@@ -70,10 +70,10 @@ Mimir ships two CLIs:
 See [`offline-tts-preload.md`](./offline-tts-preload.md) before using `--offline` on a fully
 air-gapped machine.
 
-## OCR Configuration
+## External Text Extraction Configuration
 
-PDF OCR is intentionally configuration-based rather than a default CLI flag. Add a local wrapper that
-prints OCR text to stdout:
+OCR and legacy binary extraction are intentionally configuration-based rather than default CLI flags.
+For scanned/image-only PDFs, add a local wrapper that prints OCR text to stdout:
 
 ```json
 {
@@ -82,14 +82,41 @@ prints OCR text to stdout:
 }
 ```
 
-Or set `KB_PDF_OCR_COMMAND` to a JSON array. Mimir only invokes it for PDFs where embedded-text
+Or set `MIMIR_PDF_OCR_COMMAND` to a JSON array. Mimir only invokes it for PDFs where embedded-text
 extraction returns no text. When a supported document still yields no indexable text,
 `mimir ingest --json` reports the relative paths under `emptyTextFiles`.
 
-Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` are not OCRed directly. Keep
-OCR tooling local and save extracted text as a supported text file, or convert scans to OCRed PDFs.
-`mimir audit --unsupported` prints per-file recommendations for image, audio, video, oversized, and
-secret-like skipped files.
+Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` are skipped by default. To index
+them directly, configure an explicit local image OCR wrapper:
+
+```json
+{
+  "imageOcrCommand": ["mimir-image-ocr", "{input}"],
+  "imageOcrTimeoutMs": 120000
+}
+```
+
+Or set `MIMIR_IMAGE_OCR_COMMAND` to a JSON array. Image files become supported only when this command
+is configured. OCR commands are executed from the target project root without a shell, receive
+`MIMIR_PDF_PATH` or `MIMIR_IMAGE_PATH`, replace `{input}` placeholders with the source path, and
+must print UTF-8 text to stdout. Keep OCR tooling local for confidential documents. `mimir audit
+--unsupported` prints
+per-file recommendations for image, audio, video, oversized, and secret-like skipped files.
+
+Old `.doc` Word binaries are skipped by default. To index them directly, configure a local legacy
+Word text extractor:
+
+```json
+{
+  "legacyWordCommand": ["mimir-doc-text", "{input}"],
+  "legacyWordTimeoutMs": 120000
+}
+```
+
+Or set `MIMIR_LEGACY_WORD_COMMAND` to a JSON array. `.doc` files become supported only when this
+command is configured. The command runs from the target project root without a shell, receives
+`MIMIR_LEGACY_WORD_PATH`, may use `{input}` for the source path, and must print UTF-8 text to
+stdout. Prefer local extraction or conversion for confidential documents.
 
 ## Retrieval Evaluation Gates
 
@@ -104,8 +131,11 @@ For private dogfooding, keep the real corpus and golden query file outside Git o
 local path, then choose an explicit recall threshold:
 
 ```bash
-mimir --project-root /path/to/workspace evaluate --golden private/golden-queries.json --fail-under 0.8 --json
+mimir --project-root /path/to/workspace evaluate --golden .mimir/evaluations/golden-queries.json --fail-under 0.8 --json
 ```
 
 The JSON output includes `embeddingProvider` and `embeddingModel`. Use those fields when comparing a
 default local-hash run with a private Transformers semantic run.
+
+Legacy projects can still use `.kb/config.json`, `.kb/storage`, and `KB_*` environment aliases.
+Fresh setup and docs use a single `.mimir/` project folder.

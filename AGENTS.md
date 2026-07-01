@@ -16,8 +16,8 @@
 - The public CLI name is `mimir`; keep `kb` only as a legacy compatibility alias. New docs,
   generated agent configs, landing copy, and setup guidance should use `mimir ...` commands.
 - `mimir init` and `mimir install-skill` must keep generated local Mimir state ignored in target
-  repositories. By default, add `.kb/`, `.mimir/`, and private raw-document paths to the
-  target repository `.gitignore`.
+  repositories. By default, add one `.mimir/` entry to the target repository `.gitignore`; `.kb/`
+  and `private/**` are legacy-only compatibility paths.
 - Keep confidentiality features low-friction: local-hash retrieval by default, optional
   Transformers.js embeddings with remote model loading disabled by default, redaction before
   indexing, metadata-only access logs, bounded MCP retrieval, configurable text-extension ingestion,
@@ -106,7 +106,7 @@
   convert exported order/subscription JSON with `license:from-lemonsqueezy`, keep the unpublished
   webhook handler in `packages/mimir-license-webhook`, and never commit API keys or webhook secrets.
 - `packages/mimir-app/src/lib/project-registry.ts` owns the app-side local project registry. Store
-  selected project roots there and derive `private/` plus `.kb/storage`; keep ingest/query/index
+  selected project roots there and derive `.mimir/raw` plus `.mimir/storage`; keep ingest/query/index
   truth in Mimir Core through the sidecar/CLI surface.
 - The app's watched-folder feature is an opt-in polling layer over `mimir ingest`; do not add
   background daemons unless the plan explicitly changes. The first Google Drive connector is an
@@ -133,8 +133,15 @@
 - Ingestion must be explicit about files it did not index. Preserve `mimir audit --unsupported`,
   unsupported-extension summaries, secret-like file skipping, max file size limits, and checksum-based
   stale detection.
-- PDF OCR is opt-in only. Keep OCR behind `pdfOcrCommand` / `KB_PDF_OCR_COMMAND`, execute it without
-  a shell, require stdout text, and do not add heavy OCR dependencies or claim universal scan support.
+- Source discovery should include useful dotfiles (for example `.gitignore`, `.gitlab-ci.yml`, and
+  `.vscode/settings.json`) while still ignoring generated/runtime directories and skipping
+  secret-like files explicitly.
+- OCR and legacy binary extraction are opt-in only. Keep PDF OCR behind `pdfOcrCommand` /
+  `MIMIR_PDF_OCR_COMMAND`, image OCR behind `imageOcrCommand` / `MIMIR_IMAGE_OCR_COMMAND`, and
+  legacy `.doc` extraction behind `legacyWordCommand` / `MIMIR_LEGACY_WORD_COMMAND`; execute
+  commands without a shell, require stdout text, and do not add heavy OCR/conversion dependencies or
+  claim universal scan/image/binary support.
+  `KB_PDF_OCR_COMMAND` and `KB_IMAGE_OCR_COMMAND` remain legacy aliases only.
 - Keep the repository as a simple pnpm workspace monorepo. Add Turbo only if multiple packages or
   apps start needing task caching/orchestration beyond `pnpm --filter`.
 - Keep Mimir core free of Ollama. `embeddingProvider: "local-hash"` supports ingestion, search, MCP,
@@ -185,7 +192,8 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   process cannot or should not change cwd for each selected knowledge base.
 - `packages/mimir-core/src/doctor.ts` owns the user-facing readiness diagnosis behind
   `mimir doctor`.
-- `packages/mimir-core/src/config.ts` resolves `.kb/config.json` from the target repository.
+- `packages/mimir-core/src/config.ts` resolves `.mimir/config.json` from the target repository and
+  falls back to legacy `.kb/config.json` when present.
 - `packages/mimir-core/src/defaults.ts` owns shared default paths, provider defaults, and generated-state ignore
   constants. Keep config/init/security/gitignore aligned through this module instead of copying
   literals.
@@ -235,5 +243,50 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   compatibility fallback for runtimes or filesystems that cannot follow symlinks.
 - `packages/mimir-core/examples/sovereign-rag-demo` is the tracked synthetic test workspace for manual
   and package validation.
-- `.kb/`, `.mimir/`, and project `private/` folders are local user data or generated agent
-  state in target repositories and must not be committed.
+- `.mimir/`, `.claude/`, `.codex/`, and `.agents/` are local user data or generated agent state in
+  target repositories and must not be committed. Legacy `.kb/` and project `private/` folders must
+  also stay uncommitted when encountered.
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **jcode-mimir** (2537 symbols, 4246 relationships, 216 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/jcode-mimir/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/jcode-mimir/clusters` | All functional areas |
+| `gitnexus://repo/jcode-mimir/processes` | All execution flows |
+| `gitnexus://repo/jcode-mimir/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->

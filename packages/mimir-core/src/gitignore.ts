@@ -1,13 +1,9 @@
 import { existsSync } from "node:fs"
 import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { KB_GITIGNORE_ENTRY, MIMIR_GITIGNORE_ENTRY, PRIVATE_GITIGNORE_ENTRY } from "./defaults.js"
+import { MIMIR_GITIGNORE_ENTRY } from "./defaults.js"
 
-export const MIMIR_GITIGNORE_ENTRIES = [
-  KB_GITIGNORE_ENTRY,
-  MIMIR_GITIGNORE_ENTRY,
-  PRIVATE_GITIGNORE_ENTRY,
-]
+export const MIMIR_GITIGNORE_ENTRIES = [MIMIR_GITIGNORE_ENTRY]
 
 export async function ensureMimirGitignore(cwd = process.cwd()): Promise<boolean> {
   const root = path.resolve(cwd)

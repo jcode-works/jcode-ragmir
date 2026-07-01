@@ -131,9 +131,9 @@ export interface SecurityAuditReport {
     destructiveToolsExposed: false
   }
   gitignore: {
-    kbIgnored: boolean
+    legacyKbIgnored: boolean
     mimirIgnored: boolean
-    privateIgnored: boolean
+    legacyPrivateIgnored: boolean
   }
   recommendations: string[]
   warnings: string[]
@@ -404,9 +404,9 @@ function isSecurityAuditReport(value: unknown): value is SecurityAuditReport {
     typeof value.mcp.maxTopK === "number" &&
     value.mcp.destructiveToolsExposed === false &&
     isRecord(value.gitignore) &&
-    typeof value.gitignore.kbIgnored === "boolean" &&
+    typeof value.gitignore.legacyKbIgnored === "boolean" &&
     typeof value.gitignore.mimirIgnored === "boolean" &&
-    typeof value.gitignore.privateIgnored === "boolean" &&
+    typeof value.gitignore.legacyPrivateIgnored === "boolean" &&
     isStringArray(value.recommendations) &&
     isStringArray(value.warnings)
   )

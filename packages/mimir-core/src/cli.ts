@@ -44,7 +44,7 @@ const modelsCommand = program.command("models").description("Manage local embedd
 modelsCommand
   .command("pull")
   .description("Download the configured Transformers.js embedding model into embeddingModelPath.")
-  .option("--enable", "Switch .kb/config.json to Transformers embeddings after the model is ready.")
+  .option("--enable", "Switch Mimir config to Transformers embeddings after the model is ready.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { enable?: boolean; json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
@@ -70,7 +70,7 @@ modelsCommand
       console.log("  1. Run `mimir ingest --rebuild` so existing vectors use the semantic model.")
       console.log("  2. Run `mimir doctor` to confirm readiness.")
     } else {
-      console.log("  1. Re-run `mimir models pull --enable` to switch .kb/config.json safely.")
+      console.log("  1. Re-run `mimir models pull --enable` to switch Mimir config safely.")
       console.log("  2. Run `mimir ingest --rebuild` so existing vectors use the semantic model.")
     }
   })
@@ -130,7 +130,7 @@ program
 
 program
   .command("init")
-  .description("Create .kb config files and private/ document folder in the current repository.")
+  .description("Create local .mimir config, raw-document folder, and gitignore rules.")
   .action(async (_options: unknown, command: Command) => {
     const cwd = projectRoot(command)
     const created = await initProject(cwd)
@@ -149,7 +149,7 @@ program
     const searchCommand = await mimirCommand(cwd, ["search", "your question"])
     console.log("")
     console.log(pc.cyan("Next steps:"))
-    console.log("  1. Add supported documents under private/")
+    console.log("  1. Add supported documents under .mimir/raw/")
     console.log(`  2. Run \`${ingestCommand.display}\``)
     console.log(`  3. Run \`${doctorCommand.display}\``)
     console.log(`  4. Query with \`${searchCommand.display}\``)
@@ -334,6 +334,7 @@ program
     )
     console.log(`indexedFiles=${report.indexedFiles.length}`)
     console.log(`totalChunks=${report.totalChunks}`)
+    console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
     console.log(`missingFromIndex=${report.missingFromIndex.length}`)
     console.log(`staleInIndex=${report.staleInIndex.length}`)
     printUnsupportedSummary(report.unsupportedExtensions)
@@ -417,6 +418,10 @@ program
       includeExtensions: config.includeExtensions,
       pdfOcrCommand: config.pdfOcrCommand,
       pdfOcrTimeoutMs: config.pdfOcrTimeoutMs,
+      imageOcrCommand: config.imageOcrCommand,
+      imageOcrTimeoutMs: config.imageOcrTimeoutMs,
+      legacyWordCommand: config.legacyWordCommand,
+      legacyWordTimeoutMs: config.legacyWordTimeoutMs,
       chunksIndexed: rows,
     }
     if (options.json) {
@@ -445,6 +450,10 @@ program
     console.log(`includeExtensions=${config.includeExtensions.join(",")}`)
     console.log(`pdfOcrCommand=${config.pdfOcrCommand.join(" ")}`)
     console.log(`pdfOcrTimeoutMs=${config.pdfOcrTimeoutMs}`)
+    console.log(`imageOcrCommand=${config.imageOcrCommand.join(" ")}`)
+    console.log(`imageOcrTimeoutMs=${config.imageOcrTimeoutMs}`)
+    console.log(`legacyWordCommand=${config.legacyWordCommand.join(" ")}`)
+    console.log(`legacyWordTimeoutMs=${config.legacyWordTimeoutMs}`)
     console.log(`chunksIndexed=${rows}`)
   })
 
@@ -483,7 +492,7 @@ program
 
 program
   .command("destroy-index")
-  .description("Remove the generated local vector index from .kb/storage.")
+  .description("Remove the generated local vector index from Mimir storage.")
   .option("--yes", "Confirm deletion without an interactive prompt.")
   .action(async (options: { yes?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
@@ -890,7 +899,7 @@ function printEmptyTextFiles(files: string[]): void {
   }
   console.log(
     pc.yellow(
-      "These supported files produced no indexable text. For scanned/image-only PDFs, configure pdfOcrCommand or store local OCR text beside the source file.",
+      "These supported files produced no indexable text. For scanned/image-only sources, configure pdfOcrCommand or imageOcrCommand, or store local OCR text beside the source file.",
     ),
   )
 }

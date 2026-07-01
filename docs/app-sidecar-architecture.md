@@ -60,7 +60,7 @@ The app should start with a small allowlist:
 | Audio report | `mimir audio "<generated-text-file>" --offline --json` |
 
 The UI must pass an explicit project root for each selected knowledge base with
-`mimir --project-root "<path>" ...` and keep generated state inside that project (`.kb/`, `.mimir/`)
+`mimir --project-root "<path>" ...` and keep generated state inside that project (`.mimir/`)
 unless the user intentionally chooses another local folder.
 
 For audio reports, `run_mimir_command` writes the current retrieval report text under ignored

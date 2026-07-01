@@ -10,7 +10,7 @@ export async function destroyIndex(cwd = process.cwd()) {
     return {
         storageDir: config.storageDir,
         removed: existed,
-        note: "Generated index removed. For forensic deletion guarantees, keep .kb/ on an encrypted volume and rotate/destroy the volume key.",
+        note: "Generated index removed. For forensic deletion guarantees, keep .mimir/ on an encrypted volume and rotate/destroy the volume key.",
     };
 }
 //# sourceMappingURL=destroy.js.map

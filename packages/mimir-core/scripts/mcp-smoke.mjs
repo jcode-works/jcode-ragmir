@@ -35,8 +35,8 @@ transport.stderr?.on("data", (chunk) => {
 
 try {
   await cp(demoSourceRoot, demoRoot, { recursive: true })
-  await rm(path.join(demoRoot, ".kb", "access.log"), { force: true })
-  await rm(path.join(demoRoot, ".kb", "storage"), { recursive: true, force: true })
+  await rm(path.join(demoRoot, ".mimir", "access.log"), { force: true })
+  await rm(path.join(demoRoot, ".mimir", "storage"), { recursive: true, force: true })
   const ingestReport = runCliJson(["--project-root", demoRoot, "ingest", "--json"])
   if (ingestReport.errors.length > 0) {
     throw new Error(`Demo ingest failed with ${ingestReport.errors.length} error(s).`)

@@ -21,20 +21,20 @@ pnpm exec mimir setup
 pnpm exec mimir doctor
 ```
 
-Commit only safe scaffolding if this is a real repository. Do not commit private documents,
-`.kb/storage`, `.mimir/`, env files, or credentials.
+Commit only safe scaffolding if this is a real repository. Do not commit local Mimir state, env
+files, credentials, indexes, reports, audio, model caches, or raw documents.
 
 ## No Files Are Indexed
 
-Check that supported files exist under `private/`:
+Check that supported files exist under `.mimir/raw/`:
 
 ```bash
-find private -maxdepth 2 -type f
+find .mimir/raw -maxdepth 2 -type f
 pnpm exec mimir ingest
 pnpm exec mimir doctor
 ```
 
-If documents live elsewhere, add one path per line to `.kb/sources.txt`. Relative paths resolve from
+If documents live elsewhere, add one path per line to `.mimir/sources.txt`. Relative paths resolve from
 the project root.
 
 If files exist but are not supported yet, inspect the skipped inventory:
@@ -45,9 +45,9 @@ pnpm exec mimir audit --unsupported
 
 Then follow the per-file recommendation: convert unsupported binaries to a supported format,
 OCR/transcribe them, or add a safe custom UTF-8 text extension with `includeExtensions` /
-`KB_INCLUDE_EXTENSIONS`.
+`MIMIR_INCLUDE_EXTENSIONS`.
 
-## Scanned PDFs Produce No Text
+## Scanned PDFs Or Images Produce No Text
 
 Mimir extracts embedded PDF text by default. For scanned/image-only PDFs, configure an explicit local
 OCR wrapper that prints UTF-8 text to stdout:
@@ -63,9 +63,39 @@ The command runs only when normal PDF extraction returns no text. It is executed
 receives `MIMIR_PDF_PATH`, and may use `{input}` in its arguments for the PDF path. Keep OCR tooling
 local for confidential documents.
 
+Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` are skipped by default. To index
+them directly, configure an explicit local image OCR wrapper:
+
+```json
+{
+  "imageOcrCommand": ["mimir-image-ocr", "{input}"],
+  "imageOcrTimeoutMs": 120000
+}
+```
+
+The command runs from the target project root, receives `MIMIR_IMAGE_PATH`, may use `{input}` in its
+arguments for the image path, and must print UTF-8 text to stdout. Images become supported only when
+`imageOcrCommand` is configured.
+
 If ingestion finishes but a scanned PDF still has no text, `mimir ingest --json` lists it under
-`emptyTextFiles`. Standalone image files are skipped as unsupported; OCR them to text or convert them
-to OCRed PDFs before ingesting.
+`emptyTextFiles`. If you do not want direct image OCR, OCR images to text or convert them to OCRed
+PDFs before ingesting.
+
+## Legacy `.doc` Files Are Skipped
+
+Old Word `.doc` binaries are skipped by default because they need a trusted local extractor. Convert
+them to `.docx`, PDF, HTML, or text, or configure an explicit wrapper:
+
+```json
+{
+  "legacyWordCommand": ["mimir-doc-text", "{input}"],
+  "legacyWordTimeoutMs": 120000
+}
+```
+
+The command runs from the target project root without a shell, receives `MIMIR_LEGACY_WORD_PATH`,
+may use `{input}` in its arguments for the source path, and must print UTF-8 text to stdout. `.doc`
+files become supported only when `legacyWordCommand` is configured.
 
 ## Search Returns Weak Results
 
@@ -120,7 +150,8 @@ discard and recreate the whole local index.
 
 Read the warning lines. Common causes:
 
-- `.kb/`, `.mimir/`, or `private/**` are not ignored by Git.
+- `.mimir/` is not ignored by Git.
+- Legacy projects using `.kb/` or `private/**` are missing the matching legacy Git ignore entries.
 - Redaction was disabled.
 - Transformers.js remote model loading was enabled.
 

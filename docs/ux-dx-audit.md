@@ -20,7 +20,8 @@ developer and agent workflow around installation, indexing, querying, safety, au
 | --- | --- | --- |
 | First run | `mimir init` created useful files but did not tell users what to do next. | Fixed: `mimir init` now prints next steps. |
 | Readiness | Users had to combine `status`, `audit`, and `security-audit` manually. | Fixed: `mimir doctor` summarizes readiness and next steps. |
-| Generated helper files | `private/README.md` was indexed and could pollute retrieval results. | Fixed: generated private README is skipped by source discovery. |
+| Local clutter | First-run setup spread user state across `private/`, `.kb/`, and `.mimir/`. | Fixed: fresh projects keep config, raw documents, storage, access logs, models, reports, audio, and agent helpers under one ignored `.mimir/` folder. |
+| Generated helper files | `.mimir/raw/README.md` was indexed and could pollute retrieval results. | Fixed: generated raw README is skipped by source discovery. |
 | Audio confidentiality | `auto` could select online Edge TTS when installed. | Fixed: default path is Transformers.js WAV; Edge MP3 requires `--engine edge`. |
 | Documentation shape | The package README had too much tutorial, reference, and explanation mixed together. | Fixed: the root README is canonical; package README files are minimal npm entrypoints. |
 | Agent onboarding | `install-skill` installed files but gave limited operational guidance. | Fixed: command output now prints agent next steps and Claude Code/Codex MCP snippets. |

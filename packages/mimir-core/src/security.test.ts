@@ -19,7 +19,7 @@ describe("securityAudit", () => {
     tempDirs.push(root)
     await initProject(root)
     await writeFile(
-      path.join(root, ".kb", "config.json"),
+      path.join(root, ".mimir", "config.json"),
       `${JSON.stringify(
         {
           embeddingProvider: "transformers",
@@ -43,16 +43,31 @@ describe("securityAudit", () => {
   it("reports missing generated-state gitignore entries", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-security-"))
     tempDirs.push(root)
-    await mkdir(path.join(root, ".kb"), { recursive: true })
-    await writeFile(path.join(root, ".kb", "config.json"), "{}\n", "utf8")
-    await writeFile(path.join(root, ".gitignore"), ".kb/\n", "utf8")
+    await mkdir(path.join(root, ".mimir"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "config.json"), "{}\n", "utf8")
+    await writeFile(path.join(root, ".gitignore"), "", "utf8")
 
     const report = await securityAudit(root)
 
-    expect(report.gitignore.kbIgnored).toBe(true)
+    expect(report.gitignore.legacyKbIgnored).toBe(false)
     expect(report.gitignore.mimirIgnored).toBe(false)
-    expect(report.gitignore.privateIgnored).toBe(false)
+    expect(report.gitignore.legacyPrivateIgnored).toBe(false)
     expect(report.warnings).toContain(".mimir/ is not ignored by Git.")
+    expect(report.warnings).not.toContain(".kb/ is not ignored by Git.")
+    expect(report.warnings).not.toContain("private/** is not ignored by Git.")
+  })
+
+  it("keeps legacy .kb and private warnings when a legacy config uses those paths", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-security-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".kb"), { recursive: true })
+    await writeFile(path.join(root, ".kb", "config.json"), "{}\n", "utf8")
+    await writeFile(path.join(root, ".gitignore"), ".mimir/\n", "utf8")
+
+    const report = await securityAudit(root)
+
+    expect(report.gitignore.mimirIgnored).toBe(true)
+    expect(report.warnings).toContain(".kb/ is not ignored by Git.")
     expect(report.warnings).toContain("private/** is not ignored by Git.")
   })
 })
