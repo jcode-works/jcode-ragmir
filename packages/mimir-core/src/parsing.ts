@@ -2,11 +2,11 @@ import { spawn } from "node:child_process"
 import { readFile } from "node:fs/promises"
 import { strFromU8, unzipSync } from "fflate"
 import { htmlToText } from "html-to-text"
+import readExcelFile from "read-excel-file/node"
 
 import mammoth = require("mammoth")
 
 import { extractText, getDocumentProxy } from "unpdf"
-import { read as readWorkbook, utils as spreadsheetUtils } from "xlsx"
 import YAML from "yaml"
 import type { ParsedDocument, SourceFile } from "./types.js"
 
@@ -57,7 +57,6 @@ export async function parseFile(
     case ".pptx":
       text = await parsePptx(file.absolutePath)
       break
-    case ".xls":
     case ".xlsx":
       text = await parseXlsx(file.absolutePath)
       break
@@ -124,22 +123,14 @@ async function parsePptx(filePath: string): Promise<string> {
 }
 
 async function parseXlsx(filePath: string): Promise<string> {
-  const workbook = readWorkbook(await readFile(filePath), { cellDates: true })
+  const workbook = await readExcelFile(filePath, { trim: false })
   const sheets: string[] = []
 
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName]
-    if (!sheet) {
-      continue
-    }
-
-    const rows = spreadsheetUtils
-      .sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false, defval: "", raw: false })
-      .map(spreadsheetRowToText)
-      .filter((row) => row.some(Boolean))
+  for (const sheet of workbook) {
+    const rows = sheet.data.map(spreadsheetRowToText).filter((row) => row.some(Boolean))
 
     if (rows.length > 0) {
-      sheets.push(`# ${sheetName}`, rows.map((row) => row.join("\t")).join("\n"))
+      sheets.push(`# ${sheet.sheet}`, rows.map((row) => row.join("\t")).join("\n"))
     }
   }
 
@@ -247,14 +238,11 @@ function spreadsheetCellToText(value: unknown): string {
   if (value === null || value === undefined) {
     return ""
   }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value)
+  }
   if (value instanceof Date) {
     return value.toISOString()
-  }
-  if (typeof value === "string") {
-    return value
-  }
-  if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
-    return String(value)
   }
   return JSON.stringify(value)
 }

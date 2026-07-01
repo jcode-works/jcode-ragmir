@@ -535,6 +535,7 @@ async function smokeMcp(cwd) {
 
     const tools = await client.request("tools/list", {})
     assertIncludes(JSON.stringify(tools), "mimir_search", "MCP should expose mimir_search")
+    assertIncludes(JSON.stringify(tools), "mimir_research", "MCP should expose mimir_research")
     assertIncludes(JSON.stringify(tools), "mimir_evaluate", "MCP should expose mimir_evaluate")
     assertIncludes(
       JSON.stringify(tools),
@@ -553,6 +554,20 @@ async function smokeMcp(cwd) {
       arguments: { query: "French tax residency", topK: 1 },
     })
     assertIncludes(mcpText(search), "tax.md", "MCP search should retrieve indexed content")
+
+    const research = await client.request("tools/call", {
+      name: "mimir_research",
+      arguments: { query: "French tax residency", topK: 2, compact: true },
+    })
+    const researchJson = parseJson(mcpText(research), "MCP research JSON")
+    if (!Array.isArray(researchJson.evidence) || researchJson.evidence.length < 1) {
+      throw new Error(`MCP research should return cited evidence: ${mcpText(research)}`)
+    }
+    if (!("snippet" in researchJson.evidence[0]) || "text" in researchJson.evidence[0]) {
+      throw new Error(
+        `MCP compact research should return snippet-only evidence: ${mcpText(research)}`,
+      )
+    }
 
     await writeFile(
       path.join(cwd, "mcp-golden-queries.json"),

@@ -43,6 +43,7 @@ const OCR_IMAGE_EXTENSIONS = new Set([
     ".webp",
 ]);
 const LEGACY_WORD_EXTENSIONS = new Set([".doc"]);
+const LEGACY_EXCEL_EXTENSIONS = new Set([".xls"]);
 const TRANSCRIPTION_EXTENSIONS = new Set([
     ".aac",
     ".aiff",
@@ -143,7 +144,6 @@ export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
     ".vtt",
     ".vue",
     ".xml",
-    ".xls",
     ".xlsx",
     ".yaml",
     ".yml",
@@ -300,6 +300,9 @@ function skippedRecommendation(reason, extension) {
     }
     if (LEGACY_WORD_EXTENSIONS.has(extension)) {
         return "Configure legacyWordCommand for local legacy Word extraction, or convert to DOCX, PDF, HTML, or text before ingesting.";
+    }
+    if (LEGACY_EXCEL_EXTENSIONS.has(extension)) {
+        return "Convert legacy XLS workbooks to XLSX, CSV, PDF, HTML, or text before ingesting.";
     }
     if (TRANSCRIPTION_EXTENSIONS.has(extension)) {
         return "Transcribe to text, VTT, or SRT before ingesting.";

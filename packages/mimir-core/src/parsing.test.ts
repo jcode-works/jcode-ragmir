@@ -3,7 +3,6 @@ import os from "node:os"
 import path from "node:path"
 import { strToU8, zipSync } from "fflate"
 import { afterEach, describe, expect, it } from "vitest"
-import { utils as spreadsheetUtils, write as writeWorkbook } from "xlsx"
 import { parseFile } from "./parsing.js"
 import type { SourceFile } from "./types.js"
 
@@ -58,47 +57,20 @@ describe("parseFile", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-xlsx-"))
     tempDirs.push(root)
     const filePath = path.join(root, "dataset.xlsx")
-    const workbook = spreadsheetUtils.book_new()
-    const sheet = spreadsheetUtils.aoa_to_sheet([["Invoice", "", 24000, "Paid"]])
-    spreadsheetUtils.book_append_sheet(workbook, sheet, "Finance & Ops")
-    await writeFile(filePath, writeWorkbook(workbook, { bookType: "xlsx", type: "buffer" }))
+    await writeFile(
+      filePath,
+      createXlsxPackage([
+        {
+          name: "Finance & Ops",
+          rows: [["Invoice", "", 24000, "Paid"]],
+        },
+      ]),
+    )
 
     const parsed = await parseFile(sourceFile(root, filePath, ".xlsx"))
 
     expect(parsed.text).toContain("# Finance & Ops")
     expect(parsed.text).toContain("Invoice\t\t24000\tPaid")
-  })
-
-  it("extracts text from legacy xls workbooks across sheets", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-xls-"))
-    tempDirs.push(root)
-    const filePath = path.join(root, "legacy-dataset.xls")
-    const workbook = spreadsheetUtils.book_new()
-    spreadsheetUtils.book_append_sheet(
-      workbook,
-      spreadsheetUtils.aoa_to_sheet([
-        ["Metric", "Value"],
-        ["Budget", 12000],
-      ]),
-      "Finance",
-    )
-    spreadsheetUtils.book_append_sheet(
-      workbook,
-      spreadsheetUtils.aoa_to_sheet([
-        ["Owner", "PAC"],
-        ["Status", "Active"],
-      ]),
-      "Contacts",
-    )
-    await writeFile(filePath, writeWorkbook(workbook, { bookType: "xls", type: "buffer" }))
-
-    const parsed = await parseFile(sourceFile(root, filePath, ".xls"))
-
-    expect(parsed.text).toContain("# Finance")
-    expect(parsed.text).toContain("Metric\tValue")
-    expect(parsed.text).toContain("Budget\t12000")
-    expect(parsed.text).toContain("# Contacts")
-    expect(parsed.text).toContain("Owner\tPAC")
   })
 
   it("extracts text from pptx slides and speaker notes", async () => {
@@ -245,6 +217,108 @@ function createDocxPackage(documentXml: string): Uint8Array {
     ),
     "word/document.xml": strToU8(documentXml),
   })
+}
+
+function createXlsxPackage(sheets: Array<{ name: string; rows: Array<Array<string | number>> }>) {
+  const workbookRelationships = sheets
+    .map(
+      (_sheet, index) =>
+        `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`,
+    )
+    .join("")
+  const workbookSheets = sheets
+    .map(
+      (sheet, index) =>
+        `<sheet name="${escapeXml(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`,
+    )
+    .join("")
+  const worksheetFiles = Object.fromEntries(
+    sheets.map((sheet, index) => [
+      `xl/worksheets/sheet${index + 1}.xml`,
+      strToU8(
+        `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheet.rows
+          .map((row, rowIndex) => `<row r="${rowIndex + 1}">${rowToXml(row, rowIndex + 1)}</row>`)
+          .join("")}</sheetData></worksheet>`,
+      ),
+    ]),
+  )
+
+  return zipSync({
+    "[Content_Types].xml": strToU8(
+      [
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+        '<Default Extension="xml" ContentType="application/xml"/>',
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>',
+        ...sheets.map(
+          (_sheet, index) =>
+            `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
+        ),
+        "</Types>",
+      ].join(""),
+    ),
+    "_rels/.rels": strToU8(
+      [
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>',
+        "</Relationships>",
+      ].join(""),
+    ),
+    "xl/workbook.xml": strToU8(
+      [
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
+        `<sheets>${workbookSheets}</sheets>`,
+        "</workbook>",
+      ].join(""),
+    ),
+    "xl/_rels/workbook.xml.rels": strToU8(
+      [
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+        workbookRelationships,
+        "</Relationships>",
+      ].join(""),
+    ),
+    ...worksheetFiles,
+  })
+}
+
+function rowToXml(row: Array<string | number>, rowNumber: number): string {
+  return row
+    .map((value, index) => cellToXml(value, `${columnName(index + 1)}${rowNumber}`))
+    .join("")
+}
+
+function cellToXml(value: string | number, reference: string): string {
+  if (typeof value === "number") {
+    return `<c r="${reference}"><v>${value}</v></c>`
+  }
+  if (value.length === 0) {
+    return ""
+  }
+  return `<c r="${reference}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`
+}
+
+function columnName(column: number): string {
+  let current = column
+  let name = ""
+  while (current > 0) {
+    current -= 1
+    name = String.fromCharCode(65 + (current % 26)) + name
+    current = Math.floor(current / 26)
+  }
+  return name
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/gu, "&amp;")
+    .replace(/</gu, "&lt;")
+    .replace(/>/gu, "&gt;")
+    .replace(/"/gu, "&quot;")
 }
 
 function createTextPdf(): string {

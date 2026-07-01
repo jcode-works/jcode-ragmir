@@ -140,6 +140,9 @@ Each `SearchResult` includes:
 | `text` | Retrieved redacted chunk text. |
 | `distance` | Vector distance when available; `null` for lexical-only rows. |
 
+Use `compactSearchResults(passages)` when an agent or MCP client needs short snippets instead of
+full retrieved chunks.
+
 ### `ask(query, options?)`
 
 Returns retrieval context formatted for an agent or LLM, plus the same cited source list as
@@ -155,6 +158,26 @@ const answer = await ask("What evidence supports the project timeline?", {
 
 `AskResult.answer` is not an LLM synthesis. It is a deterministic retrieval-only text block that
 lists cited passages.
+
+### `research(query, options?)`
+
+Runs an audit-backed research pass for broad agent tasks. It checks index freshness, runs the
+security audit, generates multiple retrieval queries from the topic, merges cited evidence, reports
+source diagnostics, and optionally scans repository code-like files for matching terms.
+
+```ts
+import { compactResearchReport, research } from "@jcode.labs/mimir"
+
+const report = await research("release readiness and risks", {
+  cwd: "/path/to/workspace",
+  topK: 8,
+})
+
+const compact = compactResearchReport(report)
+```
+
+Use `research` before broad summaries, implementation planning, migration notes, or review briefs.
+Use `compactResearchReport(report)` before sending results through a constrained agent context.
 
 ## Semantic Embeddings
 
@@ -322,8 +345,9 @@ MCP tools exposed by the server:
 | Tool | Input |
 | --- | --- |
 | `mimir_status` | `{}` |
-| `mimir_search` | `{ query: string, topK?: number }` |
+| `mimir_search` | `{ query: string, topK?: number, compact?: boolean }` |
 | `mimir_ask` | `{ query: string, topK?: number }` |
+| `mimir_research` | `{ query: string, topK?: number, includeCode?: boolean, compact?: boolean }` |
 | `mimir_audit` | `{}` |
 | `mimir_evaluate` | `{ goldenPath: string, topK?: number, failUnder?: number }` |
 | `mimir_usage_report` | `{ days?: number }` |

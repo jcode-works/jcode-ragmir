@@ -29,6 +29,7 @@ const ACCESS_LOG_ACTIONS: AccessLogAction[] = [
   "ingest",
   "search",
   "ask",
+  "research",
   "evaluate",
   "destroy-index",
 ]
@@ -128,6 +129,7 @@ function emptyEventsByAction(): Record<AccessLogAction, number> {
     ingest: 0,
     search: 0,
     ask: 0,
+    research: 0,
     evaluate: 0,
     "destroy-index": 0,
   }

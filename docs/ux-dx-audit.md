@@ -35,8 +35,8 @@ developer and agent workflow around installation, indexing, querying, safety, au
 
 | Area | Finding | Status |
 | --- | --- | --- |
-| Local validation | `pnpm validate` already covers lint, typecheck, tests, build, smoke, package checks, and artifacts. | Good. |
-| Release safety | npm publish is protected by CI, environment approval, provenance, and explicit version input. | Good. |
+| Local validation | `pnpm validate` already covers lint, dependency security audit, typecheck, tests, build, smoke, package checks, semantic-release wiring, and artifacts. | Good. |
+| Release safety | npm publish is protected by CI, environment approval, provenance, and semantic-release versioning from Conventional Commits. | Good. |
 | API clarity | Core exports are small and named, but the README only shows a minimal API snippet. | Fixed: `docs/api-reference.md` documents the public TypeScript API and result types. |
 | MCP reference | Tool names and an agent demo prompt are documented, but tool schemas are not deeply documented. | Improved: `docs/api-reference.md` documents the MCP tool names and input shapes. |
 | Error guidance | Common setup and audio errors were not centralized. | Fixed in the root README troubleshooting section. |

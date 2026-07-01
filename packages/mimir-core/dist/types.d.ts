@@ -28,7 +28,7 @@ export interface Config {
     legacyWordCommand: string[];
     legacyWordTimeoutMs: number;
 }
-export type AccessLogAction = "ingest" | "search" | "ask" | "evaluate" | "destroy-index";
+export type AccessLogAction = "ingest" | "search" | "ask" | "research" | "evaluate" | "destroy-index";
 export interface AccessLogUsageOptions {
     cwd?: PathLike;
     days?: number;
@@ -139,6 +139,66 @@ export interface SearchResult {
     text: string;
     distance: number | null;
 }
+export interface CompactSearchResult {
+    source: string;
+    relativePath: string;
+    chunkIndex: number;
+    snippet: string;
+    distance: number | null;
+}
+export interface SourceDuplicateCandidate {
+    key: string;
+    files: string[];
+}
+export interface SourcePathCandidate {
+    relativePath: string;
+    reason: string;
+}
+export interface SourceDiagnostics {
+    duplicateCandidates: SourceDuplicateCandidate[];
+    archiveCandidates: SourcePathCandidate[];
+    mirrorCandidates: SourcePathCandidate[];
+}
+export interface ResearchOptions {
+    cwd?: PathLike;
+    topK?: number;
+    includeCode?: boolean;
+}
+export interface ResearchEvidence {
+    source: string;
+    relativePath: string;
+    chunkIndex: number;
+    text: string;
+    distance: number | null;
+    queries: string[];
+}
+export interface CodeEvidence {
+    relativePath: string;
+    lineNumber: number;
+    snippet: string;
+    matchedTerms: string[];
+}
+export interface ResearchReport {
+    query: string;
+    generatedQueries: string[];
+    ready: boolean;
+    audit: {
+        supportedFiles: number;
+        skippedFiles: number;
+        unsupportedFiles: number;
+        indexedFiles: number;
+        totalChunks: number;
+        missingFromIndex: number;
+        staleInIndex: number;
+        emptyTextFiles: number;
+    };
+    securityWarnings: string[];
+    sourceDiagnostics: SourceDiagnostics;
+    evidence: ResearchEvidence[];
+    codeEvidence: CodeEvidence[];
+    gaps: string[];
+    nextSteps: string[];
+}
 export interface GoldenQuery {
     id?: string;
     query: string;
@@ -188,6 +248,7 @@ export interface AuditReport {
         extension: string;
         count: number;
     }>;
+    sourceDiagnostics: SourceDiagnostics;
     missingFromIndex: string[];
     staleInIndex: string[];
     totalChunks: number;

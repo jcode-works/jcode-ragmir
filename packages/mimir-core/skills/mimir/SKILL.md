@@ -31,8 +31,8 @@ Default project layout:
 - Do not commit raw documents, secrets, tax IDs, scans, bank documents, tokens, or generated vector stores.
 - Keep `.mimir/` ignored by Git. Legacy projects using `private/**` or `.kb/` must keep those paths
   ignored too.
-- Treat `mimir search`, `mimir ask`, and MCP results as sensitive because they can contain private
-  source passages even when redaction is enabled.
+- Treat `mimir search`, `mimir ask`, `mimir research`, and MCP results as sensitive because they can
+  contain private source passages even when redaction is enabled.
 - Prefer summaries and citations over dumping long private passages into the chat.
 - If the user asks for a high-stakes answer, identify which facts came from Mimir and which still require professional or official verification.
 
@@ -66,6 +66,21 @@ npx mimir setup
 
 Use `status`, `audit`, and `security-audit` for deeper checks after `doctor` explains the current
 state. Use `audit --unsupported` when files exist but may not have been indexed.
+
+## Agent Operating Loop
+
+Prefer the smallest command that answers the user's task:
+
+| Task | Preferred command or tool |
+| --- | --- |
+| Check whether Mimir is usable | `mimir doctor` or MCP `mimir_status` |
+| Repair missing setup or stale index | `mimir doctor --fix` |
+| Inspect skipped, duplicate, archive-like, or mirror-like sources | `mimir audit --unsupported` |
+| Find exact source passages | `mimir search "<query>" --compact` or MCP `mimir_search` with `compact: true` |
+| Prepare a broad implementation, review, or planning answer | `mimir research "<topic>" --compact` or MCP `mimir_research` |
+| Return deterministic cited context for a trusted model | `mimir ask "<question>"` or MCP `mimir_ask` |
+| Check local privacy posture | `mimir security-audit` or MCP `mimir_security_audit` |
+| Validate recall against known expected files | `mimir evaluate --golden <file>` or MCP `mimir_evaluate` |
 
 ## Provider Modes
 
@@ -130,6 +145,17 @@ Use search when you need exact source passages:
 pnpm exec mimir search "your query"
 ```
 
+Use research when the user asks for broad context, implementation planning, review preparation, or a
+cross-document audit:
+
+```bash
+pnpm exec mimir research "your topic" --compact
+```
+
+`mimir research` runs audit and security checks, generates several related retrieval queries, merges
+cited evidence, reports source diagnostics, and performs a lightweight repository code scan unless
+`--no-code` is used.
+
 Use ask when you need cited context for the current agent or an external LLM:
 
 ```bash
@@ -146,6 +172,7 @@ synthesis needs a trusted external LLM or model runtime.
 For broad summaries, audits, planning, or institutional dossiers, do not rely on one query. Build a
 small retrieval plan first:
 
+- use `mimir research` as the first pass when available;
 - check `mimir audit` and `mimir security-audit`;
 - query the main topic;
 - query names, dates, amounts, obligations, risks, decisions, and missing evidence separately;
@@ -198,8 +225,9 @@ when launching `mimir serve-mcp`.
 Available MCP tools:
 
 - `mimir_status`: show config and chunk count.
-- `mimir_search`: retrieve source passages.
+- `mimir_search`: retrieve source passages; set `compact: true` when the agent context is tight.
 - `mimir_ask`: return cited retrieval context.
+- `mimir_research`: run audit-backed multi-query retrieval with source diagnostics and optional code matches.
 - `mimir_audit`: compare source files with the current index.
 - `mimir_evaluate`: measure retrieval recall against a local golden query file.
 - `mimir_usage_report`: summarize metadata-only local access-log activity without query text or local paths.

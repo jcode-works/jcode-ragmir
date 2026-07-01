@@ -132,6 +132,9 @@ function nextActions(input: NextActionInput): string[] {
     steps.push(
       `Run \`${input.run(["ask", '"your question"'])}\` to produce cited retrieval context.`,
     )
+    steps.push(
+      `Run \`${input.run(["research", '"your topic"'])}\` for audit-backed multi-query evidence.`,
+    )
     if (input.agentKitInstalled) {
       steps.push(
         "Run `mimir install-agent --agents claude` or another targeted agent list for native skill discovery.",

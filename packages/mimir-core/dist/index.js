@@ -10,6 +10,7 @@ export { serveMcp } from "./mcp.js";
 export { detectPackageManager, kbCommand, mimirCommand } from "./package-manager.js";
 export { ask, search } from "./query.js";
 export { redactText } from "./redaction.js";
+export { compactResearchReport, compactSearchResults, research } from "./research.js";
 export { securityAudit } from "./security.js";
 export { enableSemanticEmbeddings } from "./semantic-config.js";
 export { setupProject } from "./setup.js";

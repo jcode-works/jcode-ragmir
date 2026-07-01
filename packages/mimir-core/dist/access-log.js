@@ -7,6 +7,7 @@ const ACCESS_LOG_ACTIONS = [
     "ingest",
     "search",
     "ask",
+    "research",
     "evaluate",
     "destroy-index",
 ];
@@ -95,6 +96,7 @@ function emptyEventsByAction() {
         ingest: 0,
         search: 0,
         ask: 0,
+        research: 0,
         evaluate: 0,
         "destroy-index": 0,
     };

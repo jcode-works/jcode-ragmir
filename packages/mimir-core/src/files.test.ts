@@ -64,6 +64,7 @@ describe("listSourceFiles", () => {
     await writeFile(path.join(root, ".mimir", "raw", "README.md"), "generated helper\n", "utf8")
     await writeFile(path.join(root, ".mimir", "raw", "image.png"), "not indexed\n", "utf8")
     await writeFile(path.join(root, ".mimir", "raw", "legacy.doc"), "not indexed\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "legacy.xls"), "not indexed\n", "utf8")
     await writeFile(path.join(root, ".mimir", "raw", "private.pem"), "not indexed\n", "utf8")
     await writeFile(path.join(root, ".mimir", "raw", ".kb", "index.md"), "ignored\n", "utf8")
     await writeFile(path.join(root, ".mimir", "raw", ".mimir", "agent.md"), "ignored\n", "utf8")
@@ -116,6 +117,12 @@ describe("listSourceFiles", () => {
           reason: "unsupported-extension",
           recommendation:
             "Configure legacyWordCommand for local legacy Word extraction, or convert to DOCX, PDF, HTML, or text before ingesting.",
+        }),
+        expect.objectContaining({
+          relativePath: ".mimir/raw/legacy.xls",
+          reason: "unsupported-extension",
+          recommendation:
+            "Convert legacy XLS workbooks to XLSX, CSV, PDF, HTML, or text before ingesting.",
         }),
         expect.objectContaining({
           relativePath: ".mimir/raw/private.pem",

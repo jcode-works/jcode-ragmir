@@ -68,7 +68,8 @@ text. `mimir setup` adds the matching Git ignore entry for local Mimir state.
 The primary workflow is agent-first: Claude Code, Codex, Kimi, OpenCode, Cline, or another
 MCP-capable assistant asks Mimir for cited local context, then writes or reasons from those
 citations. For terminal checks, use `pnpm exec mimir search "your question"` or
-`pnpm exec mimir ask "your question"`.
+`pnpm exec mimir ask "your question"`. For broader implementation or review work, use
+`pnpm exec mimir research "your topic" --compact` before asking the agent to synthesize.
 
 Run `pnpm exec mimir doctor --fix` later to repair missing setup or rebuild stale indexes.
 For better semantic Q&A, run `pnpm exec mimir models pull --enable`, then run

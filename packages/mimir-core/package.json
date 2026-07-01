@@ -72,8 +72,8 @@
     "html-to-text": "^9.0.5",
     "mammoth": "^1.12.0",
     "picocolors": "^1.1.1",
+    "read-excel-file": "^9.2.0",
     "unpdf": "^1.4.0",
-    "xlsx": "0.18.5",
     "yaml": "^2.9.0",
     "zod": "^4.1.13"
   },

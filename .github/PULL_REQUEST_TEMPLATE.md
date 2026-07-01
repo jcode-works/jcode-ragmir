@@ -2,6 +2,8 @@
 
 ## Validation
 
+- [ ] `pnpm validate`
+- [ ] `pnpm audit:security`
 - [ ] `pnpm check`
 - [ ] `pnpm test`
 - [ ] `pnpm build`

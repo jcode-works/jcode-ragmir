@@ -7,6 +7,7 @@ import { loadConfig } from "./config.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { audit } from "./ingest.js"
 import { ask, search } from "./query.js"
+import { compactResearchReport, compactSearchResults, research } from "./research.js"
 import { securityAudit } from "./security.js"
 import { countRows } from "./store.js"
 import { VERSION } from "./version.js"
@@ -14,6 +15,15 @@ import { VERSION } from "./version.js"
 const queryToolInputSchema = z.object({
   query: z.string().min(1),
   topK: z.number().int().positive().optional(),
+})
+
+const searchToolInputSchema = queryToolInputSchema.extend({
+  compact: z.boolean().optional(),
+})
+
+const researchToolInputSchema = queryToolInputSchema.extend({
+  includeCode: z.boolean().optional(),
+  compact: z.boolean().optional(),
 })
 
 const evaluateToolInputSchema = z.object({
@@ -76,9 +86,12 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
     {
       title: "Mimir Search",
       description: "Retrieve relevant passages from the local Mimir knowledge base.",
-      inputSchema: queryToolInputSchema,
+      inputSchema: searchToolInputSchema,
     },
-    async ({ query, topK }) => textResult(await search(query, await searchOptions(cwd, topK))),
+    async ({ query, topK, compact }) => {
+      const results = await search(query, await searchOptions(cwd, topK))
+      return textResult(compact ? compactSearchResults(results) : results)
+    },
   )
 
   server.registerTool(
@@ -89,6 +102,24 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       inputSchema: queryToolInputSchema,
     },
     async ({ query, topK }) => textResult(await ask(query, await searchOptions(cwd, topK))),
+  )
+
+  server.registerTool(
+    "mimir_research",
+    {
+      title: "Mimir Research",
+      description:
+        "Run an audit-backed multi-query research pass with cited evidence and optional code matches.",
+      inputSchema: researchToolInputSchema,
+    },
+    async ({ query, topK, includeCode, compact }) => {
+      const options = await searchOptions(cwd, topK)
+      const researchOptions: Parameters<typeof research>[1] = { cwd }
+      addOption(researchOptions, "topK", options.topK)
+      addOption(researchOptions, "includeCode", includeCode)
+      const result = await research(query, researchOptions)
+      return textResult(compact ? compactResearchReport(result) : result)
+    },
   )
 
   server.registerTool(
@@ -203,4 +234,14 @@ function projectRelativeGoldenPath(cwd: string, goldenPath: string): string {
     throw new Error("mimir_evaluate goldenPath must stay inside the MCP project root.")
   }
   return relativePath
+}
+
+function addOption<T extends object, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K] | undefined,
+): void {
+  if (value !== undefined) {
+    target[key] = value
+  }
 }

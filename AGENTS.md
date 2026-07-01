@@ -151,11 +151,12 @@
   package/user testing only; never place real confidential documents there.
 - Use Context7 before changing dependencies or public APIs that rely on external libraries.
 - Run `pnpm validate` before opening a release pull request or publishing. It covers
-  Biome, TypeScript, Vitest, build output, production CLI/MCP smoke tests, and npm package
-  metadata.
+  Biome, dependency security audit, TypeScript, Vitest, build output, production CLI/MCP smoke
+  tests, npm package metadata, semantic-release wiring, and release artifacts.
 - Do not publish from a local machine or direct push to `main`. npm releases must go through
-  the protected manual `Publish npm` GitHub Actions workflow after `main` has green CI. The workflow
-  publishes `@jcode.labs/mimir-tts` first, then `@jcode.labs/mimir`.
+  the protected `Release npm` GitHub Actions workflow on `main`; semantic-release derives the
+  version from Conventional Commits, prepares both package tarballs, publishes
+  `@jcode.labs/mimir-tts` first, then publishes `@jcode.labs/mimir`.
 - Use Git Flow locally: `main` is production, `develop` is integration, feature work starts from
   `develop` under `feature/*`. Do not deploy or publish from feature branches.
 
@@ -201,8 +202,9 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   local LanceDB table. Normal ingest is incremental and reuses rows whose checksum/provider/model
   still match; `--rebuild` forces a full re-index.
 - `packages/mimir-core/src/parsing.ts` uses proven parsers for high-risk Office formats:
-  Mammoth for `.docx` and SheetJS for `.xlsx`. Keep the lightweight XML ZIP parser for
-  `.pptx`, OpenDocument, and EPUB unless tests show fidelity gaps.
+  Mammoth for `.docx` and read-excel-file for `.xlsx`. Keep the lightweight XML ZIP parser for
+  `.pptx`, OpenDocument, and EPUB unless tests show fidelity gaps. Legacy `.xls` workbooks are not
+  supported by default; convert them to `.xlsx`, CSV, PDF, HTML, or text before ingesting.
 - `packages/mimir-core/src/query.ts` performs hybrid retrieval (vector candidates plus bounded lexical
   BM25 scoring) and returns cited retrieval context; LLM synthesis belongs outside Mimir core.
 - `packages/mimir-core/src/mcp.ts` exposes Mimir as an MCP stdio server for agents.
@@ -250,7 +252,7 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **jcode-mimir** (2537 symbols, 4246 relationships, 216 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **jcode-mimir** (2559 symbols, 4274 relationships, 218 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

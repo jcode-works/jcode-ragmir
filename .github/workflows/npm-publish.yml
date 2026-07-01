@@ -1,21 +1,23 @@
-name: Publish npm
+name: Release npm
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version already committed in package.json"
-        required: true
-        type: string
 
 permissions:
-  actions: read
-  contents: read
+  contents: write
+  issues: write
   id-token: write
+  pull-requests: write
+
+concurrency:
+  group: release-npm-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Publish to npm
+  release:
+    name: Semantic release
     runs-on: ubuntu-latest
     environment:
       name: npm-publish
@@ -24,15 +26,10 @@ jobs:
       - name: Verify main branch
         run: test "${GITHUB_REF}" = "refs/heads/main"
 
-      - name: Verify CI passed for this commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          conclusion="$(gh run list --repo jcode-works/jcode-mimir --workflow ci.yml --branch main --commit "$GITHUB_SHA" --json conclusion --jq '.[0].conclusion')"
-          test "$conclusion" = "success"
-
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -45,50 +42,20 @@ jobs:
           corepack enable
           corepack prepare pnpm@11.9.0 --activate
 
-      - name: Verify version input
-        run: |
-          test "$(node -p "require('./packages/mimir-core/package.json').version")" = "${{ inputs.version }}"
-          test "$(node -p "require('./packages/mimir-tts/package.json').version")" = "${{ inputs.version }}"
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint and format check
-        run: pnpm lint
+      - name: Validate release gate
+        run: pnpm validate
 
-      - name: Typecheck
-        run: pnpm check
-
-      - name: Test
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
-
-      - name: Smoke test production CLI and MCP
-        run: pnpm smoke
-
-      - name: Verify generated dist is committed
-        run: git diff --exit-code -- packages/mimir-core/dist packages/mimir-tts/dist
-
-      - name: Verify npm package metadata
-        run: pnpm package:check
-
-      - name: Generate release verification artifacts
-        run: pnpm release:artifacts
+      - name: Semantic release
+        run: pnpm exec semantic-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Upload release verification artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mimir-release-${{ inputs.version }}
+          name: mimir-release-${{ github.sha }}
           path: release-artifacts/
-
-      - name: Publish Mimir TTS
-        run: pnpm --dir packages/mimir-tts publish --access public --provenance --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish Mimir
-        run: pnpm --dir packages/mimir-core publish --access public --provenance --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

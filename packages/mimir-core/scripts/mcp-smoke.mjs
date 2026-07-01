@@ -15,6 +15,7 @@ const requiredTools = [
   "mimir_status",
   "mimir_search",
   "mimir_ask",
+  "mimir_research",
   "mimir_audit",
   "mimir_evaluate",
   "mimir_usage_report",
@@ -63,9 +64,13 @@ try {
   const searchResults = await callJsonTool(client, "mimir_search", {
     query: "offline retrieval approval",
     topK: 2,
+    compact: true,
   })
   if (!Array.isArray(searchResults) || searchResults.length < 1) {
     throw new Error("MCP search returned no results.")
+  }
+  if (!("snippet" in searchResults[0]) || "text" in searchResults[0]) {
+    throw new Error("MCP compact search did not return snippet-only results.")
   }
 
   const answer = await callJsonTool(client, "mimir_ask", {
@@ -74,6 +79,18 @@ try {
   })
   if (!Array.isArray(answer.sources) || answer.sources.length < 1) {
     throw new Error("MCP ask returned no cited sources.")
+  }
+
+  const research = await callJsonTool(client, "mimir_research", {
+    query: "offline retrieval approval",
+    topK: 2,
+    compact: true,
+  })
+  if (!Array.isArray(research.evidence) || research.evidence.length < 1) {
+    throw new Error("MCP research returned no cited evidence.")
+  }
+  if (!("snippet" in research.evidence[0]) || "text" in research.evidence[0]) {
+    throw new Error("MCP compact research did not return snippet-only evidence.")
   }
 
   const evaluation = await callJsonTool(client, "mimir_evaluate", {
@@ -101,6 +118,7 @@ try {
         chunksIndexed: status.chunksIndexed,
         searchResults: searchResults.length,
         askSources: answer.sources.length,
+        researchEvidence: research.evidence.length,
         evaluationRecall: evaluation.recall,
         usageEvents: usage.totalEvents,
       },

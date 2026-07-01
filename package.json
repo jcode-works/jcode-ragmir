@@ -7,6 +7,7 @@
   "license": "MIT",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
+    "audit:security": "pnpm audit --audit-level moderate",
     "build": "pnpm --filter @jcode.labs/mimir-ui build && pnpm --filter @jcode.labs/mimir-app build && pnpm --filter @jcode.labs/mimir-landing build && pnpm --filter @jcode.labs/mimir-license-webhook build && pnpm --filter @jcode.labs/mimir-tts build && pnpm --filter @jcode.labs/mimir build",
     "check": "pnpm --filter @jcode.labs/mimir-ui check && pnpm --filter @jcode.labs/mimir-app check && pnpm --filter @jcode.labs/mimir-landing check && pnpm --filter @jcode.labs/mimir-license-webhook check && pnpm --filter @jcode.labs/mimir-tts check && pnpm --filter @jcode.labs/mimir check",
     "commitlint": "commitlint --from=HEAD~1 --to=HEAD --verbose",
@@ -18,14 +19,17 @@
     "package:check": "pnpm --filter @jcode.labs/mimir-tts package:check && pnpm --filter @jcode.labs/mimir package:check",
     "public:smoke": "node scripts/public-surface-smoke.mjs",
     "release:artifacts": "node scripts/release-artifacts.mjs",
+    "release:semantic:smoke": "node scripts/semantic-release-smoke.mjs",
     "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/mimir mcp:smoke && pnpm --filter @jcode.labs/mimir-tts smoke && pnpm --filter @jcode.labs/mimir-app license:lemonsqueezy:smoke && pnpm --filter @jcode.labs/mimir-app release:preflight:smoke && pnpm --filter @jcode.labs/mimir-app release:updater-guard:smoke && pnpm --filter @jcode.labs/mimir-app release:checksums:smoke && pnpm --filter @jcode.labs/mimir-app release:manifest:smoke && pnpm --filter @jcode.labs/mimir-app release:bundle:verify:smoke && pnpm --filter @jcode.labs/mimir-license-webhook smoke && pnpm --filter @jcode.labs/mimir-license-webhook cf:dry-run",
     "test": "pnpm --filter @jcode.labs/mimir-tts test && pnpm --filter @jcode.labs/mimir test",
-    "validate": "pnpm lint && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check && pnpm release:artifacts"
+    "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
     "@commitlint/cli": "^21.1.0",
     "@commitlint/config-conventional": "^21.1.0",
+    "@semantic-release/exec": "^7.1.0",
+    "semantic-release": "^25.0.5",
     "yaml": "^2.9.0"
   }
 }

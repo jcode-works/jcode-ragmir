@@ -90,6 +90,7 @@ function nextActions(input) {
         }
         steps.push(`Run \`${input.run(["search", '"your question"'])}\` to retrieve source passages.`);
         steps.push(`Run \`${input.run(["ask", '"your question"'])}\` to produce cited retrieval context.`);
+        steps.push(`Run \`${input.run(["research", '"your topic"'])}\` for audit-backed multi-query evidence.`);
         if (input.agentKitInstalled) {
             steps.push("Run `mimir install-agent --agents claude` or another targeted agent list for native skill discovery.");
             steps.push("Wire the matching MCP helper from .mimir/ when the agent should call Mimir tools directly.");

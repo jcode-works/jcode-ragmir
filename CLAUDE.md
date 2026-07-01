@@ -18,7 +18,9 @@ pnpm lint:fix           # Biome auto-fix
 pnpm format             # Biome format --write
 pnpm test               # vitest run for packages/mimir-tts, then packages/mimir-core
 pnpm smoke              # build production CLI + MCP smoke test (scripts/smoke.mjs)
-pnpm validate           # full release gate: lint + check + test + build + smoke + package:check + release:artifacts
+pnpm audit:security     # dependency security audit at moderate severity and above
+pnpm release:semantic:smoke # checks semantic-release config and monorepo publish scripts without publishing
+pnpm validate           # full release gate: lint + audit + check + test + build + smoke + package:check + semantic release smoke + release:artifacts
 ```
 
 Run a single core test file: `pnpm --filter @jcode.labs/mimir exec vitest run src/config.test.ts`
@@ -118,13 +120,13 @@ Coding conventions (KISS, DRY, YAGNI, SOLID as applied here) live in `AGENTS.md`
   semicolons as-needed, trailing commas all.
 - Conventional Commits are enforced by commitlint in CI.
 
-Release policy (no local publish, no direct push to `main`, protected `Publish npm` workflow) lives
-in `AGENTS.md`. The workflow publishes `@jcode.labs/mimir-tts` before `@jcode.labs/mimir`.
+Release policy (no local publish, no direct push to `main`, protected semantic-release workflow)
+lives in `AGENTS.md`. The workflow publishes `@jcode.labs/mimir-tts` before `@jcode.labs/mimir`.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **jcode-mimir** (2537 symbols, 4246 relationships, 216 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **jcode-mimir** (2559 symbols, 4274 relationships, 218 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

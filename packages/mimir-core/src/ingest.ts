@@ -1,3 +1,4 @@
+import path from "node:path"
 import { recordAccess } from "./access-log.js"
 import { chunkDocument } from "./chunking.js"
 import { loadConfig } from "./config.js"
@@ -18,11 +19,28 @@ import type {
   IngestResult,
   RedactionCount,
   SkippedSourceReason,
+  SourceDiagnostics,
+  SourceFile,
   TextChunk,
   VectorRow,
 } from "./types.js"
 
 const MAX_AUDIT_ROWS = 100_000
+const MAX_SOURCE_DIAGNOSTIC_ITEMS = 20
+const ARCHIVE_PATH_PATTERNS = [
+  /(^|[/_-])archive(s)?([/_-]|$)/iu,
+  /(^|[/_-])backup(s)?([/_-]|$)/iu,
+  /(^|[/_-])legacy([/_-]|$)/iu,
+  /(^|[/_-])old([/_-]|$)/iu,
+  /(^|[/_-])obsolete([/_-]|$)/iu,
+  /(^|[/_-])poc([/_-]|$)/iu,
+]
+const MIRROR_PATH_PATTERNS = [
+  /(^|[/_-])raw[_-]?files([/_-]|$)/iu,
+  /(^|[/_-])google[_-]?drive([/_-]|$)/iu,
+  /(^|[/_-])drive[_-]?mirror([/_-]|$)/iu,
+  /(^|[/_-])export(s)?([/_-]|$)/iu,
+]
 
 export async function ingest(options: IngestOptions = {}): Promise<IngestResult> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
@@ -176,6 +194,7 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
       skippedFiles: inventory.skippedFiles,
       emptyTextFiles: [...emptyTextFiles],
       unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
+      sourceDiagnostics: sourceDiagnostics(files, inventory.skippedFiles),
       missingFromIndex: supportedFiles.filter((file) => !emptyTextFiles.has(file)),
       staleInIndex: [],
       totalChunks: 0,
@@ -209,6 +228,7 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
     skippedFiles: inventory.skippedFiles,
     emptyTextFiles: [...emptyTextFiles].sort(),
     unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
+    sourceDiagnostics: sourceDiagnostics(files, inventory.skippedFiles),
     missingFromIndex: supportedFiles.filter(
       (file) => !indexedSet.has(file) && !emptyTextFiles.has(file),
     ),
@@ -224,6 +244,80 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
       .sort(),
     totalChunks: rows.length,
   }
+}
+
+function sourceDiagnostics(
+  supportedFiles: SourceFile[],
+  skippedFiles: Array<{ relativePath: string }>,
+): SourceDiagnostics {
+  const relativePaths = [
+    ...supportedFiles.map((file) => file.relativePath),
+    ...skippedFiles.map((file) => file.relativePath),
+  ]
+  return {
+    duplicateCandidates: duplicateCandidates(supportedFiles),
+    archiveCandidates: pathCandidates(relativePaths, ARCHIVE_PATH_PATTERNS, "archive-like path"),
+    mirrorCandidates: pathCandidates(relativePaths, MIRROR_PATH_PATTERNS, "mirror-like path"),
+  }
+}
+
+function duplicateCandidates(files: SourceFile[]): SourceDiagnostics["duplicateCandidates"] {
+  const byChecksum = new Map<string, string[]>()
+  const byLogicalName = new Map<string, string[]>()
+
+  for (const file of files) {
+    appendGrouped(byChecksum, `sha256:${file.checksum.slice(0, 12)}`, file.relativePath)
+    const logicalName = normalizedLogicalName(file.relativePath)
+    if (logicalName.length >= 6) {
+      appendGrouped(byLogicalName, `name:${logicalName}`, file.relativePath)
+    }
+  }
+
+  const exact = groupedDuplicates(byChecksum)
+  const logical = groupedDuplicates(byLogicalName).filter(
+    (candidate) =>
+      !exact.some((exactCandidate) =>
+        candidate.files.every((file) => exactCandidate.files.includes(file)),
+      ),
+  )
+  return [...exact, ...logical]
+    .sort((a, b) => b.files.length - a.files.length || a.key.localeCompare(b.key))
+    .slice(0, MAX_SOURCE_DIAGNOSTIC_ITEMS)
+}
+
+function pathCandidates(
+  relativePaths: string[],
+  patterns: RegExp[],
+  reason: string,
+): SourceDiagnostics["archiveCandidates"] {
+  return relativePaths
+    .filter((relativePath) => patterns.some((pattern) => pattern.test(relativePath)))
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, MAX_SOURCE_DIAGNOSTIC_ITEMS)
+    .map((relativePath) => ({ relativePath, reason }))
+}
+
+function appendGrouped(groups: Map<string, string[]>, key: string, relativePath: string): void {
+  const paths = groups.get(key) ?? []
+  paths.push(relativePath)
+  groups.set(key, paths)
+}
+
+function groupedDuplicates(
+  groups: Map<string, string[]>,
+): SourceDiagnostics["duplicateCandidates"] {
+  return [...groups.entries()]
+    .filter(([, files]) => files.length > 1)
+    .map(([key, files]) => ({ key, files: [...new Set(files)].sort() }))
+}
+
+function normalizedLogicalName(relativePath: string): string {
+  return path
+    .basename(relativePath, path.extname(relativePath))
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/gu, "")
 }
 
 async function currentEmptyTextFiles(

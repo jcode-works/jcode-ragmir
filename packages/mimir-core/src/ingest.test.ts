@@ -82,6 +82,37 @@ describe("ingest", () => {
     expect(report.emptyTextFiles).toEqual([".mimir/raw/scan.pdf"])
     expect(report.missingFromIndex).toEqual([])
   })
+
+  it("reports duplicate and mirror-like source diagnostics", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-source-diagnostics-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".mimir", "raw", "raw_files"), { recursive: true })
+    await writeFile(
+      path.join(root, ".mimir", "raw", "decision.md"),
+      "Canonical evidence.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".mimir", "raw", "raw_files", "decision-copy.md"),
+      "Canonical evidence.\n",
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const report = await audit(root)
+
+    expect(report.sourceDiagnostics.duplicateCandidates).toEqual([
+      expect.objectContaining({
+        files: [".mimir/raw/decision.md", ".mimir/raw/raw_files/decision-copy.md"],
+      }),
+    ])
+    expect(report.sourceDiagnostics.mirrorCandidates).toEqual([
+      expect.objectContaining({
+        relativePath: ".mimir/raw/raw_files/decision-copy.md",
+      }),
+    ])
+  })
 })
 
 function createBlankPdf(): string {

@@ -21,6 +21,7 @@ Mimir ships two CLIs:
 | `mimir audit --unsupported` | List files skipped because they are unsupported, too large, or secret-like. |
 | `mimir search "<query>"` | Retrieve ranked passages without asking an LLM to write an answer. |
 | `mimir ask "<question>"` | Return cited retrieval context for an agent or trusted model runtime. |
+| `mimir research "<topic>"` | Run audit, security, multi-query retrieval, source diagnostics, and lightweight code matching for broad agent tasks. |
 | `mimir evaluate --golden golden-queries.json` | Measure retrieval recall against expected source paths. |
 | `mimir security-audit` | Inspect privacy posture: telemetry, providers, redaction, Git ignore, MCP. |
 | `mimir usage-report` | Summarize metadata-only local access-log activity for recent private dogfooding without query text or local paths. |
@@ -57,10 +58,12 @@ Mimir ships two CLIs:
 | Option | Applies to | Meaning |
 | --- | --- | --- |
 | `--project-root <path>` | all project-scoped `mimir` commands | Run against a specific local workspace instead of the current directory. |
-| `--top-k <number>` | `search`, `ask`, `evaluate` | Number of passages to return. |
+| `--top-k <number>` | `search`, `ask`, `research`, `evaluate` | Number of passages to return or keep. |
 | `--fail-under <recall>` | `evaluate` | Exit non-zero only when recall is below a threshold from `0` to `1`; without this option evaluation remains strict and fails on any miss. |
 | `--days <number>` | `usage-report` | Number of recent days to include in the metadata-only usage summary. |
-| `--json` | `doctor`, `ingest`, `search`, `ask`, `evaluate`, `audit`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `mimir-tts doctor` | Print machine-readable JSON. |
+| `--json` | `doctor`, `ingest`, `search`, `ask`, `research`, `evaluate`, `audit`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `mimir-tts doctor` | Print machine-readable JSON. |
+| `--compact` | `search`, `research` | Return short snippets instead of full retrieved passages. |
+| `--no-code` | `research` | Skip the lightweight repository code scan. |
 | `--unsupported` | `audit` | List skipped file paths and reasons. |
 | `--strict` | `security-audit` | Exit non-zero when warnings exist. |
 | `--offline` | `audio`, `mimir-tts render` | Disable remote model downloads and force the local Transformers.js path. |

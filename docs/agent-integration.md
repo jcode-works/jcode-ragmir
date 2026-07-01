@@ -69,6 +69,7 @@ MCP tools exposed:
 - `mimir_status`
 - `mimir_search`
 - `mimir_ask`
+- `mimir_research`
 - `mimir_audit`
 - `mimir_evaluate`
 - `mimir_usage_report`
@@ -76,8 +77,8 @@ MCP tools exposed:
 
 This MCP layer is the recommended way to let any compatible LLM or agent query the same local
 knowledge base. The LLM does not need to know about LanceDB or the raw file layout; it asks Mimir for
-ranked passages, cited context, local recall gates, or metadata-only usage summaries and uses the
-returned citations.
+ranked passages, cited context, audit-backed research reports, local recall gates, or metadata-only
+usage summaries and uses the returned citations.
 
 ## Claude Code
 
@@ -156,9 +157,9 @@ when launching `mimir serve-mcp`.
 From a repository that already ran `mimir setup` and has Mimir wired into the current agent, ask:
 
 ```plain text
-Use Mimir to audit the local evidence. First run mimir_status and mimir_audit. Then search for
-"offline retrieval approval" and produce a cited Markdown report. Do not rely on memory if Mimir
-does not contain enough evidence.
+Use Mimir to audit the local evidence. First run mimir_status and mimir_audit. Then run
+mimir_research for "release readiness and risks" and produce a cited Markdown report. Do not rely on
+memory if Mimir does not contain enough evidence.
 ```
 
 Agents that support skill folders should also load:

@@ -11,6 +11,7 @@ export type { MimirCommand, PackageManager } from "./package-manager.js"
 export { detectPackageManager, kbCommand, mimirCommand } from "./package-manager.js"
 export { ask, search } from "./query.js"
 export { redactText } from "./redaction.js"
+export { compactResearchReport, compactSearchResults, research } from "./research.js"
 export { securityAudit } from "./security.js"
 export { enableSemanticEmbeddings } from "./semantic-config.js"
 export type { SetupResult } from "./setup.js"
@@ -34,6 +35,8 @@ export type {
   AccessLogUsageReport,
   AskResult,
   AuditReport,
+  CodeEvidence,
+  CompactSearchResult,
   Config,
   DestroyIndexResult,
   DoctorReport,
@@ -42,7 +45,13 @@ export type {
   EvaluationResult,
   GoldenQuery,
   IngestResult,
+  ResearchEvidence,
+  ResearchOptions,
+  ResearchReport,
   SearchResult,
   SecurityAuditReport,
+  SourceDiagnostics,
+  SourceDuplicateCandidate,
+  SourcePathCandidate,
 } from "./types.js"
 export { VERSION } from "./version.js"

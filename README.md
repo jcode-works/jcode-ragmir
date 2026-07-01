@@ -32,6 +32,7 @@ spread across repositories, specifications, exports, and synced folders.
 | Work from a downloaded Google Drive folder | Point Mimir at files synced locally through Google Drive for desktop, then let the agent retrieve context without uploading the corpus to a hosted RAG service. |
 | Onboard to a legacy codebase | Ask where a flow is implemented, which modules own a responsibility, which docs explain a behavior, and what to read before changing risky code. |
 | Keep multiple agents on the same evidence | Install the same project skills and MCP server for Claude Code, Codex, Kimi Code CLI, OpenCode, and Cline so each tool retrieves from the same local index. |
+| Research before implementation | Run an audit-backed multi-query pass over specs, docs, and code references before asking an agent to plan a feature, migration, or review. |
 | Prepare implementation and review work | Generate cited task breakdowns, migration notes, release checklists, QA plans, and code-review context from the same local sources the team uses. |
 | Audit local knowledge coverage | Check which supported files were indexed, which formats were skipped, whether secrets are likely present, and whether golden queries still retrieve expected evidence. |
 
@@ -54,7 +55,7 @@ flowchart TD
 
   subgraph Mimir["Mimir Core"]
     Ingest["mimir ingest<br/>parse, redact, chunk"]
-    Retrieve["mimir search / ask<br/>rank cited passages"]
+    Retrieve["mimir search / ask / research<br/>rank cited evidence"]
     Audit["doctor, audit,<br/>security-audit, evaluate"]
   end
 
@@ -84,6 +85,7 @@ pnpm add -D @jcode.labs/mimir
 pnpm exec mimir setup
 pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
 pnpm exec mimir doctor --fix
+pnpm exec mimir research "release readiness and risks" --compact
 
 # Claude Code
 claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
@@ -366,6 +368,12 @@ Return cited retrieval context for an agent or model:
 pnpm exec mimir ask "What evidence supports offline operation?"
 ```
 
+Run an audit-backed multi-query research pass before a broad synthesis or implementation task:
+
+```bash
+pnpm exec mimir research "release readiness and risks" --compact
+```
+
 Measure recall against a golden query file:
 
 ```bash
@@ -487,10 +495,11 @@ Start the MCP server from the repository root when a compatible agent needs tool
 pnpm exec mimir serve-mcp
 ```
 
-The MCP server exposes `mimir_status`, `mimir_search`, `mimir_ask`, `mimir_audit`,
-`mimir_evaluate`, `mimir_usage_report`, and `mimir_security_audit`. The LLM does not need to know
-about LanceDB or the raw file layout; it asks Mimir for ranked passages, cited context, local recall
-gates, or metadata-only usage summaries and uses the returned citations.
+The MCP server exposes `mimir_status`, `mimir_search`, `mimir_ask`, `mimir_research`,
+`mimir_audit`, `mimir_evaluate`, `mimir_usage_report`, and `mimir_security_audit`. The LLM does not
+need to know about LanceDB or the raw file layout; it asks Mimir for ranked passages, cited context,
+audit-backed research, local recall gates, or metadata-only usage summaries and uses the returned
+citations.
 
 Per-agent setup details live in [`docs/agent-integration.md`](./docs/agent-integration.md).
 
@@ -606,7 +615,8 @@ Mimir supports common text, document, data, config, log, and source-code files o
 - HTML: `.html`, `.htm`
 - EPUB: `.epub`
 - PDF: `.pdf`
-- Office/OpenDocument: `.docx`, `.pptx`, `.xls`, `.xlsx`, `.odt`, `.ods`, `.odp`
+- Office/OpenDocument: `.docx`, `.pptx`, `.xlsx`, `.odt`, `.ods`, `.odp`
+- Legacy Excel: convert `.xls` workbooks to `.xlsx`, CSV, PDF, HTML, or text before ingesting
 - Legacy Word: `.doc` only when an explicit local `legacyWordCommand` is configured
 - Rich text: `.rtf`
 - Notebook: `.ipynb`
@@ -740,10 +750,10 @@ Mimir ships two CLIs:
 - `mimir`: the main local RAG, MCP, skills, security, and audio command. `kb` remains a legacy alias for compatibility.
 - `mimir-tts`: the standalone text-to-speech renderer used by `mimir audio`.
 
-Most users start with `mimir setup`, `mimir doctor`, `mimir ingest`, `mimir search`, `mimir ask`, and
-`mimir security-audit`. Use `mimir models pull --enable` before semantic offline ingestion when
-remote model download is acceptable, and `mimir ingest --rebuild` after switching embedding provider
-or model.
+Most users start with `mimir setup`, `mimir doctor`, `mimir ingest`, `mimir search`, `mimir ask`,
+`mimir research`, and `mimir security-audit`. Use `mimir models pull --enable` before semantic
+offline ingestion when remote model download is acceptable, and `mimir ingest --rebuild` after
+switching embedding provider or model.
 
 The full command and option table lives in [`docs/cli-reference.md`](./docs/cli-reference.md).
 
@@ -788,7 +798,7 @@ core features:
 | LanceDB | Local vector storage and nearest-neighbor retrieval. |
 | MCP SDK | MCP server for compatible agents. |
 | fast-glob | Safe source-file discovery. |
-| unpdf, mammoth, xlsx, html-to-text, yaml, fflate | Document parsing for PDF, Office, HTML, YAML, OpenDocument, and EPUB files. |
+| unpdf, mammoth, read-excel-file, html-to-text, yaml, fflate | Document parsing for PDF, Office, HTML, YAML, OpenDocument, and EPUB files. |
 | commander, zod, picocolors | CLI, config validation, readable terminal output. |
 
 Removing more dependencies is possible only by dropping features or replacing them with smaller
@@ -851,8 +861,9 @@ pnpm validate
 CI checks that generated `dist/` files match the source.
 
 The root package is private and only orchestrates workspace tasks. npm publishing is handled by the
-protected `Publish npm` GitHub Actions workflow, which publishes `@jcode.labs/mimir-tts` before
-`@jcode.labs/mimir`.
+protected `Release npm` GitHub Actions workflow on `main`. semantic-release derives the version from
+Conventional Commits, prepares both package tarballs, publishes `@jcode.labs/mimir-tts` first, then
+publishes `@jcode.labs/mimir`.
 
 Build from source:
 

@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, develop]
   push:
-    branches: [main, develop, "feature/**"]
+    branches: [main, develop, "feature/**", "release/**", "hotfix/**"]
   merge_group:
 
 permissions:
@@ -34,6 +34,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Security dependency audit
+        run: pnpm audit:security
 
       - name: Lint and format check
         run: pnpm lint

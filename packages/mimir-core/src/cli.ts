@@ -13,6 +13,7 @@ import { initProject } from "./init.js"
 import { serveMcp } from "./mcp.js"
 import { mimirCommand } from "./package-manager.js"
 import { ask, search } from "./query.js"
+import { compactResearchReport, compactSearchResults, research } from "./research.js"
 import { securityAudit } from "./security.js"
 import { enableSemanticEmbeddings } from "./semantic-config.js"
 import { setupProject } from "./setup.js"
@@ -26,6 +27,7 @@ import {
   SUPPORTED_AGENT_TARGETS,
 } from "./skill.js"
 import { countRows } from "./store.js"
+import type { ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
@@ -199,33 +201,43 @@ program
   .description("Retrieve the most relevant passages without calling an LLM.")
   .argument("<query>", "Search query.")
   .option("-k, --top-k <number>", "Number of passages to return.", parsePositiveInt)
+  .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
-  .action(async (query: string, options: { topK?: number; json?: boolean }, command: Command) => {
-    const cwd = projectRoot(command)
-    const results = await search(query, withTopK(cwd, options.topK))
-    if (options.json) {
-      console.log(JSON.stringify({ query, results }, null, 2))
-      if (results.length === 0) {
-        process.exitCode = 1
+  .action(
+    async (
+      query: string,
+      options: { topK?: number; compact?: boolean; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      const results = await search(query, withTopK(cwd, options.topK))
+      const outputResults = options.compact ? compactSearchResults(results) : results
+      if (options.json) {
+        console.log(JSON.stringify({ query, results: outputResults }, null, 2))
+        if (results.length === 0) {
+          process.exitCode = 1
+        }
+        return
       }
-      return
-    }
 
-    if (results.length === 0) {
-      const repairCommand = await mimirCommand(cwd, ["doctor", "--fix"])
-      console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`))
-      process.exitCode = 1
-      return
-    }
+      if (results.length === 0) {
+        const repairCommand = await mimirCommand(cwd, ["doctor", "--fix"])
+        console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`))
+        process.exitCode = 1
+        return
+      }
 
-    for (const [index, result] of results.entries()) {
-      const distance = result.distance === null ? "n/a" : result.distance.toFixed(4)
-      console.log(
-        `\n${pc.cyan(`[${index + 1}] ${result.relativePath}`)} chunk=${result.chunkIndex} distance=${distance}`,
-      )
-      console.log(result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH))
-    }
-  })
+      for (const [index, result] of outputResults.entries()) {
+        const distance = result.distance === null ? "n/a" : result.distance.toFixed(4)
+        console.log(
+          `\n${pc.cyan(`[${index + 1}] ${result.relativePath}`)} chunk=${result.chunkIndex} distance=${distance}`,
+        )
+        console.log(
+          "snippet" in result ? result.snippet : result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH),
+        )
+      }
+    },
+  )
 
 program
   .command("ask")
@@ -252,6 +264,41 @@ program
       }
     }
   })
+
+program
+  .command("research")
+  .description("Run an audit-backed multi-query research pass with cited evidence.")
+  .argument("<query>", "Research question or topic.")
+  .option("-k, --top-k <number>", "Maximum number of evidence passages to keep.", parsePositiveInt)
+  .option("--no-code", "Skip the lightweight repository code search.")
+  .option("--compact", "Return snippets instead of full retrieved passages.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (
+      query: string,
+      options: { topK?: number; code?: boolean; compact?: boolean; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      const researchOptions: Parameters<typeof research>[1] = { cwd }
+      addOption(researchOptions, "topK", options.topK)
+      addOption(researchOptions, "includeCode", options.code)
+      const report = await research(query, researchOptions)
+      const output = options.compact ? compactResearchReport(report) : report
+      if (options.json) {
+        console.log(JSON.stringify(output, null, 2))
+        if (!report.ready) {
+          process.exitCode = 1
+        }
+        return
+      }
+
+      printResearchReport(output)
+      if (!report.ready) {
+        process.exitCode = 1
+      }
+    },
+  )
 
 program
   .command("evaluate")
@@ -337,6 +384,9 @@ program
     console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
     console.log(`missingFromIndex=${report.missingFromIndex.length}`)
     console.log(`staleInIndex=${report.staleInIndex.length}`)
+    console.log(`duplicateCandidates=${report.sourceDiagnostics.duplicateCandidates.length}`)
+    console.log(`archiveCandidates=${report.sourceDiagnostics.archiveCandidates.length}`)
+    console.log(`mirrorCandidates=${report.sourceDiagnostics.mirrorCandidates.length}`)
     printUnsupportedSummary(report.unsupportedExtensions)
 
     for (const file of report.missingFromIndex) {
@@ -351,6 +401,21 @@ program
           pc.yellow(
             `skipped: ${file.relativePath} reason=${file.reason} recommendation=${file.recommendation}`,
           ),
+        )
+      }
+      for (const candidate of report.sourceDiagnostics.duplicateCandidates) {
+        console.log(
+          pc.yellow(`duplicate-candidate: ${candidate.key} files=${candidate.files.join(",")}`),
+        )
+      }
+      for (const candidate of report.sourceDiagnostics.archiveCandidates) {
+        console.log(
+          pc.yellow(`archive-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
+        )
+      }
+      for (const candidate of report.sourceDiagnostics.mirrorCandidates) {
+        console.log(
+          pc.yellow(`mirror-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
         )
       }
     } else if (report.skippedFiles.length > 0) {
@@ -831,6 +896,75 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   for (const step of report.nextSteps) {
     console.log(`  - ${step}`)
   }
+}
+
+function printResearchReport(
+  report: ResearchReport | ReturnType<typeof compactResearchReport>,
+): void {
+  console.log(`query=${report.query}`)
+  console.log(`ready=${report.ready}`)
+  console.log(`generatedQueries=${report.generatedQueries.length}`)
+  console.log(
+    `audit.supportedFiles=${report.audit.supportedFiles} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`,
+  )
+  console.log(`securityWarnings=${report.securityWarnings.length}`)
+  console.log(
+    `sourceDiagnostics.duplicates=${report.sourceDiagnostics.duplicateCandidates.length} sourceDiagnostics.archives=${report.sourceDiagnostics.archiveCandidates.length} sourceDiagnostics.mirrors=${report.sourceDiagnostics.mirrorCandidates.length}`,
+  )
+
+  if (report.sourceDiagnostics.duplicateCandidates.length > 0) {
+    console.log("")
+    console.log(pc.cyan("Duplicate Candidates:"))
+    for (const candidate of report.sourceDiagnostics.duplicateCandidates.slice(0, 5)) {
+      console.log(`  - ${candidate.key}: ${candidate.files.join(", ")}`)
+    }
+  }
+
+  if (report.evidence.length > 0) {
+    console.log("")
+    console.log(pc.cyan("Evidence:"))
+    for (const [index, evidence] of report.evidence.entries()) {
+      const distance = evidence.distance === null ? "n/a" : evidence.distance.toFixed(4)
+      console.log(
+        `  [${index + 1}] ${evidence.relativePath} chunk=${evidence.chunkIndex} distance=${distance}`,
+      )
+      console.log(`      ${researchEvidencePreview(evidence)}`)
+    }
+  }
+
+  if (report.codeEvidence.length > 0) {
+    console.log("")
+    console.log(pc.cyan("Code Evidence:"))
+    for (const evidence of report.codeEvidence.slice(0, 10)) {
+      console.log(
+        `  - ${evidence.relativePath}:${evidence.lineNumber} terms=${evidence.matchedTerms.join(",")}`,
+      )
+      console.log(`      ${evidence.snippet}`)
+    }
+  }
+
+  if (report.gaps.length > 0) {
+    console.log("")
+    console.log(pc.yellow("Gaps:"))
+    for (const gap of report.gaps) {
+      console.log(pc.yellow(`  - ${gap}`))
+    }
+  }
+
+  console.log("")
+  console.log(pc.cyan("Next Steps:"))
+  for (const step of report.nextSteps) {
+    console.log(`  - ${step}`)
+  }
+}
+
+function researchEvidencePreview(
+  evidence: ResearchReport["evidence"][number] | { snippet: string },
+): string {
+  if ("snippet" in evidence) {
+    return evidence.snippet
+  }
+  return evidence.text.replace(/\s+/gu, " ").trim().slice(0, SEARCH_TEXT_PREVIEW_LENGTH)
 }
 
 function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: string): void {
