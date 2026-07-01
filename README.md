@@ -81,11 +81,11 @@ The fastest useful path is to install Mimir in the repository, wire it into the 
 already use, then ask that agent questions grounded in local files:
 
 ```bash
-pnpm add -D @jcode.labs/mimir
-pnpm exec mimir setup
-pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
-pnpm exec mimir doctor --fix
-pnpm exec mimir research "release readiness and risks" --compact
+npm install --save-dev @jcode.labs/mimir
+npx mimir setup
+npx mimir install-agent --agents claude,codex,kimi,opencode,cline
+npx mimir doctor --fix
+npx mimir research "release readiness and risks" --compact
 
 # Claude Code
 claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
@@ -216,22 +216,22 @@ release verification, and an external security review.
 
 The package is public. Users do not need a JCode Labs account or npm token to install it.
 
-With pnpm:
-
-```bash
-pnpm add -D @jcode.labs/mimir
-```
-
 With npm:
 
 ```bash
 npm install --save-dev @jcode.labs/mimir
 ```
 
+With pnpm:
+
+```bash
+pnpm add -D @jcode.labs/mimir
+```
+
 Install the standalone TTS package only when you want to use it directly:
 
 ```bash
-pnpm add -D @jcode.labs/mimir-tts
+npm install --save-dev @jcode.labs/mimir-tts
 ```
 
 Maintainer tokens are only needed to publish new versions.
@@ -242,7 +242,7 @@ Initialize a repository, install the portable agent kit, run readiness checks, a
 when supported files are already present:
 
 ```bash
-pnpm exec mimir setup
+npx mimir setup
 ```
 
 Fresh setup keeps local state under one ignored `.mimir/` folder:
@@ -268,18 +268,18 @@ Fresh setup keeps local state under one ignored `.mimir/` folder:
 ```
 
 It detects the repository package manager and writes the MCP helper files with the right command:
-`pnpm exec mimir serve-mcp`, `npx mimir serve-mcp`, `yarn exec mimir serve-mcp`, or `bunx mimir serve-mcp`.
+`npx mimir serve-mcp`, `pnpm exec mimir serve-mcp`, `yarn exec mimir serve-mcp`, or `bunx mimir serve-mcp`.
 When a repository needs a wrapper script or only a subset of agent helpers, make that explicit during
 setup:
 
 ```bash
-pnpm exec mimir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
+npx mimir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
 ```
 
 For the usual agent-first workflow, expose Mimir to the coding assistants used in the repository:
 
 ```bash
-pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
+npx mimir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 Then wire the agent you use. Claude Code, Codex, and Cline follow the standard MCP shapes from their
@@ -309,13 +309,13 @@ context.
 Check readiness at any time:
 
 ```bash
-pnpm exec mimir doctor
+npx mimir doctor
 ```
 
 If files are missing from the index, stale, or the setup is incomplete, run:
 
 ```bash
-pnpm exec mimir doctor --fix
+npx mimir doctor --fix
 ```
 
 `doctor --fix` performs safe repairs: missing scaffolding, Git ignore entries, agent kit install, and
@@ -342,8 +342,8 @@ Put supported files under `.mimir/raw/`:
 Build the local index:
 
 ```bash
-pnpm exec mimir ingest
-pnpm exec mimir doctor
+npx mimir ingest
+npx mimir doctor
 ```
 
 When the index is ready, `mimir doctor` prints `ready=true`. `mimir ingest` and `mimir audit` also report
@@ -353,45 +353,45 @@ or the file name looks like a secret/private key.
 List skipped paths explicitly:
 
 ```bash
-pnpm exec mimir audit --unsupported
+npx mimir audit --unsupported
 ```
 
 Summarize recent metadata-only usage without exposing raw queries or local paths:
 
 ```bash
-pnpm exec mimir usage-report --days 7
+npx mimir usage-report --days 7
 ```
 
 Retrieve exact passages:
 
 ```bash
-pnpm exec mimir search "approval for offline operation"
+npx mimir search "approval for offline operation"
 ```
 
 Return cited retrieval context for an agent or model:
 
 ```bash
-pnpm exec mimir ask "What evidence supports offline operation?"
+npx mimir ask "What evidence supports offline operation?"
 ```
 
 Run an audit-backed multi-query research pass before a broad synthesis or implementation task:
 
 ```bash
-pnpm exec mimir research "release readiness and risks" --compact
+npx mimir research "release readiness and risks" --compact
 ```
 
 Measure recall against a golden query file:
 
 ```bash
-pnpm exec mimir evaluate --golden golden-queries.json
+npx mimir evaluate --golden golden-queries.json
 ```
 
 For private dogfooding, keep the real corpus and golden query file outside Git or under an ignored
 local path, then use a threshold that matches the evaluation phase:
 
 ```bash
-pnpm exec mimir --project-root /path/to/workspace ingest
-pnpm exec mimir --project-root /path/to/workspace evaluate --golden .mimir/evaluations/golden-queries.json --fail-under 0.8 --json
+npx mimir --project-root /path/to/workspace ingest
+npx mimir --project-root /path/to/workspace evaluate --golden .mimir/evaluations/golden-queries.json --fail-under 0.8 --json
 ```
 
 The JSON report includes the active `embeddingProvider` and `embeddingModel`, so you can compare
@@ -400,12 +400,12 @@ default local-hash recall with a private Transformers semantic run without stori
 Mimir does not synthesize an LLM answer. It returns cited local passages; your chosen agent or model
 does the writing around those passages.
 
-With npm, use `npx` after installing the package:
+With pnpm, use `pnpm exec` after installing the package:
 
 ```bash
-npx mimir setup
-npx mimir doctor
-npx mimir search "approval for offline operation"
+pnpm exec mimir setup
+pnpm exec mimir doctor
+pnpm exec mimir search "approval for offline operation"
 ```
 
 ## Choose A Retrieval Mode
@@ -428,9 +428,9 @@ lexical/hash-based, not semantic.
 Commands:
 
 ```bash
-pnpm exec mimir ingest
-pnpm exec mimir search "offline retrieval approval"
-pnpm exec mimir ask "What evidence supports offline operation?"
+npx mimir ingest
+npx mimir search "offline retrieval approval"
+npx mimir ask "What evidence supports offline operation?"
 ```
 
 `mimir ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
@@ -454,9 +454,9 @@ Use this when you want better semantic retrieval while keeping Mimir core free o
 Commands:
 
 ```bash
-pnpm exec mimir models pull --enable
-pnpm exec mimir ingest
-pnpm exec mimir ask "Which passages support offline operation?"
+npx mimir models pull --enable
+npx mimir ingest
+npx mimir ask "Which passages support offline operation?"
 ```
 
 `mimir models pull` intentionally allows a one-time download from Hugging Face into
@@ -472,9 +472,9 @@ Mimir ships with portable agent skills and a standard MCP server.
 Use `mimir setup` for the normal path, or install only the agent layer later:
 
 ```bash
-pnpm exec mimir install-skill
-pnpm exec mimir install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
-pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
+npx mimir install-skill
+npx mimir install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
+npx mimir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 The bundled skill is also directly installable from this repository with the
@@ -506,7 +506,7 @@ cat .mimir/cline-mcp.json
 Start the MCP server from the repository root when a compatible agent needs tool access:
 
 ```bash
-pnpm exec mimir serve-mcp
+npx mimir serve-mcp
 ```
 
 The MCP server exposes `mimir_status`, `mimir_search`, `mimir_ask`, `mimir_research`,
@@ -524,9 +524,9 @@ Mimir includes a plug-and-play text-to-speech path for listenable summaries.
 For the same quality path as the global Voice Forge skill, install `edge-tts` and render MP3:
 
 ```bash
-pnpm exec mimir audio --doctor
+npx mimir audio --doctor
 pipx install edge-tts
-pnpm exec mimir audio /tmp/MIMIR-SUMMARY-project.txt \
+npx mimir audio /tmp/MIMIR-SUMMARY-project.txt \
   --engine edge \
   --out .mimir/audio/project-summary.mp3
 ```
@@ -539,7 +539,7 @@ By default, `mimir audio` uses the Transformers.js WAV path. For confidential or
 preload Transformers.js-compatible model files with non-sensitive text, then render WAV offline:
 
 ```bash
-pnpm exec mimir audio /tmp/MIMIR-SUMMARY-project.txt \
+npx mimir audio /tmp/MIMIR-SUMMARY-project.txt \
   --engine transformers \
   --offline \
   --model-path .mimir/models/tts \
@@ -549,8 +549,8 @@ pnpm exec mimir audio /tmp/MIMIR-SUMMARY-project.txt \
 Use the standalone package directly:
 
 ```bash
-pnpm exec mimir-tts doctor --json
-pnpm exec mimir-tts render /tmp/MIMIR-SUMMARY-project.txt \
+npx mimir-tts doctor --json
+npx mimir-tts render /tmp/MIMIR-SUMMARY-project.txt \
   --engine edge \
   --out .mimir/audio/project-summary.mp3
 ```
@@ -602,13 +602,13 @@ Mimir is designed for private repositories and sensitive local evidence.
 Run:
 
 ```bash
-pnpm exec mimir security-audit --strict
+npx mimir security-audit --strict
 ```
 
 Remove the generated vector index:
 
 ```bash
-pnpm exec mimir destroy-index --yes
+npx mimir destroy-index --yes
 ```
 
 `destroy-index` does not securely erase SSD or copy-on-write storage. For strong deletion
@@ -660,7 +660,7 @@ Custom UTF-8 text extensions can be enabled without changing code:
 Or through:
 
 ```bash
-MIMIR_INCLUDE_EXTENSIONS=".transcript,.evidence" pnpm exec mimir ingest
+MIMIR_INCLUDE_EXTENSIONS=".transcript,.evidence" npx mimir ingest
 ```
 
 Audio/video files and formats that are not listed are not useful to Mimir as-is. They can still be
@@ -789,13 +789,13 @@ The full public TypeScript API reference lives in
 Use `mimir doctor` first. It is the shortest path to the next useful action:
 
 ```bash
-pnpm exec mimir doctor
+npx mimir doctor
 ```
 
 Use `doctor --fix` when you want Mimir to repair safe setup issues automatically:
 
 ```bash
-pnpm exec mimir doctor --fix
+npx mimir doctor --fix
 ```
 
 Common fixes for empty indexes, weak search, strict security audit failures, and TTS setup live in

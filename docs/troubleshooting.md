@@ -3,13 +3,13 @@
 Use `mimir doctor` first. It is the shortest path to the next useful action:
 
 ```bash
-pnpm exec mimir doctor
+npx mimir doctor
 ```
 
 Use `doctor --fix` when you want Mimir to repair safe setup issues automatically:
 
 ```bash
-pnpm exec mimir doctor --fix
+npx mimir doctor --fix
 ```
 
 ## `mimir doctor` Says The Project Is Not Initialized
@@ -17,8 +17,8 @@ pnpm exec mimir doctor --fix
 Run:
 
 ```bash
-pnpm exec mimir setup
-pnpm exec mimir doctor
+npx mimir setup
+npx mimir doctor
 ```
 
 Commit only safe scaffolding if this is a real repository. Do not commit local Mimir state, env
@@ -30,8 +30,8 @@ Check that supported files exist under `.mimir/raw/`:
 
 ```bash
 find .mimir/raw -maxdepth 2 -type f
-pnpm exec mimir ingest
-pnpm exec mimir doctor
+npx mimir ingest
+npx mimir doctor
 ```
 
 If documents live elsewhere, add one path per line to `.mimir/sources.txt`. Relative paths resolve from
@@ -40,7 +40,7 @@ the project root.
 If files exist but are not supported yet, inspect the skipped inventory:
 
 ```bash
-pnpm exec mimir audit --unsupported
+npx mimir audit --unsupported
 ```
 
 Then follow the per-file recommendation: convert unsupported binaries to a supported format,
@@ -117,14 +117,14 @@ working offline:
 When remote download is acceptable, preload the configured embedding model first:
 
 ```bash
-pnpm exec mimir models pull --enable
+npx mimir models pull --enable
 ```
 
 Switching providers requires a full re-ingest:
 
 ```bash
-pnpm exec mimir ingest --rebuild
-pnpm exec mimir doctor
+npx mimir ingest --rebuild
+npx mimir doctor
 ```
 
 ## `mimir audit` Reports Missing Or Stale Files
@@ -132,14 +132,14 @@ pnpm exec mimir doctor
 Run:
 
 ```bash
-pnpm exec mimir ingest
-pnpm exec mimir audit
+npx mimir ingest
+npx mimir audit
 ```
 
 Or let doctor perform the safe incremental update:
 
 ```bash
-pnpm exec mimir doctor --fix
+npx mimir doctor --fix
 ```
 
 Mimir incrementally reuses unchanged indexed rows on normal `mimir ingest`. Use `mimir ingest --rebuild`
@@ -158,8 +158,8 @@ Read the warning lines. Common causes:
 Run the safe repair command if Git ignore entries are missing:
 
 ```bash
-pnpm exec mimir doctor --fix
-pnpm exec mimir security-audit --strict
+npx mimir doctor --fix
+npx mimir security-audit --strict
 ```
 
 ## MP3 Audio Fails Without `--engine edge`
@@ -167,7 +167,7 @@ pnpm exec mimir security-audit --strict
 This is intentional. MP3 output uses online Edge TTS and requires explicit consent:
 
 ```bash
-pnpm exec mimir audio /tmp/summary.txt \
+npx mimir audio /tmp/summary.txt \
   --engine edge \
   --out .mimir/audio/summary.mp3
 ```
@@ -175,7 +175,7 @@ pnpm exec mimir audio /tmp/summary.txt \
 For confidential or offline work, use WAV:
 
 ```bash
-pnpm exec mimir audio /tmp/summary.txt \
+npx mimir audio /tmp/summary.txt \
   --engine transformers \
   --offline \
   --out .mimir/audio/summary.wav
@@ -187,7 +187,7 @@ Install the external CLI:
 
 ```bash
 pipx install edge-tts
-pnpm exec mimir audio --doctor
+npx mimir audio --doctor
 ```
 
 Only use Edge TTS when sending narration text to the online service is acceptable.
@@ -201,7 +201,7 @@ For a first online setup, use non-sensitive text:
 
 ```bash
 printf 'Mimir offline speech preload check.' > /tmp/mimir-tts-preload.txt
-pnpm exec mimir-tts render /tmp/mimir-tts-preload.txt \
+npx mimir-tts render /tmp/mimir-tts-preload.txt \
   --engine transformers \
   --allow-remote-models \
   --model-path .mimir/models/tts \
@@ -211,7 +211,7 @@ pnpm exec mimir-tts render /tmp/mimir-tts-preload.txt \
 Then reuse the cached files with:
 
 ```bash
-pnpm exec mimir-tts render /tmp/mimir-tts-preload.txt \
+npx mimir-tts render /tmp/mimir-tts-preload.txt \
   --offline \
   --model-path .mimir/models/tts \
   --out .mimir/audio/offline-check.wav

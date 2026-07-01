@@ -7,6 +7,7 @@
   "license": "MIT",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
+    "bootstrap": "mise install && pnpm install",
     "audit:security": "pnpm audit --audit-level moderate",
     "build": "pnpm --filter @jcode.labs/mimir-ui build && pnpm --filter @jcode.labs/mimir-app build && pnpm --filter @jcode.labs/mimir-landing build && pnpm --filter @jcode.labs/mimir-license-webhook build && pnpm --filter @jcode.labs/mimir-tts build && pnpm --filter @jcode.labs/mimir build",
     "check": "pnpm --filter @jcode.labs/mimir-ui check && pnpm --filter @jcode.labs/mimir-app check && pnpm --filter @jcode.labs/mimir-landing check && pnpm --filter @jcode.labs/mimir-license-webhook check && pnpm --filter @jcode.labs/mimir-tts check && pnpm --filter @jcode.labs/mimir check",

@@ -5,22 +5,22 @@ Mimir ships with portable agent skills and a standard MCP server.
 If `mimir setup` was not used, install the agent kit into a repository:
 
 ```bash
-pnpm exec mimir install-skill
+npx mimir install-skill
 ```
 
 By default this writes helper files for every supported agent. To keep a repository focused on only
 the agents it uses, pass a comma-separated target list:
 
 ```bash
-pnpm exec mimir setup --agents claude,codex
-pnpm exec mimir install-skill --agents claude,codex
+npx mimir setup --agents claude,codex
+npx mimir install-skill --agents claude,codex
 ```
 
 If an agent must launch Mimir through a repository wrapper, generate the MCP helpers with that
 command:
 
 ```bash
-pnpm exec mimir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
+npx mimir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
 ```
 
 This creates:
@@ -54,9 +54,9 @@ read the generated `.mimir/README.md` and use the MCP config snippet.
 For native discovery in a specific agent, install only the agent you use:
 
 ```bash
-pnpm exec mimir install-agent --agents claude
-pnpm exec mimir install-agent --agents kimi
-pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
+npx mimir install-agent --agents claude
+npx mimir install-agent --agents kimi
+npx mimir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 By default, `install-agent` writes project-scope skill folders as links back to `.mimir/skills/`.
@@ -74,7 +74,7 @@ That keeps one original version of every skill. Add `--scope user` for global in
 Start the MCP server from the repository root:
 
 ```bash
-pnpm exec mimir serve-mcp
+npx mimir serve-mcp
 ```
 
 For a repository-level protocol smoke test, run the synthetic demo client:
@@ -104,8 +104,8 @@ usage summaries and uses the returned citations.
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup --agents claude
-pnpm exec mimir install-agent --agents claude
+npx mimir setup --agents claude
+npx mimir install-agent --agents claude
 claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
 ```
 
@@ -119,8 +119,8 @@ config.
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup --agents codex
-pnpm exec mimir install-agent --agents codex
+npx mimir setup --agents codex
+npx mimir install-agent --agents codex
 cat .mimir/codex-mcp.toml
 ```
 
@@ -133,8 +133,8 @@ skills.
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup --agents kimi
-pnpm exec mimir install-agent --agents kimi
+npx mimir setup --agents kimi
+npx mimir install-agent --agents kimi
 kimi --mcp-config-file .mimir/kimi-mcp.json
 ```
 
@@ -148,8 +148,8 @@ Kimi's global MCP file if you intentionally want a global setup. If you prefer n
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup --agents opencode
-pnpm exec mimir install-agent --agents opencode
+npx mimir setup --agents opencode
+npx mimir install-agent --agents opencode
 cat .mimir/opencode.jsonc
 ```
 
@@ -160,8 +160,8 @@ Copy or merge the generated snippet into the OpenCode config layer you use for t
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup --agents cline
-pnpm exec mimir install-agent --agents cline
+npx mimir setup --agents cline
+npx mimir install-agent --agents cline
 cat .mimir/cline-mcp.json
 ```
 
@@ -194,5 +194,5 @@ Git.
 Print the bundled skill path from the installed package:
 
 ```bash
-pnpm exec mimir skill-path
+npx mimir skill-path
 ```

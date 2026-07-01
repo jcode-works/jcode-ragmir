@@ -34,15 +34,15 @@ evidence.
 ## Install
 
 ```bash
-pnpm add -D @jcode.labs/mimir
+npm install --save-dev @jcode.labs/mimir
 ```
 
 ## Quick Start
 
 ```bash
-pnpm exec mimir setup
-pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
-pnpm exec mimir doctor --fix
+npx mimir setup
+npx mimir install-agent --agents claude,codex,kimi,opencode,cline
+npx mimir doctor --fix
 
 # Claude Code
 claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
@@ -60,7 +60,7 @@ cat .mimir/opencode.jsonc
 cat .mimir/cline-mcp.json
 ```
 
-Use `pnpm exec mimir setup --agents claude,codex --mcp-command ./scripts/serve-mcp.sh` when a
+Use `npx mimir setup --agents claude,codex --mcp-command ./scripts/serve-mcp.sh` when a
 repository should generate only selected MCP helpers or launch through a local wrapper.
 
 By default, Mimir keeps local config, raw documents, generated indexes, access logs, models, reports,
@@ -70,27 +70,27 @@ text. `mimir setup` adds the matching Git ignore entry for local Mimir state.
 
 The primary workflow is agent-first: Claude Code, Codex, Kimi, OpenCode, Cline, or another
 MCP-capable assistant asks Mimir for cited local context, then writes or reasons from those
-citations. For terminal checks, use `pnpm exec mimir search "your question"` or
-`pnpm exec mimir ask "your question"`. For broader implementation or review work, use
-`pnpm exec mimir research "your topic" --compact` before asking the agent to synthesize.
+citations. For terminal checks, use `npx mimir search "your question"` or
+`npx mimir ask "your question"`. For broader implementation or review work, use
+`npx mimir research "your topic" --compact` before asking the agent to synthesize.
 
-Run `pnpm exec mimir doctor --fix` later to repair missing setup or rebuild stale indexes.
-For better semantic Q&A, run `pnpm exec mimir models pull --enable`, then run
-`pnpm exec mimir ingest --rebuild`.
+Run `npx mimir doctor --fix` later to repair missing setup or rebuild stale indexes.
+For better semantic Q&A, run `npx mimir models pull --enable`, then run
+`npx mimir ingest --rebuild`.
 
 ## Entry Points
 
 - CLI: `mimir`
 - Library import: `@jcode.labs/mimir`
-- MCP server: `pnpm exec mimir serve-mcp`
-- Bundled skills: `pnpm exec mimir setup` or `pnpm exec mimir install-skill`
+- MCP server: `npx mimir serve-mcp`
+- Bundled skills: `npx mimir setup` or `npx mimir install-skill`
 
 The public TypeScript API reference is maintained in the root repository at
 [`docs/api-reference.md`](https://github.com/jcode-works/jcode-mimir/blob/main/docs/api-reference.md).
 
 ## Main Agent Setup
 
-After `pnpm exec mimir setup`, use `pnpm exec mimir install-agent --agents claude`, `--agents kimi`,
+After `npx mimir setup`, use `npx mimir install-agent --agents claude`, `--agents kimi`,
 `--agents cline`, or a comma-separated list for native agent skill discovery. Native agent folders
 link back to `.mimir/skills/` by default so there is one original skill source. Mimir Core also
 generates MCP helpers for Claude Code, Codex, Kimi, OpenCode, and Cline under `.mimir/`. See the

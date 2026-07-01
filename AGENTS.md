@@ -154,15 +154,19 @@
   `KB_PDF_OCR_COMMAND` and `KB_IMAGE_OCR_COMMAND` remain legacy aliases only.
 - Keep the repository as a simple pnpm workspace monorepo. Add Turbo only if multiple packages or
   apps start needing task caching/orchestration beyond `pnpm --filter`.
-- The Node.js version is pinned once, in `mise.toml` (via [mise](https://mise.jdx.dev/)). Bump the
-  version there only, not as a hardcoded `node-version` in individual workflow steps. CI
-  (`ci.yml`, `native-app-build.yml`) installs mise with the official `curl https://mise.run | sh`
-  script in a plain `run:` step, not the `jdx/mise-action` marketplace action — this repo's Actions
-  permissions are restricted to `actions/*`, `github/codeql-action/*`, and verified creators, and
+- The Node.js and Rust versions are each pinned once, in `mise.toml` (via
+  [mise](https://mise.jdx.dev/)); Rust is only used by `packages/mimir-app`'s Tauri shell. Bump
+  versions there only, not as a hardcoded `node-version` in individual workflow steps. Run `pnpm
+  bootstrap` (`mise install && pnpm install`) for one-command onboarding. CI (`ci.yml`,
+  `native-app-build.yml`) installs mise with the official `curl https://mise.run | sh` script in a
+  plain `run:` step, not the `jdx/mise-action` marketplace action — this repo's Actions permissions
+  are restricted to `actions/*`, `github/codeql-action/*`, and verified creators, and
   `jdx/mise-action` does not qualify. `npm-publish.yml` keeps `actions/setup-node` instead, because
   that step also wires the npm registry `.npmrc` for publishing; keep its `node-version` in sync
   with `mise.toml` by hand. pnpm stays pinned via Corepack through `packageManager` in
-  `package.json`, not duplicated in `mise.toml`.
+  `package.json`, not duplicated in `mise.toml`. Keep mise scoped to toolchain-version pinning —
+  it is not a package manager or task runner here, so don't mirror `package.json` scripts as mise
+  tasks; that would just create a second source of truth for no benefit.
 - Keep Mimir core free of Ollama. `embeddingProvider: "local-hash"` supports ingestion, search, MCP,
   and cited retrieval without a model server, but it must not be described as equivalent to semantic
   retrieval. `embeddingProvider: "transformers"` is the optional semantic embedding path.

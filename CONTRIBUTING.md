@@ -4,16 +4,17 @@ Mimir is an open-source project under the MIT License. Issues and pull requests 
 
 ## Development
 
-This repo pins its Node.js version with [mise](https://mise.jdx.dev/) (see `mise.toml`), the same
-version CI uses. Install mise, then:
+This repo pins its Node.js and Rust versions with [mise](https://mise.jdx.dev/) (see `mise.toml`),
+the same versions CI uses; Rust is only needed if you're working on `packages/mimir-app`'s Tauri
+shell. Install mise, then run the single onboarding command:
 
 ```bash
-mise install
-pnpm install
+pnpm bootstrap
 pnpm validate
 ```
 
-Without mise, any Node.js 20+ and pnpm install works too.
+`pnpm bootstrap` runs `mise install && pnpm install`. Without mise, any Node.js 20+ and pnpm install
+works too — just run `pnpm install` directly.
 
 `pnpm validate` runs Biome, a dependency security audit, TypeScript, Vitest, the production CLI/MCP
 smoke test, and npm package metadata checks.

@@ -25,15 +25,15 @@ Transformers.js path.
 ## Install
 
 ```bash
-pnpm add -D @jcode.labs/mimir-tts
+npm install --save-dev @jcode.labs/mimir-tts
 ```
 
 ## Quick Start
 
 ```bash
-pnpm exec mimir-tts doctor --json
-pnpm exec mimir-tts render /tmp/summary.txt --offline --out .mimir/audio/summary.wav
-pnpm exec mimir-tts render /tmp/summary.txt --engine edge --out .mimir/audio/summary.mp3
+npx mimir-tts doctor --json
+npx mimir-tts render /tmp/summary.txt --offline --out .mimir/audio/summary.wav
+npx mimir-tts render /tmp/summary.txt --engine edge --out .mimir/audio/summary.mp3
 ```
 
 The default engine is `transformers` for offline/confidential WAV output. Use `--engine edge` only
