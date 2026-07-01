@@ -63,7 +63,7 @@ already use, then ask that agent questions grounded in local files:
 ```bash
 pnpm add -D @jcode.labs/mimir
 pnpm exec mimir setup
-pnpm exec mimir install-agent --agents claude,codex,kimi
+pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
 pnpm exec mimir doctor --fix
 
 # Claude Code
@@ -74,6 +74,12 @@ cat .mimir/codex-mcp.toml
 
 # Kimi Code CLI
 kimi --mcp-config-file .mimir/kimi-mcp.json
+
+# OpenCode
+cat .mimir/opencode.jsonc
+
+# Cline
+cat .mimir/cline-mcp.json
 ```
 
 Use it when an agent needs grounded context over private specs, codebases, legal dossiers, tenders,
@@ -265,10 +271,11 @@ It detects the repository package manager and writes the MCP helper files with t
 For the usual agent-first workflow, expose Mimir to the coding assistants used in the repository:
 
 ```bash
-pnpm exec mimir install-agent --agents claude,codex,kimi
+pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
-Then wire the agent you use:
+Then wire the agent you use. Claude Code, Codex, and Cline follow the standard MCP shapes from their
+public docs; Kimi and OpenCode use the generated helper files that Mimir writes under `.mimir/`.
 
 ```bash
 # Claude Code: registers the local MCP server for this repository.
@@ -279,6 +286,12 @@ cat .mimir/codex-mcp.toml
 
 # Kimi Code CLI: launch Kimi with the generated Mimir MCP config.
 kimi --mcp-config-file .mimir/kimi-mcp.json
+
+# OpenCode: review and merge the generated OpenCode JSONC snippet.
+cat .mimir/opencode.jsonc
+
+# Cline: add the generated JSON under Cline's mcpServers configuration.
+cat .mimir/cline-mcp.json
 ```
 
 From the agent, ask naturally, for example: "Use Mimir to find what this repository says about
@@ -447,6 +460,25 @@ Use `mimir setup` for the normal path, or install only the agent layer later:
 ```bash
 pnpm exec mimir install-skill
 pnpm exec mimir install-agent --agents claude,codex,kimi,opencode,cline
+```
+
+Main agent examples:
+
+```bash
+# Claude Code
+claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
+
+# Codex
+cat .mimir/codex-mcp.toml
+
+# Kimi Code CLI
+kimi --mcp-config-file .mimir/kimi-mcp.json
+
+# OpenCode
+cat .mimir/opencode.jsonc
+
+# Cline
+cat .mimir/cline-mcp.json
 ```
 
 Start the MCP server from the repository root when a compatible agent needs tool access:
