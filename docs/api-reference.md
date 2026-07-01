@@ -57,6 +57,18 @@ import { setupProject } from "@jcode.labs/mimir"
 const result = await setupProject({ cwd: "/path/to/workspace", ingest: true })
 ```
 
+Use `agents`, `mcpServerName`, `mcpCommand`, and `mcpArgs` when setup should generate only selected
+agent helpers or launch MCP through a repository wrapper:
+
+```ts
+await setupProject({
+  cwd: "/path/to/workspace",
+  agents: ["claude", "codex"],
+  mcpServerName: "project-docs",
+  mcpCommand: "./scripts/serve-mcp.sh",
+})
+```
+
 Useful result fields:
 
 | Field | Meaning |
@@ -293,6 +305,9 @@ import { installSkill } from "@jcode.labs/mimir"
 
 const result = await installSkill({ cwd: "/path/to/workspace" })
 ```
+
+Pass the same `agents`, `mcpServerName`, `mcpCommand`, and `mcpArgs` options to refresh a targeted
+agent kit without re-running full setup.
 
 The installed skills are:
 

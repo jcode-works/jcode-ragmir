@@ -9,6 +9,8 @@ const PRIMARY_SKILL_NAME = "mimir";
 const AUDIO_SKILL_NAME = "mimir-audio-summary";
 const REPORT_SKILL_NAME = "mimir-markdown-report";
 const LEGAL_SKILL_NAME = "mimir-legal-dossier";
+const DEFAULT_MCP_SERVER_NAME = "mimir";
+const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]+$/u;
 const SKILL_NAMES = [
     PRIMARY_SKILL_NAME,
     AUDIO_SKILL_NAME,
@@ -71,7 +73,7 @@ export function parseAgentTargets(value) {
     if (value === undefined || value === "" || value === "all") {
         return [...SUPPORTED_AGENT_TARGETS];
     }
-    const entries = typeof value === "string" ? value.split(",") : value;
+    const entries = typeof value === "string" ? value.split(",") : value.flatMap((entry) => entry.split(","));
     const targets = new Set();
     for (const entry of entries) {
         const normalized = entry.trim().toLowerCase();
@@ -92,6 +94,9 @@ export function parseAgentTargets(value) {
 export async function installSkill(options = {}) {
     const cwd = path.resolve(options.cwd ?? process.cwd());
     const targetDir = path.resolve(cwd, options.targetDir ?? DEFAULT_SKILL_TARGET_DIR);
+    const agents = options.agents ? parseAgentTargets(options.agents) : [...SUPPORTED_AGENT_TARGETS];
+    const agentSet = new Set(agents);
+    const mcpServerName = normalizeMcpServerName(options.mcpServerName);
     const skillPath = path.join(targetDir, PRIMARY_SKILL_NAME);
     const audioSkillPath = path.join(targetDir, AUDIO_SKILL_NAME);
     const reportSkillPath = path.join(targetDir, REPORT_SKILL_NAME);
@@ -105,18 +110,47 @@ export async function installSkill(options = {}) {
     const clineConfigPath = path.join(mimirDir, "cline-mcp.json");
     const agentSetupPath = path.join(mimirDir, "agent-setup.md");
     const readmePath = path.join(mimirDir, "README.md");
+    const agentConfigPaths = {
+        claude: claudeConfigPath,
+        codex: codexConfigPath,
+        kimi: kimiConfigPath,
+        opencode: opencodeConfigPath,
+        cline: clineConfigPath,
+    };
     await mkdir(targetDir, { recursive: true });
     await mkdir(mimirDir, { recursive: true });
     await copyBundledSkills(targetDir);
-    const serveCommand = await mimirCommand(cwd, ["serve-mcp"]);
+    const serveCommand = await resolveMcpCommand(cwd, options);
     const doctorCommand = await mimirCommand(cwd, ["doctor"]);
-    const installAgentCommand = await mimirCommand(cwd, ["install-agent", "--agents", "claude,kimi"]);
-    await writeFile(mcpConfigPath, `${JSON.stringify(mcpConfig(cwd, serveCommand), null, 2)}\n`, "utf8");
-    await writeFile(claudeConfigPath, `${JSON.stringify(claudeMcpServer(serveCommand), null, 2)}\n`, "utf8");
-    await writeFile(codexConfigPath, codexMcpConfig(cwd, serveCommand), "utf8");
-    await writeFile(kimiConfigPath, `${JSON.stringify(mcpConfig(cwd, serveCommand, { MIMIR_PROJECT_ROOT: cwd }), null, 2)}\n`, "utf8");
-    await writeFile(opencodeConfigPath, opencodeConfig(cwd, serveCommand), "utf8");
-    await writeFile(clineConfigPath, `${JSON.stringify(mcpConfig(cwd, serveCommand, { MIMIR_PROJECT_ROOT: cwd }), null, 2)}\n`, "utf8");
+    const installAgentCommand = await mimirCommand(cwd, [
+        "install-agent",
+        "--agents",
+        agents.join(","),
+    ]);
+    await writeFile(mcpConfigPath, `${JSON.stringify(mcpConfig(cwd, serveCommand, undefined, mcpServerName), null, 2)}\n`, "utf8");
+    const agentHelpers = [];
+    for (const agent of SUPPORTED_AGENT_TARGETS) {
+        const helperPath = agentConfigPaths[agent];
+        if (!agentSet.has(agent)) {
+            await rm(helperPath, { force: true });
+            continue;
+        }
+        await writeAgentMcpHelper(agent, {
+            cwd,
+            serveCommand,
+            mcpServerName,
+            claudeConfigPath,
+            codexConfigPath,
+            kimiConfigPath,
+            opencodeConfigPath,
+            clineConfigPath,
+        });
+        agentHelpers.push({
+            agent,
+            label: AGENT_DESTINATIONS[agent].label,
+            path: helperPath,
+        });
+    }
     await writeFile(agentSetupPath, agentSetupGuide({
         skillPath,
         audioSkillPath,
@@ -128,6 +162,8 @@ export async function installSkill(options = {}) {
         kimiConfigPath,
         opencodeConfigPath,
         clineConfigPath,
+        agentHelpers,
+        mcpServerName,
         installAgentCommand: installAgentCommand.display,
         serveCommand: serveCommand.display,
         doctorCommand: doctorCommand.display,
@@ -144,6 +180,8 @@ export async function installSkill(options = {}) {
         opencodeConfigPath,
         clineConfigPath,
         agentSetupPath,
+        agentHelpers,
+        mcpServerName,
         installAgentCommand: installAgentCommand.display,
         serveCommand: serveCommand.display,
         doctorCommand: doctorCommand.display,
@@ -155,11 +193,7 @@ export async function installSkill(options = {}) {
         path.relative(cwd, reportSkillPath),
         path.relative(cwd, legalSkillPath),
         path.relative(cwd, mcpConfigPath),
-        path.relative(cwd, claudeConfigPath),
-        path.relative(cwd, codexConfigPath),
-        path.relative(cwd, kimiConfigPath),
-        path.relative(cwd, opencodeConfigPath),
-        path.relative(cwd, clineConfigPath),
+        ...agentHelpers.map((helper) => path.relative(cwd, helper.path)),
         path.relative(cwd, agentSetupPath),
         path.relative(cwd, readmePath),
     ];
@@ -179,6 +213,10 @@ export async function installSkill(options = {}) {
         clineConfigPath,
         agentSetupPath,
         readmePath,
+        agentHelpers,
+        mcpServerName,
+        mcpCommand: serveCommand.command,
+        mcpArgs: serveCommand.args,
         written,
     };
 }
@@ -189,7 +227,7 @@ export async function installAgentSkills(options = {}) {
     const homeDir = path.resolve(options.homeDir ?? process.env.HOME ?? process.cwd());
     const env = options.env ?? process.env;
     const agents = options.agents ?? SUPPORTED_AGENT_TARGETS;
-    const projectKit = await installSkill({ cwd });
+    const projectKit = await installSkill({ cwd, agents });
     const sourceDir = path.dirname(projectKit.skillPath);
     const installations = [];
     const written = [];
@@ -213,6 +251,49 @@ export async function installAgentSkills(options = {}) {
         installations,
         written,
     };
+}
+async function resolveMcpCommand(cwd, options) {
+    if (options.mcpCommand === undefined) {
+        if (options.mcpArgs !== undefined && options.mcpArgs.length > 0) {
+            throw new Error("--mcp-arg requires --mcp-command.");
+        }
+        return mimirCommand(cwd, ["serve-mcp"]);
+    }
+    const command = options.mcpCommand.trim();
+    if (command.length === 0) {
+        throw new Error("--mcp-command cannot be empty.");
+    }
+    const args = [...(options.mcpArgs ?? [])];
+    return {
+        command,
+        args,
+        display: formatCommand(command, args),
+    };
+}
+function normalizeMcpServerName(value) {
+    const name = value?.trim() || DEFAULT_MCP_SERVER_NAME;
+    if (!MCP_SERVER_NAME_PATTERN.test(name)) {
+        throw new Error("--mcp-name must contain only letters, numbers, underscores, or hyphens so it can be used in TOML MCP config.");
+    }
+    return name;
+}
+async function writeAgentMcpHelper(agent, input) {
+    switch (agent) {
+        case "claude":
+            await writeFile(input.claudeConfigPath, `${JSON.stringify(claudeMcpServer(input.serveCommand), null, 2)}\n`, "utf8");
+            return;
+        case "codex":
+            await writeFile(input.codexConfigPath, codexMcpConfig(input.cwd, input.serveCommand, input.mcpServerName), "utf8");
+            return;
+        case "kimi":
+            await writeFile(input.kimiConfigPath, `${JSON.stringify(mcpConfig(input.cwd, input.serveCommand, { MIMIR_PROJECT_ROOT: input.cwd }, input.mcpServerName), null, 2)}\n`, "utf8");
+            return;
+        case "opencode":
+            await writeFile(input.opencodeConfigPath, opencodeConfig(input.cwd, input.serveCommand, input.mcpServerName), "utf8");
+            return;
+        case "cline":
+            await writeFile(input.clineConfigPath, `${JSON.stringify(mcpConfig(input.cwd, input.serveCommand, { MIMIR_PROJECT_ROOT: input.cwd }, input.mcpServerName), null, 2)}\n`, "utf8");
+    }
 }
 async function copyBundledSkills(targetDir) {
     await Promise.all(SKILL_NAMES.map((skillName) => cp(bundledSkillPath(skillName), path.join(targetDir, skillName), {
@@ -286,18 +367,19 @@ function displayPath(cwd, filePath) {
     }
     return filePath;
 }
-function mcpConfig(cwd, serveCommand, env) {
+function mcpConfig(cwd, serveCommand, env, serverName = DEFAULT_MCP_SERVER_NAME) {
+    const serverConfig = {
+        command: serveCommand.command,
+        args: serveCommand.args,
+        cwd,
+    };
     const config = {
         mcpServers: {
-            mimir: {
-                command: serveCommand.command,
-                args: serveCommand.args,
-                cwd,
-            },
+            [serverName]: serverConfig,
         },
     };
     if (env) {
-        config.mcpServers.mimir.env = env;
+        serverConfig.env = env;
     }
     return config;
 }
@@ -308,8 +390,8 @@ function claudeMcpServer(serveCommand) {
         args: serveCommand.args,
     };
 }
-function codexMcpConfig(cwd, serveCommand) {
-    return `[mcp_servers.mimir]
+function codexMcpConfig(cwd, serveCommand, serverName = DEFAULT_MCP_SERVER_NAME) {
+    return `[mcp_servers.${serverName}]
 command = ${tomlString(serveCommand.command)}
 args = ${tomlArray(serveCommand.args)}
 cwd = ${tomlString(cwd)}
@@ -332,11 +414,11 @@ enabled = true
 
 `;
 }
-function opencodeConfig(cwd, serveCommand) {
+function opencodeConfig(cwd, serveCommand, serverName = DEFAULT_MCP_SERVER_NAME) {
     const config = {
         $schema: "https://opencode.ai/config.json",
         mcp: {
-            mimir: {
+            [serverName]: {
                 type: "local",
                 command: [serveCommand.command, ...serveCommand.args],
                 enabled: true,
@@ -353,6 +435,79 @@ function tomlArray(values) {
 }
 function tomlString(value) {
     return JSON.stringify(value);
+}
+function formatCommand(command, args) {
+    return [command, ...args].map(formatCommandArg).join(" ");
+}
+function formatCommandArg(value) {
+    return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value) ? value : JSON.stringify(value);
+}
+function mcpHelperGuide(input) {
+    const sections = [
+        `Generic MCP config for server \`${input.mcpServerName}\`:
+
+\`\`\`plain text
+${input.mcpConfigPath}
+\`\`\`
+
+Use the MCP server when your agent supports MCP tools. The server command is:
+
+\`\`\`bash
+${input.serveCommand}
+\`\`\``,
+    ];
+    if (hasAgentHelper(input, "claude")) {
+        sections.push(`Claude Code local MCP setup:
+
+\`\`\`bash
+claude mcp add-json --scope local ${input.mcpServerName} "$(cat ${MIMIR_DIR}/claude-mcp-server.json)"
+\`\`\`
+
+Run that command from this repository root. Mimir also reads \`CLAUDE_PROJECT_DIR\`, so the server
+uses the active Claude Code project as the knowledge-base root.`);
+    }
+    if (hasAgentHelper(input, "codex")) {
+        sections.push(`Codex setup:
+
+\`\`\`plain text
+${input.codexConfigPath}
+\`\`\`
+
+Copy that TOML snippet into \`~/.codex/config.toml\` or another trusted Codex config layer.`);
+    }
+    if (hasAgentHelper(input, "kimi")) {
+        sections.push(`Kimi Code CLI setup:
+
+\`\`\`bash
+kimi --mcp-config-file ${input.kimiConfigPath}
+\`\`\``);
+    }
+    if (hasAgentHelper(input, "opencode")) {
+        sections.push(`OpenCode setup:
+
+\`\`\`plain text
+${input.opencodeConfigPath}
+\`\`\``);
+    }
+    if (hasAgentHelper(input, "cline")) {
+        sections.push(`Cline setup:
+
+\`\`\`plain text
+${input.clineConfigPath}
+\`\`\``);
+    }
+    const missingAgents = SUPPORTED_AGENT_TARGETS.filter((agent) => !hasAgentHelper(input, agent));
+    if (missingAgents.length > 0) {
+        sections.push("Only selected MCP helper files were generated. Re-run setup or install-skill with `--agents all` if this repository later needs every supported agent helper.");
+    }
+    sections.push("For other MCP clients that cannot set a working directory, launch the server with `MIMIR_PROJECT_ROOT=/absolute/path/to/repository`.");
+    return sections.join("\n\n");
+}
+function hasAgentHelper(input, agent) {
+    return input.agentHelpers.some((helper) => helper.agent === agent);
+}
+function installAgentCommandExample(command, agents) {
+    return command.replace(/--agents [^\s]+/u, `--agents ${agents}`);
 }
 function agentKitReadme(input) {
     return `# Mimir Agent Kit
@@ -399,17 +554,7 @@ handoff notes. It prepares cited work products only; it does not provide final l
 
 ## MCP
 
-MCP config example:
-
-\`\`\`plain text
-${input.mcpConfigPath}
-\`\`\`
-
-Use the MCP server when your agent supports MCP tools. The server command is:
-
-\`\`\`bash
-${input.serveCommand}
-\`\`\`
+${mcpHelperGuide(input)}
 
 ## Native Agent Setup
 
@@ -428,44 +573,6 @@ Detailed setup notes:
 
 \`\`\`plain text
 ${input.agentSetupPath}
-\`\`\`
-
-Claude Code local MCP setup:
-
-\`\`\`bash
-claude mcp add-json --scope local mimir "$(cat ${MIMIR_DIR}/claude-mcp-server.json)"
-\`\`\`
-
-Run that command from this repository root. Mimir also reads \`CLAUDE_PROJECT_DIR\`, so the server
-uses the active Claude Code project as the knowledge-base root.
-
-For other MCP clients that cannot set a working directory, launch the server with
-\`MIMIR_PROJECT_ROOT=/absolute/path/to/repository\`.
-
-Codex setup:
-
-\`\`\`plain text
-${input.codexConfigPath}
-\`\`\`
-
-Copy that TOML snippet into \`~/.codex/config.toml\` or another trusted Codex config layer.
-
-Kimi setup:
-
-\`\`\`bash
-kimi --mcp-config-file ${input.kimiConfigPath}
-\`\`\`
-
-OpenCode setup:
-
-\`\`\`plain text
-${input.opencodeConfigPath}
-\`\`\`
-
-Cline setup:
-
-\`\`\`plain text
-${input.clineConfigPath}
 \`\`\`
 
 Before relying on retrieved context, run:
@@ -492,10 +599,10 @@ ${input.installAgentCommand}
 Examples:
 
 \`\`\`bash
-${input.installAgentCommand.replace("claude,kimi", "claude")}
-${input.installAgentCommand.replace("claude,kimi", "kimi")}
-${input.installAgentCommand.replace("claude,kimi", "claude,codex,kimi,opencode,cline")}
-${input.installAgentCommand.replace("claude,kimi", "cline")} --mode copy
+${installAgentCommandExample(input.installAgentCommand, "claude")}
+${installAgentCommandExample(input.installAgentCommand, "kimi")}
+${installAgentCommandExample(input.installAgentCommand, "claude,codex,kimi,opencode,cline")}
+${installAgentCommandExample(input.installAgentCommand, "cline")} --mode copy
 \`\`\`
 
 Default project-scope targets:
@@ -525,47 +632,7 @@ ${input.legalSkillPath}
 
 ## MCP Helpers
 
-Generic MCP:
-
-\`\`\`plain text
-${input.mcpConfigPath}
-\`\`\`
-
-Claude Code:
-
-\`\`\`bash
-claude mcp add-json --scope local mimir "$(cat ${MIMIR_DIR}/claude-mcp-server.json)"
-\`\`\`
-
-Codex:
-
-\`\`\`plain text
-${input.codexConfigPath}
-\`\`\`
-
-Kimi Code CLI:
-
-\`\`\`bash
-kimi --mcp-config-file ${input.kimiConfigPath}
-\`\`\`
-
-OpenCode:
-
-\`\`\`plain text
-${input.opencodeConfigPath}
-\`\`\`
-
-Cline:
-
-\`\`\`plain text
-${input.clineConfigPath}
-\`\`\`
-
-The MCP server command is:
-
-\`\`\`bash
-${input.serveCommand}
-\`\`\`
+${mcpHelperGuide(input)}
 
 Before relying on retrieved context, run:
 

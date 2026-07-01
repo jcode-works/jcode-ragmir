@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -52,5 +53,27 @@ describe("setupProject", () => {
     expect(second.nextSteps).toContain(
       "Run `mimir install-agent --agents claude` or another targeted agent list for native skill discovery.",
     )
+  })
+
+  it("passes targeted MCP helper options to the generated agent kit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-setup-"))
+    tempDirs.push(root)
+
+    const result = await setupProject({
+      cwd: root,
+      ingest: false,
+      agents: ["claude"],
+      mcpServerName: "local-docs",
+      mcpCommand: "./scripts/serve-mcp.sh",
+    })
+    const mcpConfig = JSON.parse(await readFile(result.agentKit.mcpConfigPath, "utf8")) as {
+      mcpServers: Record<string, { command: string; args: string[] }>
+    }
+
+    expect(mcpConfig.mcpServers["local-docs"]?.command).toBe("./scripts/serve-mcp.sh")
+    expect(mcpConfig.mcpServers["local-docs"]?.args).toEqual([])
+    expect(result.agentKit.agentHelpers.map((helper) => helper.agent)).toEqual(["claude"])
+    expect(existsSync(path.join(root, ".mimir", "codex-mcp.toml"))).toBe(false)
+    expect(existsSync(path.join(root, ".mimir", "kimi-mcp.json"))).toBe(false)
   })
 })

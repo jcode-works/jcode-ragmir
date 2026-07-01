@@ -8,6 +8,21 @@ If `mimir setup` was not used, install the agent kit into a repository:
 pnpm exec mimir install-skill
 ```
 
+By default this writes helper files for every supported agent. To keep a repository focused on only
+the agents it uses, pass a comma-separated target list:
+
+```bash
+pnpm exec mimir setup --agents claude,codex
+pnpm exec mimir install-skill --agents claude,codex
+```
+
+If an agent must launch Mimir through a repository wrapper, generate the MCP helpers with that
+command:
+
+```bash
+pnpm exec mimir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
+```
+
 This creates:
 
 ```plain text
@@ -24,6 +39,10 @@ This creates:
 .mimir/agent-setup.md
 .mimir/README.md
 ```
+
+When `--agents` is used, Mimir keeps `.mimir/mcp.json`, the skill folders, and the shared guides, but
+only writes the selected agent helper files. Previously generated unselected helper files are
+removed from `.mimir/`.
 
 Agents that support skill folders can load `.mimir/skills/mimir/` for deep local RAG usage. Load
 `.mimir/skills/mimir-audio-summary/` only when an optional spoken summary is needed. Load
@@ -85,7 +104,7 @@ usage summaries and uses the returned citations.
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup
+pnpm exec mimir setup --agents claude
 pnpm exec mimir install-agent --agents claude
 claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
 ```
@@ -100,7 +119,7 @@ config.
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup
+pnpm exec mimir setup --agents codex
 pnpm exec mimir install-agent --agents codex
 cat .mimir/codex-mcp.toml
 ```
@@ -114,7 +133,7 @@ skills.
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup
+pnpm exec mimir setup --agents kimi
 pnpm exec mimir install-agent --agents kimi
 kimi --mcp-config-file .mimir/kimi-mcp.json
 ```
@@ -129,7 +148,7 @@ Kimi's global MCP file if you intentionally want a global setup. If you prefer n
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup
+pnpm exec mimir setup --agents opencode
 pnpm exec mimir install-agent --agents opencode
 cat .mimir/opencode.jsonc
 ```
@@ -141,7 +160,7 @@ Copy or merge the generated snippet into the OpenCode config layer you use for t
 From the target repository root:
 
 ```bash
-pnpm exec mimir setup
+pnpm exec mimir setup --agents cline
 pnpm exec mimir install-agent --agents cline
 cat .mimir/cline-mcp.json
 ```

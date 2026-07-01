@@ -57,6 +57,13 @@ pnpm add -D @jcode.labs/mimir
 pnpm exec mimir setup
 ```
 
+When the repository should expose only specific agent helpers or must launch MCP through a local
+wrapper, generate the agent kit explicitly:
+
+```bash
+pnpm exec mimir setup --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
+```
+
 If the package manager is npm:
 
 ```bash
@@ -200,6 +207,10 @@ If the agent supports MCP, configure a server for the repository:
 }
 ```
 
+Generated MCP helpers use the `mimir` server name by default. Use `mimir setup --mcp-name <name>`
+or `mimir install-skill --mcp-name <name>` only when the repository needs a different stable MCP
+key.
+
 For Claude Code, run this from the target repository root after `pnpm exec mimir setup`:
 
 ```bash
@@ -276,6 +287,7 @@ the local agent kit:
 
 ```bash
 pnpm exec mimir install-skill
+pnpm exec mimir install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
 ```
 
 This creates:
@@ -284,6 +296,7 @@ This creates:
 .mimir/skills/mimir/SKILL.md
 .mimir/skills/mimir-audio-summary/SKILL.md
 .mimir/skills/mimir-markdown-report/SKILL.md
+.mimir/skills/mimir-legal-dossier/SKILL.md
 .mimir/mcp.json
 .mimir/claude-mcp-server.json
 .mimir/codex-mcp.toml
@@ -293,6 +306,9 @@ This creates:
 .mimir/agent-setup.md
 .mimir/README.md
 ```
+
+When `--agents` is used, only the selected agent-specific MCP helpers are written, and stale
+unselected helpers in `.mimir/` are removed.
 
 For native discovery, install only the agent the user uses:
 

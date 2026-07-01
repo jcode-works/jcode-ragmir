@@ -3,13 +3,17 @@ import { doctor } from "./doctor.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { mimirCommand, type PackageManager } from "./package-manager.js"
-import { type InstallSkillResult, installSkill } from "./skill.js"
+import { type AgentTarget, type InstallSkillResult, installSkill } from "./skill.js"
 import type { DoctorReport, IngestResult } from "./types.js"
 
 export interface SetupOptions {
   cwd?: string
   targetDir?: string
   ingest?: boolean
+  agents?: readonly AgentTarget[]
+  mcpServerName?: string
+  mcpCommand?: string
+  mcpArgs?: readonly string[]
 }
 
 export interface SetupResult {
@@ -29,6 +33,18 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
   const installOptions: Parameters<typeof installSkill>[0] = { cwd }
   if (options.targetDir !== undefined) {
     installOptions.targetDir = options.targetDir
+  }
+  if (options.agents !== undefined) {
+    installOptions.agents = options.agents
+  }
+  if (options.mcpServerName !== undefined) {
+    installOptions.mcpServerName = options.mcpServerName
+  }
+  if (options.mcpCommand !== undefined) {
+    installOptions.mcpCommand = options.mcpCommand
+  }
+  if (options.mcpArgs !== undefined) {
+    installOptions.mcpArgs = options.mcpArgs
   }
   const agentKit = await installSkill(installOptions)
   let report = await doctor(cwd)

@@ -233,10 +233,14 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `packages/mimir-core/skills/mimir-audio-summary/SKILL.md` is the optional bundled audio-summary skill.
 - `packages/mimir-core/skills/mimir-markdown-report/SKILL.md` is the optional bundled Markdown-report
   skill.
-- `mimir setup` must keep generating agent-specific MCP helpers for easy local use:
+- `mimir setup` must keep generating agent-specific MCP helpers for easy local use by default:
   `.mimir/claude-mcp-server.json` for `claude mcp add-json`, `.mimir/codex-mcp.toml` for Codex
   config layers, `.mimir/kimi-mcp.json` for Kimi, `.mimir/opencode.jsonc` for OpenCode, and
-  `.mimir/cline-mcp.json` for Cline.
+  `.mimir/cline-mcp.json` for Cline. Keep `--agents` available on setup/install-skill so a target
+  repository can generate only the helpers it uses and remove stale unselected helpers.
+- Keep `--mcp-name`, `--mcp-command`, and repeatable `--mcp-arg` available on setup/install-skill
+  so repositories can generate MCP helper files for a stable server name or local wrapper script
+  without post-processing `.mimir/`.
 - `mimir install-agent` owns native skill discovery for the main supported coding agents. Keep
   `--agents claude|codex|kimi|opencode|cline` targeted so a user can install only the agent they use,
   with project scope by default and user scope available through `--scope user`.

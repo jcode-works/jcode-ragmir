@@ -111,16 +111,46 @@ program
     "Directory where the skill folder should be copied.",
     ".mimir/skills",
   )
+  .option(
+    "--agents <list>",
+    `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`,
+    "all",
+  )
+  .option("--mcp-name <name>", "MCP server name used in generated config.", "mimir")
+  .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
+  .option(
+    "--mcp-arg <arg>",
+    "Argument for --mcp-command. Repeat for multiple arguments.",
+    collectOptionValue,
+    [],
+  )
   .option("--no-ingest", "Skip automatic indexing even when supported files are present.")
   .option("--json", "Print machine-readable JSON.")
   .action(
-    async (options: { targetDir: string; ingest?: boolean; json?: boolean }, command: Command) => {
+    async (
+      options: {
+        targetDir: string
+        agents: string
+        mcpName: string
+        mcpCommand?: string
+        mcpArg: string[]
+        ingest?: boolean
+        json?: boolean
+      },
+      command: Command,
+    ) => {
       const cwd = projectRoot(command)
       const setupOptions: Parameters<typeof setupProject>[0] = {
         cwd,
         targetDir: options.targetDir,
+        agents: parseAgentTargets(options.agents),
+        mcpServerName: options.mcpName,
       }
       addOption(setupOptions, "ingest", options.ingest)
+      addOption(setupOptions, "mcpCommand", options.mcpCommand)
+      if (options.mcpArg.length > 0) {
+        setupOptions.mcpArgs = options.mcpArg
+      }
       const result = await setupProject(setupOptions)
       if (options.json) {
         console.log(JSON.stringify(result, null, 2))
@@ -648,30 +678,64 @@ program
     "Directory where the skill folder should be copied.",
     ".mimir/skills",
   )
-  .action(async (options: { targetDir: string }, command: Command) => {
-    const cwd = projectRoot(command)
-    const result = await installSkill({ cwd, targetDir: options.targetDir })
-    const doctorCommand = await mimirCommand(cwd, ["doctor"])
-    console.log("Installed Mimir agent kit:")
-    for (const file of result.written) {
-      console.log(`  - ${file}`)
-    }
-    console.log(`Skill path: ${result.skillPath}`)
-    console.log(`Optional audio skill path: ${result.audioSkillPath}`)
-    console.log(`Optional Markdown report skill path: ${result.reportSkillPath}`)
-    console.log(`MCP config example: ${result.mcpConfigPath}`)
-    console.log(`Claude Code MCP server JSON: ${result.claudeConfigPath}`)
-    console.log(`Codex config TOML snippet: ${result.codexConfigPath}`)
-    console.log(`Kimi MCP config JSON: ${result.kimiConfigPath}`)
-    console.log(`OpenCode config JSONC: ${result.opencodeConfigPath}`)
-    console.log(`Cline MCP config JSON: ${result.clineConfigPath}`)
-    console.log(`Agent setup guide: ${result.agentSetupPath}`)
-    console.log("")
-    console.log("Next steps:")
-    console.log("  1. Run `mimir install-agent --agents claude` or another targeted agent list.")
-    console.log("  2. Add the MCP config from .mimir/ to the same agent when MCP tools are needed.")
-    console.log(`  3. Run \`${doctorCommand.display}\` before relying on retrieved context.`)
-  })
+  .option(
+    "--agents <list>",
+    `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`,
+    "all",
+  )
+  .option("--mcp-name <name>", "MCP server name used in generated config.", "mimir")
+  .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
+  .option(
+    "--mcp-arg <arg>",
+    "Argument for --mcp-command. Repeat for multiple arguments.",
+    collectOptionValue,
+    [],
+  )
+  .action(
+    async (
+      options: {
+        targetDir: string
+        agents: string
+        mcpName: string
+        mcpCommand?: string
+        mcpArg: string[]
+      },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      const installOptions: Parameters<typeof installSkill>[0] = {
+        cwd,
+        targetDir: options.targetDir,
+        agents: parseAgentTargets(options.agents),
+        mcpServerName: options.mcpName,
+      }
+      addOption(installOptions, "mcpCommand", options.mcpCommand)
+      if (options.mcpArg.length > 0) {
+        installOptions.mcpArgs = options.mcpArg
+      }
+      const result = await installSkill(installOptions)
+      const doctorCommand = await mimirCommand(cwd, ["doctor"])
+      console.log("Installed Mimir agent kit:")
+      for (const file of result.written) {
+        console.log(`  - ${file}`)
+      }
+      console.log(`Skill path: ${result.skillPath}`)
+      console.log(`Optional audio skill path: ${result.audioSkillPath}`)
+      console.log(`Optional Markdown report skill path: ${result.reportSkillPath}`)
+      console.log(`MCP config example: ${result.mcpConfigPath}`)
+      for (const helper of result.agentHelpers) {
+        console.log(`${helper.label} MCP helper: ${helper.path}`)
+      }
+      console.log(`Agent setup guide: ${result.agentSetupPath}`)
+      console.log("")
+      console.log("Next steps:")
+      console.log("  1. Run `mimir install-agent --agents claude` or another targeted agent list.")
+      console.log(
+        "  2. Add the MCP config from .mimir/ to the same agent when MCP tools are needed.",
+      )
+      console.log(`  3. Run \`${doctorCommand.display}\` before relying on retrieved context.`)
+    },
+  )
 
 program
   .command("install-agent")
@@ -706,11 +770,9 @@ program
       console.log("")
       console.log("MCP helper files:")
       console.log(`  - generic: ${result.projectKit.mcpConfigPath}`)
-      console.log(`  - Claude Code: ${result.projectKit.claudeConfigPath}`)
-      console.log(`  - Codex: ${result.projectKit.codexConfigPath}`)
-      console.log(`  - Kimi: ${result.projectKit.kimiConfigPath}`)
-      console.log(`  - OpenCode: ${result.projectKit.opencodeConfigPath}`)
-      console.log(`  - Cline: ${result.projectKit.clineConfigPath}`)
+      for (const helper of result.projectKit.agentHelpers) {
+        console.log(`  - ${helper.label}: ${helper.path}`)
+      }
       console.log("")
       console.log("Next steps:")
       console.log("  1. Keep editing the canonical skills under .mimir/skills/.")
@@ -754,6 +816,10 @@ function parseNumber(value: string): number {
     throw new Error("Expected a number.")
   }
   return parsed
+}
+
+function collectOptionValue(value: string, previous: string[]): string[] {
+  return [...previous, value]
 }
 
 interface GlobalOptions {
@@ -987,11 +1053,9 @@ function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: str
   console.log(`  - audio skill: ${result.agentKit.audioSkillPath}`)
   console.log(`  - report skill: ${result.agentKit.reportSkillPath}`)
   console.log(`  - MCP config: ${result.agentKit.mcpConfigPath}`)
-  console.log(`  - Claude Code MCP JSON: ${result.agentKit.claudeConfigPath}`)
-  console.log(`  - Codex config TOML: ${result.agentKit.codexConfigPath}`)
-  console.log(`  - Kimi MCP JSON: ${result.agentKit.kimiConfigPath}`)
-  console.log(`  - OpenCode JSONC: ${result.agentKit.opencodeConfigPath}`)
-  console.log(`  - Cline MCP JSON: ${result.agentKit.clineConfigPath}`)
+  for (const helper of result.agentKit.agentHelpers) {
+    console.log(`  - ${helper.label} MCP helper: ${helper.path}`)
+  }
   console.log(`  - agent setup guide: ${result.agentKit.agentSetupPath}`)
   console.log("")
   console.log(pc.cyan("Index:"))
