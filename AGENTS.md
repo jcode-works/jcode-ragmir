@@ -53,6 +53,11 @@
   under real Mimir domains, private documents, generated `.pid` files, committed secrets, internal
   GTM/pricing ledgers, or wording that presents tracked MIT source as proprietary or closed source.
   `pnpm public:smoke` enforces the cheap checks.
+- The public-surface secret scanner (`scripts/public-surface-smoke.mjs`) runs over every tracked
+  file, tests included. Never write literal secret-shaped strings in source — PEM `PRIVATE KEY`
+  headers, `ghp_`/`github_pat_`/`sk_live_`/`sk_test_` tokens, or real checkout URLs. When a test
+  needs one to exercise redaction or skipping, build it at runtime from parts (e.g. interpolate the
+  `PRIVATE KEY` label from a variable) so no scannable literal is committed.
 - Root `llms.txt` (the [llms.txt](https://llmstxt.org/) convention) and `context7.json` are the
   LLM/Context7-facing doc index for this repository. Update `llms.txt` when adding or removing a
   top-level `docs/*.md` file worth surfacing to agents, and keep `context7.json`'s
