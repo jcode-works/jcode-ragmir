@@ -38,14 +38,15 @@
   --foreground: #ffffff;
   --card: #090909;
   --card-foreground: #ffffff;
-  --primary: #ffffff;
-  --primary-foreground: #000000;
+  --primary: #8b47ff;
+  --primary-foreground: #ffffff;
   --secondary: #171717;
   --secondary-foreground: #ffffff;
   --muted: #161616;
   --muted-foreground: rgba(255, 255, 255, 0.62);
   --accent: #f1f5f9;
   --accent-foreground: #000000;
+  --accent-title: #8b47ff;
   --border: rgba(255, 255, 255, 0.12);
   --input: rgba(0, 0, 0, 0.14);
   --ring: rgba(255, 255, 255, 0.52);
@@ -87,4 +88,92 @@ textarea {
 ::selection {
   background: rgba(255, 255, 255, 0.88);
   color: #000000;
+}
+
+/* Footer marquee — seamless infinite horizontal scroll (track holds duplicated halves) */
+@keyframes marquee-text {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-marquee-text {
+  width: max-content;
+  will-change: transform;
+  animation: marquee-text 100s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee-text {
+    animation: none;
+  }
+}
+
+/* Animated glitch logo (stacked, clip-path slices), adapted from the WorkoutGen landing logo */
+@keyframes logo-glitch {
+  0% {
+    text-shadow:
+      3px 4px 0 var(--logo-glitch-a),
+      3px -4px 0 var(--logo-glitch-b);
+    transform: translate(var(--glitch-translate));
+  }
+  2% {
+    text-shadow:
+      3px -4px 0 var(--logo-glitch-a),
+      -3px 4px 0 var(--logo-glitch-b);
+  }
+  4%,
+  100% {
+    text-shadow: none;
+    transform: none;
+  }
+}
+
+.logo-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  --stacks: 3;
+  --logo-glitch-a: #8b47ff;
+  --logo-glitch-b: #22d3ee;
+}
+
+.logo-stack span {
+  grid-row-start: 1;
+  grid-column-start: 1;
+  --stack-height: calc(100% / var(--stacks) - 1px);
+  --inverse-index: calc(calc(var(--stacks) - 1) - var(--index));
+  --clip-top: calc(var(--stack-height) * var(--index));
+  --clip-bottom: calc(var(--stack-height) * var(--inverse-index));
+  clip-path: inset(var(--clip-top) 0 var(--clip-bottom) 0);
+  animation: logo-glitch ease infinite 2s alternate-reverse;
+}
+
+.logo-stack span:nth-child(odd) {
+  --glitch-translate: 8px;
+}
+
+.logo-stack span:nth-child(even) {
+  --glitch-translate: -8px;
+}
+
+.logo-index-1 {
+  --index: 0;
+}
+
+.logo-index-2 {
+  --index: 1;
+}
+
+.logo-index-3 {
+  --index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-stack span {
+    animation: none;
+    clip-path: none;
+  }
 }
