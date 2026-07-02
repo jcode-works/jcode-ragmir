@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises"
 import { findProjectConfig } from "./config.js"
 import { DEFAULT_CONFIG } from "./defaults.js"
+import { isRecord } from "./guards.js"
 import { initProject } from "./init.js"
 
 export interface EnableSemanticEmbeddingsResult {
@@ -48,8 +49,4 @@ export async function enableSemanticEmbeddings(
     embeddingModelPath,
     transformersAllowRemoteModels: false,
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }

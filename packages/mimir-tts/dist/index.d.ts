@@ -5,8 +5,12 @@ export declare const DEFAULT_TTS_ENGINE = "transformers";
 export declare const DEFAULT_TTS_ALLOW_REMOTE_MODELS = false;
 export declare const DEFAULT_EDGE_VOICE = "fr-FR-DeniseNeural";
 export declare const DEFAULT_EDGE_RATE = "+0%";
+export declare const DEFAULT_TTS_LANGUAGE: TtsLanguage;
 export type TtsEngine = "auto" | "edge" | "transformers";
 export type OutputFormat = "mp3" | "wav";
+export declare const TTS_LANGUAGES: readonly ["en", "es", "fr"];
+export type TtsLanguage = (typeof TTS_LANGUAGES)[number];
+export declare function isTtsLanguage(value: string): value is TtsLanguage;
 export interface TextToAudioOutputLike {
     save(path: string): Promise<void>;
     sampling_rate?: number;
@@ -23,6 +27,7 @@ export interface RenderSpeechOptions {
     textFile?: string;
     outputPath?: string;
     engine?: TtsEngine;
+    language?: TtsLanguage;
     model?: string;
     modelPath?: string;
     allowRemoteModels?: boolean;
@@ -37,6 +42,7 @@ export interface RenderSpeechOptions {
 export interface RenderSpeechResult {
     outputPath: string;
     engine: Exclude<TtsEngine, "auto">;
+    language: TtsLanguage;
     outputFormat: OutputFormat;
     model: string;
     modelPath: string;
@@ -49,6 +55,8 @@ export interface RenderSpeechResult {
 export interface DoctorReport {
     node: string;
     defaultEngine: TtsEngine;
+    defaultLanguage: TtsLanguage;
+    languages: TtsLanguage[];
     defaultModel: string;
     defaultModelPath: string;
     defaultAllowRemoteModels: boolean;
@@ -68,5 +76,7 @@ export interface EdgeTtsRenderOptions {
 }
 export declare function renderSpeech(options: RenderSpeechOptions): Promise<RenderSpeechResult>;
 export declare function doctor(): Promise<DoctorReport>;
+export declare function mmsModelForLanguage(language: TtsLanguage): string;
+export declare function edgeVoiceForLanguage(language: TtsLanguage): string;
 export declare function modelCacheExists(cwd?: string): boolean;
 //# sourceMappingURL=index.d.ts.map

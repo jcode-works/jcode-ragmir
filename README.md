@@ -353,8 +353,7 @@ index rebuild when supported files are present and the privacy posture has no wa
 Manual initialization is still available:
 
 ```plain text
-.mimir/config.json   # local config
-.mimir/sources.txt   # optional extra source paths
+.mimir/config.json   # local config (add extra paths to the "sources" array)
 .mimir/raw/          # raw documents to ingest
 .gitignore           # ignores .mimir/
 ```
@@ -368,20 +367,26 @@ Put supported files under `.mimir/raw/`:
   requirements.docx
 ```
 
-For monorepos or downloaded local folders, list extra paths or glob patterns in `.mimir/sources.txt`.
-Relative entries resolve from the Mimir project root, and `!` excludes matched files:
+For monorepos or downloaded local folders, add extra paths or glob patterns to the `sources` array in
+`.mimir/config.json`. Relative entries resolve from the Mimir project root, and `!` excludes matched files:
+
+```json
+{
+  "sources": [
+    "../apps/*/README.md",
+    "../apps/*/docs/**/*.{md,mdx}",
+    "../packages/*/architecture/**/*.md",
+    "!../apps/**/node_modules/**"
+  ]
+}
+```
+
+The legacy `.mimir/sources.txt` file (one entry per line) is still read when present and can be managed
+from the CLI:
 
 ```bash
 npx mimir sources add "../apps/*/README.md" "../apps/*/docs/**/*.{md,mdx}"
-npx mimir sources add "!../apps/**/node_modules/**"
 npx mimir sources list
-```
-
-```plain text
-../apps/*/README.md
-../apps/*/docs/**/*.{md,mdx}
-../packages/*/architecture/**/*.md
-!../apps/**/node_modules/**
 ```
 
 ### Team Workflow With A Shared Private Corpus
@@ -632,6 +637,7 @@ preload Transformers.js-compatible model files with non-sensitive text, then ren
 npx mimir audio /tmp/MIMIR-SUMMARY-project.txt \
   --engine transformers \
   --offline \
+  --lang fr \
   --model-path .mimir/models/tts \
   --out .mimir/audio/project-summary.wav
 ```
@@ -645,8 +651,10 @@ npx mimir-tts render /tmp/MIMIR-SUMMARY-project.txt \
   --out .mimir/audio/project-summary.mp3
 ```
 
-The default standalone engine is `transformers`. The default Transformers.js model is
-`Xenova/mms-tts-fra`. Override it with `--model` or `MIMIR_TTS_MODEL`.
+The default standalone engine is `transformers` and the default language is `fr`. Pass
+`--lang en|es|fr` (or `MIMIR_TTS_LANG`) to switch language: it selects the matching self-contained
+offline model (`Xenova/mms-tts-eng`, `Xenova/mms-tts-spa`, or `Xenova/mms-tts-fra`) and, on the Edge
+path, a native neural voice. Override the model directly with `--model` or `MIMIR_TTS_MODEL`.
 
 See [`docs/offline-tts-preload.md`](./docs/offline-tts-preload.md) for the exact preload and
 offline-check workflow.
@@ -787,6 +795,7 @@ Default `.mimir/config.json` for a fresh project:
   "rawDir": ".mimir/raw",
   "storageDir": ".mimir/storage",
   "sourcesFile": ".mimir/sources.txt",
+  "sources": [],
   "accessLogPath": ".mimir/access.log",
   "embeddingModelPath": ".mimir/models",
   "tableName": "chunks",
@@ -815,6 +824,63 @@ Default `.mimir/config.json` for a fresh project:
   "legacyWordTimeoutMs": 120000
 }
 ```
+
+Every field, its default, and what it controls:
+
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `rawDir` | `.mimir/raw` | Local corpus folder, indexed recursively. The primary place to drop documents. |
+| `sources` | `[]` | Extra file, directory, and glob paths (plus `!` exclusions) to index, resolved from the project root. See below. |
+| `sourcesFile` | `.mimir/sources.txt` | Legacy one-path-per-line file; still read and merged with `sources` when present. |
+| `storageDir` | `.mimir/storage` | LanceDB vector store location. |
+| `accessLogPath` | `.mimir/access.log` | Query access log (stores hashes/metadata only). |
+| `embeddingModelPath` | `.mimir/models` | Local cache for the Transformers.js embedding model. |
+| `tableName` | `chunks` | LanceDB table name. |
+| `embeddingProvider` | `local-hash` | `local-hash` (offline lexical, not semantic) or `transformers` (semantic). Switching requires `mimir ingest --rebuild`. |
+| `embeddingModel` | `mixedbread-ai/mxbai-embed-xsmall-v1` | Model used when `embeddingProvider` is `transformers`. |
+| `transformersAllowRemoteModels` | `false` | Allow downloading the embedding model at runtime. |
+| `redaction.enabled` | `true` | Strip secrets/PII before anything is embedded. |
+| `redaction.builtIn` | `true` | Apply the built-in secret/PII patterns. |
+| `redaction.patterns` | `[]` | Extra `{ name, pattern, flags?, replacement? }` redaction rules. |
+| `accessLog` | `true` | Record query metadata to `accessLogPath`. |
+| `mcpMaxTopK` | `10` | Hard cap on results any MCP tool may return. |
+| `topK` | `8` | Default number of passages returned by `search`/`ask`. |
+| `chunkSize` | `1200` | Characters per chunk. |
+| `chunkOverlap` | `200` | Overlapping characters between chunks (must be `< chunkSize`). |
+| `maxFileBytes` | `50000000` | Skip files larger than this. |
+| `ingestConcurrency` | `4` | Files processed in parallel during ingest. |
+| `embeddingBatchSize` | `32` | Chunks embedded per batch. |
+| `includeExtensions` | `[]` | Extra file extensions to treat as indexable text. |
+| `pdfOcrCommand`, `imageOcrCommand`, `legacyWordCommand` | `[]` | Opt-in external extractors (see below). |
+| `pdfOcrTimeoutMs`, `imageOcrTimeoutMs`, `legacyWordTimeoutMs` | `120000` | Timeouts for the external extractors. |
+
+### Extra source paths (`sources`)
+
+Mimir always indexes everything under `rawDir` (`.mimir/raw/`). To pull in files that live elsewhere —
+sibling packages in a monorepo, a shared docs folder, a downloaded directory — add them straight to the
+`sources` array in `.mimir/config.json`. No separate file is needed:
+
+```json
+{
+  "sources": [
+    "../packages/*/README.md",
+    "../docs",
+    "./NOTES.md",
+    "!../packages/**/node_modules/**"
+  ]
+}
+```
+
+Each entry is one of:
+
+- a **file** or **directory** path — relative paths resolve from the project root; directories are indexed recursively;
+- a **glob** pattern — any entry containing `*`, `?`, `[`, or `{`;
+- an **exclusion** — starts with `!` and filters the glob matches.
+
+> **Legacy `sources.txt`.** Paths listed one per line in `.mimir/sources.txt` are still read when the
+> file exists, and `mimir sources add` / `mimir sources list` continue to manage it. Entries from both
+> the `sources` array and `sources.txt` are merged, so existing projects keep working unchanged. New
+> projects should prefer the `sources` array — `mimir init` no longer creates a `sources.txt`.
 
 Environment overrides:
 

@@ -5,7 +5,6 @@ export interface MimirCommand {
     args: string[];
     display: string;
 }
-export type KbCommand = MimirCommand;
 export declare function detectPackageManager(cwd?: string): Promise<PackageManager>;
 export declare function mimirCommand(cwd: string, args: string[]): Promise<MimirCommand>;
 export declare const kbCommand: typeof mimirCommand;

@@ -8,6 +8,7 @@ import {
   LEGACY_CONFIG_PATH,
   LEGACY_DEFAULT_CONFIG,
 } from "./defaults.js"
+import { isRecord } from "./guards.js"
 import type { Config } from "./types.js"
 
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
@@ -16,6 +17,7 @@ const rawConfigSchema = z.object({
   rawDir: z.string().default(DEFAULT_CONFIG.rawDir),
   storageDir: z.string().default(DEFAULT_CONFIG.storageDir),
   sourcesFile: z.string().default(DEFAULT_CONFIG.sourcesFile),
+  sources: z.array(z.string().min(1)).default(DEFAULT_CONFIG.sources),
   accessLogPath: z.string().default(DEFAULT_CONFIG.accessLogPath),
   embeddingModelPath: z.string().default(DEFAULT_CONFIG.embeddingModelPath),
   tableName: z.string().default(DEFAULT_CONFIG.tableName),
@@ -123,6 +125,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     rawDir: resolveFromRoot(projectConfig.projectRoot, withEnv.rawDir),
     storageDir: resolveFromRoot(projectConfig.projectRoot, withEnv.storageDir),
     sourcesFile: resolveFromRoot(projectConfig.projectRoot, withEnv.sourcesFile),
+    sources: withEnv.sources,
     accessLogPath: resolveFromRoot(projectConfig.projectRoot, withEnv.accessLogPath),
     embeddingModelPath: resolveFromRoot(projectConfig.projectRoot, withEnv.embeddingModelPath),
     tableName: withEnv.tableName,
@@ -256,10 +259,6 @@ function applyEnv(config: RawConfig): RawConfig {
       config.legacyWordTimeoutMs,
     ),
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function normalizeExtensions(extensions: string[]): string[] {

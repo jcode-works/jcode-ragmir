@@ -3,10 +3,11 @@ import { recordAccess } from "./access-log.js";
 import { chunkDocument } from "./chunking.js";
 import { loadConfig } from "./config.js";
 import { embedTexts } from "./embeddings.js";
-import { inventorySourceFiles, summarizeUnsupportedExtensions } from "./files.js";
+import { countSkippedByReason, inventorySourceFiles, summarizeUnsupportedExtensions, } from "./files.js";
 import { parseFile } from "./parsing.js";
 import { redactText, totalRedactions } from "./redaction.js";
 import { openRowsTable, readEmptyTextFiles, readRows, writeEmptyTextFiles, writeRows, } from "./store.js";
+import { normalizeForMatch } from "./text.js";
 const MAX_AUDIT_ROWS = 100_000;
 const MAX_SOURCE_DIAGNOSTIC_ITEMS = 20;
 const ARCHIVE_PATH_PATTERNS = [
@@ -104,9 +105,9 @@ export async function ingest(options = {}) {
         discoveredFiles: inventory.discoveredFiles,
         supportedFiles: files.length,
         skippedFiles: inventory.skippedFiles.length + emptyTextFiles.length,
-        unsupportedFiles: countSkipped(inventory.skippedFiles, "unsupported-extension"),
-        oversizedFiles: countSkipped(inventory.skippedFiles, "oversized"),
-        sensitiveFiles: countSkipped(inventory.skippedFiles, "sensitive-name"),
+        unsupportedFiles: countSkippedByReason(inventory.skippedFiles, "unsupported-extension"),
+        oversizedFiles: countSkippedByReason(inventory.skippedFiles, "oversized"),
+        sensitiveFiles: countSkippedByReason(inventory.skippedFiles, "sensitive-name"),
         emptyTextFiles,
         unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
         redactions: totalRedactions(redactionCounts),
@@ -236,12 +237,7 @@ function groupedDuplicates(groups) {
         .map(([key, files]) => ({ key, files: [...new Set(files)].sort() }));
 }
 function normalizedLogicalName(relativePath) {
-    return path
-        .basename(relativePath, path.extname(relativePath))
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/\p{Diacritic}/gu, "")
-        .replace(/[^a-z0-9]+/gu, "");
+    return normalizeForMatch(path.basename(relativePath, path.extname(relativePath))).replace(/[^a-z0-9]+/gu, "");
 }
 async function currentEmptyTextFiles(config, files) {
     const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]));
@@ -268,8 +264,5 @@ async function mapLimit(items, concurrency, worker) {
     }
     await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => run()));
     return results;
-}
-function countSkipped(files, reason) {
-    return files.filter((file) => file.reason === reason).length;
 }
 //# sourceMappingURL=ingest.js.map

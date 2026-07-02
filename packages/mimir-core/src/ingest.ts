@@ -3,7 +3,11 @@ import { recordAccess } from "./access-log.js"
 import { chunkDocument } from "./chunking.js"
 import { loadConfig } from "./config.js"
 import { embedTexts } from "./embeddings.js"
-import { inventorySourceFiles, summarizeUnsupportedExtensions } from "./files.js"
+import {
+  countSkippedByReason,
+  inventorySourceFiles,
+  summarizeUnsupportedExtensions,
+} from "./files.js"
 import { parseFile } from "./parsing.js"
 import { redactText, totalRedactions } from "./redaction.js"
 import {
@@ -13,12 +17,12 @@ import {
   writeEmptyTextFiles,
   writeRows,
 } from "./store.js"
+import { normalizeForMatch } from "./text.js"
 import type {
   AuditReport,
   IngestOptions,
   IngestResult,
   RedactionCount,
-  SkippedSourceReason,
   SourceDiagnostics,
   SourceFile,
   TextChunk,
@@ -137,9 +141,9 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
     discoveredFiles: inventory.discoveredFiles,
     supportedFiles: files.length,
     skippedFiles: inventory.skippedFiles.length + emptyTextFiles.length,
-    unsupportedFiles: countSkipped(inventory.skippedFiles, "unsupported-extension"),
-    oversizedFiles: countSkipped(inventory.skippedFiles, "oversized"),
-    sensitiveFiles: countSkipped(inventory.skippedFiles, "sensitive-name"),
+    unsupportedFiles: countSkippedByReason(inventory.skippedFiles, "unsupported-extension"),
+    oversizedFiles: countSkippedByReason(inventory.skippedFiles, "oversized"),
+    sensitiveFiles: countSkippedByReason(inventory.skippedFiles, "sensitive-name"),
     emptyTextFiles,
     unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
     redactions: totalRedactions(redactionCounts),
@@ -312,12 +316,10 @@ function groupedDuplicates(
 }
 
 function normalizedLogicalName(relativePath: string): string {
-  return path
-    .basename(relativePath, path.extname(relativePath))
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/[^a-z0-9]+/gu, "")
+  return normalizeForMatch(path.basename(relativePath, path.extname(relativePath))).replace(
+    /[^a-z0-9]+/gu,
+    "",
+  )
 }
 
 async function currentEmptyTextFiles(
@@ -355,11 +357,4 @@ async function mapLimit<T, R>(
 
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => run()))
   return results
-}
-
-function countSkipped(
-  files: Array<{ reason: SkippedSourceReason }>,
-  reason: SkippedSourceReason,
-): number {
-  return files.filter((file) => file.reason === reason).length
 }

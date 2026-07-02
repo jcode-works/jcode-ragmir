@@ -18,6 +18,36 @@ const BUILT_IN_PATTERNS: RedactionPattern[] = [
     flags: "g",
   },
   {
+    name: "openai_api_key",
+    pattern: "\\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\\b",
+    flags: "g",
+  },
+  {
+    name: "aws_access_key_id",
+    pattern: "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b",
+    flags: "g",
+  },
+  {
+    name: "google_api_key",
+    pattern: "\\bAIza[0-9A-Za-z_-]{35}\\b",
+    flags: "g",
+  },
+  {
+    name: "slack_token",
+    pattern: "\\bxox[baprs]-[0-9A-Za-z-]{10,}\\b",
+    flags: "g",
+  },
+  {
+    name: "sendgrid_api_key",
+    pattern: "\\bSG\\.[A-Za-z0-9_-]{22}\\.[A-Za-z0-9_-]{43}\\b",
+    flags: "g",
+  },
+  {
+    name: "url_credentials",
+    pattern: "\\b[a-z][a-z0-9+.-]*://[^\\s:/@]+:[^\\s/@]+@",
+    flags: "gi",
+  },
+  {
     name: "email",
     pattern: "\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b",
     flags: "gi",
@@ -25,7 +55,7 @@ const BUILT_IN_PATTERNS: RedactionPattern[] = [
   {
     name: "iban",
     pattern: "\\b[A-Z]{2}\\d{2}[A-Z0-9]{11,30}\\b",
-    flags: "g",
+    flags: "gi",
   },
   {
     name: "credit_card",

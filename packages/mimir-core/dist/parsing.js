@@ -8,22 +8,17 @@ import readExcelFile from "read-excel-file/node";
 const mammoth = __require("mammoth");
 import { extractText, getDocumentProxy } from "unpdf";
 import YAML from "yaml";
+import { OCR_IMAGE_EXTENSIONS } from "./files.js";
 const MAX_OFFICE_XML_ENTRY_BYTES = 25_000_000;
 const MAX_EXTERNAL_TEXT_STDIO_BYTES = 25_000_000;
 const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu;
-const OCR_IMAGE_EXTENSIONS = new Set([
-    ".avif",
-    ".bmp",
-    ".gif",
-    ".heic",
-    ".heif",
-    ".jpeg",
-    ".jpg",
-    ".png",
-    ".tif",
-    ".tiff",
-    ".webp",
-]);
+const HTML_TO_TEXT_OPTIONS = {
+    wordwrap: false,
+    selectors: [
+        { selector: "a", options: { ignoreHref: true } },
+        { selector: "img", format: "skip" },
+    ],
+};
 export async function parseFile(file, options = {}) {
     let text;
     switch (file.extension) {
@@ -65,13 +60,7 @@ export async function parseFile(file, options = {}) {
             break;
         case ".html":
         case ".htm":
-            text = htmlToText(await readFile(file.absolutePath, "utf8"), {
-                wordwrap: false,
-                selectors: [
-                    { selector: "a", options: { ignoreHref: true } },
-                    { selector: "img", format: "skip" },
-                ],
-            });
+            text = htmlToText(await readFile(file.absolutePath, "utf8"), HTML_TO_TEXT_OPTIONS);
             break;
         case ".json":
         case ".ipynb":
@@ -149,13 +138,7 @@ async function parseEpub(filePath) {
         if (!/\.(?:xhtml|html|htm|xml)$/iu.test(name)) {
             continue;
         }
-        const text = htmlToText(content, {
-            wordwrap: false,
-            selectors: [
-                { selector: "a", options: { ignoreHref: true } },
-                { selector: "img", format: "skip" },
-            ],
-        });
+        const text = htmlToText(content, HTML_TO_TEXT_OPTIONS);
         if (text.trim()) {
             parts.push(text);
         }

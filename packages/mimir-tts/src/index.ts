@@ -11,9 +11,30 @@ export const DEFAULT_TTS_ENGINE = "transformers"
 export const DEFAULT_TTS_ALLOW_REMOTE_MODELS = false
 export const DEFAULT_EDGE_VOICE = "fr-FR-DeniseNeural"
 export const DEFAULT_EDGE_RATE = "+0%"
+export const DEFAULT_TTS_LANGUAGE: TtsLanguage = "fr"
 
 export type TtsEngine = "auto" | "edge" | "transformers"
 export type OutputFormat = "mp3" | "wav"
+
+export const TTS_LANGUAGES = ["en", "es", "fr"] as const
+export type TtsLanguage = (typeof TTS_LANGUAGES)[number]
+
+export function isTtsLanguage(value: string): value is TtsLanguage {
+  return (TTS_LANGUAGES as readonly string[]).includes(value)
+}
+
+// Self-contained per-language MMS models (no phonemizer, no Python) for the offline path,
+// and high-quality Microsoft neural voices for the online Edge path.
+const MMS_MODEL_BY_LANGUAGE: Record<TtsLanguage, string> = {
+  en: "Xenova/mms-tts-eng",
+  es: "Xenova/mms-tts-spa",
+  fr: DEFAULT_TTS_MODEL,
+}
+const EDGE_VOICE_BY_LANGUAGE: Record<TtsLanguage, string> = {
+  en: "en-US-AriaNeural",
+  es: "es-ES-ElviraNeural",
+  fr: DEFAULT_EDGE_VOICE,
+}
 
 export interface TextToAudioOutputLike {
   save(path: string): Promise<void>
@@ -37,6 +58,7 @@ export interface RenderSpeechOptions {
   textFile?: string
   outputPath?: string
   engine?: TtsEngine
+  language?: TtsLanguage
   model?: string
   modelPath?: string
   allowRemoteModels?: boolean
@@ -52,6 +74,7 @@ export interface RenderSpeechOptions {
 export interface RenderSpeechResult {
   outputPath: string
   engine: Exclude<TtsEngine, "auto">
+  language: TtsLanguage
   outputFormat: OutputFormat
   model: string
   modelPath: string
@@ -65,6 +88,8 @@ export interface RenderSpeechResult {
 export interface DoctorReport {
   node: string
   defaultEngine: TtsEngine
+  defaultLanguage: TtsLanguage
+  languages: TtsLanguage[]
   defaultModel: string
   defaultModelPath: string
   defaultAllowRemoteModels: boolean
@@ -89,7 +114,8 @@ export async function renderSpeech(options: RenderSpeechOptions): Promise<Render
   const cwd = path.resolve(options.cwd ?? process.cwd())
   const text = await readInputText(options)
   const engine = resolveEngine(options)
-  const model = options.model ?? process.env.MIMIR_TTS_MODEL ?? DEFAULT_TTS_MODEL
+  const language = resolveLanguage(options)
+  const model = options.model ?? process.env.MIMIR_TTS_MODEL ?? mmsModelForLanguage(language)
   const modelPath = resolveFromCwd(
     cwd,
     options.modelPath ?? process.env.MIMIR_TTS_MODEL_PATH ?? DEFAULT_TTS_MODEL_PATH,
@@ -106,7 +132,8 @@ export async function renderSpeech(options: RenderSpeechOptions): Promise<Render
 
   if (engine === "edge") {
     validateOutputFormat(outputPath, "mp3")
-    const voice = options.voice ?? process.env.MIMIR_TTS_EDGE_VOICE ?? DEFAULT_EDGE_VOICE
+    const voice =
+      options.voice ?? process.env.MIMIR_TTS_EDGE_VOICE ?? edgeVoiceForLanguage(language)
     const rate = options.rate ?? process.env.MIMIR_TTS_EDGE_RATE ?? DEFAULT_EDGE_RATE
     const renderer = options.edgeRenderer ?? edgeCliRenderer
     const edgeAvailable = options.edgeAvailable ?? edgeTtsAvailable
@@ -120,6 +147,7 @@ export async function renderSpeech(options: RenderSpeechOptions): Promise<Render
     return {
       outputPath,
       engine,
+      language,
       outputFormat: "mp3",
       model,
       modelPath,
@@ -140,6 +168,7 @@ export async function renderSpeech(options: RenderSpeechOptions): Promise<Render
   return {
     outputPath,
     engine,
+    language,
     outputFormat: "wav",
     model,
     modelPath,
@@ -155,6 +184,8 @@ export async function doctor(): Promise<DoctorReport> {
   return {
     node: process.versions.node,
     defaultEngine: DEFAULT_TTS_ENGINE,
+    defaultLanguage: DEFAULT_TTS_LANGUAGE,
+    languages: [...TTS_LANGUAGES],
     defaultModel: DEFAULT_TTS_MODEL,
     defaultModelPath: DEFAULT_TTS_MODEL_PATH,
     defaultAllowRemoteModels: DEFAULT_TTS_ALLOW_REMOTE_MODELS,
@@ -265,6 +296,23 @@ function readEngineEnv(): TtsEngine | undefined {
     return raw
   }
   return undefined
+}
+
+export function mmsModelForLanguage(language: TtsLanguage): string {
+  return MMS_MODEL_BY_LANGUAGE[language]
+}
+
+export function edgeVoiceForLanguage(language: TtsLanguage): string {
+  return EDGE_VOICE_BY_LANGUAGE[language]
+}
+
+function resolveLanguage(options: RenderSpeechOptions): TtsLanguage {
+  return options.language ?? readLanguageEnv() ?? DEFAULT_TTS_LANGUAGE
+}
+
+function readLanguageEnv(): TtsLanguage | undefined {
+  const raw = process.env.MIMIR_TTS_LANG?.toLowerCase()
+  return raw !== undefined && isTtsLanguage(raw) ? raw : undefined
 }
 
 function edgeTtsAvailable(): boolean {

@@ -2,6 +2,7 @@ import { recordAccess } from "./access-log.js";
 import { loadConfig } from "./config.js";
 import { embedText } from "./embeddings.js";
 import { openRowsTable } from "./store.js";
+import { normalizeForMatch, tokenize } from "./text.js";
 const MIN_VECTOR_CANDIDATES = 80;
 const VECTOR_CANDIDATE_MULTIPLIER = 4;
 const HYBRID_TEXT_SCAN_LIMIT = 5_000;
@@ -175,14 +176,5 @@ function normalizeScore(score, maxScore) {
 }
 function rowKey(row) {
     return `${row.relativePath}\0${row.chunkIndex}`;
-}
-function tokenize(text) {
-    return normalizeForMatch(text).match(/[\p{L}\p{N}]{2,}/gu) ?? [];
-}
-function normalizeForMatch(text) {
-    return text
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/\p{Diacritic}/gu, "");
 }
 //# sourceMappingURL=query.js.map

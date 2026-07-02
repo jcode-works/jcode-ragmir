@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { accessLogUsageReport } from "./access-log.js"
 import { findProjectConfig, loadConfig } from "./config.js"
+import { MIMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { audit } from "./ingest.js"
 import { ask, search } from "./query.js"
@@ -187,8 +188,9 @@ export function resolveMcpProjectRoot(
   env: NodeJS.ProcessEnv = process.env,
   fallback = process.cwd(),
 ): string {
-  if (env.MIMIR_PROJECT_ROOT) {
-    return env.MIMIR_PROJECT_ROOT
+  const explicitRoot = env[MIMIR_PROJECT_ROOT_ENV]
+  if (explicitRoot) {
+    return explicitRoot
   }
 
   const fallbackConfig = findProjectConfig(fallback)
@@ -210,7 +212,7 @@ function textResult(value: unknown): { content: Array<{ type: "text"; text: stri
   }
 }
 
-async function searchOptions(
+export async function searchOptions(
   cwd: string,
   topK: number | undefined,
 ): Promise<{ cwd: string; topK?: number }> {
@@ -236,7 +238,7 @@ async function evaluationOptions(
   return { ...result, topK: Math.min(topK, config.mcpMaxTopK) }
 }
 
-function projectRelativeGoldenPath(cwd: string, goldenPath: string): string {
+export function projectRelativeGoldenPath(cwd: string, goldenPath: string): string {
   const root = path.resolve(cwd)
   const absolutePath = path.resolve(root, goldenPath)
   const relativePath = path.relative(root, absolutePath)

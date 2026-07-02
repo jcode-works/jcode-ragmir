@@ -89,4 +89,36 @@ describe("research", () => {
     expect(compact.evidence[0]).not.toHaveProperty("text")
     expect(compactSearchResults(report.evidence)[0]?.snippet).toContain("release workflow")
   })
+
+  it("excludes secret-like files from the code scan and redacts secrets in snippets", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-research-secrets-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, "src"), { recursive: true })
+    await writeFile(
+      path.join(root, ".mimir", "raw", "policy.md"),
+      "The billing rotation secret handling policy.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, "src", "config.ts"),
+      "export const billingSecret = 'sk-proj-0123456789abcdefghijklmnopqrstuvwxyz'\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".env.json"),
+      JSON.stringify({ billingSecret: "sk-proj-0123456789abcdefghijklmnopqrstuvwxyz" }),
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const report = await research("billing secret", { cwd: root })
+
+    const scannedPaths = report.codeEvidence.map((entry) => entry.relativePath)
+    expect(scannedPaths).toContain("src/config.ts")
+    expect(scannedPaths).not.toContain(".env.json")
+    for (const evidence of report.codeEvidence) {
+      expect(evidence.snippet).not.toContain("sk-proj-0123456789abcdefghijklmnopqrstuvwxyz")
+    }
+  })
 })

@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import path from "node:path";
+import { isTtsLanguage, TTS_LANGUAGES } from "@jcode.labs/mimir-tts";
 import { Command } from "commander";
 import pc from "picocolors";
 import { accessLogUsageReport } from "./access-log.js";
 import { loadConfig } from "./config.js";
+import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js";
 import { destroyIndex } from "./destroy.js";
 import { doctor } from "./doctor.js";
 import { pullEmbeddingModel } from "./embeddings.js";
 import { evaluateGoldenQueries } from "./evaluate.js";
+import { countSkippedByReason } from "./files.js";
 import { audit, ingest } from "./ingest.js";
 import { initProject } from "./init.js";
 import { serveMcp } from "./mcp.js";
@@ -89,7 +92,7 @@ program
 program
     .command("setup")
     .description("Initialize Mimir, install the agent kit, run doctor, and ingest when safe.")
-    .option("--target-dir <path>", "Directory where the skill folder should be copied.", ".mimir/skills")
+    .option("--target-dir <path>", "Directory where the skill folder should be copied.", DEFAULT_SKILL_TARGET_DIR)
     .option("--agents <list>", `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`, "all")
     .option("--mcp-name <name>", "MCP server name used in generated config.", "mimir")
     .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
@@ -357,7 +360,7 @@ program
     }
     console.log(`supportedFiles=${report.supportedFiles.length}`);
     console.log(`skippedFiles=${report.skippedFiles.length}`);
-    console.log(`unsupportedFiles=${report.skippedFiles.filter((file) => file.reason === "unsupported-extension").length}`);
+    console.log(`unsupportedFiles=${countSkippedByReason(report.skippedFiles, "unsupported-extension")}`);
     console.log(`indexedFiles=${report.indexedFiles.length}`);
     console.log(`totalChunks=${report.totalChunks}`);
     console.log(`emptyTextFiles=${report.emptyTextFiles.length}`);
@@ -540,6 +543,7 @@ program
     .argument("[text-file]", "Narration text file to render.")
     .option("-o, --out <path>", "Output MP3 or WAV path.")
     .option("--engine <engine>", "TTS engine: auto, edge, or transformers.")
+    .option("--lang <language>", "TTS language: en, es, or fr. Selects the model and Edge voice.")
     .option("--model <id>", "Transformers.js TTS model ID.")
     .option("--model-path <path>", "Local model/cache path.")
     .option("--offline", "Force the Transformers.js local/offline WAV path.")
@@ -568,6 +572,7 @@ program
         textFile,
         engine: audioEngine(options),
     };
+    addOption(renderOptions, "language", audioLanguage(options));
     addOption(renderOptions, "outputPath", options.out);
     addOption(renderOptions, "model", options.model);
     addOption(renderOptions, "modelPath", options.modelPath);
@@ -595,7 +600,7 @@ program
 program
     .command("install-skill")
     .description("Copy the bundled agent skill and MCP config snippet into the current repository.")
-    .option("--target-dir <path>", "Directory where the skill folder should be copied.", ".mimir/skills")
+    .option("--target-dir <path>", "Directory where the skill folder should be copied.", DEFAULT_SKILL_TARGET_DIR)
     .option("--agents <list>", `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`, "all")
     .option("--mcp-name <name>", "MCP server name used in generated config.", "mimir")
     .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
@@ -731,6 +736,15 @@ function audioAllowRemoteModels(options) {
         return true;
     }
     return undefined;
+}
+function audioLanguage(options) {
+    if (options.lang === undefined) {
+        return undefined;
+    }
+    if (isTtsLanguage(options.lang)) {
+        return options.lang;
+    }
+    throw new Error(`Expected --lang to be one of: ${TTS_LANGUAGES.join(", ")}.`);
 }
 function audioEngine(options) {
     if (options.offline) {

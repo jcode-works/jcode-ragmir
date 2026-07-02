@@ -1,7 +1,7 @@
 import { cp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_SKILL_TARGET_DIR, MIMIR_DIR } from "./defaults.js";
+import { DEFAULT_SKILL_TARGET_DIR, MIMIR_DIR, MIMIR_PROJECT_ROOT_ENV } from "./defaults.js";
 import { ensureMimirGitignore } from "./gitignore.js";
 import { mimirCommand } from "./package-manager.js";
 const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -11,12 +11,14 @@ const REPORT_SKILL_NAME = "mimir-markdown-report";
 const LEGAL_SKILL_NAME = "mimir-legal-dossier";
 const DEFAULT_MCP_SERVER_NAME = "mimir";
 const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]+$/u;
-const SKILL_NAMES = [
+export const SKILL_NAMES = [
     PRIMARY_SKILL_NAME,
     AUDIO_SKILL_NAME,
     REPORT_SKILL_NAME,
     LEGAL_SKILL_NAME,
 ];
+export const MCP_CONFIG_FILENAME = "mcp.json";
+export const AGENT_SETUP_FILENAME = "agent-setup.md";
 export const SUPPORTED_AGENT_TARGETS = [
     "claude",
     "codex",
@@ -24,6 +26,13 @@ export const SUPPORTED_AGENT_TARGETS = [
     "opencode",
     "cline",
 ];
+export const AGENT_HELPER_CONFIG_FILENAMES = {
+    claude: "claude-mcp-server.json",
+    codex: "codex-mcp.toml",
+    kimi: "kimi-mcp.json",
+    opencode: "opencode.jsonc",
+    cline: "cline-mcp.json",
+};
 const AGENT_TARGET_ALIASES = new Map([
     ["claude", "claude"],
     ["claude-code", "claude"],
@@ -102,21 +111,21 @@ export async function installSkill(options = {}) {
     const reportSkillPath = path.join(targetDir, REPORT_SKILL_NAME);
     const legalSkillPath = path.join(targetDir, LEGAL_SKILL_NAME);
     const mimirDir = path.resolve(cwd, MIMIR_DIR);
-    const mcpConfigPath = path.join(mimirDir, "mcp.json");
-    const claudeConfigPath = path.join(mimirDir, "claude-mcp-server.json");
-    const codexConfigPath = path.join(mimirDir, "codex-mcp.toml");
-    const kimiConfigPath = path.join(mimirDir, "kimi-mcp.json");
-    const opencodeConfigPath = path.join(mimirDir, "opencode.jsonc");
-    const clineConfigPath = path.join(mimirDir, "cline-mcp.json");
-    const agentSetupPath = path.join(mimirDir, "agent-setup.md");
-    const readmePath = path.join(mimirDir, "README.md");
+    const mcpConfigPath = path.join(mimirDir, MCP_CONFIG_FILENAME);
     const agentConfigPaths = {
-        claude: claudeConfigPath,
-        codex: codexConfigPath,
-        kimi: kimiConfigPath,
-        opencode: opencodeConfigPath,
-        cline: clineConfigPath,
+        claude: path.join(mimirDir, AGENT_HELPER_CONFIG_FILENAMES.claude),
+        codex: path.join(mimirDir, AGENT_HELPER_CONFIG_FILENAMES.codex),
+        kimi: path.join(mimirDir, AGENT_HELPER_CONFIG_FILENAMES.kimi),
+        opencode: path.join(mimirDir, AGENT_HELPER_CONFIG_FILENAMES.opencode),
+        cline: path.join(mimirDir, AGENT_HELPER_CONFIG_FILENAMES.cline),
     };
+    const claudeConfigPath = agentConfigPaths.claude;
+    const codexConfigPath = agentConfigPaths.codex;
+    const kimiConfigPath = agentConfigPaths.kimi;
+    const opencodeConfigPath = agentConfigPaths.opencode;
+    const clineConfigPath = agentConfigPaths.cline;
+    const agentSetupPath = path.join(mimirDir, AGENT_SETUP_FILENAME);
+    const readmePath = path.join(mimirDir, "README.md");
     await mkdir(targetDir, { recursive: true });
     await mkdir(mimirDir, { recursive: true });
     await copyBundledSkills(targetDir);
@@ -285,14 +294,12 @@ async function writeAgentMcpHelper(agent, input) {
         case "codex":
             await writeFile(input.codexConfigPath, codexMcpConfig(input.cwd, input.serveCommand, input.mcpServerName), "utf8");
             return;
-        case "kimi":
-            await writeFile(input.kimiConfigPath, `${JSON.stringify(mcpConfig(input.cwd, input.serveCommand, { MIMIR_PROJECT_ROOT: input.cwd }, input.mcpServerName), null, 2)}\n`, "utf8");
-            return;
         case "opencode":
             await writeFile(input.opencodeConfigPath, opencodeConfig(input.cwd, input.serveCommand, input.mcpServerName), "utf8");
             return;
+        case "kimi":
         case "cline":
-            await writeFile(input.clineConfigPath, `${JSON.stringify(mcpConfig(input.cwd, input.serveCommand, { MIMIR_PROJECT_ROOT: input.cwd }, input.mcpServerName), null, 2)}\n`, "utf8");
+            await writeFile(agent === "kimi" ? input.kimiConfigPath : input.clineConfigPath, `${JSON.stringify(mcpConfig(input.cwd, input.serveCommand, { [MIMIR_PROJECT_ROOT_ENV]: input.cwd }, input.mcpServerName), null, 2)}\n`, "utf8");
     }
 }
 async function copyBundledSkills(targetDir) {
@@ -423,7 +430,7 @@ function opencodeConfig(cwd, serveCommand, serverName = DEFAULT_MCP_SERVER_NAME)
                 command: [serveCommand.command, ...serveCommand.args],
                 enabled: true,
                 environment: {
-                    MIMIR_PROJECT_ROOT: cwd,
+                    [MIMIR_PROJECT_ROOT_ENV]: cwd,
                 },
             },
         },

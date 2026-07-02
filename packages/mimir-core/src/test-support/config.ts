@@ -18,6 +18,7 @@ export function testConfig(
     rawDir: path.join(projectRoot, DEFAULT_CONFIG.rawDir),
     storageDir: path.join(projectRoot, DEFAULT_CONFIG.storageDir),
     sourcesFile: path.join(projectRoot, DEFAULT_CONFIG.sourcesFile),
+    sources: [...DEFAULT_CONFIG.sources],
     accessLogPath: path.join(projectRoot, DEFAULT_CONFIG.accessLogPath),
     embeddingModelPath: path.join(projectRoot, DEFAULT_CONFIG.embeddingModelPath),
     tableName: DEFAULT_CONFIG.tableName,

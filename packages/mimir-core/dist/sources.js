@@ -2,13 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "./config.js";
-const SOURCES_FILE_HEADER = [
-    "# Optional extra source paths or glob patterns, one per line.",
-    "# Relative paths resolve from the project root. Prefix glob exclusions with !.",
-    "# Example: ../apps/*/docs/**/*.md",
-    "# Example: !../apps/**/node_modules/**",
-    "",
-];
+import { SOURCES_FILE_HEADER } from "./defaults.js";
 export async function listSourceEntries(cwd = process.cwd()) {
     const config = await loadConfig(cwd);
     const content = await readSourcesFile(config.sourcesFile);

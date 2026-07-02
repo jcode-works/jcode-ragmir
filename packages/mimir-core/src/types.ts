@@ -6,6 +6,7 @@ export interface Config {
   rawDir: string
   storageDir: string
   sourcesFile: string
+  sources: string[]
   accessLogPath: string
   embeddingModelPath: string
   tableName: string

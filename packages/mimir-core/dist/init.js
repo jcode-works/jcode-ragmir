@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { CONFIG_PATH, DEFAULT_CONFIG, LEGACY_CONFIG_PATH, LEGACY_DEFAULT_CONFIG, MIMIR_DIR, } from "./defaults.js";
+import { CONFIG_PATH, DEFAULT_CONFIG, LEGACY_CONFIG_PATH, MIMIR_DIR } from "./defaults.js";
 import { ensureMimirGitignore } from "./gitignore.js";
 export async function initProject(cwd = process.cwd()) {
     const root = path.resolve(cwd);
@@ -17,18 +17,6 @@ export async function initProject(cwd = process.cwd()) {
         await mkdir(rawDir, { recursive: true });
         await writeFile(configPath, `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`, "utf8");
         created.push(path.relative(root, configPath));
-    }
-    const sourcesPath = path.resolve(root, hasLegacyConfig && !hasConfig ? LEGACY_DEFAULT_CONFIG.sourcesFile : DEFAULT_CONFIG.sourcesFile);
-    if (!existsSync(sourcesPath)) {
-        await mkdir(path.dirname(sourcesPath), { recursive: true });
-        await writeFile(sourcesPath, [
-            "# Optional extra source paths or glob patterns, one per line.",
-            "# Relative paths resolve from the project root. Prefix glob exclusions with !.",
-            "# Example: ../apps/*/docs/**/*.md",
-            "# Example: !../apps/**/node_modules/**",
-            "",
-        ].join("\n"), "utf8");
-        created.push(path.relative(root, sourcesPath));
     }
     if (!hasConfig && !hasLegacyConfig) {
         const readmePath = path.join(rawDir, "README.md");

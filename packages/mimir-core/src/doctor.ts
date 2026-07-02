@@ -2,9 +2,16 @@ import { existsSync } from "node:fs"
 import path from "node:path"
 import { findProjectConfig, loadConfig } from "./config.js"
 import { MIMIR_DIR } from "./defaults.js"
+import { countSkippedByReason } from "./files.js"
 import { audit } from "./ingest.js"
 import { mimirCommand } from "./package-manager.js"
 import { securityAudit } from "./security.js"
+import {
+  AGENT_HELPER_CONFIG_FILENAMES,
+  AGENT_SETUP_FILENAME,
+  MCP_CONFIG_FILENAME,
+  SKILL_NAMES,
+} from "./skill.js"
 import { countRows } from "./store.js"
 import type { DoctorReport } from "./types.js"
 
@@ -24,9 +31,7 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     initialized,
     supportedFiles: auditReport.supportedFiles.length,
     skippedFiles: auditReport.skippedFiles.length,
-    unsupportedFiles: auditReport.skippedFiles.filter(
-      (file) => file.reason === "unsupported-extension",
-    ).length,
+    unsupportedFiles: countSkippedByReason(auditReport.skippedFiles, "unsupported-extension"),
     chunksIndexed,
     missingFromIndex: auditReport.missingFromIndex.length,
     staleInIndex: auditReport.staleInIndex.length,
@@ -50,9 +55,7 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     accessLog: config.accessLog,
     supportedFiles: auditReport.supportedFiles.length,
     skippedFiles: auditReport.skippedFiles.length,
-    unsupportedFiles: auditReport.skippedFiles.filter(
-      (file) => file.reason === "unsupported-extension",
-    ).length,
+    unsupportedFiles: countSkippedByReason(auditReport.skippedFiles, "unsupported-extension"),
     indexedFiles: auditReport.indexedFiles.length,
     chunksIndexed,
     missingFromIndex: auditReport.missingFromIndex.length,
@@ -97,7 +100,7 @@ function nextActions(input: NextActionInput): string[] {
       )
     } else {
       steps.push(
-        "Add supported files under .mimir/raw/ or list extra source paths in .mimir/sources.txt.",
+        'Add supported files under .mimir/raw/ or list extra source paths in the "sources" array of .mimir/config.json.',
       )
     }
     return steps
@@ -153,21 +156,15 @@ function nextActions(input: NextActionInput): string[] {
 }
 
 function isAgentKitInstalled(projectRoot: string): boolean {
+  const mimirDir = path.join(projectRoot, MIMIR_DIR)
   const requiredPaths = [
-    path.join(projectRoot, MIMIR_DIR, "skills", "mimir", "SKILL.md"),
-    path.join(projectRoot, MIMIR_DIR, "skills", "mimir-audio-summary", "SKILL.md"),
-    path.join(projectRoot, MIMIR_DIR, "skills", "mimir-markdown-report", "SKILL.md"),
-    path.join(projectRoot, MIMIR_DIR, "skills", "mimir-legal-dossier", "SKILL.md"),
-    path.join(projectRoot, MIMIR_DIR, "mcp.json"),
-    path.join(projectRoot, MIMIR_DIR, "agent-setup.md"),
+    ...SKILL_NAMES.map((skillName) => path.join(mimirDir, "skills", skillName, "SKILL.md")),
+    path.join(mimirDir, MCP_CONFIG_FILENAME),
+    path.join(mimirDir, AGENT_SETUP_FILENAME),
   ]
-  const agentHelpers = [
-    path.join(projectRoot, MIMIR_DIR, "claude-mcp-server.json"),
-    path.join(projectRoot, MIMIR_DIR, "codex-mcp.toml"),
-    path.join(projectRoot, MIMIR_DIR, "kimi-mcp.json"),
-    path.join(projectRoot, MIMIR_DIR, "opencode.jsonc"),
-    path.join(projectRoot, MIMIR_DIR, "cline-mcp.json"),
-  ]
+  const agentHelpers = Object.values(AGENT_HELPER_CONFIG_FILENAMES).map((filename) =>
+    path.join(mimirDir, filename),
+  )
   return (
     requiredPaths.every((requiredPath) => existsSync(requiredPath)) &&
     agentHelpers.some((helperPath) => existsSync(helperPath))
