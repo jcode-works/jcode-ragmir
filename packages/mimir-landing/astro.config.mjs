@@ -47,6 +47,10 @@ export default defineConfig({
     prefetchAll: true,
     defaultStrategy: "viewport",
   },
+  experimental: {
+    // Prerender prefetched links via the Speculation Rules API for faster locale navigation.
+    clientPrerender: true,
+  },
   vite: {
     plugins: [tailwindcss()],
     envPrefix: ["PUBLIC_"],

@@ -23,7 +23,7 @@ const {
   keywords,
   locale = "en",
   ogType = "website",
-  ogImage = "/og/mimir-og.svg",
+  ogImage = "/og/mimir-og.png",
   ogImageAlt = "Mimir open-source local RAG for confidential documents",
   twitterCard = "summary_large_image",
   author = "Jean-Baptiste Thery",
@@ -169,6 +169,16 @@ function alternateHref(targetLocale: string): string {
 
     <title>{title}</title>
     <slot name="head" />
+    {
+      isProduction && (
+        <script
+          is:inline
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "8f36a1b1d0874ad991f59720e82d14d2"}'
+        />
+      )
+    }
   </head>
   <body class="relative min-h-dvh">
     <slot />

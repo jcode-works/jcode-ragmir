@@ -12,5 +12,16 @@
       "pattern": "mimir.jcode.works",
       "custom_domain": true
     }
-  ]
+  ],
+  "env": {
+    "staging": {
+      "name": "mimir-landing-staging",
+      "routes": [
+        {
+          "pattern": "staging.mimir.jcode.works",
+          "custom_domain": true
+        }
+      ]
+    }
+  }
 }

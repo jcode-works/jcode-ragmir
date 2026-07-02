@@ -64,10 +64,6 @@
   `excludeFolders`/`excludeFiles` in sync with new generated-output or private-data directories.
   Registering the repo on context7.com (so it resolves through `resolve-library-id`) is a manual
   step on their site; these files only prepare the repo for that step.
-- The bundled `mimir` skill is directly installable from this monorepo's nested path with the
-  [skills.sh](https://skills.sh) CLI (`npx skills add <repo-url>/tree/main/packages/mimir-core/skills/mimir`),
-  since that CLI supports a direct subdirectory path. If `packages/mimir-core/skills/` moves, update
-  the command documented in the README's "Agent Skills And MCP" section.
 - `packages/mimir-ui` is the shared UI/style foundation adapted from the WorkoutGen landing/UI
   approach. It provides the common Tailwind theme and React primitives for both the landing and the
   Tauri app; do not import WorkoutGen product copy, assets, analytics, or secrets.
@@ -179,12 +175,21 @@
   with `mise.toml` by hand. pnpm stays pinned via Corepack through `packageManager` in
   `package.json`, not duplicated in `mise.toml`. Keep mise scoped to toolchain-version pinning —
   it is not a package manager or task runner here, so don't mirror `package.json` scripts as mise
-  tasks; that would just create a second source of truth for no benefit.
+  tasks and don't wrap launch scripts (`dev:app`, `dev:landing`, `example`) in `mise exec`; that
+  would create a second source of truth and break the "plain pnpm works without mise" onboarding
+  path. For local dev, contributors activate mise in their shell (`mise activate`) so the pinned
+  Node/Rust land on `PATH` via shims and every `pnpm` script uses the CI toolchain automatically.
 - Keep Mimir core free of Ollama. `embeddingProvider: "local-hash"` supports ingestion, search, MCP,
   and cited retrieval without a model server, but it must not be described as equivalent to semantic
   retrieval. `embeddingProvider: "transformers"` is the optional semantic embedding path.
 - Keep `packages/mimir-core/examples/sovereign-rag-demo` synthetic and safe to commit. It exists for
   package/user testing only; never place real confidential documents there.
+- `packages/mimir-core/examples/library-api-demo` is the local library-API smoke (`pnpm example`). It
+  `import`s `@jcode.labs/mimir` via Node self-referencing so it always exercises the local
+  `packages/mimir-core/dist` build, never the npm-published package, and it reuses the
+  `sovereign-rag-demo` synthetic corpus rather than adding a second one. Testing local changes must
+  use this local build (or `node packages/mimir-core/dist/cli.js`), not `npx mimir`, which would
+  resolve the released npm version.
 - Use Context7 before changing dependencies or public APIs that rely on external libraries.
 - Run `pnpm validate` before opening a release pull request or publishing. It covers
   Biome, dependency security audit, TypeScript, Vitest, build output, production CLI/MCP smoke
