@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 high-level architecture. Read it first. This file adds only the Claude Code operational details and
 non-obvious traps that matter when editing here, without duplicating `AGENTS.md`.
 
+## Branches, PRs, and releases — confirm first
+
+Never create, rename, switch, or reset a branch, open or merge a PR, or trigger a release / npm
+publish on your own. Ask for explicit confirmation (naming the exact branch and base), and follow the
+Git Flow in `AGENTS.md`: `feature/*` off `develop`, PR into `develop`, release PR `develop` → `main`.
+`main` and `develop` are protected (PR + green Quality gate, Commitlint, Analyze TypeScript). Reuse a
+branch the user already approved instead of spawning new ones. Full rules: "AI Coding Agent
+Guardrails" in `AGENTS.md`.
+
 ## Commands
 
 ```bash

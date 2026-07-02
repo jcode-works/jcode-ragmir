@@ -196,6 +196,28 @@
 - Use Git Flow locally: `main` is production, `develop` is integration, feature work starts from
   `develop` under `feature/*`. Do not deploy or publish from feature branches.
 
+## AI Coding Agent Guardrails
+
+These rules are binding for every AI coding agent working in this repository (Claude Code, Codex, and
+any other), because several agents may run against this repo in parallel.
+
+- **Never create, rename, delete, switch, or reset Git branches on your own.** Ask the user for
+  explicit confirmation first, and state the exact branch name and base you intend to use. A
+  high-level task is not blanket permission to spawn branches — confirm the branch itself.
+- **Always follow the repository Git Flow.** `main` is production and `develop` is integration; both
+  are protected and only change through a pull request with green required checks (Quality gate,
+  Commitlint, Analyze TypeScript). Start work from `develop` under `feature/*` (fixes `fix/*`, chores
+  `chore/*`), open a PR into `develop`, and promote `develop` to `main` with a release PR. Never
+  commit or push directly to `main` or `develop`, and never force-push either branch.
+- **Do not open or merge pull requests, or trigger a release / npm publish, without explicit
+  confirmation.** The protected `Release npm` workflow and its `npm-publish` environment approval are
+  the only publish path.
+- **Reuse the branch or PR the user already approved instead of creating new ones.** Do not
+  proliferate short-lived branches; when a temporary branch is genuinely required (for example a
+  protected-branch back-merge), name it clearly and delete it once merged.
+- **Respect other agents' work.** Before editing, run `git status` and check for other running agents
+  or processes; never stage, commit, or discard uncommitted changes you did not make.
+
 ## Coding Conventions
 
 General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match the surrounding style.
