@@ -3,7 +3,14 @@ module.exports = {
   repositoryUrl: "https://github.com/jcode-works/jcode-mimir.git",
   tagFormat: "v$" + "{version}",
   plugins: [
-    "@semantic-release/commit-analyzer",
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        // The landing site is an unpublished surface; its commits must never
+        // trigger a version bump or npm publish of the library packages.
+        releaseRules: [{ scope: "landing", release: false }],
+      },
+    ],
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/exec",
