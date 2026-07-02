@@ -1,7 +1,8 @@
 # Mimir Core Package
 
-`@jcode.labs/mimir` is Mimir Core, the technical core package for Mimir, an open-source sovereign local RAG toolkit for
-confidential datasets and AI agents.
+`@jcode.labs/mimir` is Mimir Core, the technical core package for Mimir, an open-source local RAG
+library, CLI, and MCP server. It indexes your specs, docs, and code locally and gives your AI agents
+only the useful cited passages, over MCP, without burning tokens on your whole repo.
 
 **Full documentation:** https://github.com/jcode-works/jcode-mimir#readme
 
