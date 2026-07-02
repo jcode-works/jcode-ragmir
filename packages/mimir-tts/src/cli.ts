@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util"
-import { doctor, type RenderSpeechOptions, renderSpeech, type TtsEngine } from "./index.js"
+import {
+  doctor,
+  isTtsLanguage,
+  type RenderSpeechOptions,
+  renderSpeech,
+  TTS_LANGUAGES,
+  type TtsEngine,
+  type TtsLanguage,
+} from "./index.js"
 
 type CliValues = Record<string, string | boolean | undefined>
 
@@ -35,6 +43,8 @@ async function runDoctor(args: string[]): Promise<void> {
 
   printKeyValue("node", report.node)
   printKeyValue("defaultEngine", report.defaultEngine)
+  printKeyValue("defaultLanguage", report.defaultLanguage)
+  printKeyValue("languages", report.languages.join(","))
   printKeyValue("defaultModel", report.defaultModel)
   printKeyValue("defaultModelPath", report.defaultModelPath)
   printKeyValue("defaultAllowRemoteModels", String(report.defaultAllowRemoteModels))
@@ -53,6 +63,7 @@ async function runRender(args: string[]): Promise<void> {
     options: {
       out: { type: "string", short: "o" },
       engine: { type: "string" },
+      lang: { type: "string" },
       model: { type: "string" },
       "model-path": { type: "string" },
       offline: { type: "boolean" },
@@ -74,6 +85,7 @@ async function runRender(args: string[]): Promise<void> {
   }
   addStringOption(renderOptions, "outputPath", stringValue(values, "out"))
   addEngineOption(renderOptions, engineValue(values))
+  addLanguageOption(renderOptions, languageValue(values))
   addStringOption(renderOptions, "model", stringValue(values, "model"))
   addStringOption(renderOptions, "modelPath", stringValue(values, "model-path"))
   addBooleanOption(renderOptions, "allowRemoteModels", allowRemoteModels(values))
@@ -90,6 +102,7 @@ async function runRender(args: string[]): Promise<void> {
   }
   printKeyValue("outputPath", result.outputPath)
   printKeyValue("engine", result.engine)
+  printKeyValue("language", result.language)
   printKeyValue("outputFormat", result.outputFormat)
   printKeyValue("model", result.model)
   printKeyValue("modelPath", result.modelPath)
@@ -132,6 +145,23 @@ function engineValue(values: CliValues): TtsEngine | undefined {
 function addEngineOption(target: RenderSpeechOptions, value: TtsEngine | undefined): void {
   if (value !== undefined) {
     target.engine = value
+  }
+}
+
+function languageValue(values: CliValues): TtsLanguage | undefined {
+  const value = stringValue(values, "lang")
+  if (value === undefined) {
+    return undefined
+  }
+  if (isTtsLanguage(value)) {
+    return value
+  }
+  throw new Error(`Expected --lang to be one of: ${TTS_LANGUAGES.join(", ")}.`)
+}
+
+function addLanguageOption(target: RenderSpeechOptions, value: TtsLanguage | undefined): void {
+  if (value !== undefined) {
+    target.language = value
   }
 }
 
@@ -191,6 +221,7 @@ Usage:
 
 Options:
   --engine <engine>             transformers, edge, or auto. Default is transformers.
+  --lang <language>            en, es, or fr. Selects the offline model and Edge voice. Default fr.
   --model <id>                 Transformers.js TTS model ID.
   --model-path <path>          Local model/cache path. Defaults to .mimir/models/tts.
   --offline                    Force the Transformers.js local/offline WAV path.

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { doctor } from "./doctor.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { installSkill } from "./skill.js"
 
 const tempDirs: string[] = []
 
@@ -33,7 +34,7 @@ describe("doctor", () => {
     expect(initialized.initialized).toBe(true)
     expect(initialized.supportedFiles).toBe(0)
     expect(initialized.nextSteps).toEqual([
-      "Add supported files under .mimir/raw/ or list extra source paths in .mimir/sources.txt.",
+      'Add supported files under .mimir/raw/ or list extra source paths in the "sources" array of .mimir/config.json.',
     ])
 
     await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
@@ -58,5 +59,17 @@ describe("doctor", () => {
     expect(ready.nextSteps).toContain(
       "For natural-language Q&A, run `pnpm exec mimir models pull --enable`, then run `pnpm exec mimir ingest --rebuild`.",
     )
+  })
+
+  it("detects an installed agent kit from the files installSkill writes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-doctor-kit-"))
+    tempDirs.push(root)
+    await initProject(root)
+
+    expect((await doctor(root)).agentKitInstalled).toBe(false)
+
+    await installSkill({ cwd: root })
+
+    expect((await doctor(root)).agentKitInstalled).toBe(true)
   })
 })

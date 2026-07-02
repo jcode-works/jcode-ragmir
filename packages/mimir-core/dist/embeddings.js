@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
+import { tokenize } from "./text.js";
 const LOCAL_HASH_DIMENSIONS = 384;
 const LONG_TOKEN_MIN_LENGTH = 6;
 const LONG_TOKEN_WEIGHT = 1.4;
@@ -77,13 +78,6 @@ function localHashEmbedding(text) {
         return vector;
     }
     return vector.map((value) => value / magnitude);
-}
-function tokenize(text) {
-    return (text
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/\p{Diacritic}/gu, "")
-        .match(/[\p{L}\p{N}]{2,}/gu) ?? []);
 }
 function tokenWeight(token) {
     return token.length >= LONG_TOKEN_MIN_LENGTH ? LONG_TOKEN_WEIGHT : 1;

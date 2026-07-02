@@ -2,6 +2,7 @@ import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { embedText } from "./embeddings.js"
 import { openRowsTable } from "./store.js"
+import { normalizeForMatch, tokenize } from "./text.js"
 import type { AskResult, SearchOptions, SearchResult } from "./types.js"
 
 interface SearchRow {
@@ -229,15 +230,4 @@ function normalizeScore(score: number, maxScore: number): number {
 
 function rowKey(row: SearchRow): string {
   return `${row.relativePath}\0${row.chunkIndex}`
-}
-
-function tokenize(text: string): string[] {
-  return normalizeForMatch(text).match(/[\p{L}\p{N}]{2,}/gu) ?? []
-}
-
-function normalizeForMatch(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/\p{Diacritic}/gu, "")
 }

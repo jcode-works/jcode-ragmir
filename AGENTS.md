@@ -32,9 +32,9 @@
 - Keep first-run UX centered on `mimir setup` for full onboarding and `mimir doctor --fix` for safe
   repairs. `mimir init`, `mimir install-skill`, and `mimir ingest` remain available as explicit
   lower-level commands.
-- Keep monorepo source onboarding simple: `.mimir/sources.txt` accepts paths, glob patterns, and
-  `!` exclusions, and `mimir sources add/list` is the CLI surface for updating it without manual
-  editing.
+- Keep monorepo source onboarding simple: the `sources` array in `.mimir/config.json` accepts paths,
+  glob patterns, and `!` exclusions. The legacy `.mimir/sources.txt` file (managed by `mimir sources
+  add/list`) is still read and merged when present, but `mimir init` no longer creates it.
 - Keep product documentation canonical in the root `README.md`. Package README files under
   `packages/*/README.md` are intentionally minimal npm entrypoints and must link clearly to the
   GitHub root README because npm displays package README files separately.
@@ -53,6 +53,11 @@
   under real Mimir domains, private documents, generated `.pid` files, committed secrets, internal
   GTM/pricing ledgers, or wording that presents tracked MIT source as proprietary or closed source.
   `pnpm public:smoke` enforces the cheap checks.
+- The public-surface secret scanner (`scripts/public-surface-smoke.mjs`) runs over every tracked
+  file, tests included. Never write literal secret-shaped strings in source — PEM `PRIVATE KEY`
+  headers, `ghp_`/`github_pat_`/`sk_live_`/`sk_test_` tokens, or real checkout URLs. When a test
+  needs one to exercise redaction or skipping, build it at runtime from parts (e.g. interpolate the
+  `PRIVATE KEY` label from a variable) so no scannable literal is committed.
 - Root `llms.txt` (the [llms.txt](https://llmstxt.org/) convention) and `context7.json` are the
   LLM/Context7-facing doc index for this repository. Update `llms.txt` when adding or removing a
   top-level `docs/*.md` file worth surfacing to agents, and keep `context7.json`'s

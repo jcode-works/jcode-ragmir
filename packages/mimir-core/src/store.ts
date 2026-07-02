@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import * as lancedb from "@lancedb/lancedb"
+import { isRecord } from "./guards.js"
 import type { Config, VectorRow } from "./types.js"
 
 const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json"
@@ -124,10 +125,6 @@ function isEmptyTextFileRecord(value: unknown): value is EmptyTextFileRecord {
   return (
     isRecord(value) && typeof value.relativePath === "string" && typeof value.checksum === "string"
   )
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

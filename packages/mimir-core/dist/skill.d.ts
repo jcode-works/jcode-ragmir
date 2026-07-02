@@ -54,7 +54,11 @@ export interface AgentHelperFile {
     label: string;
     path: string;
 }
+export declare const SKILL_NAMES: readonly ["mimir", "mimir-audio-summary", "mimir-markdown-report", "mimir-legal-dossier"];
+export declare const MCP_CONFIG_FILENAME = "mcp.json";
+export declare const AGENT_SETUP_FILENAME = "agent-setup.md";
 export declare const SUPPORTED_AGENT_TARGETS: readonly AgentTarget[];
+export declare const AGENT_HELPER_CONFIG_FILENAMES: Record<AgentTarget, string>;
 export declare function bundledSkillPath(skillName?: string): string;
 export declare function parseAgentTargets(value: string | readonly string[] | undefined): AgentTarget[];
 export declare function installSkill(options?: InstallSkillOptions): Promise<InstallSkillResult>;

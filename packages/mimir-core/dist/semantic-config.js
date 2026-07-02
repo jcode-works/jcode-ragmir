@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { findProjectConfig } from "./config.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { isRecord } from "./guards.js";
 import { initProject } from "./init.js";
 export async function enableSemanticEmbeddings(cwd = process.cwd()) {
     await initProject(cwd);
@@ -30,8 +31,5 @@ export async function enableSemanticEmbeddings(cwd = process.cwd()) {
         embeddingModelPath,
         transformersAllowRemoteModels: false,
     };
-}
-function isRecord(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 //# sourceMappingURL=semantic-config.js.map

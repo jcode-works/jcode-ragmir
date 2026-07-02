@@ -3,10 +3,12 @@ import path from "node:path";
 import fg from "fast-glob";
 import { recordAccess } from "./access-log.js";
 import { loadConfig } from "./config.js";
+import { countSkippedByReason, DEFAULT_FAST_GLOB_IGNORES, isSensitiveFilePath } from "./files.js";
 import { audit } from "./ingest.js";
 import { search } from "./query.js";
 import { redactText } from "./redaction.js";
 import { securityAudit } from "./security.js";
+import { normalizeForMatch } from "./text.js";
 const DEFAULT_RESEARCH_QUERY_LIMIT = 5;
 const DEFAULT_CODE_EVIDENCE_LIMIT = 20;
 const CODE_EVIDENCE_CANDIDATE_MULTIPLIER = 5;
@@ -41,10 +43,7 @@ const CODE_SCAN_EXTENSIONS = new Set([
     ".yml",
 ]);
 const CODE_SCAN_IGNORE = [
-    "**/.git/**",
-    "**/.mimir/**",
-    "**/.kb/**",
-    "**/node_modules/**",
+    ...DEFAULT_FAST_GLOB_IGNORES,
     "**/dist/**",
     "**/build/**",
     "**/.next/**",
@@ -84,7 +83,7 @@ export async function research(query, options = {}) {
     const codeEvidence = options.includeCode === false
         ? []
         : await findCodeEvidence(config, normalizedQuery, DEFAULT_CODE_EVIDENCE_LIMIT);
-    const unsupportedFiles = auditReport.skippedFiles.filter((file) => file.reason === "unsupported-extension").length;
+    const unsupportedFiles = countSkippedByReason(auditReport.skippedFiles, "unsupported-extension");
     const gaps = researchGaps({
         evidenceCount: evidence.length,
         codeEvidenceCount: codeEvidence.length,
@@ -210,7 +209,9 @@ async function findCodeEvidence(config, query, limit) {
         const absolutePath = path.isAbsolute(entry.path)
             ? entry.path
             : path.resolve(config.projectRoot, entry.path);
-        if (!isScannableCodePath(absolutePath) || (entry.stats?.size ?? 0) > CODE_SCAN_MAX_BYTES) {
+        if (!isScannableCodePath(absolutePath) ||
+            isSensitiveFilePath(absolutePath) ||
+            (entry.stats?.size ?? 0) > CODE_SCAN_MAX_BYTES) {
             continue;
         }
         const relativePath = path.relative(config.projectRoot, absolutePath);
@@ -315,12 +316,6 @@ function compactText(text, maxLength = COMPACT_SNIPPET_LENGTH) {
         return normalized;
     }
     return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
-}
-function normalizeForMatch(text) {
-    return text
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/\p{Diacritic}/gu, "");
 }
 const STOP_WORDS = new Set([
     "about",

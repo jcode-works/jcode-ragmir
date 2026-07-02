@@ -12,8 +12,6 @@ export interface MimirCommand {
   display: string
 }
 
-export type KbCommand = MimirCommand
-
 export async function detectPackageManager(cwd = process.cwd()): Promise<PackageManager> {
   const root = path.resolve(cwd)
   const packageManager = await packageJsonManager(root)

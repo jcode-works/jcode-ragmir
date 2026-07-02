@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import path from "node:path"
+import { isTtsLanguage, TTS_LANGUAGES, type TtsLanguage } from "@jcode.labs/mimir-tts"
 import { Command } from "commander"
 import pc from "picocolors"
 import { accessLogUsageReport } from "./access-log.js"
 import { loadConfig } from "./config.js"
+import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js"
 import { destroyIndex } from "./destroy.js"
 import { doctor } from "./doctor.js"
 import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
+import { countSkippedByReason } from "./files.js"
 import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { serveMcp } from "./mcp.js"
@@ -110,7 +113,7 @@ program
   .option(
     "--target-dir <path>",
     "Directory where the skill folder should be copied.",
-    ".mimir/skills",
+    DEFAULT_SKILL_TARGET_DIR,
   )
   .option(
     "--agents <list>",
@@ -463,7 +466,7 @@ program
     console.log(`supportedFiles=${report.supportedFiles.length}`)
     console.log(`skippedFiles=${report.skippedFiles.length}`)
     console.log(
-      `unsupportedFiles=${report.skippedFiles.filter((file) => file.reason === "unsupported-extension").length}`,
+      `unsupportedFiles=${countSkippedByReason(report.skippedFiles, "unsupported-extension")}`,
     )
     console.log(`indexedFiles=${report.indexedFiles.length}`)
     console.log(`totalChunks=${report.totalChunks}`)
@@ -665,6 +668,7 @@ program
   .argument("[text-file]", "Narration text file to render.")
   .option("-o, --out <path>", "Output MP3 or WAV path.")
   .option("--engine <engine>", "TTS engine: auto, edge, or transformers.")
+  .option("--lang <language>", "TTS language: en, es, or fr. Selects the model and Edge voice.")
   .option("--model <id>", "Transformers.js TTS model ID.")
   .option("--model-path <path>", "Local model/cache path.")
   .option("--offline", "Force the Transformers.js local/offline WAV path.")
@@ -696,6 +700,7 @@ program
       textFile,
       engine: audioEngine(options),
     }
+    addOption(renderOptions, "language", audioLanguage(options))
     addOption(renderOptions, "outputPath", options.out)
     addOption(renderOptions, "model", options.model)
     addOption(renderOptions, "modelPath", options.modelPath)
@@ -732,7 +737,7 @@ program
   .option(
     "--target-dir <path>",
     "Directory where the skill folder should be copied.",
-    ".mimir/skills",
+    DEFAULT_SKILL_TARGET_DIR,
   )
   .option(
     "--agents <list>",
@@ -898,6 +903,7 @@ function withTopK(cwd: string, topK: number | undefined): { cwd: string; topK?: 
 interface AudioOptions {
   out?: string
   engine?: string
+  lang?: string
   model?: string
   modelPath?: string
   offline?: boolean
@@ -920,6 +926,7 @@ interface TtsRenderOptions {
   textFile: string
   outputPath?: string
   engine: "auto" | "edge" | "transformers"
+  language?: TtsLanguage
   model?: string
   modelPath?: string
   allowRemoteModels?: boolean
@@ -956,6 +963,16 @@ function audioAllowRemoteModels(options: AudioOptions): boolean | undefined {
     return true
   }
   return undefined
+}
+
+function audioLanguage(options: AudioOptions): TtsLanguage | undefined {
+  if (options.lang === undefined) {
+    return undefined
+  }
+  if (isTtsLanguage(options.lang)) {
+    return options.lang
+  }
+  throw new Error(`Expected --lang to be one of: ${TTS_LANGUAGES.join(", ")}.`)
 }
 
 function audioEngine(options: AudioOptions): TtsRenderOptions["engine"] {

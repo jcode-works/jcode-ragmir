@@ -83,4 +83,36 @@ describe("securityAudit", () => {
     expect(report.gitignore.legacyPrivateIgnored).toBe(true)
     expect(report.warnings).not.toContain("private/ is not ignored by Git.")
   })
+
+  it("warns when redaction is disabled", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-security-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".mimir"), { recursive: true })
+    await writeFile(
+      path.join(root, ".mimir", "config.json"),
+      JSON.stringify({ redaction: { enabled: false } }),
+      "utf8",
+    )
+
+    const report = await securityAudit(root)
+
+    expect(report.redaction.enabled).toBe(false)
+    expect(report.warnings).toContain(
+      "Redaction is disabled; secrets and identifiers may be embedded in the index.",
+    )
+  })
+
+  it("detects whether the storage directory is git-ignored", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-security-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".mimir"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "config.json"), "{}\n", "utf8")
+    await writeFile(path.join(root, ".gitignore"), "node_modules/\n", "utf8")
+
+    expect((await securityAudit(root)).storage.gitIgnored).toBe(false)
+
+    await writeFile(path.join(root, ".gitignore"), ".mimir/\n", "utf8")
+
+    expect((await securityAudit(root)).storage.gitIgnored).toBe(true)
+  })
 })

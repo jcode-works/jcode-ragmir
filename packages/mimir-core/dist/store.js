@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import * as lancedb from "@lancedb/lancedb";
+import { isRecord } from "./guards.js";
 const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json";
 export async function writeRows(rows, config) {
     await mkdir(config.storageDir, { recursive: true });
@@ -86,9 +87,6 @@ function hasIndexedNumberGetter(value) {
 }
 function isEmptyTextFileRecord(value) {
     return (isRecord(value) && typeof value.relativePath === "string" && typeof value.checksum === "string");
-}
-function isRecord(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isNodeError(error) {
     return error instanceof Error && "code" in error;

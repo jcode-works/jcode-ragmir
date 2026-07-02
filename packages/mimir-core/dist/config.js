@@ -3,11 +3,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { CONFIG_PATH, DEFAULT_CONFIG, LEGACY_CONFIG_PATH, LEGACY_DEFAULT_CONFIG, } from "./defaults.js";
+import { isRecord } from "./guards.js";
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"]);
 const rawConfigSchema = z.object({
     rawDir: z.string().default(DEFAULT_CONFIG.rawDir),
     storageDir: z.string().default(DEFAULT_CONFIG.storageDir),
     sourcesFile: z.string().default(DEFAULT_CONFIG.sourcesFile),
+    sources: z.array(z.string().min(1)).default(DEFAULT_CONFIG.sources),
     accessLogPath: z.string().default(DEFAULT_CONFIG.accessLogPath),
     embeddingModelPath: z.string().default(DEFAULT_CONFIG.embeddingModelPath),
     tableName: z.string().default(DEFAULT_CONFIG.tableName),
@@ -94,6 +96,7 @@ export async function loadConfig(start = process.cwd()) {
         rawDir: resolveFromRoot(projectConfig.projectRoot, withEnv.rawDir),
         storageDir: resolveFromRoot(projectConfig.projectRoot, withEnv.storageDir),
         sourcesFile: resolveFromRoot(projectConfig.projectRoot, withEnv.sourcesFile),
+        sources: withEnv.sources,
         accessLogPath: resolveFromRoot(projectConfig.projectRoot, withEnv.accessLogPath),
         embeddingModelPath: resolveFromRoot(projectConfig.projectRoot, withEnv.embeddingModelPath),
         tableName: withEnv.tableName,
@@ -153,9 +156,6 @@ function applyEnv(config) {
         legacyWordCommand: readJsonStringArrayEnv("MIMIR_LEGACY_WORD_COMMAND", "KB_LEGACY_WORD_COMMAND", config.legacyWordCommand),
         legacyWordTimeoutMs: readPositiveIntEnv("MIMIR_LEGACY_WORD_TIMEOUT_MS", "KB_LEGACY_WORD_TIMEOUT_MS", config.legacyWordTimeoutMs),
     };
-}
-function isRecord(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function normalizeExtensions(extensions) {
     return [

@@ -140,6 +140,37 @@ describe("listSourceFiles", () => {
     )
   })
 
+  it("skips additional secret-like files by name and extension", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-secrets-"))
+    tempDirs.push(root)
+
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".mimir", "raw", ".env.development"), "TOKEN=dev\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", ".env.example"), "TOKEN=changeme\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "id_rsa"), "PRIVATE\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "credentials"), "aws creds\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "service.p8"), "apple key\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "raw", "keep.md"), "safe evidence\n", "utf8")
+
+    const inventory = await inventorySourceFiles(testConfig(root))
+
+    expect(inventory.supportedFiles.map((file) => file.relativePath)).toEqual([
+      ".mimir/raw/keep.md",
+    ])
+    const sensitive = inventory.skippedFiles
+      .filter((file) => file.reason === "sensitive-name")
+      .map((file) => file.relativePath)
+    expect(sensitive).toEqual(
+      expect.arrayContaining([
+        ".mimir/raw/.env.development",
+        ".mimir/raw/.env.example",
+        ".mimir/raw/credentials",
+        ".mimir/raw/id_rsa",
+        ".mimir/raw/service.p8",
+      ]),
+    )
+  })
+
   it("indexes image files only when an OCR command is configured", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mimir-image-files-"))
     tempDirs.push(root)
@@ -231,6 +262,51 @@ describe("listSourceFiles", () => {
       "apps/front/docs/feature.md",
       "apps/front/README.md",
     ])
+  })
+
+  it("indexes sources declared inline in the config", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-config-sources-"))
+    tempDirs.push(root)
+
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await mkdir(path.join(root, "apps", "front", "docs", "private"), { recursive: true })
+    await mkdir(path.join(root, "apps", "back", "docs"), { recursive: true })
+    await writeFile(path.join(root, "apps", "front", "README.md"), "front readme\n", "utf8")
+    await writeFile(path.join(root, "apps", "front", "docs", "feature.md"), "front docs\n", "utf8")
+    await writeFile(
+      path.join(root, "apps", "front", "docs", "private", "secret.md"),
+      "private docs\n",
+      "utf8",
+    )
+    await writeFile(path.join(root, "apps", "back", "docs", "api.md"), "back docs\n", "utf8")
+
+    const files = await listSourceFiles(
+      testConfig(root, {
+        sources: ["apps/*/README.md", "apps/*/docs/**/*.md", "!apps/*/docs/private/**"],
+      }),
+    )
+
+    expect(files.map((file) => file.relativePath)).toEqual([
+      "apps/back/docs/api.md",
+      "apps/front/docs/feature.md",
+      "apps/front/README.md",
+    ])
+  })
+
+  it("merges inline config sources with the legacy sources file", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mimir-sources-merge-"))
+    tempDirs.push(root)
+
+    await mkdir(path.join(root, ".mimir", "raw"), { recursive: true })
+    await mkdir(path.join(root, "inline"), { recursive: true })
+    await mkdir(path.join(root, "legacy"), { recursive: true })
+    await writeFile(path.join(root, "inline", "README.md"), "inline\n", "utf8")
+    await writeFile(path.join(root, "legacy", "README.md"), "legacy\n", "utf8")
+    await writeFile(path.join(root, ".mimir", "sources.txt"), "legacy/README.md\n", "utf8")
+
+    const files = await listSourceFiles(testConfig(root, { sources: ["inline/README.md"] }))
+
+    expect(files.map((file) => file.relativePath)).toEqual(["inline/README.md", "legacy/README.md"])
   })
 
   it("indexes parent-relative glob sources from a nested knowledge base", async () => {

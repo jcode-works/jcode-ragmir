@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { accessLogUsageReport } from "./access-log.js";
 import { findProjectConfig, loadConfig } from "./config.js";
+import { MIMIR_PROJECT_ROOT_ENV } from "./defaults.js";
 import { evaluateGoldenQueries } from "./evaluate.js";
 import { audit } from "./ingest.js";
 import { ask, search } from "./query.js";
@@ -134,8 +135,9 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()) {
     await server.connect(new StdioServerTransport());
 }
 export function resolveMcpProjectRoot(env = process.env, fallback = process.cwd()) {
-    if (env.MIMIR_PROJECT_ROOT) {
-        return env.MIMIR_PROJECT_ROOT;
+    const explicitRoot = env[MIMIR_PROJECT_ROOT_ENV];
+    if (explicitRoot) {
+        return explicitRoot;
     }
     const fallbackConfig = findProjectConfig(fallback);
     if (existsSync(fallbackConfig.configPath)) {
@@ -153,7 +155,7 @@ function textResult(value) {
         ],
     };
 }
-async function searchOptions(cwd, topK) {
+export async function searchOptions(cwd, topK) {
     const config = await loadConfig(cwd);
     const boundedTopK = Math.min(topK ?? config.topK, config.mcpMaxTopK);
     return { cwd, topK: boundedTopK };
@@ -170,7 +172,7 @@ async function evaluationOptions(cwd, goldenPath, topK) {
     }
     return { ...result, topK: Math.min(topK, config.mcpMaxTopK) };
 }
-function projectRelativeGoldenPath(cwd, goldenPath) {
+export function projectRelativeGoldenPath(cwd, goldenPath) {
     const root = path.resolve(cwd);
     const absolutePath = path.resolve(root, goldenPath);
     const relativePath = path.relative(root, absolutePath);

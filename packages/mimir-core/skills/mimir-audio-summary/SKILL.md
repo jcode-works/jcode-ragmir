@@ -90,11 +90,16 @@ Create the output directory and write the narration to a temp file outside the r
 mkdir -p .mimir/audio
 ```
 
+Select the narration language with `--lang en|es|fr` (default `fr`). It picks the matching
+self-contained offline model (English, Spanish, or French) for the Transformers.js path and a native
+neural voice for the Edge path. Write the narration in the same language you pass to `--lang`.
+
 For global Voice Forge quality on non-confidential text, render with Edge MP3:
 
 ```bash
 pnpm exec mimir audio /tmp/MIMIR-SUMMARY-<subject-kebab>.txt \
   --engine edge \
+  --lang <en|es|fr> \
   --out .mimir/audio/MIMIR-SUMMARY-<subject-kebab>.mp3
 ```
 
@@ -107,6 +112,7 @@ For confidential or air-gapped operation, preload the model files under `.mimir/
 pnpm exec mimir audio /tmp/MIMIR-SUMMARY-<subject-kebab>.txt \
   --engine transformers \
   --offline \
+  --lang <en|es|fr> \
   --model-path .mimir/models/tts \
   --out .mimir/audio/MIMIR-SUMMARY-<subject-kebab>.wav
 ```
