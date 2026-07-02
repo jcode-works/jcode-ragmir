@@ -78,6 +78,7 @@ Mimir ships two CLIs:
 | `--offline` | `audio`, `mimir-tts render` | Disable remote model downloads and force the local Transformers.js path. |
 | `--allow-remote-models` | `audio`, `mimir-tts render` | Explicitly allow model downloads for Transformers.js. |
 | `--engine edge` | `audio`, `mimir-tts render` | Use online Edge TTS for MP3 output. |
+| `--lang <en\|es\|fr>` | `audio`, `mimir-tts render` | Select the TTS language; picks the offline model and Edge voice. Default `fr`. |
 
 See [`offline-tts-preload.md`](./offline-tts-preload.md) before using `--offline` on a fully
 air-gapped machine.

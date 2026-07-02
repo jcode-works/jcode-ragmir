@@ -632,6 +632,7 @@ preload Transformers.js-compatible model files with non-sensitive text, then ren
 npx mimir audio /tmp/MIMIR-SUMMARY-project.txt \
   --engine transformers \
   --offline \
+  --lang fr \
   --model-path .mimir/models/tts \
   --out .mimir/audio/project-summary.wav
 ```
@@ -645,8 +646,10 @@ npx mimir-tts render /tmp/MIMIR-SUMMARY-project.txt \
   --out .mimir/audio/project-summary.mp3
 ```
 
-The default standalone engine is `transformers`. The default Transformers.js model is
-`Xenova/mms-tts-fra`. Override it with `--model` or `MIMIR_TTS_MODEL`.
+The default standalone engine is `transformers` and the default language is `fr`. Pass
+`--lang en|es|fr` (or `MIMIR_TTS_LANG`) to switch language: it selects the matching self-contained
+offline model (`Xenova/mms-tts-eng`, `Xenova/mms-tts-spa`, or `Xenova/mms-tts-fra`) and, on the Edge
+path, a native neural voice. Override the model directly with `--model` or `MIMIR_TTS_MODEL`.
 
 See [`docs/offline-tts-preload.md`](./docs/offline-tts-preload.md) for the exact preload and
 offline-check workflow.
