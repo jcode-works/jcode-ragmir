@@ -23,6 +23,7 @@ pnpm build              # builds UI, app frontend, landing, TTS, then Mimir Core
 pnpm check              # typecheck UI/app/landing/TTS/core
 pnpm dev:app            # run the Vite frontend for the Tauri shell
 pnpm dev:landing        # run the Astro landing locally
+pnpm example            # build core + run the library-API smoke against the local build (examples/library-api-demo)
 pnpm lint               # Biome CI (format + lint check, no writes)
 pnpm lint:fix           # Biome auto-fix
 pnpm format             # Biome format --write

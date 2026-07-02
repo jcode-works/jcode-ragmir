@@ -1,8 +1,9 @@
 # Mimir
 
-> Open-source, sovereign local RAG for confidential datasets and AI agents: a TypeScript CLI,
-> library, MCP server, and portable agent skills that index local files, store vectors with
-> LanceDB, and return cited retrieval context to the calling coding agent.
+> Open-source local RAG library, CLI, and MCP server. Mimir indexes your specs, docs, and code
+> locally and gives your AI agents only the useful cited passages, over MCP, without burning tokens
+> on your whole repo. It stays sovereign and offline by default, storing vectors locally with
+> LanceDB; answer synthesis stays with the calling agent or model.
 
 Mimir Core (`@jcode.labs/mimir`, npm) ingests local files from the target repository, redacts
 secrets and PII before anything is embedded, and serves cited passages through a CLI (`mimir ...`),
