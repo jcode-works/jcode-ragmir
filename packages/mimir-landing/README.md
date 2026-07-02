@@ -11,8 +11,9 @@ pnpm --filter @jcode.labs/mimir-landing build
 pnpm --filter @jcode.labs/mimir-landing cf:dry-run
 ```
 
-The landing presents the open-source Mimir Core package, sovereign local retrieval, and a light
-teaser for the future Tauri desktop client. It does not collect emails.
+The landing presents the open-source Mimir Core package (local RAG that gives AI agents cited
+passages over MCP without burning tokens), sovereign local retrieval, and a light teaser for the
+future Tauri desktop client. It does not collect emails.
 
 Cloudflare Workers Static Assets configuration lives in [`wrangler.jsonc`](./wrangler.jsonc). The
 canonical domain is `mimir.jcode.works`; it is the future direct-download release surface for Mimir

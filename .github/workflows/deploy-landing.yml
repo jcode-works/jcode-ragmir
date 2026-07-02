@@ -1,0 +1,75 @@
+name: Deploy landing
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "packages/mimir-landing/**"
+      - ".github/workflows/deploy-landing.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-landing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy landing
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'landing-production' || 'landing-staging' }}
+      url: ${{ github.ref == 'refs/heads/main' && 'https://mimir.jcode.works' || 'https://staging.mimir.jcode.works' }}
+    defaults:
+      run:
+        working-directory: packages/mimir-landing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
+
+      - name: Install pinned Node via mise
+        run: mise install
+        working-directory: .
+
+      - name: Set up pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Build (production)
+        if: github.ref == 'refs/heads/main'
+        run: pnpm build
+        env:
+          PUBLIC_MIMIR_LANDING_URL: https://mimir.jcode.works
+
+      - name: Deploy (production)
+        if: github.ref == 'refs/heads/main'
+        run: pnpm exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Build (staging, not indexed)
+        if: github.ref == 'refs/heads/develop'
+        run: pnpm build
+        env:
+          PUBLIC_MIMIR_LANDING_URL: https://staging.mimir.jcode.works
+
+      - name: Deploy (staging)
+        if: github.ref == 'refs/heads/develop'
+        run: pnpm exec wrangler deploy --env staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

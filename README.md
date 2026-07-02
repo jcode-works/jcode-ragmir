@@ -6,19 +6,19 @@
 [![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/mimir?label=downloads%2Fmonth)](https://www.npmjs.com/package/@jcode.labs/mimir)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jcode-works/jcode-mimir/blob/main/LICENSE)
 
-Open-source, sovereign local RAG for confidential datasets and AI agents.
+Open-source local RAG library, CLI, and MCP server. Mimir indexes your specs, docs, and code
+locally and gives your AI agents only the useful cited passages, over MCP, without burning tokens on
+your whole repo.
 
-Mimir provides a TypeScript CLI, library, MCP server, and portable agent skills that can be
-installed in any Node.js repository. It indexes local files from the target repository, stores
-vectors locally with LanceDB, and can use either built-in local-hash retrieval or optional
-Transformers.js semantic embeddings.
+Build from your requirements, keep everything on your machine, and let Claude, Codex, Kimi,
+OpenCode, Cline, or any MCP client answer from your real sources. Mimir installs into any Node.js
+repository, stores vectors locally with LanceDB, and runs fully offline by default, with built-in
+local-hash retrieval or optional Transformers.js semantic embeddings.
 
 Mimir Core returns cited retrieval context. Answer synthesis belongs to the AI agent, LLM, or local
-model runtime you choose around it.
+model runtime you choose around it, so every answer stays grounded in your real evidence.
 
 Created by Jean-Baptiste Thery and published under the JCode Labs npm scope.
-
-Built by Jean-Baptiste Thery, freelance full-stack/AI tooling engineer at JCode Labs.
 
 ## Developer Use Cases
 
@@ -207,8 +207,8 @@ site, but public deployment remains a separate release action.
 
 - Build a local RAG knowledge base inside any repository.
 - Analyze confidential datasets while keeping raw files and generated indexes local.
-- Give Claude, Codex, Cursor, internal assistants, or other MCP-compatible tools the same private
-  retrieval layer.
+- Give Claude, Codex, Kimi, OpenCode, Cline, internal assistants, or other MCP-compatible tools the
+  same private retrieval layer.
 - Retrieve grounded local evidence through CLI, library calls, MCP tools, or bundled agent skills.
 - Optionally create listenable MP3/WAV summaries or cited Markdown reports with bundled skills.
 - Prepare legal-dossier summaries, chronologies, clause reviews, and professional-review handoffs
@@ -570,13 +570,6 @@ Use `mimir setup` for the normal path, or install only the agent layer later:
 npx mimir install-skill
 npx mimir install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
 npx mimir install-agent --agents claude,codex,kimi,opencode,cline
-```
-
-The bundled skill is also directly installable from this repository with the
-[skills.sh](https://skills.sh) CLI, without adding Mimir as a dependency first:
-
-```bash
-npx skills add https://github.com/jcode-works/jcode-mimir/tree/main/packages/mimir-core/skills/mimir
 ```
 
 Main agent examples:
@@ -993,14 +986,21 @@ Removing more dependencies is possible only by dropping features or replacing th
 internal implementations. The current low-friction path is dependency-light at runtime for users who
 choose `local-hash`, while preserving richer parsing, MCP support, and optional semantic embeddings.
 
-## Example Test Workspace
+## Example Test Workspaces
 
-This repository includes a synthetic example under
-[`packages/mimir-core/examples/sovereign-rag-demo`](./packages/mimir-core/examples/sovereign-rag-demo). It can
-be used to test ingestion, retrieval, `security-audit`, and custom text extensions without using
-private documents.
+This repository ships two synthetic examples under
+[`packages/mimir-core/examples`](./packages/mimir-core/examples). Both use the default local-hash
+retrieval mode, so they run without downloading an embedding or chat model, and neither uses private
+documents.
 
-From a local checkout:
+> Testing local changes: use the repository's own build, not `npx`. Inside this repo `npx mimir`
+> resolves to the **published** npm package, not your working copy — so it would not exercise your
+> local edits. The examples below run the local `dist/` build instead.
+
+### CLI workspace (`sovereign-rag-demo`)
+
+[`sovereign-rag-demo`](./packages/mimir-core/examples/sovereign-rag-demo) drives the **CLI** to test
+ingestion, retrieval, `security-audit`, and custom text extensions.
 
 ```bash
 pnpm build
@@ -1013,8 +1013,19 @@ node ../../dist/cli.js evaluate --golden golden-queries.json --fail-under 1
 node ../../dist/cli.js audit
 ```
 
-The example uses the default local-hash retrieval mode, so it can run without downloading an
-embedding or chat model.
+### Library API demo (`library-api-demo`)
+
+[`library-api-demo`](./packages/mimir-core/examples/library-api-demo) exercises the **library** API
+the way an external consumer would `import` it, but Node self-referencing resolves
+`@jcode.labs/mimir` to the local build, never npm. It is the fast inner loop when developing Mimir
+Core itself:
+
+```bash
+pnpm example
+```
+
+That builds Mimir Core, then runs `ingest -> search -> ask -> audit` through the public API against
+the reused synthetic corpus.
 
 ## Development And Release
 

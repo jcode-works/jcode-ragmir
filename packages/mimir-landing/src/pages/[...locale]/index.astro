@@ -20,16 +20,36 @@ const siteUrl = new URL("/", Astro.site ?? "https://mimir.jcode.works").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://mimir.jcode.works").href
 const faqItems = [
   {
+    question: t("faq_what_question"),
+    answer: t("faq_what_answer"),
+  },
+  {
     question: t("faq_private_question"),
     answer: t("faq_private_answer"),
+  },
+  {
+    question: t("faq_agents_question"),
+    answer: t("faq_agents_answer"),
+  },
+  {
+    question: t("faq_offline_question"),
+    answer: t("faq_offline_answer"),
+  },
+  {
+    question: t("faq_compare_question"),
+    answer: t("faq_compare_answer"),
+  },
+  {
+    question: t("faq_role_question"),
+    answer: t("faq_role_answer"),
   },
   {
     question: t("faq_formats_question"),
     answer: t("faq_formats_answer"),
   },
   {
-    question: t("faq_desktop_question"),
-    answer: t("faq_desktop_answer"),
+    question: t("faq_license_question"),
+    answer: t("faq_license_answer"),
   },
 ]
 const structuredData = [
@@ -53,6 +73,7 @@ const structuredData = [
       "Model Context Protocol",
       "AI agent tooling",
     ],
+    sameAs: ["https://github.com/jcode-works", "https://github.com/jcode-works/jcode-mimir"],
   },
   {
     "@context": "https://schema.org",
@@ -88,6 +109,11 @@ const structuredData = [
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Any",
     isAccessibleForFree: true,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
     license: "https://github.com/jcode-works/jcode-mimir/blob/main/LICENSE",
     programmingLanguage: "TypeScript",
     inLanguage: ["en", "fr"],
@@ -135,35 +161,16 @@ const structuredData = [
   availableLocales={locales}
   structuredData={structuredData}
 >
-  <Fragment slot="head">
-    {locale === defaultLang && (
-      <script is:inline>
-        ;(() => {
-          function safeGet(key) {
-            try {
-              return localStorage.getItem(key)
-            } catch {
-              return null
-            }
-          }
-          const saved = safeGet("mimir-locale") || safeGet("i18nextLng")
-          if (saved === "fr" && location.pathname === "/") {
-            location.replace("/fr/")
-          }
-        })()
-      </script>
-    )}
-  </Fragment>
-
   <LandingHero
-    client:load
+    client:idle
     alternateLocales={alternateLocales}
     locale={locale}
     localizedAgentsUrl={`${getLocalizedUrl("/", locale)}#agents`}
-    localizedHomeUrl={getLocalizedUrl("/", locale)}
+    localizedHomeUrl={`${getLocalizedUrl("/", locale)}#top`}
     localizedLibraryUrl={`${getLocalizedUrl("/", locale)}#library`}
     localizedUseCasesUrl={`${getLocalizedUrl("/", locale)}#use-cases`}
     localizedDesktopUrl={`${getLocalizedUrl("/", locale)}#desktop`}
+    localizedTeamUrl={getLocalizedUrl("/team", locale)}
     translations={translations}
   />
 </Layout>

@@ -14,6 +14,7 @@
     "commitlint": "commitlint --from=HEAD~1 --to=HEAD --verbose",
     "dev:app": "pnpm --filter @jcode.labs/mimir-app dev",
     "dev:landing": "pnpm --filter @jcode.labs/mimir-landing dev",
+    "example": "pnpm --filter @jcode.labs/mimir build && node packages/mimir-core/examples/library-api-demo/run.mjs",
     "format": "biome format --write .",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",

@@ -13,16 +13,17 @@ if (!Array.isArray(config.branches) || !config.branches.includes("main")) {
 }
 
 const plugins = config.plugins ?? []
-if (!plugins.some((plugin) => plugin === "@semantic-release/commit-analyzer")) {
+const pluginName = (plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)
+if (!plugins.some((plugin) => pluginName(plugin) === "@semantic-release/commit-analyzer")) {
   throw new Error("semantic-release commit analyzer plugin is missing")
 }
-if (!plugins.some((plugin) => plugin === "@semantic-release/release-notes-generator")) {
+if (!plugins.some((plugin) => pluginName(plugin) === "@semantic-release/release-notes-generator")) {
   throw new Error("semantic-release release notes plugin is missing")
 }
-if (!plugins.some((plugin) => Array.isArray(plugin) && plugin[0] === "@semantic-release/exec")) {
+if (!plugins.some((plugin) => pluginName(plugin) === "@semantic-release/exec")) {
   throw new Error("semantic-release exec plugin is missing")
 }
-if (!plugins.some((plugin) => Array.isArray(plugin) && plugin[0] === "@semantic-release/github")) {
+if (!plugins.some((plugin) => pluginName(plugin) === "@semantic-release/github")) {
   throw new Error("semantic-release GitHub plugin is missing")
 }
 

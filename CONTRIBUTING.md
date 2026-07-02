@@ -16,8 +16,18 @@ pnpm validate
 `pnpm bootstrap` runs `mise install && pnpm install`. Without mise, any Node.js 20+ and pnpm install
 works too — just run `pnpm install` directly.
 
+Activate mise in your shell (`mise activate`, per the
+[mise docs](https://mise.jdx.dev/getting-started.html)) so that entering this repository puts the
+pinned Node (and Rust) on your `PATH` automatically. Then `pnpm dev:app`, `pnpm dev:landing`, and
+`pnpm example` run on the same toolchain as CI without any per-script wiring — mise stays a
+version pinner, not a task runner (see `AGENTS.md`).
+
 `pnpm validate` runs Biome, a dependency security audit, TypeScript, Vitest, the production CLI/MCP
 smoke test, and npm package metadata checks.
+
+To smoke-test the library API against your local build while developing Mimir Core, run
+`pnpm example` (see
+[`packages/mimir-core/examples/library-api-demo`](./packages/mimir-core/examples/library-api-demo)).
 
 Run the security audit alone with:
 
