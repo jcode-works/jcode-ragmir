@@ -8,7 +8,11 @@ module.exports = {
       {
         // The landing site is an unpublished surface; its commits must never
         // trigger a version bump or npm publish of the library packages.
-        releaseRules: [{ scope: "landing", release: false }],
+        // Documentation updates publish a patch so the npm readme stays current.
+        releaseRules: [
+          { scope: "landing", release: false },
+          { type: "docs", release: "patch" },
+        ],
       },
     ],
     "@semantic-release/release-notes-generator",
