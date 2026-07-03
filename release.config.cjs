@@ -1,6 +1,6 @@
 module.exports = {
   branches: ["main"],
-  repositoryUrl: "https://github.com/jcode-works/jcode-mimir.git",
+  repositoryUrl: "https://github.com/jcode-works/jcode-ragmir.git",
   tagFormat: "v$" + "{version}",
   plugins: [
     [

@@ -1,0 +1,66 @@
+{
+  "name": "@jcode.labs/ragmir-tts",
+  "version": "0.4.12",
+  "description": "Ragmir add-on for plug-and-play Edge-quality and offline text-to-speech audio summaries.",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Jean-Baptiste Thery",
+    "url": "https://github.com/jb-thery"
+  },
+  "keywords": [
+    "jcode",
+    "ragmir",
+    "text-to-speech",
+    "tts",
+    "local-first",
+    "edge-tts",
+    "transformers",
+    "onnx",
+    "audio"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jcode-works/jcode-ragmir.git",
+    "directory": "packages/ragmir-tts"
+  },
+  "homepage": "https://github.com/jcode-works/jcode-ragmir#readme",
+  "bugs": {
+    "url": "https://github.com/jcode-works/jcode-ragmir/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "ragmir-tts": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "package:check": "publint",
+    "smoke": "node dist/cli.js doctor --json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "publint": "^0.3.21",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  }
+}

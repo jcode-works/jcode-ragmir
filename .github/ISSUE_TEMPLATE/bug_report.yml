@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible Mimir bug
+description: Report a reproducible Ragmir bug
 title: "bug: "
 labels: ["bug"]
 body:
@@ -21,8 +21,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Mimir version
-      placeholder: "pnpm exec mimir --version"
+      label: Ragmir version
+      placeholder: "pnpm exec ragmir --version"
     validations:
       required: true
   - type: textarea

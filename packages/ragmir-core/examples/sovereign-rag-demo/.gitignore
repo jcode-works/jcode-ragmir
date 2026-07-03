@@ -1,0 +1,11 @@
+.ragmir/
+!.ragmir/
+!.ragmir/config.json
+!.ragmir/sources.txt
+.ragmir/storage/
+.ragmir/access.log
+.ragmir/models/
+.ragmir/reports/
+.ragmir/audio/
+node_modules/
+private/**

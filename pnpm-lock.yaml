@@ -30,11 +30,11 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
 
-  packages/mimir-app:
+  packages/ragmir-app:
     dependencies:
-      '@jcode.labs/mimir-ui':
+      '@jcode.labs/ragmir-ui':
         specifier: workspace:*
-        version: link:../mimir-ui
+        version: link:../ragmir-ui
       '@tauri-apps/api':
         specifier: ^2.10.0
         version: 2.11.1
@@ -73,14 +73,14 @@ importers:
         specifier: ^8.0.13
         version: 8.1.0(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)
 
-  packages/mimir-core:
+  packages/ragmir-core:
     dependencies:
       '@huggingface/transformers':
         specifier: ^4.2.0
         version: 4.2.0
-      '@jcode.labs/mimir-tts':
+      '@jcode.labs/ragmir-tts':
         specifier: workspace:*
-        version: link:../mimir-tts
+        version: link:../ragmir-tts
       '@lancedb/lancedb':
         specifier: ^0.30.0
         version: 0.30.0(apache-arrow@18.1.0)
@@ -134,7 +134,7 @@ importers:
         specifier: ^4.0.15
         version: 4.1.9(@types/node@24.13.2)(vite@8.1.0(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/mimir-landing:
+  packages/ragmir-landing:
     dependencies:
       '@astrojs/check':
         specifier: ^0.9.9
@@ -148,9 +148,9 @@ importers:
       '@gsap/react':
         specifier: ^2.1.2
         version: 2.1.2(gsap@3.15.0)(react@19.2.7)
-      '@jcode.labs/mimir-ui':
+      '@jcode.labs/ragmir-ui':
         specifier: workspace:*
-        version: link:../mimir-ui
+        version: link:../ragmir-ui
       '@tailwindcss/vite':
         specifier: ^4.3.1
         version: 4.3.1(vite@8.1.0(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -192,7 +192,7 @@ importers:
         specifier: ^4.105.0
         version: 4.105.0
 
-  packages/mimir-license-webhook:
+  packages/ragmir-license-webhook:
     devDependencies:
       typescript:
         specifier: ^5.9.3
@@ -201,7 +201,7 @@ importers:
         specifier: ^4.105.0
         version: 4.105.0
 
-  packages/mimir-tts:
+  packages/ragmir-tts:
     dependencies:
       '@huggingface/transformers':
         specifier: ^4.2.0
@@ -220,7 +220,7 @@ importers:
         specifier: ^4.0.15
         version: 4.1.9(@types/node@24.13.2)(vite@8.1.0(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/mimir-ui:
+  packages/ragmir-ui:
     dependencies:
       '@radix-ui/react-slot':
         specifier: ^1.3.0

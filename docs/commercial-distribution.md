@@ -1,6 +1,6 @@
 # Commercial Distribution
 
-Mimir can be sold or supported commercially while the repository remains MIT open source.
+Ragmir can be sold or supported commercially while the repository remains MIT open source.
 
 The commercial product boundary is distribution and service, not hidden source code in this repo.
 Official paid channels may provide signed builds, verified downloads, support, onboarding, update
@@ -9,7 +9,7 @@ changed explicitly.
 
 ## Distribution
 
-Distribute Mimir app builds through direct downloads and sideloadable installers:
+Distribute Ragmir app builds through direct downloads and sideloadable installers:
 
 - macOS: signed and notarized `.dmg` / `.app` artifacts.
 - Windows: Authenticode-signed `.exe` / `.msi` artifacts.
@@ -40,10 +40,10 @@ it uses synthetic fixtures and placeholder infrastructure IDs.
 
 Until official signed builds and a real payment path exist:
 
-- present Mimir Core as the usable product;
+- present Ragmir Core as the usable product;
 - describe the app as in development;
 - avoid active checkout URLs;
-- avoid active direct-download URLs under real Mimir domains;
+- avoid active direct-download URLs under real Ragmir domains;
 - avoid claiming automatic updates, notarized artifacts, or signed releases before they exist.
 
 Business validation data belongs in private systems, not in this repository.

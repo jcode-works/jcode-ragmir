@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - "packages/mimir-landing/**"
+      - "packages/ragmir-landing/**"
       - ".github/workflows/deploy-landing.yml"
   workflow_dispatch:
 
@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'landing-production' || 'landing-staging' }}
-      url: ${{ github.ref == 'refs/heads/main' && 'https://mimir.jcode.works' || 'https://staging.mimir.jcode.works' }}
+      url: ${{ github.ref == 'refs/heads/main' && 'https://ragmir.jcode.works' || 'https://staging.ragmir.jcode.works' }}
     defaults:
       run:
-        working-directory: packages/mimir-landing
+        working-directory: packages/ragmir-landing
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -52,7 +52,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: pnpm build
         env:
-          PUBLIC_MIMIR_LANDING_URL: https://mimir.jcode.works
+          PUBLIC_RAGMIR_LANDING_URL: https://ragmir.jcode.works
 
       - name: Deploy (production)
         if: github.ref == 'refs/heads/main'
@@ -65,7 +65,7 @@ jobs:
         if: github.ref == 'refs/heads/develop'
         run: pnpm build
         env:
-          PUBLIC_MIMIR_LANDING_URL: https://staging.mimir.jcode.works
+          PUBLIC_RAGMIR_LANDING_URL: https://staging.ragmir.jcode.works
 
       - name: Deploy (staging)
         if: github.ref == 'refs/heads/develop'

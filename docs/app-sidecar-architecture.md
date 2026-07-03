@@ -2,14 +2,14 @@
 
 ## Decision
 
-The Mimir app embeds Mimir Core through the existing `mimir` CLI/MCP surface, with a packaged
-Node sidecar as the intended distribution path. Do not rewrite Mimir Core as Rust bindings for v1.
+The Ragmir app embeds Ragmir Core through the existing `ragmir` CLI/MCP surface, with a packaged
+Node sidecar as the intended distribution path. Do not rewrite Ragmir Core as Rust bindings for v1.
 
 ## Rationale
 
-- Mimir Core already owns parsing, redaction, embeddings, LanceDB storage, query, MCP, and audit
+- Ragmir Core already owns parsing, redaction, embeddings, LanceDB storage, query, MCP, and audit
   behavior.
-- Reusing `mimir` keeps the MIT core and the app shell on the same tested implementation.
+- Reusing `ragmir` keeps the MIT core and the app shell on the same tested implementation.
 - A Rust rewrite would duplicate LanceDB and Transformers.js integration risk before product demand
   is validated.
 - The app can keep a narrow native boundary: project selection, process execution, progress/status,
@@ -17,21 +17,21 @@ Node sidecar as the intended distribution path. Do not rewrite Mimir Core as Rus
 
 ## Tauri Boundary
 
-The current app uses a narrow custom Tauri command, `run_mimir_command`, implemented in
-`packages/mimir-app/src-tauri/src/lib.rs`. It does not expose a general shell. The command accepts a
-fixed enum of Mimir workflows, always prepends `--project-root <path>`, always requests `--json`, and
-executes the `mimir` binary from `PATH` or `MIMIR_CLI_BIN`. The native boundary rejects empty,
+The current app uses a narrow custom Tauri command, `run_ragmir_command`, implemented in
+`packages/ragmir-app/src-tauri/src/lib.rs`. It does not expose a general shell. The command accepts a
+fixed enum of Ragmir workflows, always prepends `--project-root <path>`, always requests `--json`, and
+executes the `ragmir` binary from `PATH` or `RAGMIR_CLI_BIN`. The native boundary rejects empty,
 relative, or non-existent project roots before running the CLI.
 
 The future packaged sidecar path remains:
 
-1. Build or package a platform-specific Mimir Core sidecar binary that exposes bounded `mimir`
+1. Build or package a platform-specific Ragmir Core sidecar binary that exposes bounded `ragmir`
    workflows.
-2. Add that binary to `bundle.externalBin` in `packages/mimir-app/src-tauri/tauri.conf.json`.
+2. Add that binary to `bundle.externalBin` in `packages/ragmir-app/src-tauri/tauri.conf.json`.
 3. Add `@tauri-apps/plugin-shell` on the frontend and `tauri-plugin-shell` on the Rust side only if
    the packaged sidecar needs the official shell-plugin path.
 4. Grant only explicit sidecar permissions in
-   `packages/mimir-app/src-tauri/capabilities/default.json`.
+   `packages/ragmir-app/src-tauri/capabilities/default.json`.
 5. Call the sidecar through `Command.sidecar(...)`, with a fixed command allowlist.
 
 Do not add `externalBin` before the actual sidecar binary exists for the native target triples.
@@ -47,27 +47,27 @@ The app should start with a small allowlist:
 
 | Workflow | Sidecar command |
 | --- | --- |
-| Readiness | `mimir doctor --json` |
-| Safe repair | `mimir doctor --fix --json` |
-| Status | `mimir status --json` |
-| Ingest | `mimir ingest --json` |
-| Force rebuild | `mimir ingest --rebuild --json` |
-| Search | `mimir search "<query>" --json` |
-| Ask context | `mimir ask "<question>" --json` |
-| Privacy audit | `mimir security-audit --json` |
-| Unsupported files | `mimir audit --unsupported --json` |
-| Model preload | `mimir models pull --enable --json` |
-| Audio report | `mimir audio "<generated-text-file>" --offline --json` |
+| Readiness | `ragmir doctor --json` |
+| Safe repair | `ragmir doctor --fix --json` |
+| Status | `ragmir status --json` |
+| Ingest | `ragmir ingest --json` |
+| Force rebuild | `ragmir ingest --rebuild --json` |
+| Search | `ragmir search "<query>" --json` |
+| Ask context | `ragmir ask "<question>" --json` |
+| Privacy audit | `ragmir security-audit --json` |
+| Unsupported files | `ragmir audit --unsupported --json` |
+| Model preload | `ragmir models pull --enable --json` |
+| Audio report | `ragmir audio "<generated-text-file>" --offline --json` |
 
 The UI must pass an explicit project root for each selected knowledge base with
-`mimir --project-root "<path>" ...` and keep generated state inside that project (`.mimir/`)
+`ragmir --project-root "<path>" ...` and keep generated state inside that project (`.ragmir/`)
 unless the user intentionally chooses another local folder.
 
-For audio reports, `run_mimir_command` writes the current retrieval report text under ignored
-`.mimir/audio/` first, then passes that generated text file to `mimir audio --offline --json`.
+For audio reports, `run_ragmir_command` writes the current retrieval report text under ignored
+`.ragmir/audio/` first, then passes that generated text file to `ragmir audio --offline --json`.
 
 For watched folders, the app does not expose a broader filesystem watcher. It stores an opt-in flag
-per registered local project and periodically calls the existing incremental `mimir ingest --json`
+per registered local project and periodically calls the existing incremental `ragmir ingest --json`
 workflow through the same bounded command surface.
 
 The Google Drive connector is the same local path flow with a distinct source label: the user selects

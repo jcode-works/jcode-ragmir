@@ -1,9 +1,9 @@
-# Mimir Core API Reference
+# Ragmir Core API Reference
 
-This reference covers the public TypeScript API exported by `@jcode.labs/mimir`. It is for
-developers embedding Mimir Core in local tools, scripts, desktop shells, MCP launchers, or tests.
+This reference covers the public TypeScript API exported by `@jcode.labs/ragmir`. It is for
+developers embedding Ragmir Core in local tools, scripts, desktop shells, MCP launchers, or tests.
 
-Mimir Core does not call an LLM and does not write final generated answers. Retrieval APIs return
+Ragmir Core does not call an LLM and does not write final generated answers. Retrieval APIs return
 cited local context; answer synthesis belongs to the agent or model runtime you choose around that
 context.
 
@@ -12,11 +12,11 @@ context.
 Use named imports only:
 
 ```ts
-import { addSourceEntries, ask, doctor, ingest, search, securityAudit } from "@jcode.labs/mimir"
+import { addSourceEntries, ask, doctor, ingest, search, securityAudit } from "@jcode.labs/ragmir"
 ```
 
 Most project-scoped functions accept an optional `cwd` pointing at the target workspace. If omitted,
-Mimir resolves the project from `process.cwd()`.
+Ragmir resolves the project from `process.cwd()`.
 
 ```ts
 await ingest({ cwd: "/path/to/local/workspace" })
@@ -27,18 +27,18 @@ const results = await search("offline approval", { cwd: "/path/to/local/workspac
 
 ### `initProject(cwd?)`
 
-Creates the local Mimir scaffolding:
+Creates the local Ragmir scaffolding:
 
-- `.mimir/config.json`
-- `.mimir/sources.txt`
-- `.mimir/raw/`
-- `.gitignore` entries for `.mimir/`
+- `.ragmir/config.json`
+- `.ragmir/sources.txt`
+- `.ragmir/raw/`
+- `.gitignore` entries for `.ragmir/`
 
 When a project already has legacy `.kb/config.json`, `initProject` preserves that config instead of
 creating a second active config.
 
 ```ts
-import { initProject } from "@jcode.labs/mimir"
+import { initProject } from "@jcode.labs/ragmir"
 
 const created = await initProject("/path/to/workspace")
 ```
@@ -53,7 +53,7 @@ warnings. Pass `semantic: true` to intentionally preload the configured Transfor
 model and switch the workspace to higher-quality semantic retrieval during setup.
 
 ```ts
-import { setupProject } from "@jcode.labs/mimir"
+import { setupProject } from "@jcode.labs/ragmir"
 
 const result = await setupProject({ cwd: "/path/to/workspace", ingest: true, semantic: true })
 console.log(result.semantic?.model.embeddingModelPath)
@@ -84,12 +84,12 @@ Useful result fields:
 
 ### `loadConfig(start?)`
 
-Finds `.mimir/config.json` by walking upward from `start`, falls back to legacy `.kb/config.json`
-when present, applies defaults and `MIMIR_*` environment overrides, and returns resolved absolute
+Finds `.ragmir/config.json` by walking upward from `start`, falls back to legacy `.kb/config.json`
+when present, applies defaults and `RAGMIR_*` environment overrides, and returns resolved absolute
 paths. Legacy `KB_*` aliases are still accepted.
 
 ```ts
-import { loadConfig } from "@jcode.labs/mimir"
+import { loadConfig } from "@jcode.labs/ragmir"
 
 const config = await loadConfig("/path/to/workspace/subdir")
 console.log(config.projectRoot)
@@ -97,10 +97,10 @@ console.log(config.projectRoot)
 
 ### `listSourceEntries(cwd?)`
 
-Reads `.mimir/sources.txt` and returns active non-comment entries.
+Reads `.ragmir/sources.txt` and returns active non-comment entries.
 
 ```ts
-import { listSourceEntries } from "@jcode.labs/mimir"
+import { listSourceEntries } from "@jcode.labs/ragmir"
 
 const sources = await listSourceEntries("/path/to/workspace")
 console.log(sources.entries)
@@ -108,11 +108,11 @@ console.log(sources.entries)
 
 ### `addSourceEntries(options)`
 
-Adds paths, glob patterns, or `!` exclusion patterns to `.mimir/sources.txt` without duplicating
-existing entries. This is the programmatic equivalent of `mimir sources add`.
+Adds paths, glob patterns, or `!` exclusion patterns to `.ragmir/sources.txt` without duplicating
+existing entries. This is the programmatic equivalent of `ragmir sources add`.
 
 ```ts
-import { addSourceEntries } from "@jcode.labs/mimir"
+import { addSourceEntries } from "@jcode.labs/ragmir"
 
 await addSourceEntries({
   cwd: "/path/to/workspace",
@@ -128,7 +128,7 @@ Discovers supported source files, parses them, redacts configured patterns, chun
 chunks, and writes the local LanceDB table.
 
 ```ts
-import { ingest } from "@jcode.labs/mimir"
+import { ingest } from "@jcode.labs/ragmir"
 
 const result = await ingest({ cwd: "/path/to/workspace" })
 ```
@@ -148,7 +148,7 @@ that produced no indexable text, and per-file parsing errors.
 Compares supported files on disk with the current index.
 
 ```ts
-import { audit } from "@jcode.labs/mimir"
+import { audit } from "@jcode.labs/ragmir"
 
 const report = await audit("/path/to/workspace")
 ```
@@ -159,10 +159,10 @@ they are not treated as missing while their checksum remains unchanged.
 
 ### `search(query, options?)`
 
-Returns ranked cited passages. Mimir combines vector candidates with bounded lexical scoring.
+Returns ranked cited passages. Ragmir combines vector candidates with bounded lexical scoring.
 
 ```ts
-import { search } from "@jcode.labs/mimir"
+import { search } from "@jcode.labs/ragmir"
 
 const passages = await search("Who approved offline operation?", {
   cwd: "/path/to/workspace",
@@ -174,7 +174,7 @@ Each `SearchResult` includes:
 
 | Field | Meaning |
 | --- | --- |
-| `relativePath` | Source path relative to the Mimir project root. |
+| `relativePath` | Source path relative to the Ragmir project root. |
 | `source` | Source category used by discovery. |
 | `chunkIndex` | Chunk number inside that source file. |
 | `text` | Retrieved redacted chunk text. |
@@ -189,7 +189,7 @@ Returns retrieval context formatted for an agent or LLM, plus the same cited sou
 `search`.
 
 ```ts
-import { ask } from "@jcode.labs/mimir"
+import { ask } from "@jcode.labs/ragmir"
 
 const answer = await ask("What evidence supports the project timeline?", {
   cwd: "/path/to/workspace",
@@ -206,7 +206,7 @@ security audit, generates multiple retrieval queries from the topic, merges cite
 source diagnostics, and optionally scans repository code-like files for matching terms.
 
 ```ts
-import { compactResearchReport, research } from "@jcode.labs/mimir"
+import { compactResearchReport, research } from "@jcode.labs/ragmir"
 
 const report = await research("release readiness and risks", {
   cwd: "/path/to/workspace",
@@ -226,7 +226,7 @@ Use `compactResearchReport(report)` before sending results through a constrained
 Downloads or warms the configured Transformers.js embedding model into `embeddingModelPath`.
 
 ```ts
-import { loadConfig, pullEmbeddingModel } from "@jcode.labs/mimir"
+import { loadConfig, pullEmbeddingModel } from "@jcode.labs/ragmir"
 
 const config = await loadConfig("/path/to/workspace")
 await pullEmbeddingModel(config)
@@ -237,7 +237,7 @@ This intentionally allows remote model loading for the bootstrap call. Keep
 
 ### `enableSemanticEmbeddings(cwd?)`
 
-Switches the active Mimir config to the safe semantic path:
+Switches the active Ragmir config to the safe semantic path:
 
 - `embeddingProvider: "transformers"`
 - existing or default `embeddingModel`
@@ -245,14 +245,14 @@ Switches the active Mimir config to the safe semantic path:
 - `transformersAllowRemoteModels: false`
 
 ```ts
-import { enableSemanticEmbeddings, ingest } from "@jcode.labs/mimir"
+import { enableSemanticEmbeddings, ingest } from "@jcode.labs/ragmir"
 
 await enableSemanticEmbeddings("/path/to/workspace")
 await ingest({ cwd: "/path/to/workspace", rebuild: true })
 ```
 
-The CLI shortcut `mimir models pull --enable` combines model preload with this config update. The
-first-run CLI shortcut is `mimir setup --semantic`.
+The CLI shortcut `ragmir models pull --enable` combines model preload with this config update. The
+first-run CLI shortcut is `ragmir setup --semantic`.
 
 ## Readiness And Safety
 
@@ -262,7 +262,7 @@ Returns a readiness report combining setup state, index freshness, security warn
 steps.
 
 ```ts
-import { doctor } from "@jcode.labs/mimir"
+import { doctor } from "@jcode.labs/ragmir"
 
 const report = await doctor("/path/to/workspace")
 if (!report.ready) {
@@ -276,12 +276,12 @@ Returns local privacy posture: provider settings, redaction status, access-log b
 state Git ignore coverage, MCP bounds, and warnings.
 
 ```ts
-import { securityAudit } from "@jcode.labs/mimir"
+import { securityAudit } from "@jcode.labs/ragmir"
 
 const report = await securityAudit("/path/to/workspace")
 ```
 
-`accessLog.storesRawQueries` is always `false`. Mimir's access log stores query hashes and metadata,
+`accessLog.storesRawQueries` is always `false`. Ragmir's access log stores query hashes and metadata,
 not raw query strings.
 
 ### `accessLogUsageReport(options?)`
@@ -291,7 +291,7 @@ count, average result count, invalid-line count, and the latest event timestamp 
 queries or local paths.
 
 ```ts
-import { accessLogUsageReport } from "@jcode.labs/mimir"
+import { accessLogUsageReport } from "@jcode.labs/ragmir"
 
 const report = await accessLogUsageReport({ cwd: "/path/to/workspace", days: 7 })
 ```
@@ -301,7 +301,7 @@ const report = await accessLogUsageReport({ cwd: "/path/to/workspace", days: 7 }
 Applies built-in and custom redaction patterns to text before indexing.
 
 ```ts
-import { loadConfig, redactText } from "@jcode.labs/mimir"
+import { loadConfig, redactText } from "@jcode.labs/ragmir"
 
 const config = await loadConfig("/path/to/workspace")
 const redacted = redactText("contact: user@example.com", config)
@@ -311,11 +311,11 @@ Returns `{ text, counts }`.
 
 ### `destroyIndex(cwd?)`
 
-Deletes generated `.mimir/storage` index files, or the configured legacy storage directory when a
+Deletes generated `.ragmir/storage` index files, or the configured legacy storage directory when a
 legacy project still uses `.kb/config.json`.
 
 ```ts
-import { destroyIndex } from "@jcode.labs/mimir"
+import { destroyIndex } from "@jcode.labs/ragmir"
 
 await destroyIndex("/path/to/workspace")
 ```
@@ -327,10 +327,10 @@ at-rest guarantees.
 
 ### `installSkill(options?)`
 
-Installs the portable Mimir skill pack and MCP helper files under `.mimir/`.
+Installs the portable Ragmir skill pack and MCP helper files under `.ragmir/`.
 
 ```ts
-import { installSkill } from "@jcode.labs/mimir"
+import { installSkill } from "@jcode.labs/ragmir"
 
 const result = await installSkill({ cwd: "/path/to/workspace" })
 ```
@@ -340,18 +340,18 @@ agent kit without re-running full setup.
 
 The installed skills are:
 
-- `mimir`
-- `mimir-audio-summary`
-- `mimir-markdown-report`
-- `mimir-legal-dossier`
+- `ragmir`
+- `ragmir-audio-summary`
+- `ragmir-markdown-report`
+- `ragmir-legal-dossier`
 
 ### `installAgentSkills(options?)`
 
-Creates native agent discovery folders for selected agents and links or copies the `.mimir/skills`
+Creates native agent discovery folders for selected agents and links or copies the `.ragmir/skills`
 source.
 
 ```ts
-import { installAgentSkills } from "@jcode.labs/mimir"
+import { installAgentSkills } from "@jcode.labs/ragmir"
 
 await installAgentSkills({
   cwd: "/path/to/workspace",
@@ -368,7 +368,7 @@ Supported agents are exported as `SUPPORTED_AGENT_TARGETS`.
 Parses CLI-style comma-separated agent names into supported agent identifiers.
 
 ```ts
-import { parseAgentTargets } from "@jcode.labs/mimir"
+import { parseAgentTargets } from "@jcode.labs/ragmir"
 
 const agents = parseAgentTargets("claude,codex,kimi")
 ```
@@ -379,29 +379,29 @@ Starts the MCP stdio server. It is normally called by the CLI, not directly insi
 application process.
 
 ```ts
-import { serveMcp } from "@jcode.labs/mimir"
+import { serveMcp } from "@jcode.labs/ragmir"
 
 await serveMcp("/path/to/workspace")
 ```
 
-When `cwd` is omitted, the server resolves the root from `MIMIR_PROJECT_ROOT`, then from the current
-working directory if it contains a Mimir config, then from agent-provided project environment such as
+When `cwd` is omitted, the server resolves the root from `RAGMIR_PROJECT_ROOT`, then from the current
+working directory if it contains a Ragmir config, then from agent-provided project environment such as
 `CLAUDE_PROJECT_DIR`, and finally from `process.cwd()`.
 
 MCP tools exposed by the server:
 
 | Tool | Input |
 | --- | --- |
-| `mimir_status` | `{}` |
-| `mimir_search` | `{ query: string, topK?: number, compact?: boolean }` |
-| `mimir_ask` | `{ query: string, topK?: number }` |
-| `mimir_research` | `{ query: string, topK?: number, includeCode?: boolean, compact?: boolean }` |
-| `mimir_audit` | `{}` |
-| `mimir_evaluate` | `{ goldenPath: string, topK?: number, failUnder?: number }` |
-| `mimir_usage_report` | `{ days?: number }` |
-| `mimir_security_audit` | `{}` |
+| `ragmir_status` | `{}` |
+| `ragmir_search` | `{ query: string, topK?: number, compact?: boolean }` |
+| `ragmir_ask` | `{ query: string, topK?: number }` |
+| `ragmir_research` | `{ query: string, topK?: number, includeCode?: boolean, compact?: boolean }` |
+| `ragmir_audit` | `{}` |
+| `ragmir_evaluate` | `{ goldenPath: string, topK?: number, failUnder?: number }` |
+| `ragmir_usage_report` | `{ days?: number }` |
+| `ragmir_security_audit` | `{}` |
 
-`topK` is bounded by `mcpMaxTopK` from config. `mimir_evaluate` also requires `goldenPath` to stay
+`topK` is bounded by `mcpMaxTopK` from config. `ragmir_evaluate` also requires `goldenPath` to stay
 inside the MCP project root.
 
 ## Package Manager Helpers
@@ -410,14 +410,14 @@ inside the MCP project root.
 
 Detects `pnpm`, `npm`, `yarn`, or `bun` from package metadata and lockfiles.
 
-### `mimirCommand(cwd, args)`
+### `ragmirCommand(cwd, args)`
 
-Builds the package-manager-specific command that runs `mimir`.
+Builds the package-manager-specific command that runs `ragmir`.
 
 ```ts
-import { mimirCommand } from "@jcode.labs/mimir"
+import { ragmirCommand } from "@jcode.labs/ragmir"
 
-const command = await mimirCommand("/path/to/workspace", ["doctor"])
+const command = await ragmirCommand("/path/to/workspace", ["doctor"])
 console.log(command.display)
 ```
 

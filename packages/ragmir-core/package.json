@@ -1,0 +1,87 @@
+{
+  "name": "@jcode.labs/ragmir",
+  "version": "0.4.12",
+  "description": "Ragmir Core: open-source sovereign local RAG for confidential datasets and AI agents.",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Jean-Baptiste Thery",
+    "url": "https://github.com/jb-thery"
+  },
+  "keywords": [
+    "jcode",
+    "ragmir",
+    "open-source",
+    "rag",
+    "sovereign-rag",
+    "knowledge-base",
+    "confidential-data",
+    "private-ai",
+    "local-first",
+    "mcp",
+    "transformers",
+    "semantic-search",
+    "lancedb"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jcode-works/jcode-ragmir.git",
+    "directory": "packages/ragmir-core"
+  },
+  "homepage": "https://github.com/jcode-works/jcode-ragmir#readme",
+  "bugs": {
+    "url": "https://github.com/jcode-works/jcode-ragmir/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "ragmir": "dist/cli.js",
+    "kb": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "examples",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "mcp:smoke": "pnpm build && node scripts/mcp-smoke.mjs",
+    "package:check": "publint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@jcode.labs/ragmir-tts": "workspace:*",
+    "@lancedb/lancedb": "^0.30.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^14.0.2",
+    "fast-glob": "^3.3.3",
+    "fflate": "^0.8.3",
+    "html-to-text": "^9.0.5",
+    "mammoth": "^1.12.0",
+    "picocolors": "^1.1.1",
+    "read-excel-file": "^9.2.0",
+    "unpdf": "^1.4.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/html-to-text": "^9.0.4",
+    "@types/node": "^24.10.1",
+    "publint": "^0.3.21",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  }
+}
