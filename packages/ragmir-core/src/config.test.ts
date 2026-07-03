@@ -303,4 +303,22 @@ describe("loadConfig", () => {
       }
     }
   })
+
+  it("rejects unknown config keys so typos surface instead of being ignored", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-strict-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir/config.json"), JSON.stringify({ topKk: 5 }), "utf8")
+
+    await expect(loadConfig(root)).rejects.toThrow(/topKk|Unrecognized key/i)
+  })
+
+  it("rejects a config file that is not a JSON object", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-not-object-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir/config.json"), "[1, 2, 3]\n", "utf8")
+
+    await expect(loadConfig(root)).rejects.toThrow("JSON object")
+  })
 })

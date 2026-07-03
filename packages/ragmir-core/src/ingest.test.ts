@@ -66,6 +66,24 @@ describe("ingest", () => {
     expect(second.reusedFiles).toBe(1)
   })
 
+  it("forces a full re-index of every file when rebuild is requested", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-rebuild-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "alpha.md"), "Alpha evidence.\n", "utf8")
+    await writeFile(path.join(root, ".ragmir", "raw", "beta.md"), "Beta evidence.\n", "utf8")
+
+    // First ingest indexes both files.
+    await ingest({ cwd: root })
+    // A normal second ingest would reuse both; rebuild must re-index all of them.
+    const rebuilt = await ingest({ cwd: root, rebuild: true })
+
+    expect(rebuilt.indexedFiles).toBe(2)
+    expect(rebuilt.rebuiltFiles).toBe(2)
+    expect(rebuilt.reusedFiles).toBe(0)
+  })
+
   it("reports supported files that produce no indexable text", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-empty-text-"))
     tempDirs.push(root)

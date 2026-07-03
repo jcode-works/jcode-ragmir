@@ -74,4 +74,45 @@ describe("evaluateGoldenQueries", () => {
     expect(report.topK).toBe(3)
     expect(report.cases[0]?.topK).toBe(3)
   })
+
+  it("reports a miss when no expected path is retrieved", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-miss-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await cp(path.join(packageRoot, "examples", "sovereign-rag-demo"), root, {
+      recursive: true,
+    })
+    await writeFile(
+      path.join(root, "miss-golden.json"),
+      `${JSON.stringify(
+        {
+          queries: [
+            {
+              id: "unreachable",
+              query: "Which dataset was rejected for confidential tests?",
+              // An expected path that will never be returned.
+              expectedPaths: ["raw/does-not-exist.md"],
+              topK: 3,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const report = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "miss-golden.json",
+    })
+
+    expect(report.misses).toBe(1)
+    expect(report.hits).toBe(0)
+    expect(report.recall).toBe(0)
+    const caseResult = report.cases[0]
+    expect(caseResult?.hit).toBe(false)
+    expect(caseResult?.bestRank).toBeNull()
+  })
 })

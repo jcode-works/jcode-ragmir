@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
-import { search, vectorCandidateLimit } from "./query.js"
+import { ask, search, vectorCandidateLimit } from "./query.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -68,6 +68,39 @@ describe("search", () => {
       "raw/security-policy.yaml",
       "raw/review-notes.evidence",
     ])
+  })
+})
+
+describe("ask", () => {
+  it("returns a no-evidence message when the index is empty", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-ask-empty-"))
+    tempDirs.push(root)
+    await initProject(root)
+
+    const result = await ask("anything", { cwd: root })
+
+    expect(result.sources).toEqual([])
+    expect(result.answer).toContain("No relevant passages")
+  })
+
+  it("returns cited retrieval context when evidence is found", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-ask-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "policy.md"),
+      "Tokens must be rotated every 30 days and kept out of source control.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const result = await ask("token rotation", { cwd: root, topK: 1 })
+
+    expect(result.sources).toHaveLength(1)
+    expect(result.answer).toContain("retrieval context only")
+    expect(result.answer).toContain("[1]")
+    expect(result.answer).toContain("policy.md#0")
   })
 })
 

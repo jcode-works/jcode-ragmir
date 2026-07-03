@@ -1,4 +1,4 @@
-import { appendFile, mkdtemp, rm } from "node:fs/promises"
+import { appendFile, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -57,5 +57,43 @@ describe("accessLogUsageReport", () => {
     await expect(accessLogUsageReport({ cwd: root, days: 0 })).rejects.toThrow(
       "usage-report days must be a positive integer.",
     )
+  })
+})
+
+describe("recordAccess retention", () => {
+  it("trims the access log when it exceeds the size cap, keeping the most recent lines", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-log-trim-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const config = await loadConfig(root)
+
+    // Pre-grow the log past the 10 MB cap with filler lines, then append one
+    // real event. The retention trim must shrink the file well below the cap
+    // while keeping the newest event intact.
+    const fillerLine = '{"action":"ingest","timestamp":"2024-01-01T00:00:00.000Z"}'
+    const fillerCount = Math.ceil((11 * 1024 * 1024) / (fillerLine.length + 1))
+    const filler = `${Array(fillerCount).fill(fillerLine).join("\n")}\n`
+    await writeFile(config.accessLogPath, filler, "utf8")
+    const sizeBefore = (await stat(config.accessLogPath)).size
+    expect(sizeBefore).toBeGreaterThan(10 * 1024 * 1024)
+
+    await recordAccess(config, { action: "search", resultCount: 1 })
+
+    const sizeAfter = (await stat(config.accessLogPath)).size
+    expect(sizeAfter).toBeLessThan(sizeBefore)
+    expect(sizeAfter).toBeLessThan(10 * 1024 * 1024)
+  })
+
+  it("does not write a log entry when access logging is disabled", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-log-disabled-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const config = await loadConfig(root)
+    const disabledConfig = { ...config, accessLog: false }
+
+    await recordAccess(disabledConfig, { action: "search", resultCount: 1 })
+
+    // No log file should exist because the disabled path returns before any append.
+    await expect(stat(config.accessLogPath)).rejects.toThrow("ENOENT")
   })
 })
