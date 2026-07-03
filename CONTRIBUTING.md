@@ -1,11 +1,11 @@
 # Contributing
 
-Mimir is an open-source project under the MIT License. Issues and pull requests are welcome.
+Ragmir is an open-source project under the MIT License. Issues and pull requests are welcome.
 
 ## Development
 
 This repo pins its Node.js and Rust versions with [mise](https://mise.jdx.dev/) (see `mise.toml`),
-the same versions CI uses; Rust is only needed if you're working on `packages/mimir-app`'s Tauri
+the same versions CI uses; Rust is only needed if you're working on `packages/ragmir-app`'s Tauri
 shell. Install mise, then run the single onboarding command:
 
 ```bash
@@ -25,9 +25,9 @@ version pinner, not a task runner (see `AGENTS.md`).
 `pnpm validate` runs Biome, a dependency security audit, TypeScript, Vitest, the production CLI/MCP
 smoke test, and npm package metadata checks.
 
-To smoke-test the library API against your local build while developing Mimir Core, run
+To smoke-test the library API against your local build while developing Ragmir Core, run
 `pnpm example` (see
-[`packages/mimir-core/examples/library-api-demo`](./packages/mimir-core/examples/library-api-demo)).
+[`packages/ragmir-core/examples/library-api-demo`](./packages/ragmir-core/examples/library-api-demo)).
 
 Run the security audit alone with:
 
@@ -44,7 +44,7 @@ pnpm audit:security
 - Use `hotfix/<short-name>` branches from `main` for urgent production fixes, then back-merge the fix
   into `develop`.
 - Keep changes focused and include tests or smoke coverage for behavior changes.
-- Do not commit private documents, generated vector stores, generated `.mimir/` state, environment
+- Do not commit private documents, generated vector stores, generated `.ragmir/` state, environment
   files, tokens, credentials, customer ledgers, pricing tests, or interview notes.
 - Use conventional commit messages such as `feat: add source parser` or
   `fix: handle empty index`.

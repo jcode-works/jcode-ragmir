@@ -1,30 +1,30 @@
-# Mimir
+# Ragmir
 
-> Open-source local RAG library, CLI, and MCP server. Mimir indexes your specs, docs, and code
+> Open-source local RAG library, CLI, and MCP server. Ragmir indexes your specs, docs, and code
 > locally and gives your AI agents only the useful cited passages, over MCP, without burning tokens
 > on your whole repo. It stays sovereign and offline by default, storing vectors locally with
 > LanceDB; answer synthesis stays with the calling agent or model.
 
-Mimir Core (`@jcode.labs/mimir`, npm) ingests local files from the target repository, redacts
-secrets and PII before anything is embedded, and serves cited passages through a CLI (`mimir ...`),
-an MCP server (`mimir serve-mcp`), a TypeScript library, and portable skills for Claude Code, Codex,
-Kimi Code CLI, OpenCode, and Cline. It does not perform LLM answer synthesis itself; `mimir ask`
-returns cited passages only, and synthesis stays with the calling agent or model. Mimir TTS
-(`@jcode.labs/mimir-tts`, npm) renders offline audio summaries.
+Ragmir Core (`@jcode.labs/ragmir`, npm) ingests local files from the target repository, redacts
+secrets and PII before anything is embedded, and serves cited passages through a CLI (`ragmir ...`),
+an MCP server (`ragmir serve-mcp`), a TypeScript library, and portable skills for Claude Code, Codex,
+Kimi Code CLI, OpenCode, and Cline. It does not perform LLM answer synthesis itself; `ragmir ask`
+returns cited passages only, and synthesis stays with the calling agent or model. Ragmir TTS
+(`@jcode.labs/ragmir-tts`, npm) renders offline audio summaries.
 
 ## Docs
 
-- [README](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/README.md): overview, install, quick start, developer use cases, full CLI walkthrough
-- [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/cli-reference.md): every `mimir` command and flag
-- [API reference](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/api-reference.md): library exports and MCP tools
-- [Agent integration](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/agent-integration.md): wiring Mimir into Claude Code, Codex, Kimi Code CLI, OpenCode, Cline
-- [Troubleshooting](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/troubleshooting.md)
-- [Contributing](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/CONTRIBUTING.md): dev setup (mise-pinned Node.js toolchain), pull request and Git Flow conventions
+- [README](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/README.md): overview, install, quick start, developer use cases, full CLI walkthrough
+- [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/cli-reference.md): every `ragmir` command and flag
+- [API reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/api-reference.md): library exports and MCP tools
+- [Agent integration](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/agent-integration.md): wiring Ragmir into Claude Code, Codex, Kimi Code CLI, OpenCode, Cline
+- [Troubleshooting](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/troubleshooting.md)
+- [Contributing](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/CONTRIBUTING.md): dev setup (mise-pinned Node.js toolchain), pull request and Git Flow conventions
 
 ## Optional
 
-- [Source boundary](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/source-boundary.md): open-core split between Mimir Core and add-ons
-- [Offline TTS preload](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/offline-tts-preload.md)
-- [FR/EU sovereign positioning](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/docs/fr-eu-sovereign-positioning.md)
-- [Security hardening](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/SECURITY-HARDENING.md)
-- [Security policy](https://raw.githubusercontent.com/jcode-works/jcode-mimir/main/SECURITY.md)
+- [Source boundary](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/source-boundary.md): open-core split between Ragmir Core and add-ons
+- [Offline TTS preload](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/offline-tts-preload.md)
+- [FR/EU sovereign positioning](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/fr-eu-sovereign-positioning.md)
+- [Security hardening](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/SECURITY-HARDENING.md)
+- [Security policy](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/SECURITY.md)

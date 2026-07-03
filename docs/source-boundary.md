@@ -1,6 +1,6 @@
 # Source Boundary
 
-Mimir is a public MIT-licensed repository. Treat every tracked source file, package, workflow,
+Ragmir is a public MIT-licensed repository. Treat every tracked source file, package, workflow,
 example, and document as visible, forkable, modifiable, and reusable by anyone under the MIT License.
 
 This repository must never describe tracked source as proprietary, closed source, source-available,
@@ -11,9 +11,9 @@ source.
 
 The repository intentionally contains:
 
-- Mimir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples.
-- Mimir TTS: optional audio rendering package.
-- Mimir UI and landing source.
+- Ragmir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples.
+- Ragmir TTS: optional audio rendering package.
+- Ragmir UI and landing source.
 - The Tauri app shell source.
 - Direct-download release tooling, checksum tooling, manifest tooling, and updater guards.
 - The undeployed license webhook source and synthetic smoke tests.
@@ -44,7 +44,7 @@ Bad boundaries for this repo:
 Local license validation can gate official signed builds, support, updates, and paid distribution
 channels. It cannot prevent a user from forking MIT source code.
 
-If Mimir later needs truly proprietary source code, that code must live outside this MIT repository
+If Ragmir later needs truly proprietary source code, that code must live outside this MIT repository
 or the licensing model must be changed deliberately before publication.
 
 ## Public-Repo Hygiene
@@ -60,7 +60,7 @@ Keep the public repository limited to:
 Keep outside Git:
 
 - private documents and client corpora;
-- `.mimir/`, `.pid`, raw reports, audio files, vector stores, and legacy `.kb/` state;
+- `.ragmir/`, `.pid`, raw reports, audio files, vector stores, and legacy `.kb/` state;
 - API keys, webhook secrets, signing keys, certificates, and environment files;
 - customer names, emails, invoices, order exports, and support evidence;
 - internal pricing tests, pre-sales ledgers, interview notes, and GO/NO-GO records.

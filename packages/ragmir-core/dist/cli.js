@@ -1,0 +1,944 @@
+#!/usr/bin/env node
+import path from "node:path";
+import { isTtsLanguage, TTS_LANGUAGES } from "@jcode.labs/ragmir-tts";
+import { Command } from "commander";
+import pc from "picocolors";
+import { accessLogUsageReport } from "./access-log.js";
+import { loadConfig } from "./config.js";
+import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js";
+import { destroyIndex } from "./destroy.js";
+import { doctor } from "./doctor.js";
+import { pullEmbeddingModel } from "./embeddings.js";
+import { evaluateGoldenQueries } from "./evaluate.js";
+import { countSkippedByReason } from "./files.js";
+import { audit, ingest } from "./ingest.js";
+import { initProject } from "./init.js";
+import { serveMcp } from "./mcp.js";
+import { ragmirCommand } from "./package-manager.js";
+import { ask, search } from "./query.js";
+import { compactResearchReport, compactSearchResults, research } from "./research.js";
+import { securityAudit } from "./security.js";
+import { enableSemanticEmbeddings } from "./semantic-config.js";
+import { setupProject } from "./setup.js";
+import { bundledSkillPath, installAgentSkills, installSkill, parseAgentTargets, SUPPORTED_AGENT_TARGETS, } from "./skill.js";
+import { addSourceEntries, listSourceEntries } from "./sources.js";
+import { countRows } from "./store.js";
+import { VERSION } from "./version.js";
+const SEARCH_TEXT_PREVIEW_LENGTH = 900;
+const TTS_PACKAGE_NAME = "@jcode.labs/ragmir-tts";
+const program = new Command();
+program
+    .name("ragmir")
+    .description("Local-first RAG knowledge base for private project documents.")
+    .version(VERSION)
+    .option("--project-root <path>", "Run project-scoped commands against this local workspace.");
+const modelsCommand = program.command("models").description("Manage local embedding models.");
+modelsCommand
+    .command("pull")
+    .description("Download the configured Transformers.js embedding model into embeddingModelPath.")
+    .option("--enable", "Switch Ragmir config to Transformers embeddings after the model is ready.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const config = await loadConfig(cwd);
+    const result = await pullEmbeddingModel(config);
+    const semanticConfig = options.enable ? await enableSemanticEmbeddings(cwd) : null;
+    if (options.json) {
+        console.log(JSON.stringify(semanticConfig ? { ...result, semanticConfig } : result, null, 2));
+        return;
+    }
+    console.log(pc.green("Embedding model ready."));
+    console.log(`embeddingModel=${result.embeddingModel}`);
+    console.log(`embeddingModelPath=${result.embeddingModelPath}`);
+    if (semanticConfig) {
+        console.log(`semanticConfig=${semanticConfig.configPath}`);
+        console.log(`embeddingProvider=${semanticConfig.embeddingProvider}`);
+        console.log(`transformersAllowRemoteModels=${semanticConfig.transformersAllowRemoteModels}`);
+    }
+    console.log("");
+    console.log("Next steps:");
+    if (semanticConfig) {
+        console.log("  1. Run `ragmir ingest --rebuild` so existing vectors use the semantic model.");
+        console.log("  2. Run `ragmir doctor` to confirm readiness.");
+    }
+    else {
+        console.log("  1. Re-run `ragmir models pull --enable` to switch Ragmir config safely.");
+        console.log("  2. Run `ragmir ingest --rebuild` so existing vectors use the semantic model.");
+    }
+});
+program
+    .command("doctor")
+    .description("Diagnose setup, index freshness, privacy posture, and next steps.")
+    .option("--fix", "Create missing scaffolding, install the agent kit, and rebuild stale indexes.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    if (options.fix) {
+        const result = await setupProject({ cwd });
+        if (options.json) {
+            console.log(JSON.stringify(result, null, 2));
+            return;
+        }
+        printSetup(result, "Ragmir repair complete.");
+        return;
+    }
+    const report = await doctor(cwd);
+    if (options.json) {
+        console.log(JSON.stringify(report, null, 2));
+        return;
+    }
+    printDoctor(report);
+});
+program
+    .command("setup")
+    .description("Initialize Ragmir, install the agent kit, run doctor, and ingest when safe.")
+    .option("--target-dir <path>", "Directory where the skill folder should be copied.", DEFAULT_SKILL_TARGET_DIR)
+    .option("--agents <list>", `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`, "all")
+    .option("--mcp-name <name>", "MCP server name used in generated config.", "ragmir")
+    .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
+    .option("--mcp-arg <arg>", "Argument for --mcp-command. Repeat for multiple arguments.", collectOptionValue, [])
+    .option("--semantic", "Download the configured Transformers.js embedding model and enable higher-quality semantic retrieval.")
+    .option("--no-ingest", "Skip automatic indexing even when supported files are present.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const setupOptions = {
+        cwd,
+        targetDir: options.targetDir,
+        agents: parseAgentTargets(options.agents),
+        mcpServerName: options.mcpName,
+    };
+    addOption(setupOptions, "semantic", options.semantic);
+    addOption(setupOptions, "ingest", options.ingest);
+    addOption(setupOptions, "mcpCommand", options.mcpCommand);
+    if (options.mcpArg.length > 0) {
+        setupOptions.mcpArgs = options.mcpArg;
+    }
+    const result = await setupProject(setupOptions);
+    if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
+    printSetup(result, "Ragmir setup complete.");
+});
+program
+    .command("init")
+    .description("Create local .ragmir config, raw-document folder, and gitignore rules.")
+    .action(async (_options, command) => {
+    const cwd = projectRoot(command);
+    const created = await initProject(cwd);
+    if (created.length === 0) {
+        console.log(pc.green("Already initialized."));
+        const doctorCommand = await ragmirCommand(cwd, ["doctor"]);
+        console.log(`Run \`${doctorCommand.display}\` to check readiness.`);
+        return;
+    }
+    console.log(pc.green("Created:"));
+    for (const file of created) {
+        console.log(`  - ${file}`);
+    }
+    const ingestCommand = await ragmirCommand(cwd, ["ingest"]);
+    const doctorCommand = await ragmirCommand(cwd, ["doctor"]);
+    const searchCommand = await ragmirCommand(cwd, ["search", "your question"]);
+    console.log("");
+    console.log(pc.cyan("Next steps:"));
+    console.log("  1. Add supported documents under .ragmir/raw/");
+    console.log(`  2. Run \`${ingestCommand.display}\``);
+    console.log(`  3. Run \`${doctorCommand.display}\``);
+    console.log(`  4. Query with \`${searchCommand.display}\``);
+});
+const sourcesCommand = program
+    .command("sources")
+    .description("Manage extra source paths and glob patterns in .ragmir/sources.txt.");
+sourcesCommand
+    .command("list")
+    .description("List extra source paths and glob patterns.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const result = await listSourceEntries(cwd);
+    if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
+    console.log(`sourcesFile=${path.relative(cwd, result.sourcesFile) || result.sourcesFile}`);
+    if (result.entries.length === 0) {
+        console.log("No extra source entries.");
+        console.log('Add one with `ragmir sources add "../apps/*/docs/**/*.md"`.');
+        return;
+    }
+    for (const entry of result.entries) {
+        console.log(`  - ${entry}`);
+    }
+});
+sourcesCommand
+    .command("add")
+    .description("Add extra source paths or glob patterns.")
+    .argument("<entries...>", "Source paths, glob patterns, or ! exclusion patterns.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (entries, options, command) => {
+    const cwd = projectRoot(command);
+    const result = await addSourceEntries({ cwd, entries });
+    if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
+    console.log(`sourcesFile=${path.relative(cwd, result.sourcesFile) || result.sourcesFile}`);
+    for (const entry of result.added) {
+        console.log(pc.green(`added ${entry}`));
+    }
+    for (const entry of result.skipped) {
+        console.log(pc.dim(`skipped existing ${entry}`));
+    }
+});
+program
+    .command("ingest")
+    .description("Parse changed documents, redact, chunk, embed locally, and update LanceDB.")
+    .option("--rebuild", "Force a full local index rebuild instead of reusing unchanged rows.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const ingestOptions = { cwd };
+    addOption(ingestOptions, "rebuild", options.rebuild);
+    const result = await ingest(ingestOptions);
+    if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        if (result.errors.length > 0) {
+            process.exitCode = 1;
+        }
+        return;
+    }
+    console.log(pc.green(`Done. discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`));
+    printUnsupportedSummary(result.unsupportedExtensions);
+    printEmptyTextFiles(result.emptyTextFiles);
+    if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
+        const auditCommand = await ragmirCommand(cwd, ["audit", "--unsupported"]);
+        console.log(pc.yellow(`Some files were not indexed. Run \`${auditCommand.display}\` for details.`));
+    }
+    for (const error of result.errors) {
+        console.error(pc.red(`  - ${error.path}: ${error.message}`));
+    }
+    if (result.errors.length > 0) {
+        process.exitCode = 1;
+    }
+});
+program
+    .command("search")
+    .description("Retrieve the most relevant passages without calling an LLM.")
+    .argument("<query>", "Search query.")
+    .option("-k, --top-k <number>", "Number of passages to return.", parsePositiveInt)
+    .option("--compact", "Return short snippets instead of full passages.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (query, options, command) => {
+    const cwd = projectRoot(command);
+    const results = await search(query, withTopK(cwd, options.topK));
+    const outputResults = options.compact ? compactSearchResults(results) : results;
+    if (options.json) {
+        console.log(JSON.stringify({ query, results: outputResults }, null, 2));
+        if (results.length === 0) {
+            process.exitCode = 1;
+        }
+        return;
+    }
+    if (results.length === 0) {
+        const repairCommand = await ragmirCommand(cwd, ["doctor", "--fix"]);
+        console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`));
+        process.exitCode = 1;
+        return;
+    }
+    for (const [index, result] of outputResults.entries()) {
+        const distance = result.distance === null ? "n/a" : result.distance.toFixed(4);
+        console.log(`\n${pc.cyan(`[${index + 1}] ${result.relativePath}`)} chunk=${result.chunkIndex} distance=${distance}`);
+        console.log("snippet" in result ? result.snippet : result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH));
+    }
+});
+program
+    .command("ask")
+    .description("Return cited retrieval context for a question without calling an LLM.")
+    .argument("<query>", "Question to answer.")
+    .option("-k, --top-k <number>", "Number of passages to use.", parsePositiveInt)
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (query, options, command) => {
+    const cwd = projectRoot(command);
+    const result = await ask(query, withTopK(cwd, options.topK));
+    if (options.json) {
+        console.log(JSON.stringify({ query, ...result }, null, 2));
+        if (result.sources.length === 0) {
+            process.exitCode = 1;
+        }
+        return;
+    }
+    console.log(`\n${result.answer}\n`);
+    if (result.sources.length > 0) {
+        console.log(pc.dim("Sources:"));
+        for (const [index, source] of result.sources.entries()) {
+            console.log(`  [${index + 1}] ${source.relativePath} chunk=${source.chunkIndex}`);
+        }
+    }
+});
+program
+    .command("research")
+    .description("Run an audit-backed multi-query research pass with cited evidence.")
+    .argument("<query>", "Research question or topic.")
+    .option("-k, --top-k <number>", "Maximum number of evidence passages to keep.", parsePositiveInt)
+    .option("--no-code", "Skip the lightweight repository code search.")
+    .option("--compact", "Return snippets instead of full retrieved passages.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (query, options, command) => {
+    const cwd = projectRoot(command);
+    const researchOptions = { cwd };
+    addOption(researchOptions, "topK", options.topK);
+    addOption(researchOptions, "includeCode", options.code);
+    const report = await research(query, researchOptions);
+    const output = options.compact ? compactResearchReport(report) : report;
+    if (options.json) {
+        console.log(JSON.stringify(output, null, 2));
+        if (!report.ready) {
+            process.exitCode = 1;
+        }
+        return;
+    }
+    printResearchReport(output);
+    if (!report.ready) {
+        process.exitCode = 1;
+    }
+});
+program
+    .command("evaluate")
+    .description("Measure retrieval recall against a JSON golden query file.")
+    .requiredOption("--golden <path>", "JSON file with queries and expected relative source paths.")
+    .option("-k, --top-k <number>", "Default number of passages to evaluate per query.", parsePositiveInt)
+    .option("--fail-under <recall>", "Exit non-zero only when recall is below this threshold from 0 to 1.", parseRecallThreshold)
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const evaluationOptions = {
+        cwd,
+        goldenPath: options.golden,
+    };
+    addOption(evaluationOptions, "topK", options.topK);
+    const result = await evaluateGoldenQueries(evaluationOptions);
+    const minimumRecall = options.failUnder ?? 1;
+    const passed = result.recall >= minimumRecall;
+    if (options.json) {
+        const payload = options.failUnder === undefined ? result : { ...result, minimumRecall, passed };
+        console.log(JSON.stringify(payload, null, 2));
+        if (!passed) {
+            process.exitCode = 1;
+        }
+        return;
+    }
+    const thresholdSummary = options.failUnder === undefined
+        ? ""
+        : ` minimumRecall=${minimumRecall.toFixed(3)} passed=${passed}`;
+    console.log(`golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} recall=${result.recall.toFixed(3)}${thresholdSummary}`);
+    for (const testCase of result.cases) {
+        const label = testCase.id ? `${testCase.id}: ${testCase.query}` : testCase.query;
+        const status = testCase.hit ? pc.green("hit") : pc.red("miss");
+        const rank = testCase.bestRank === null ? "n/a" : String(testCase.bestRank);
+        console.log(`${status} rank=${rank} topK=${testCase.topK} ${label}`);
+        if (!testCase.hit) {
+            console.log(`  expected=${testCase.expectedPaths.join(",")}`);
+            console.log(`  returned=${testCase.returnedPaths.join(",")}`);
+        }
+    }
+    if (!passed) {
+        process.exitCode = 1;
+    }
+});
+program
+    .command("audit")
+    .description("Compare supported files on disk with the current vector index.")
+    .option("--unsupported", "List skipped file paths and reasons.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const report = await audit(cwd);
+    if (options.json) {
+        console.log(JSON.stringify(report, null, 2));
+        return;
+    }
+    console.log(`supportedFiles=${report.supportedFiles.length}`);
+    console.log(`skippedFiles=${report.skippedFiles.length}`);
+    console.log(`unsupportedFiles=${countSkippedByReason(report.skippedFiles, "unsupported-extension")}`);
+    console.log(`indexedFiles=${report.indexedFiles.length}`);
+    console.log(`totalChunks=${report.totalChunks}`);
+    console.log(`emptyTextFiles=${report.emptyTextFiles.length}`);
+    console.log(`missingFromIndex=${report.missingFromIndex.length}`);
+    console.log(`staleInIndex=${report.staleInIndex.length}`);
+    console.log(`duplicateCandidates=${report.sourceDiagnostics.duplicateCandidates.length}`);
+    console.log(`archiveCandidates=${report.sourceDiagnostics.archiveCandidates.length}`);
+    console.log(`mirrorCandidates=${report.sourceDiagnostics.mirrorCandidates.length}`);
+    printUnsupportedSummary(report.unsupportedExtensions);
+    for (const file of report.missingFromIndex) {
+        console.log(pc.yellow(`missing: ${file}`));
+    }
+    for (const file of report.staleInIndex) {
+        console.log(pc.red(`stale: ${file}`));
+    }
+    if (options.unsupported) {
+        for (const file of report.skippedFiles) {
+            console.log(pc.yellow(`skipped: ${file.relativePath} reason=${file.reason} recommendation=${file.recommendation}`));
+        }
+        for (const candidate of report.sourceDiagnostics.duplicateCandidates) {
+            console.log(pc.yellow(`duplicate-candidate: ${candidate.key} files=${candidate.files.join(",")}`));
+        }
+        for (const candidate of report.sourceDiagnostics.archiveCandidates) {
+            console.log(pc.yellow(`archive-candidate: ${candidate.relativePath} reason=${candidate.reason}`));
+        }
+        for (const candidate of report.sourceDiagnostics.mirrorCandidates) {
+            console.log(pc.yellow(`mirror-candidate: ${candidate.relativePath} reason=${candidate.reason}`));
+        }
+    }
+    else if (report.skippedFiles.length > 0) {
+        console.log(pc.yellow("Run `ragmir audit --unsupported` to list skipped file paths."));
+    }
+    if (report.missingFromIndex.length > 0 || report.staleInIndex.length > 0) {
+        process.exitCode = 1;
+    }
+});
+program
+    .command("usage-report")
+    .description("Summarize the metadata-only local access log.")
+    .option("--days <number>", "Number of recent days to include.", parsePositiveInt, 7)
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const report = await accessLogUsageReport({ cwd, days: options.days });
+    if (options.json) {
+        console.log(JSON.stringify(report, null, 2));
+        return;
+    }
+    console.log(`accessLogEnabled=${report.accessLogEnabled}`);
+    console.log(`since=${report.since}`);
+    console.log(`until=${report.until}`);
+    console.log(`totalEvents=${report.totalEvents}`);
+    console.log(`invalidLines=${report.invalidLines}`);
+    console.log(`uniqueQueryHashes=${report.uniqueQueryHashes}`);
+    console.log(`averageResultCount=${report.averageResultCount ?? "n/a"}`);
+    console.log(`lastEventAt=${report.lastEventAt ?? "n/a"}`);
+    for (const [action, count] of Object.entries(report.eventsByAction)) {
+        console.log(`events.${action}=${count}`);
+    }
+});
+program
+    .command("status")
+    .description("Show active configuration and index row count.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const config = await loadConfig(cwd);
+    const rows = await countRows(config);
+    const status = {
+        projectRoot: config.projectRoot,
+        rawDir: config.rawDir,
+        storageDir: config.storageDir,
+        sourcesFile: config.sourcesFile,
+        accessLogPath: config.accessLogPath,
+        embeddingModelPath: config.embeddingModelPath,
+        embeddingProvider: config.embeddingProvider,
+        embeddingModel: config.embeddingModel,
+        transformersAllowRemoteModels: config.transformersAllowRemoteModels,
+        redactionEnabled: config.redaction.enabled,
+        accessLog: config.accessLog,
+        mcpMaxTopK: config.mcpMaxTopK,
+        topK: config.topK,
+        chunkSize: config.chunkSize,
+        chunkOverlap: config.chunkOverlap,
+        maxFileBytes: config.maxFileBytes,
+        ingestConcurrency: config.ingestConcurrency,
+        embeddingBatchSize: config.embeddingBatchSize,
+        includeExtensions: config.includeExtensions,
+        pdfOcrCommand: config.pdfOcrCommand,
+        pdfOcrTimeoutMs: config.pdfOcrTimeoutMs,
+        imageOcrCommand: config.imageOcrCommand,
+        imageOcrTimeoutMs: config.imageOcrTimeoutMs,
+        legacyWordCommand: config.legacyWordCommand,
+        legacyWordTimeoutMs: config.legacyWordTimeoutMs,
+        chunksIndexed: rows,
+    };
+    if (options.json) {
+        console.log(JSON.stringify(status, null, 2));
+        return;
+    }
+    console.log(`projectRoot=${config.projectRoot}`);
+    console.log(`rawDir=${config.rawDir}`);
+    console.log(`storageDir=${config.storageDir}`);
+    console.log(`sourcesFile=${config.sourcesFile}`);
+    console.log(`accessLogPath=${config.accessLogPath}`);
+    console.log(`embeddingModelPath=${config.embeddingModelPath}`);
+    console.log(`embeddingProvider=${config.embeddingProvider}`);
+    console.log(`embeddingModel=${config.embeddingModel}`);
+    console.log(`transformersAllowRemoteModels=${config.transformersAllowRemoteModels}`);
+    console.log(`redactionEnabled=${config.redaction.enabled}`);
+    console.log(`accessLog=${config.accessLog}`);
+    console.log(`mcpMaxTopK=${config.mcpMaxTopK}`);
+    console.log(`topK=${config.topK}`);
+    console.log(`chunkSize=${config.chunkSize}`);
+    console.log(`chunkOverlap=${config.chunkOverlap}`);
+    console.log(`maxFileBytes=${config.maxFileBytes}`);
+    console.log(`ingestConcurrency=${config.ingestConcurrency}`);
+    console.log(`embeddingBatchSize=${config.embeddingBatchSize}`);
+    console.log(`includeExtensions=${config.includeExtensions.join(",")}`);
+    console.log(`pdfOcrCommand=${config.pdfOcrCommand.join(" ")}`);
+    console.log(`pdfOcrTimeoutMs=${config.pdfOcrTimeoutMs}`);
+    console.log(`imageOcrCommand=${config.imageOcrCommand.join(" ")}`);
+    console.log(`imageOcrTimeoutMs=${config.imageOcrTimeoutMs}`);
+    console.log(`legacyWordCommand=${config.legacyWordCommand.join(" ")}`);
+    console.log(`legacyWordTimeoutMs=${config.legacyWordTimeoutMs}`);
+    console.log(`chunksIndexed=${rows}`);
+});
+program
+    .command("security-audit")
+    .description("Show local privacy, provider, redaction, MCP, and gitignore posture.")
+    .option("--json", "Print machine-readable JSON.")
+    .option("--strict", "Exit with code 1 when warnings are present.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const report = await securityAudit(cwd);
+    if (options.json) {
+        console.log(JSON.stringify(report, null, 2));
+    }
+    else {
+        console.log(`zeroTelemetry=${report.zeroTelemetry}`);
+        console.log(`embeddingProvider=${report.providers.embedding}`);
+        console.log(`embeddingModel=${report.providers.embeddingModel}`);
+        console.log(`embeddingModelPath=${report.providers.embeddingModelPath}`);
+        console.log(`transformersAllowRemoteModels=${report.providers.transformersAllowRemoteModels}`);
+        console.log(`llmGeneration=${report.providers.llmGeneration}`);
+        console.log(`redactionEnabled=${report.redaction.enabled}`);
+        console.log(`redactionBuiltIn=${report.redaction.builtIn}`);
+        console.log(`accessLog=${report.accessLog.enabled}`);
+        console.log(`accessLogStoresRawQueries=${report.accessLog.storesRawQueries}`);
+        console.log(`storageGitIgnored=${report.storage.gitIgnored}`);
+        console.log(`mcpMaxTopK=${report.mcp.maxTopK}`);
+        console.log(`mcpDestructiveToolsExposed=${report.mcp.destructiveToolsExposed}`);
+        for (const warning of report.warnings) {
+            console.log(pc.yellow(`warning: ${warning}`));
+        }
+    }
+    if (options.strict && report.warnings.length > 0) {
+        process.exitCode = 1;
+    }
+});
+program
+    .command("destroy-index")
+    .description("Remove the generated local vector index from Ragmir storage.")
+    .option("--yes", "Confirm deletion without an interactive prompt.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    if (!options.yes) {
+        console.error(pc.red("Refusing to delete the index without --yes."));
+        process.exitCode = 1;
+        return;
+    }
+    const result = await destroyIndex(cwd);
+    console.log(`storageDir=${result.storageDir}`);
+    console.log(`removed=${result.removed}`);
+    console.log(result.note);
+});
+program
+    .command("audio")
+    .description("Render a narration text file to local speech audio with Ragmir TTS.")
+    .argument("[text-file]", "Narration text file to render.")
+    .option("-o, --out <path>", "Output MP3 or WAV path.")
+    .option("--engine <engine>", "TTS engine: auto, edge, or transformers.")
+    .option("--lang <language>", "TTS language: en, es, or fr. Selects the model and Edge voice.")
+    .option("--model <id>", "Transformers.js TTS model ID.")
+    .option("--model-path <path>", "Local model/cache path.")
+    .option("--offline", "Force the Transformers.js local/offline WAV path.")
+    .option("--allow-remote-models", "Explicitly allow remote model downloads.")
+    .option("--voice <voice>", "Edge voice. Defaults to fr-FR-DeniseNeural.")
+    .option("--rate <rate>", "Edge rate. Defaults to +0%.")
+    .option("--speaker-embeddings <path>", "Optional model-specific speaker embedding path or URL.")
+    .option("--speed <number>", "Optional model-specific speech speed.", parseNumber)
+    .option("--doctor", "Show TTS runtime readiness instead of rendering.")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (textFile, options, command) => {
+    const cwd = projectRoot(command);
+    const tts = await loadTts();
+    if (options.doctor) {
+        const report = await tts.doctor();
+        printMaybeJson(report, options.json);
+        return;
+    }
+    if (!textFile) {
+        console.error(pc.red("Missing text file. Use `ragmir audio <text-file>`."));
+        process.exitCode = 1;
+        return;
+    }
+    const renderOptions = {
+        cwd,
+        textFile,
+        engine: audioEngine(options),
+    };
+    addOption(renderOptions, "language", audioLanguage(options));
+    addOption(renderOptions, "outputPath", options.out);
+    addOption(renderOptions, "model", options.model);
+    addOption(renderOptions, "modelPath", options.modelPath);
+    addOption(renderOptions, "allowRemoteModels", audioAllowRemoteModels(options));
+    addOption(renderOptions, "voice", options.voice);
+    addOption(renderOptions, "rate", options.rate);
+    addOption(renderOptions, "speakerEmbeddings", options.speakerEmbeddings);
+    addOption(renderOptions, "speed", options.speed);
+    const result = await tts.renderSpeech(renderOptions);
+    printMaybeJson(result, options.json);
+});
+program
+    .command("serve-mcp")
+    .description("Start the MCP server over stdio for Claude, Codex, and other MCP-compatible agents.")
+    .action(async (_options, command) => {
+    const explicitRoot = explicitProjectRoot(command);
+    await serveMcp(explicitRoot);
+});
+program
+    .command("skill-path")
+    .description("Print the bundled Ragmir skill path for agents that can load SKILL.md folders.")
+    .action(() => {
+    console.log(bundledSkillPath());
+});
+program
+    .command("install-skill")
+    .description("Copy the bundled agent skill and MCP config snippet into the current repository.")
+    .option("--target-dir <path>", "Directory where the skill folder should be copied.", DEFAULT_SKILL_TARGET_DIR)
+    .option("--agents <list>", `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`, "all")
+    .option("--mcp-name <name>", "MCP server name used in generated config.", "ragmir")
+    .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
+    .option("--mcp-arg <arg>", "Argument for --mcp-command. Repeat for multiple arguments.", collectOptionValue, [])
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const installOptions = {
+        cwd,
+        targetDir: options.targetDir,
+        agents: parseAgentTargets(options.agents),
+        mcpServerName: options.mcpName,
+    };
+    addOption(installOptions, "mcpCommand", options.mcpCommand);
+    if (options.mcpArg.length > 0) {
+        installOptions.mcpArgs = options.mcpArg;
+    }
+    const result = await installSkill(installOptions);
+    const doctorCommand = await ragmirCommand(cwd, ["doctor"]);
+    console.log("Installed Ragmir agent kit:");
+    for (const file of result.written) {
+        console.log(`  - ${file}`);
+    }
+    console.log(`Skill path: ${result.skillPath}`);
+    console.log(`Optional audio skill path: ${result.audioSkillPath}`);
+    console.log(`Optional Markdown report skill path: ${result.reportSkillPath}`);
+    console.log(`MCP config example: ${result.mcpConfigPath}`);
+    for (const helper of result.agentHelpers) {
+        console.log(`${helper.label} MCP helper: ${helper.path}`);
+    }
+    console.log(`Agent setup guide: ${result.agentSetupPath}`);
+    console.log("");
+    console.log("Next steps:");
+    console.log("  1. Run `ragmir install-agent --agents claude` or another targeted agent list.");
+    console.log("  2. Add the MCP config from .ragmir/ to the same agent when MCP tools are needed.");
+    console.log(`  3. Run \`${doctorCommand.display}\` before relying on retrieved context.`);
+});
+program
+    .command("install-agent")
+    .description("Install Ragmir skills into native Claude, Codex, Kimi, OpenCode, or Cline folders.")
+    .option("--agents <list>", `Comma-separated agents: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`, "all")
+    .option("--scope <scope>", "Install scope: project or user.", "project")
+    .option("--mode <mode>", "Expose skills as links or physical copies: link or copy.", "link")
+    .option("--json", "Print machine-readable JSON.")
+    .action(async (options, command) => {
+    const cwd = projectRoot(command);
+    const scope = parseAgentInstallScope(options.scope);
+    const mode = parseAgentInstallMode(options.mode);
+    const agents = parseAgentTargets(options.agents);
+    const result = await installAgentSkills({ cwd, agents, scope, mode });
+    if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
+    console.log(`Installed Ragmir skills for ${scope}-scope agent discovery:`);
+    for (const installation of result.installations) {
+        console.log(`  - ${installation.label}: ${installation.targetDir} (${installation.mode})`);
+    }
+    console.log("");
+    console.log("MCP helper files:");
+    console.log(`  - generic: ${result.projectKit.mcpConfigPath}`);
+    for (const helper of result.projectKit.agentHelpers) {
+        console.log(`  - ${helper.label}: ${helper.path}`);
+    }
+    console.log("");
+    console.log("Next steps:");
+    console.log("  1. Keep editing the canonical skills under .ragmir/skills/.");
+    console.log("  2. Restart or reload the selected agent so it discovers the exposed SKILL.md files.");
+    console.log("  3. Wire the matching MCP helper if the agent should call Ragmir tools directly.");
+    console.log(`  4. Run \`${(await ragmirCommand(cwd, ["doctor"])).display}\`.`);
+});
+try {
+    await program.parseAsync(process.argv);
+}
+catch (error) {
+    console.error(pc.red(error instanceof Error ? error.message : String(error)));
+    process.exitCode = 1;
+}
+function parsePositiveInt(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw new Error("Expected a positive integer.");
+    }
+    return parsed;
+}
+function parseRecallThreshold(value) {
+    const trimmed = value.trim();
+    const parsed = Number(trimmed);
+    if (trimmed.length === 0 || !Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+        throw new Error("Expected a recall threshold between 0 and 1.");
+    }
+    return parsed;
+}
+function parseNumber(value) {
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+        throw new Error("Expected a number.");
+    }
+    return parsed;
+}
+function collectOptionValue(value, previous) {
+    return [...previous, value];
+}
+function projectRoot(command) {
+    return explicitProjectRoot(command) ?? process.cwd();
+}
+function explicitProjectRoot(command) {
+    const options = command.optsWithGlobals();
+    return options.projectRoot ? path.resolve(options.projectRoot) : undefined;
+}
+function withTopK(cwd, topK) {
+    return topK === undefined ? { cwd } : { cwd, topK };
+}
+async function loadTts() {
+    const module = await import(TTS_PACKAGE_NAME);
+    if (!isTtsModule(module)) {
+        throw new Error(`${TTS_PACKAGE_NAME} did not expose the expected TTS API.`);
+    }
+    return module;
+}
+function isTtsModule(value) {
+    return (typeof value === "object" &&
+        value !== null &&
+        "doctor" in value &&
+        typeof value.doctor === "function" &&
+        "renderSpeech" in value &&
+        typeof value.renderSpeech === "function");
+}
+function audioAllowRemoteModels(options) {
+    if (options.offline) {
+        return false;
+    }
+    if (options.allowRemoteModels) {
+        return true;
+    }
+    return undefined;
+}
+function audioLanguage(options) {
+    if (options.lang === undefined) {
+        return undefined;
+    }
+    if (isTtsLanguage(options.lang)) {
+        return options.lang;
+    }
+    throw new Error(`Expected --lang to be one of: ${TTS_LANGUAGES.join(", ")}.`);
+}
+function audioEngine(options) {
+    if (options.offline) {
+        return "transformers";
+    }
+    if (options.engine === undefined) {
+        if (options.out?.toLowerCase().endsWith(".mp3")) {
+            throw new Error("MP3 output uses online Edge TTS. Re-run with `--engine edge` only when sending narration text to Edge TTS is acceptable.");
+        }
+        return "transformers";
+    }
+    if (options.engine === "auto" || options.engine === "edge" || options.engine === "transformers") {
+        return options.engine;
+    }
+    throw new Error("Expected --engine to be auto, edge, or transformers.");
+}
+function parseAgentInstallScope(value) {
+    if (value === "project" || value === "user") {
+        return value;
+    }
+    throw new Error("Expected --scope to be project or user.");
+}
+function parseAgentInstallMode(value) {
+    if (value === "link" || value === "copy") {
+        return value;
+    }
+    throw new Error("Expected --mode to be link or copy.");
+}
+function printDoctor(report) {
+    console.log(`projectRoot=${report.projectRoot}`);
+    console.log(`initialized=${report.initialized}`);
+    console.log(`ready=${report.ready}`);
+    console.log(`packageManager=${report.packageManager}`);
+    console.log(`runCommand=${report.runCommand}`);
+    console.log(`agentKitInstalled=${report.agentKitInstalled}`);
+    console.log(`embeddingProvider=${report.embeddingProvider}`);
+    console.log(`transformersAllowRemoteModels=${report.transformersAllowRemoteModels}`);
+    console.log(`redactionEnabled=${report.redactionEnabled}`);
+    console.log(`accessLog=${report.accessLog}`);
+    console.log(`supportedFiles=${report.supportedFiles}`);
+    console.log(`skippedFiles=${report.skippedFiles}`);
+    console.log(`unsupportedFiles=${report.unsupportedFiles}`);
+    console.log(`indexedFiles=${report.indexedFiles}`);
+    console.log(`chunksIndexed=${report.chunksIndexed}`);
+    console.log(`missingFromIndex=${report.missingFromIndex}`);
+    console.log(`staleInIndex=${report.staleInIndex}`);
+    console.log(`securityWarnings=${report.securityWarnings.length}`);
+    if (report.securityWarnings.length > 0) {
+        for (const warning of report.securityWarnings) {
+            console.log(pc.yellow(`warning: ${warning}`));
+        }
+    }
+    console.log("nextSteps:");
+    for (const step of report.nextSteps) {
+        console.log(`  - ${step}`);
+    }
+}
+function printResearchReport(report) {
+    console.log(`query=${report.query}`);
+    console.log(`ready=${report.ready}`);
+    console.log(`generatedQueries=${report.generatedQueries.length}`);
+    console.log(`audit.supportedFiles=${report.audit.supportedFiles} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`);
+    console.log(`securityWarnings=${report.securityWarnings.length}`);
+    console.log(`sourceDiagnostics.duplicates=${report.sourceDiagnostics.duplicateCandidates.length} sourceDiagnostics.archives=${report.sourceDiagnostics.archiveCandidates.length} sourceDiagnostics.mirrors=${report.sourceDiagnostics.mirrorCandidates.length}`);
+    if (report.sourceDiagnostics.duplicateCandidates.length > 0) {
+        console.log("");
+        console.log(pc.cyan("Duplicate Candidates:"));
+        for (const candidate of report.sourceDiagnostics.duplicateCandidates.slice(0, 5)) {
+            console.log(`  - ${candidate.key}: ${candidate.files.join(", ")}`);
+        }
+    }
+    if (report.evidence.length > 0) {
+        console.log("");
+        console.log(pc.cyan("Evidence:"));
+        for (const [index, evidence] of report.evidence.entries()) {
+            const distance = evidence.distance === null ? "n/a" : evidence.distance.toFixed(4);
+            console.log(`  [${index + 1}] ${evidence.relativePath} chunk=${evidence.chunkIndex} distance=${distance}`);
+            console.log(`      ${researchEvidencePreview(evidence)}`);
+        }
+    }
+    if (report.codeEvidence.length > 0) {
+        console.log("");
+        console.log(pc.cyan("Code Evidence:"));
+        for (const evidence of report.codeEvidence.slice(0, 10)) {
+            console.log(`  - ${evidence.relativePath}:${evidence.lineNumber} terms=${evidence.matchedTerms.join(",")}`);
+            console.log(`      ${evidence.snippet}`);
+        }
+    }
+    if (report.gaps.length > 0) {
+        console.log("");
+        console.log(pc.yellow("Gaps:"));
+        for (const gap of report.gaps) {
+            console.log(pc.yellow(`  - ${gap}`));
+        }
+    }
+    console.log("");
+    console.log(pc.cyan("Next Steps:"));
+    for (const step of report.nextSteps) {
+        console.log(`  - ${step}`);
+    }
+}
+function researchEvidencePreview(evidence) {
+    if ("snippet" in evidence) {
+        return evidence.snippet;
+    }
+    return evidence.text.replace(/\s+/gu, " ").trim().slice(0, SEARCH_TEXT_PREVIEW_LENGTH);
+}
+function printSetup(result, title) {
+    console.log(pc.green(title));
+    console.log(`projectRoot=${result.projectRoot}`);
+    console.log(`packageManager=${result.packageManager}`);
+    console.log(`runCommand=${result.runCommand}`);
+    console.log("");
+    console.log(pc.cyan("Scaffolding:"));
+    if (result.created.length === 0) {
+        console.log("  - already initialized");
+    }
+    else {
+        for (const file of result.created) {
+            console.log(`  - ${file}`);
+        }
+    }
+    console.log("");
+    console.log(pc.cyan("Agent integration:"));
+    console.log(`  - skill: ${result.agentKit.skillPath}`);
+    console.log(`  - audio skill: ${result.agentKit.audioSkillPath}`);
+    console.log(`  - report skill: ${result.agentKit.reportSkillPath}`);
+    console.log(`  - MCP config: ${result.agentKit.mcpConfigPath}`);
+    for (const helper of result.agentKit.agentHelpers) {
+        console.log(`  - ${helper.label} MCP helper: ${helper.path}`);
+    }
+    console.log(`  - agent setup guide: ${result.agentKit.agentSetupPath}`);
+    console.log("");
+    if (result.semantic) {
+        console.log(pc.cyan("Semantic retrieval:"));
+        console.log("  - enabled for higher-quality natural-language retrieval");
+        console.log(`  - embedding model: ${result.semantic.model.embeddingModel}`);
+        console.log(`  - model path: ${result.semantic.model.embeddingModelPath}`);
+        console.log("  - remote model loading after setup: false");
+    }
+    else {
+        console.log(pc.cyan("Semantic retrieval:"));
+        console.log("  - skipped; default local-hash retrieval is fully local but not semantic. Run `ragmir setup --semantic` or `ragmir models pull --enable` when a one-time model download is acceptable.");
+    }
+    console.log("");
+    console.log(pc.cyan("Index:"));
+    if (result.ingested) {
+        console.log(`  - ingested indexedFiles=${result.ingested.indexedFiles} rebuiltFiles=${result.ingested.rebuiltFiles} reusedFiles=${result.ingested.reusedFiles} chunks=${result.ingested.chunks} skippedFiles=${result.ingested.skippedFiles} emptyTextFiles=${result.ingested.emptyTextFiles.length} errors=${result.ingested.errors.length}`);
+        printUnsupportedSummary(result.ingested.unsupportedExtensions);
+        printEmptyTextFiles(result.ingested.emptyTextFiles);
+    }
+    else if (result.doctor.ready) {
+        console.log(`  - already ready chunks=${result.doctor.chunksIndexed}`);
+    }
+    else {
+        console.log("  - skipped; add supported files or run doctor --fix when ready");
+    }
+    console.log("");
+    printDoctor(result.doctor);
+}
+function printUnsupportedSummary(extensions) {
+    if (extensions.length === 0) {
+        return;
+    }
+    console.log(pc.yellow(`unsupportedExtensions=${extensions
+        .map((entry) => `${entry.extension}:${entry.count}`)
+        .join(",")}`));
+}
+function printEmptyTextFiles(files) {
+    if (files.length === 0) {
+        return;
+    }
+    console.log(pc.yellow(`emptyTextFiles=${files.length}`));
+    for (const file of files) {
+        console.log(pc.yellow(`empty-text: ${file}`));
+    }
+    console.log(pc.yellow("These supported files produced no indexable text. For scanned/image-only sources, configure pdfOcrCommand or imageOcrCommand, or store local OCR text beside the source file."));
+}
+function printMaybeJson(value, json) {
+    if (json) {
+        console.log(JSON.stringify(value, null, 2));
+        return;
+    }
+    if (typeof value === "object" && value !== null) {
+        for (const [key, entry] of Object.entries(value)) {
+            console.log(`${key}=${String(entry)}`);
+        }
+        return;
+    }
+    console.log(String(value));
+}
+function addOption(target, key, value) {
+    if (value !== undefined) {
+        target[key] = value;
+    }
+}
+//# sourceMappingURL=cli.js.map

@@ -1,6 +1,6 @@
 # Releasing
 
-Mimir publishes to npm through a protected manual GitHub Actions workflow.
+Ragmir publishes to npm through a protected manual GitHub Actions workflow.
 
 Semantic-release is intentionally not enabled: publishing must stay explicit, reviewed,
 and approved by Jean-Baptiste Thery through the protected `npm-publish` environment.
@@ -11,8 +11,8 @@ and approved by Jean-Baptiste Thery through the protected `npm-publish` environm
 2. Wait for the required CI checks to pass.
 3. Merge only after approval and green checks.
 4. Trigger the `Publish npm` workflow manually from `main`.
-5. Enter the version already committed in `packages/mimir-core/package.json` and
-   `packages/mimir-tts/package.json`.
+5. Enter the version already committed in `packages/ragmir-core/package.json` and
+   `packages/ragmir-tts/package.json`.
 6. Approve the protected `npm-publish` environment when GitHub asks for review.
 
 The publish workflow refuses to run from any branch other than `main`, verifies that the

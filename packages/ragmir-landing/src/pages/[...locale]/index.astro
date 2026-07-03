@@ -1,0 +1,176 @@
+---
+import { LandingHero } from "../../components/landing-hero"
+import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
+import Layout from "../../layouts/layout.astro"
+
+export function getStaticPaths() {
+  return locales.map((locale) => ({
+    params: { locale: locale === defaultLang ? undefined : locale },
+  }))
+}
+
+const locale = (Astro.params.locale as string | undefined) ?? defaultLang
+const { t, translations } = await useTranslations(locale)
+const alternateLocales = locales.map((entry) => ({
+  locale: entry,
+  label: languages[entry],
+  href: getLocalizedUrl("/", entry),
+}))
+const siteUrl = new URL("/", Astro.site ?? "https://ragmir.jcode.works").href
+const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.jcode.works").href
+const faqItems = [
+  {
+    question: t("faq_what_question"),
+    answer: t("faq_what_answer"),
+  },
+  {
+    question: t("faq_private_question"),
+    answer: t("faq_private_answer"),
+  },
+  {
+    question: t("faq_agents_question"),
+    answer: t("faq_agents_answer"),
+  },
+  {
+    question: t("faq_offline_question"),
+    answer: t("faq_offline_answer"),
+  },
+  {
+    question: t("faq_compare_question"),
+    answer: t("faq_compare_answer"),
+  },
+  {
+    question: t("faq_role_question"),
+    answer: t("faq_role_answer"),
+  },
+  {
+    question: t("faq_formats_question"),
+    answer: t("faq_formats_answer"),
+  },
+  {
+    question: t("faq_license_question"),
+    answer: t("faq_license_answer"),
+  },
+]
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": "https://ragmir.jcode.works/#organization",
+    name: "JCode Labs",
+    url: "https://github.com/jcode-works",
+    founder: {
+      "@type": "Person",
+      "@id": "https://ragmir.jcode.works/#jb-thery",
+      name: "Jean-Baptiste Thery",
+      url: "https://github.com/jb-thery",
+      sameAs: ["https://github.com/jb-thery"],
+    },
+    knowsAbout: [
+      "local-first retrieval",
+      "sovereign RAG",
+      "confidential document search",
+      "Model Context Protocol",
+      "AI agent tooling",
+    ],
+    sameAs: ["https://github.com/jcode-works", "https://github.com/jcode-works/jcode-ragmir"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": "https://ragmir.jcode.works/#website",
+    url: siteUrl,
+    name: "Ragmir",
+    alternateName: t("seo_og_site_name"),
+    description: t("seo_home_description"),
+    inLanguage: locale,
+    publisher: { "@id": "https://ragmir.jcode.works/#organization" },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Ragmir",
+        item: pageUrl,
+      },
+    ],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": "https://ragmir.jcode.works/#software",
+    name: "Ragmir",
+    description: t("seo_home_description"),
+    url: pageUrl,
+    codeRepository: "https://github.com/jcode-works/jcode-ragmir",
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Any",
+    isAccessibleForFree: true,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
+    license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
+    programmingLanguage: "TypeScript",
+    inLanguage: ["en", "fr"],
+    featureList: [
+      "Local-first document indexing",
+      "Cited retrieval context",
+      "MCP server for AI agents",
+      "Agent setup for Claude, Codex, Kimi, OpenCode, and Cline",
+      "Planned desktop client distributed through direct downloads",
+      "Redaction before indexing",
+      "Metadata-only access logs",
+    ],
+    publisher: {
+      "@id": "https://ragmir.jcode.works/#organization",
+    },
+    author: {
+      "@id": "https://ragmir.jcode.works/#jb-thery",
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${pageUrl}#faq`,
+    inLanguage: locale,
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  },
+]
+---
+
+<Layout
+  title={t("seo_home_title")}
+  description={t("seo_home_description")}
+  keywords={t("seo_home_keywords")}
+  author={t("seo_author")}
+  robots={t("seo_robots")}
+  ogImageAlt={t("seo_image_alt")}
+  locale={locale}
+  availableLocales={locales}
+  structuredData={structuredData}
+>
+  <LandingHero
+    client:idle
+    alternateLocales={alternateLocales}
+    locale={locale}
+    localizedAgentsUrl={`${getLocalizedUrl("/", locale)}#agents`}
+    localizedHomeUrl={`${getLocalizedUrl("/", locale)}#top`}
+    localizedLibraryUrl={`${getLocalizedUrl("/", locale)}#library`}
+    localizedUseCasesUrl={`${getLocalizedUrl("/", locale)}#use-cases`}
+    localizedDesktopUrl={`${getLocalizedUrl("/", locale)}#desktop`}
+    localizedTeamUrl={getLocalizedUrl("/team", locale)}
+    translations={translations}
+  />
+</Layout>

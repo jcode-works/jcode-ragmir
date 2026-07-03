@@ -10,7 +10,7 @@ const misleadingSourcePattern = new RegExp(
   [
     ["private", "workspace", "package"].join("\\s+"),
     ["is", "proprietary"].join("\\s+"),
-    String.raw`proprietary\s+(?:Tauri|Mimir|desktop|app|shell)`,
+    String.raw`proprietary\s+(?:Tauri|Ragmir|desktop|app|shell)`,
     ["source", "available", "license"].join("\\s+"),
   ].join("|"),
   "giu",
@@ -24,8 +24,8 @@ const internalCommercialPattern = new RegExp(
   "gu",
 )
 const pathRules = [
-  { pattern: /^\.kb\//u, label: "generated Mimir index/config path" },
-  { pattern: /^\.mimir\//u, label: "generated Mimir agent-state path" },
+  { pattern: /^\.kb\//u, label: "generated Ragmir index/config path" },
+  { pattern: /^\.ragmir\//u, label: "generated Ragmir agent-state path" },
   { pattern: /^private\//u, label: "private raw-document path" },
   { pattern: /(^|\/)[^/]+\.pid$/u, label: "local process/journal file" },
   {
@@ -35,12 +35,12 @@ const pathRules = [
 ]
 const contentRules = [
   {
-    pattern: /https:\/\/mimir\.jcode\.works\/download[^\s"'`)<]*/giu,
-    label: "active-looking Mimir download URL",
+    pattern: /https:\/\/ragmir\.jcode\.works\/download[^\s"'`)<]*/giu,
+    label: "active-looking Ragmir download URL",
   },
   {
-    pattern: /https:\/\/updates\.mimir\.jcode\.works[^\s"'`)<]*/giu,
-    label: "active-looking Mimir updater URL",
+    pattern: /https:\/\/updates\.ragmir\.jcode\.works[^\s"'`)<]*/giu,
+    label: "active-looking Ragmir updater URL",
   },
   {
     pattern: /https:\/\/(?:checkout|buy)\.lemonsqueezy\.com[^\s"'`)<]*/giu,

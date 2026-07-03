@@ -10,5 +10,5 @@
 
 ## Security
 
-- [ ] No secrets, private documents, `.env` files, generated `.kb/` or generated `.mimir/` state are included.
+- [ ] No secrets, private documents, `.env` files, generated `.kb/` or generated `.ragmir/` state are included.
 - [ ] Public documentation does not expose private project, customer, pricing, or validation details.

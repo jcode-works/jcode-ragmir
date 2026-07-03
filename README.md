@@ -1,48 +1,48 @@
-# Mimir
+# Ragmir
 
-[![CI](https://github.com/jcode-works/jcode-mimir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-mimir/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/jcode-works/jcode-mimir/actions/workflows/codeql.yml/badge.svg)](https://github.com/jcode-works/jcode-mimir/actions/workflows/codeql.yml)
-[![npm](https://img.shields.io/npm/v/@jcode.labs/mimir)](https://www.npmjs.com/package/@jcode.labs/mimir)
-[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/mimir?label=downloads%2Fmonth)](https://www.npmjs.com/package/@jcode.labs/mimir)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jcode-works/jcode-mimir/blob/main/LICENSE)
+[![CI](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/jcode-works/jcode-ragmir/actions/workflows/codeql.yml/badge.svg)](https://github.com/jcode-works/jcode-ragmir/actions/workflows/codeql.yml)
+[![npm](https://img.shields.io/npm/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir?label=downloads%2Fmonth)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-Open-source local RAG library, CLI, and MCP server. Mimir indexes your specs, docs, and code
+Open-source local RAG library, CLI, and MCP server. Ragmir indexes your specs, docs, and code
 locally and gives your AI agents only the useful cited passages, over MCP, without burning tokens on
 your whole repo.
 
 Build from your requirements, keep everything on your machine, and let Claude, Codex, Kimi,
-OpenCode, Cline, or any MCP client answer from your real sources. Mimir installs into any Node.js
+OpenCode, Cline, or any MCP client answer from your real sources. Ragmir installs into any Node.js
 repository, stores vectors locally with LanceDB, and runs fully offline by default, with built-in
 local-hash retrieval or optional Transformers.js semantic embeddings.
 
-Mimir Core returns cited retrieval context. Answer synthesis belongs to the AI agent, LLM, or local
+Ragmir Core returns cited retrieval context. Answer synthesis belongs to the AI agent, LLM, or local
 model runtime you choose around it, so every answer stays grounded in your real evidence.
 
 Created by Jean-Baptiste Thery and published under the JCode Labs npm scope.
 
 ## Developer Use Cases
 
-Mimir is designed for agent-assisted development when the useful context is local, private, and
+Ragmir is designed for agent-assisted development when the useful context is local, private, and
 spread across repositories, specifications, exports, and synced folders.
 
 | Use case | What it enables |
 | --- | --- |
 | Index a repository's documentation | Ask Claude Code, Codex, Kimi Code CLI, OpenCode, Cline, or another agent to implement features from local README files, architecture notes, API contracts, ADRs, and runbooks. |
 | Code from a specification or `cahier des charges` | Turn a local PRD, tender response, client brief, or engineering spec into an implementation plan, acceptance checklist, and cited change guidance. |
-| Work from a downloaded Google Drive folder | Point Mimir at files synced locally through Google Drive for desktop, then let the agent retrieve context without uploading the corpus to a hosted RAG service. |
+| Work from a downloaded Google Drive folder | Point Ragmir at files synced locally through Google Drive for desktop, then let the agent retrieve context without uploading the corpus to a hosted RAG service. |
 | Onboard to a legacy codebase | Ask where a flow is implemented, which modules own a responsibility, which docs explain a behavior, and what to read before changing risky code. |
-| Turn a dense document into a listenable mini-learning | Generate a short spoken summary (MP3/WAV) from cited passages with `mimir audio`, to review a spec, architecture doc, or research pass hands-free instead of only reading dense text. |
+| Turn a dense document into a listenable mini-learning | Generate a short spoken summary (MP3/WAV) from cited passages with `ragmir audio`, to review a spec, architecture doc, or research pass hands-free instead of only reading dense text. |
 | Keep multiple agents on the same evidence | Install the same project skills and MCP server for Claude Code, Codex, Kimi Code CLI, OpenCode, and Cline so each tool retrieves from the same local index. |
 | Research before implementation | Run an audit-backed multi-query pass over specs, docs, and code references before asking an agent to plan a feature, migration, or review. |
 | Prepare implementation and review work | Generate cited task breakdowns, migration notes, release checklists, QA plans, and code-review context from the same local sources the team uses. |
 | Audit local knowledge coverage | Check which supported files were indexed, which formats were skipped, whether secrets are likely present, and whether golden queries still retrieve expected evidence. |
 
-The workflow stays simple: keep files on disk, run `mimir ingest`, connect your coding agent through
+The workflow stays simple: keep files on disk, run `ragmir ingest`, connect your coding agent through
 MCP or portable skills, then ask it to work from cited local passages.
 
 ## At A Glance
 
-Mimir is the local evidence layer for AI agents: put documents in a repository, index them locally,
+Ragmir is the local evidence layer for AI agents: put documents in a repository, index them locally,
 then let your CLI, MCP-compatible agent, or bundled skills retrieve cited passages without uploading
 the corpus to a hosted RAG service.
 
@@ -50,13 +50,13 @@ the corpus to a hosted RAG service.
 flowchart TD
   subgraph Workspace["Your repository"]
     Docs["Local files<br/>docs, specs, code, PDFs"]
-    Config[".mimir/config.json<br/>.mimir/raw/"]
-    Index[".mimir/storage<br/>local LanceDB index"]
+    Config[".ragmir/config.json<br/>.ragmir/raw/"]
+    Index[".ragmir/storage<br/>local LanceDB index"]
   end
 
-  subgraph Mimir["Mimir Core"]
-    Ingest["mimir ingest<br/>parse, redact, chunk"]
-    Retrieve["mimir search / ask / research<br/>rank cited evidence"]
+  subgraph Ragmir["Ragmir Core"]
+    Ingest["ragmir ingest<br/>parse, redact, chunk"]
+    Retrieve["ragmir search / ask / research<br/>rank cited evidence"]
     Audit["doctor, audit,<br/>security-audit, evaluate"]
   end
 
@@ -78,32 +78,32 @@ flowchart TD
   MCP --> LLM
 ```
 
-The fastest useful path is to install Mimir in the repository, wire it into the coding agent you
+The fastest useful path is to install Ragmir in the repository, wire it into the coding agent you
 already use, then ask that agent questions grounded in local files:
 
 ```bash
-npm install --save-dev @jcode.labs/mimir
-npx mimir setup
+npm install --save-dev @jcode.labs/ragmir
+npx ragmir setup
 # Optional: download a Transformers.js embedding model once and enable higher-quality semantic retrieval.
-npx mimir setup --semantic
-npx mimir install-agent --agents claude,codex,kimi,opencode,cline
-npx mimir doctor --fix
-npx mimir research "release readiness and risks" --compact
+npx ragmir setup --semantic
+npx ragmir install-agent --agents claude,codex,kimi,opencode,cline
+npx ragmir doctor --fix
+npx ragmir research "release readiness and risks" --compact
 
 # Claude Code
-claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
+claude mcp add-json --scope local ragmir "$(cat .ragmir/claude-mcp-server.json)"
 
 # Codex
-cat .mimir/codex-mcp.toml
+cat .ragmir/codex-mcp.toml
 
 # Kimi Code CLI
-kimi --mcp-config-file .mimir/kimi-mcp.json
+kimi --mcp-config-file .ragmir/kimi-mcp.json
 
 # OpenCode
-cat .mimir/opencode.jsonc
+cat .ragmir/opencode.jsonc
 
 # Cline
-cat .mimir/cline-mcp.json
+cat .ragmir/cline-mcp.json
 ```
 
 Use it when an agent needs grounded context over private specs, codebases, legal dossiers, tenders,
@@ -115,18 +115,18 @@ This root README is the canonical product documentation for the public npm packa
 
 | Package | Role |
 | --- | --- |
-| `@jcode.labs/mimir` | Mimir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples. |
-| `@jcode.labs/mimir-tts` | Mimir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `mimir audio`. |
-| `@jcode.labs/mimir-ui` | Unpublished workspace UI package adapted from the WorkoutGen design foundation for Mimir surfaces. |
-| `@jcode.labs/mimir-landing` | Unpublished Astro static landing package. Product-facing titles stay `Mimir`. |
-| `@jcode.labs/mimir-app` | Unpublished Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses a bounded native command around the `mimir` CLI, with packaged sidecar distribution still planned. |
-| `@jcode.labs/mimir-license-webhook` | Unpublished, undeployed MIT-licensed Cloudflare Worker handler for future Lemon Squeezy webhooks and local `MIMIR1` license issuance. |
+| `@jcode.labs/ragmir` | Ragmir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples. |
+| `@jcode.labs/ragmir-tts` | Ragmir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `ragmir audio`. |
+| `@jcode.labs/ragmir-ui` | Unpublished workspace UI package adapted from the WorkoutGen design foundation for Ragmir surfaces. |
+| `@jcode.labs/ragmir-landing` | Unpublished Astro static landing package. Product-facing titles stay `Ragmir`. |
+| `@jcode.labs/ragmir-app` | Unpublished Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses a bounded native command around the `ragmir` CLI, with packaged sidecar distribution still planned. |
+| `@jcode.labs/ragmir-license-webhook` | Unpublished, undeployed MIT-licensed Cloudflare Worker handler for future Lemon Squeezy webhooks and local `RAGMIR1` license issuance. |
 
 The package README files are intentionally short because npm displays each package README
 separately. They point npm readers back to this GitHub documentation.
 
-The product name visible to users is **Mimir**. The technical core package is **Mimir Core** and now
-lives under `packages/mimir-core`; the public npm package name remains `@jcode.labs/mimir`.
+The product name visible to users is **Ragmir**. The technical core package is **Ragmir Core** and now
+lives under `packages/ragmir-core`; the public npm package name remains `@jcode.labs/ragmir`.
 
 The public source and commercial distribution boundary is tracked in
 [`docs/source-boundary.md`](./docs/source-boundary.md) and
@@ -140,7 +140,7 @@ agent wiring, API shapes, security details, or app packaging rules:
 
 | Document | Use it for |
 | --- | --- |
-| [`docs/cli-reference.md`](./docs/cli-reference.md) | Complete `mimir` and `mimir-tts` command reference. |
+| [`docs/cli-reference.md`](./docs/cli-reference.md) | Complete `ragmir` and `ragmir-tts` command reference. |
 | [`docs/api-reference.md`](./docs/api-reference.md) | Public TypeScript API, setup options, semantic model preload, and MCP tool inputs. |
 | [`docs/agent-integration.md`](./docs/agent-integration.md) | Claude Code, Codex, Kimi Code CLI, OpenCode, and Cline setup. |
 | [`docs/troubleshooting.md`](./docs/troubleshooting.md) | Empty indexes, weak search, strict security audit warnings, and audio preload fixes. |
@@ -156,10 +156,10 @@ agent wiring, API shapes, security details, or app packaging rules:
 
 ## Open Source
 
-Mimir is a public open-source project under the MIT License. It is designed to be inspectable,
+Ragmir is a public open-source project under the MIT License. It is designed to be inspectable,
 forkable, and usable without a JCode Labs account.
 
-Every tracked package in this repository is visible source. Commercial Mimir app distribution can
+Every tracked package in this repository is visible source. Commercial Ragmir app distribution can
 gate official signed builds, support, updates, and hosted license delivery, but it does not make the
 tracked Tauri app or webhook source proprietary.
 
@@ -168,7 +168,7 @@ Security reports should stay private and follow [`SECURITY.md`](./SECURITY.md).
 
 ## Sponsors
 
-Mimir stays MIT open source. Sponsorship helps fund maintenance, issue triage, documentation, and
+Ragmir stays MIT open source. Sponsorship helps fund maintenance, issue triage, documentation, and
 practical agent-workflow improvements.
 
 Sponsor the project through [GitHub Sponsors](https://github.com/sponsors/jb-thery).
@@ -186,10 +186,10 @@ Early public package. APIs may evolve before `1.0.0`.
 
 ## Desktop Client Preview
 
-Mimir Core is the open-source product you can use today through the CLI, library, MCP server, and
+Ragmir Core is the open-source product you can use today through the CLI, library, MCP server, and
 portable agent skills.
 
-A cross-platform Mimir desktop/mobile client is being developed in `packages/mimir-app`. Its goal is
+A cross-platform Ragmir desktop/mobile client is being developed in `packages/ragmir-app`. Its goal is
 to make local confidential workspaces easier for non-CLI workflows: register a local dossier, run
 setup and ingest, ask questions with cited local passages, inspect privacy posture, and preload
 embedding models explicitly. Google Drive support is implemented as an opt-in local-sync folder flow
@@ -200,10 +200,10 @@ waitlist, or hosted account flow in this repository. When released, it is planne
 downloads and sideloadable installers, not App Store or Play Store distribution.
 
 The canonical landing and future direct-download release URL is
-[`mimir.jcode.works`](https://mimir.jcode.works). It is prepared as a Cloudflare Workers Static Assets
+[`ragmir.jcode.works`](https://ragmir.jcode.works). It is prepared as a Cloudflare Workers Static Assets
 site, but public deployment remains a separate release action.
 
-## What Mimir Is For
+## What Ragmir Is For
 
 - Build a local RAG knowledge base inside any repository.
 - Analyze confidential datasets while keeping raw files and generated indexes local.
@@ -214,7 +214,7 @@ site, but public deployment remains a separate release action.
 - Prepare legal-dossier summaries, chronologies, clause reviews, and professional-review handoffs
   with the optional bundled legal skill.
 
-Mimir is not a hosted SaaS, not a remote vector database, and not a certified high-assurance system.
+Ragmir is not a hosted SaaS, not a remote vector database, and not a certified high-assurance system.
 For regulated or state-grade environments, pair it with encrypted disks, controlled machines,
 release verification, and an external security review.
 
@@ -224,17 +224,17 @@ release verification, and an external security review.
 - pnpm, npm, yarn, or bun.
 - A repository where generated local folders can be ignored by Git.
 - No model runtime is required for the default `embeddingProvider: "local-hash"` mode.
-- Optional semantic embeddings use Transformers.js with local model files under `.mimir/models` by
-  default. Use `mimir models pull` when remote model download is acceptable, then keep
+- Optional semantic embeddings use Transformers.js with local model files under `.ragmir/models` by
+  default. Use `ragmir models pull` when remote model download is acceptable, then keep
   `transformersAllowRemoteModels` false for confidential indexing.
-- Generated answers are intentionally outside Mimir core. Use Claude, Codex, OpenAI, a local model
-  MCP server, or another trusted model runtime to synthesize from Mimir's cited context.
-- Optional audio summaries use `@jcode.labs/mimir-tts`. For highest-quality MP3, install the
+- Generated answers are intentionally outside Ragmir core. Use Claude, Codex, OpenAI, a local model
+  MCP server, or another trusted model runtime to synthesize from Ragmir's cited context.
+- Optional audio summaries use `@jcode.labs/ragmir-tts`. For highest-quality MP3, install the
   external `edge-tts` CLI and render with `--engine edge`. For confidential or air-gapped content,
   use the Transformers.js WAV path with `--engine transformers --offline`; it does not require
   Python, ffmpeg, Piper, XTTS, or a local server.
-- Optional Markdown reports use the bundled `mimir-markdown-report` skill and should stay under
-  ignored `.mimir/reports/` unless explicitly sanitized for sharing.
+- Optional Markdown reports use the bundled `ragmir-markdown-report` skill and should stay under
+  ignored `.ragmir/reports/` unless explicitly sanitized for sharing.
 
 ## Install
 
@@ -243,19 +243,19 @@ The package is public. Users do not need a JCode Labs account or npm token to in
 With npm:
 
 ```bash
-npm install --save-dev @jcode.labs/mimir
+npm install --save-dev @jcode.labs/ragmir
 ```
 
 With pnpm:
 
 ```bash
-pnpm add -D @jcode.labs/mimir
+pnpm add -D @jcode.labs/ragmir
 ```
 
 Install the standalone TTS package only when you want to use it directly:
 
 ```bash
-npm install --save-dev @jcode.labs/mimir-tts
+npm install --save-dev @jcode.labs/ragmir-tts
 ```
 
 Maintainer tokens are only needed to publish new versions.
@@ -267,84 +267,84 @@ when supported files are already present:
 
 ```bash
 # Fast start: no model download, fully local lexical/hash retrieval.
-npx mimir setup
+npx ragmir setup
 
 # Higher-quality natural-language retrieval: one-time Transformers.js model download,
 # then remote model loading stays disabled for normal confidential indexing.
-npx mimir setup --semantic
+npx ragmir setup --semantic
 ```
 
-Fresh setup keeps local state under one ignored `.mimir/` folder:
+Fresh setup keeps local state under one ignored `.ragmir/` folder:
 
 ```plain text
-.mimir/config.json               # local config
-.mimir/sources.txt               # optional extra source paths
-.mimir/raw/                      # raw documents to ingest
-.mimir/storage/                  # generated LanceDB index after ingest
-.mimir/access.log                # metadata-only access log after use
-.mimir/skills/mimir/SKILL.md     # portable agent skill
-.mimir/skills/mimir-audio-summary/SKILL.md
-.mimir/skills/mimir-markdown-report/SKILL.md
-.mimir/skills/mimir-legal-dossier/SKILL.md
-.mimir/mcp.json                  # generic MCP server config snippet
-.mimir/claude-mcp-server.json    # Claude Code add-json payload
-.mimir/codex-mcp.toml            # Codex config.toml snippet with MCP and skills.config
-.mimir/kimi-mcp.json             # Kimi Code CLI MCP config
-.mimir/opencode.jsonc            # OpenCode config snippet
-.mimir/cline-mcp.json            # Cline MCP config
-.mimir/agent-setup.md            # agent-specific setup guide
-.gitignore                       # ignores .mimir/
+.ragmir/config.json               # local config
+.ragmir/sources.txt               # optional extra source paths
+.ragmir/raw/                      # raw documents to ingest
+.ragmir/storage/                  # generated LanceDB index after ingest
+.ragmir/access.log                # metadata-only access log after use
+.ragmir/skills/ragmir/SKILL.md     # portable agent skill
+.ragmir/skills/ragmir-audio-summary/SKILL.md
+.ragmir/skills/ragmir-markdown-report/SKILL.md
+.ragmir/skills/ragmir-legal-dossier/SKILL.md
+.ragmir/mcp.json                  # generic MCP server config snippet
+.ragmir/claude-mcp-server.json    # Claude Code add-json payload
+.ragmir/codex-mcp.toml            # Codex config.toml snippet with MCP and skills.config
+.ragmir/kimi-mcp.json             # Kimi Code CLI MCP config
+.ragmir/opencode.jsonc            # OpenCode config snippet
+.ragmir/cline-mcp.json            # Cline MCP config
+.ragmir/agent-setup.md            # agent-specific setup guide
+.gitignore                       # ignores .ragmir/
 ```
 
 It detects the repository package manager and writes the MCP helper files with the right command:
-`npx mimir serve-mcp`, `pnpm exec mimir serve-mcp`, `yarn exec mimir serve-mcp`, or `bunx mimir serve-mcp`.
+`npx ragmir serve-mcp`, `pnpm exec ragmir serve-mcp`, `yarn exec ragmir serve-mcp`, or `bunx ragmir serve-mcp`.
 When a repository needs a wrapper script or only a subset of agent helpers, make that explicit during
 setup:
 
 ```bash
-npx mimir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
+npx ragmir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
 ```
 
-For the usual agent-first workflow, expose Mimir to the coding assistants used in the repository:
+For the usual agent-first workflow, expose Ragmir to the coding assistants used in the repository:
 
 ```bash
-npx mimir install-agent --agents claude,codex,kimi,opencode,cline
+npx ragmir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 Then wire the agent you use. Claude Code, Codex, and Cline follow the standard MCP shapes from their
-public docs; Kimi and OpenCode use the generated helper files that Mimir writes under `.mimir/`.
+public docs; Kimi and OpenCode use the generated helper files that Ragmir writes under `.ragmir/`.
 
 ```bash
 # Claude Code: registers the local MCP server for this repository.
-claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
+claude mcp add-json --scope local ragmir "$(cat .ragmir/claude-mcp-server.json)"
 
 # Codex: review and merge the generated MCP and skills config.
-cat .mimir/codex-mcp.toml
+cat .ragmir/codex-mcp.toml
 
-# Kimi Code CLI: launch Kimi with the generated Mimir MCP config.
-kimi --mcp-config-file .mimir/kimi-mcp.json
+# Kimi Code CLI: launch Kimi with the generated Ragmir MCP config.
+kimi --mcp-config-file .ragmir/kimi-mcp.json
 
 # OpenCode: review and merge the generated OpenCode JSONC snippet.
-cat .mimir/opencode.jsonc
+cat .ragmir/opencode.jsonc
 
 # Cline: add the generated JSON under Cline's mcpServers configuration.
-cat .mimir/cline-mcp.json
+cat .ragmir/cline-mcp.json
 ```
 
-From the agent, ask naturally, for example: "Use Mimir to find what this repository says about
+From the agent, ask naturally, for example: "Use Ragmir to find what this repository says about
 deployment." The agent calls the MCP tools and uses the bundled skills to work with cited local
 context.
 
 Check readiness at any time:
 
 ```bash
-npx mimir doctor
+npx ragmir doctor
 ```
 
 If files are missing from the index, stale, or the setup is incomplete, run:
 
 ```bash
-npx mimir doctor --fix
+npx ragmir doctor --fix
 ```
 
 `doctor --fix` performs safe repairs: missing scaffolding, Git ignore entries, agent kit install, and
@@ -353,22 +353,22 @@ index rebuild when supported files are present and the privacy posture has no wa
 Manual initialization is still available:
 
 ```plain text
-.mimir/config.json   # local config (add extra paths to the "sources" array)
-.mimir/raw/          # raw documents to ingest
-.gitignore           # ignores .mimir/
+.ragmir/config.json   # local config (add extra paths to the "sources" array)
+.ragmir/raw/          # raw documents to ingest
+.gitignore           # ignores .ragmir/
 ```
 
-Put supported files under `.mimir/raw/`:
+Put supported files under `.ragmir/raw/`:
 
 ```plain text
-.mimir/raw/
+.ragmir/raw/
   policy.md
   meeting-notes.pdf
   requirements.docx
 ```
 
 For monorepos or downloaded local folders, add extra paths or glob patterns to the `sources` array in
-`.mimir/config.json`. Relative entries resolve from the Mimir project root, and `!` excludes matched files:
+`.ragmir/config.json`. Relative entries resolve from the Ragmir project root, and `!` excludes matched files:
 
 ```json
 {
@@ -381,34 +381,34 @@ For monorepos or downloaded local folders, add extra paths or glob patterns to t
 }
 ```
 
-The legacy `.mimir/sources.txt` file (one entry per line) is still read when present and can be managed
+The legacy `.ragmir/sources.txt` file (one entry per line) is still read when present and can be managed
 from the CLI:
 
 ```bash
-npx mimir sources add "../apps/*/README.md" "../apps/*/docs/**/*.{md,mdx}"
-npx mimir sources list
+npx ragmir sources add "../apps/*/README.md" "../apps/*/docs/**/*.{md,mdx}"
+npx ragmir sources list
 ```
 
 ### Team Workflow With A Shared Private Corpus
 
 For a team of 10 developers, keep Git as the reproducible setup layer and keep the corpus in an
 approved private source. Each developer materializes the same corpus locally, then builds their own
-local Mimir index.
+local Ragmir index.
 
 ```plain text
 Git repository
   README.md
-  mimir.config.example.json
-  mimir-sources.example.txt
+  ragmir.config.example.json
+  ragmir-sources.example.txt
   scripts/sync-corpus.sh
 
 Ignored local state on each developer machine
-  .mimir/config.json
-  .mimir/sources.txt
-  .mimir/raw/ or data/private-corpus/
-  .mimir/storage/
-  .mimir/access.log
-  .mimir/models/
+  .ragmir/config.json
+  .ragmir/sources.txt
+  .ragmir/raw/ or data/private-corpus/
+  .ragmir/storage/
+  .ragmir/access.log
+  .ragmir/models/
 ```
 
 If your team uses Google Drive, Dropbox, SharePoint, S3, rsync, an encrypted ZIP, or another private
@@ -418,98 +418,98 @@ source, write a small project script that syncs into an ignored local folder and
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p .mimir/raw
+mkdir -p .ragmir/raw
 # Example only: replace this with your approved private sync command.
-# rclone copy "team-drive:Project Knowledge" .mimir/raw --drive-export-formats docx,xlsx,pptx,pdf
+# rclone copy "team-drive:Project Knowledge" .ragmir/raw --drive-export-formats docx,xlsx,pptx,pdf
 
-npx mimir ingest
-npx mimir doctor
+npx ragmir ingest
+npx ragmir doctor
 ```
 
 Commit the script and instructions, not the synced files. The same pattern works without Google
 Drive: every developer downloads the same approved archive or mirror into the same ignored path, then
-runs `npx mimir ingest`. Mimir compares checksums and reuses unchanged rows, so refreshes stay
+runs `npx ragmir ingest`. Ragmir compares checksums and reuses unchanged rows, so refreshes stay
 incremental.
 
 Build the local index:
 
 ```bash
-npx mimir ingest
-npx mimir doctor
+npx ragmir ingest
+npx ragmir doctor
 ```
 
-When the index is ready, `mimir doctor` prints `ready=true`. `mimir ingest` and `mimir audit` also report
+When the index is ready, `ragmir doctor` prints `ready=true`. `ragmir ingest` and `ragmir audit` also report
 files that were discovered but not indexed because the type is unsupported, the file is too large,
 or the file name looks like a secret/private key.
 
 List skipped paths explicitly:
 
 ```bash
-npx mimir audit --unsupported
+npx ragmir audit --unsupported
 ```
 
 Summarize recent metadata-only usage without exposing raw queries or local paths:
 
 ```bash
-npx mimir usage-report --days 7
+npx ragmir usage-report --days 7
 ```
 
 Retrieve exact passages:
 
 ```bash
-npx mimir search "approval for offline operation"
+npx ragmir search "approval for offline operation"
 ```
 
 Return cited retrieval context for an agent or model:
 
 ```bash
-npx mimir ask "What evidence supports offline operation?"
+npx ragmir ask "What evidence supports offline operation?"
 ```
 
 Run an audit-backed multi-query research pass before a broad synthesis or implementation task:
 
 ```bash
-npx mimir research "release readiness and risks" --compact
+npx ragmir research "release readiness and risks" --compact
 ```
 
 Measure recall against a golden query file:
 
 ```bash
-npx mimir evaluate --golden golden-queries.json
+npx ragmir evaluate --golden golden-queries.json
 ```
 
 For private dogfooding, keep the real corpus and golden query file outside Git or under an ignored
 local path, then use a threshold that matches the evaluation phase:
 
 ```bash
-npx mimir --project-root /path/to/workspace ingest
-npx mimir --project-root /path/to/workspace evaluate --golden .mimir/evaluations/golden-queries.json --fail-under 0.8 --json
+npx ragmir --project-root /path/to/workspace ingest
+npx ragmir --project-root /path/to/workspace evaluate --golden .ragmir/evaluations/golden-queries.json --fail-under 0.8 --json
 ```
 
 The JSON report includes the active `embeddingProvider` and `embeddingModel`, so you can compare
 default local-hash recall with a private Transformers semantic run without storing the report in Git.
 
-Mimir does not synthesize an LLM answer. It returns cited local passages; your chosen agent or model
+Ragmir does not synthesize an LLM answer. It returns cited local passages; your chosen agent or model
 does the writing around those passages.
 
 With pnpm, use `pnpm exec` after installing the package:
 
 ```bash
-pnpm exec mimir setup
-pnpm exec mimir doctor
-pnpm exec mimir search "approval for offline operation"
+pnpm exec ragmir setup
+pnpm exec ragmir doctor
+pnpm exec ragmir search "approval for offline operation"
 ```
 
 ## Choose A Retrieval Mode
 
-Mimir has two embedding modes.
+Ragmir has two embedding modes.
 
 ### Default Local Hash Retrieval
 
 Use this when you want a fully local, no-model smoke test or a dependency-light setup. Retrieval is
 lexical/hash-based, not semantic.
 
-`.mimir/config.json`:
+`.ragmir/config.json`:
 
 ```json
 {
@@ -520,25 +520,25 @@ lexical/hash-based, not semantic.
 Commands:
 
 ```bash
-npx mimir ingest
-npx mimir search "offline retrieval approval"
-npx mimir ask "What evidence supports offline operation?"
+npx ragmir ingest
+npx ragmir search "offline retrieval approval"
+npx ragmir ask "What evidence supports offline operation?"
 ```
 
-`mimir ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
+`ragmir ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
 passages to any LLM or agent you trust.
 
 ### Optional Semantic Embeddings With Transformers.js
 
-Use this when you want better semantic retrieval while keeping Mimir core free of an LLM server.
+Use this when you want better semantic retrieval while keeping Ragmir core free of an LLM server.
 
-`.mimir/config.json`:
+`.ragmir/config.json`:
 
 ```json
 {
   "embeddingProvider": "transformers",
   "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
-  "embeddingModelPath": ".mimir/models",
+  "embeddingModelPath": ".ragmir/models",
   "transformersAllowRemoteModels": false
 }
 ```
@@ -546,60 +546,60 @@ Use this when you want better semantic retrieval while keeping Mimir core free o
 Commands:
 
 ```bash
-npx mimir setup --semantic
+npx ragmir setup --semantic
 # Or later:
-npx mimir models pull --enable
-npx mimir ingest
-npx mimir ask "Which passages support offline operation?"
+npx ragmir models pull --enable
+npx ragmir ingest
+npx ragmir ask "Which passages support offline operation?"
 ```
 
-`mimir setup --semantic` is the first-run shortcut. It intentionally allows a one-time download from
-Hugging Face into `embeddingModelPath`, switches `.mimir/config.json` to `embeddingProvider:
+`ragmir setup --semantic` is the first-run shortcut. It intentionally allows a one-time download from
+Hugging Face into `embeddingModelPath`, switches `.ragmir/config.json` to `embeddingProvider:
 "transformers"`, and leaves `transformersAllowRemoteModels` false for normal confidential indexing.
-Use `mimir models pull --enable` when you want to make the same choice later. Re-run
-`mimir ingest --rebuild` after changing embedding provider or model so stored vectors match the
+Use `ragmir models pull --enable` when you want to make the same choice later. Re-run
+`ragmir ingest --rebuild` after changing embedding provider or model so stored vectors match the
 active configuration.
 
 ## Agent Skills And MCP
 
-Mimir ships with portable agent skills and a standard MCP server.
+Ragmir ships with portable agent skills and a standard MCP server.
 
-Use `mimir setup` for the normal path, or install only the agent layer later:
+Use `ragmir setup` for the normal path, or install only the agent layer later:
 
 ```bash
-npx mimir install-skill
-npx mimir install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
-npx mimir install-agent --agents claude,codex,kimi,opencode,cline
+npx ragmir install-skill
+npx ragmir install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
+npx ragmir install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 Main agent examples:
 
 ```bash
 # Claude Code
-claude mcp add-json --scope local mimir "$(cat .mimir/claude-mcp-server.json)"
+claude mcp add-json --scope local ragmir "$(cat .ragmir/claude-mcp-server.json)"
 
 # Codex
-cat .mimir/codex-mcp.toml
+cat .ragmir/codex-mcp.toml
 
 # Kimi Code CLI
-kimi --mcp-config-file .mimir/kimi-mcp.json
+kimi --mcp-config-file .ragmir/kimi-mcp.json
 
 # OpenCode
-cat .mimir/opencode.jsonc
+cat .ragmir/opencode.jsonc
 
 # Cline
-cat .mimir/cline-mcp.json
+cat .ragmir/cline-mcp.json
 ```
 
 Start the MCP server from the repository root when a compatible agent needs tool access:
 
 ```bash
-npx mimir serve-mcp
+npx ragmir serve-mcp
 ```
 
-The MCP server exposes `mimir_status`, `mimir_search`, `mimir_ask`, `mimir_research`,
-`mimir_audit`, `mimir_evaluate`, `mimir_usage_report`, and `mimir_security_audit`. The LLM does not
-need to know about LanceDB or the raw file layout; it asks Mimir for ranked passages, cited context,
+The MCP server exposes `ragmir_status`, `ragmir_search`, `ragmir_ask`, `ragmir_research`,
+`ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`, and `ragmir_security_audit`. The LLM does not
+need to know about LanceDB or the raw file layout; it asks Ragmir for ranked passages, cited context,
 audit-backed research, local recall gates, or metadata-only usage summaries and uses the returned
 citations.
 
@@ -607,47 +607,47 @@ Per-agent setup details live in [`docs/agent-integration.md`](./docs/agent-integ
 
 ## Audio Summaries
 
-Mimir includes a plug-and-play text-to-speech path for listenable summaries.
+Ragmir includes a plug-and-play text-to-speech path for listenable summaries.
 
 For the same quality path as the global Voice Forge skill, install `edge-tts` and render MP3:
 
 ```bash
-npx mimir audio --doctor
+npx ragmir audio --doctor
 pipx install edge-tts
-npx mimir audio /tmp/MIMIR-SUMMARY-project.txt \
+npx ragmir audio /tmp/RAGMIR-SUMMARY-project.txt \
   --engine edge \
-  --out .mimir/audio/project-summary.mp3
+  --out .ragmir/audio/project-summary.mp3
 ```
 
 The Edge path uses the online Microsoft Edge TTS service through the `edge-tts` CLI. Use it only
 when sending the narration text to that service is acceptable. MP3 output requires explicit
 `--engine edge` for this reason.
 
-By default, `mimir audio` uses the Transformers.js WAV path. For confidential or air-gapped work,
+By default, `ragmir audio` uses the Transformers.js WAV path. For confidential or air-gapped work,
 preload Transformers.js-compatible model files with non-sensitive text, then render WAV offline:
 
 ```bash
-npx mimir audio /tmp/MIMIR-SUMMARY-project.txt \
+npx ragmir audio /tmp/RAGMIR-SUMMARY-project.txt \
   --engine transformers \
   --offline \
   --lang fr \
-  --model-path .mimir/models/tts \
-  --out .mimir/audio/project-summary.wav
+  --model-path .ragmir/models/tts \
+  --out .ragmir/audio/project-summary.wav
 ```
 
 Use the standalone package directly:
 
 ```bash
-npx mimir-tts doctor --json
-npx mimir-tts render /tmp/MIMIR-SUMMARY-project.txt \
+npx ragmir-tts doctor --json
+npx ragmir-tts render /tmp/RAGMIR-SUMMARY-project.txt \
   --engine edge \
-  --out .mimir/audio/project-summary.mp3
+  --out .ragmir/audio/project-summary.mp3
 ```
 
 The default standalone engine is `transformers` and the default language is `fr`. Pass
-`--lang en|es|fr` (or `MIMIR_TTS_LANG`) to switch language: it selects the matching self-contained
+`--lang en|es|fr` (or `RAGMIR_TTS_LANG`) to switch language: it selects the matching self-contained
 offline model (`Xenova/mms-tts-eng`, `Xenova/mms-tts-spa`, or `Xenova/mms-tts-fra`) and, on the Edge
-path, a native neural voice. Override the model directly with `--model` or `MIMIR_TTS_MODEL`.
+path, a native neural voice. Override the model directly with `--model` or `RAGMIR_TTS_MODEL`.
 
 See [`docs/offline-tts-preload.md`](./docs/offline-tts-preload.md) for the exact preload and
 offline-check workflow.
@@ -659,27 +659,27 @@ where you run the CLI:
 
 ```plain text
 your-project/
-  .mimir/config.json   # local config
-  .mimir/sources.txt   # optional extra source paths
-  .mimir/raw/          # raw documents to ingest
-  .mimir/storage/      # generated LanceDB index
-  .mimir/access.log    # metadata-only access log
+  .ragmir/config.json   # local config
+  .ragmir/sources.txt   # optional extra source paths
+  .ragmir/raw/          # raw documents to ingest
+  .ragmir/storage/      # generated LanceDB index
+  .ragmir/access.log    # metadata-only access log
 ```
 
-The package never ships project documents. `mimir setup` adds a `.mimir/` gitignore entry, so
+The package never ships project documents. `ragmir setup` adds a `.ragmir/` gitignore entry, so
 generated indexes, agent files, raw documents, reports, models, audio, and access logs stay local to
 the target repository.
 
-Legacy projects that already have `.kb/config.json` keep working. In that mode, Mimir preserves the
+Legacy projects that already have `.kb/config.json` keep working. In that mode, Ragmir preserves the
 old defaults (`private/`, `.kb/storage`, `.kb/sources.txt`, `.kb/access.log`) and accepts existing
-`KB_*` environment variables. New setup and docs use `.mimir/` and `MIMIR_*`.
+`KB_*` environment variables. New setup and docs use `.ragmir/` and `RAGMIR_*`.
 
 ## Confidentiality Defaults
 
-Mimir is designed for private repositories and sensitive local evidence.
+Ragmir is designed for private repositories and sensitive local evidence.
 
 - Zero telemetry: no analytics or document content is sent to JCode Labs.
-- No LLM generation in core: Mimir returns cited context for the agent/runtime you choose.
+- No LLM generation in core: Ragmir returns cited context for the agent/runtime you choose.
 - Local-hash by default: no model runtime is required for the default retrieval path.
 - Transformers.js remote model loading is disabled by default.
 - Optional Transformers.js model downloads require an explicit preload command or
@@ -687,7 +687,7 @@ Mimir is designed for private repositories and sensitive local evidence.
 - Redaction before indexing: common secrets and identifiers are redacted before chunks are embedded
   and stored.
 - Metadata-only access logs: query hashes and action metadata are logged, not raw queries.
-- Metadata-only usage reports: `mimir usage-report --days 7` summarizes recent local activity
+- Metadata-only usage reports: `ragmir usage-report --days 7` summarizes recent local activity
   without exposing query text or local paths.
 - MCP is read-focused and bounded by `mcpMaxTopK`.
 - Generated local state is ignored by Git.
@@ -695,13 +695,13 @@ Mimir is designed for private repositories and sensitive local evidence.
 Run:
 
 ```bash
-npx mimir security-audit --strict
+npx ragmir security-audit --strict
 ```
 
 Remove the generated vector index:
 
 ```bash
-npx mimir destroy-index --yes
+npx ragmir destroy-index --yes
 ```
 
 `destroy-index` does not securely erase SSD or copy-on-write storage. For strong deletion
@@ -712,7 +712,7 @@ read [`SECURITY-HARDENING.md`](./SECURITY-HARDENING.md).
 
 ## Supported Files
 
-Mimir supports common text, document, data, config, log, and source-code files out of the box:
+Ragmir supports common text, document, data, config, log, and source-code files out of the box:
 
 - Markdown: `.md`, `.mdx`
 - Text: `.txt`, `.text`
@@ -753,18 +753,18 @@ Custom UTF-8 text extensions can be enabled without changing code:
 Or through:
 
 ```bash
-MIMIR_INCLUDE_EXTENSIONS=".transcript,.evidence" npx mimir ingest
+RAGMIR_INCLUDE_EXTENSIONS=".transcript,.evidence" npx ragmir ingest
 ```
 
-Audio/video files and formats that are not listed are not useful to Mimir as-is. They can still be
+Audio/video files and formats that are not listed are not useful to Ragmir as-is. They can still be
 valuable source evidence, but they should be transcribed, converted, or exported to text/PDF/HTML
-first. `mimir audit --unsupported` prints per-file recommendations for these skipped formats.
+first. `ragmir audit --unsupported` prints per-file recommendations for these skipped formats.
 Scanned PDFs can use an explicit `pdfOcrCommand` wrapper when you accept running local OCR tooling.
 Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` stay unsupported by default, but
 can be indexed through an explicit local `imageOcrCommand` wrapper. Old `.doc` Word binaries stay
 unsupported by default, but can be indexed through an explicit local `legacyWordCommand` wrapper
-when your workstation has a trusted extractor. If a supported file parses to no text, `mimir ingest
---json` reports it under `emptyTextFiles`. Mimir intentionally avoids pretending that every binary
+when your workstation has a trusted extractor. If a supported file parses to no text, `ragmir ingest
+--json` reports it under `emptyTextFiles`. Ragmir intentionally avoids pretending that every binary
 format can be indexed safely without extraction logic.
 
 Secret-like files such as `.env`, `.npmrc`, private keys, and certificates are skipped by default.
@@ -777,20 +777,20 @@ under a source directory.
 
 ## Configuration Reference
 
-Most users should start with `mimir setup` and let `mimir doctor` explain what is missing. Edit
-`.mimir/config.json` only when you need to change source paths, retrieval mode, chunking, privacy
+Most users should start with `ragmir setup` and let `ragmir doctor` explain what is missing. Edit
+`.ragmir/config.json` only when you need to change source paths, retrieval mode, chunking, privacy
 limits, or local extractors.
 
-Default `.mimir/config.json` for a fresh project:
+Default `.ragmir/config.json` for a fresh project:
 
 ```json
 {
-  "rawDir": ".mimir/raw",
-  "storageDir": ".mimir/storage",
-  "sourcesFile": ".mimir/sources.txt",
+  "rawDir": ".ragmir/raw",
+  "storageDir": ".ragmir/storage",
+  "sourcesFile": ".ragmir/sources.txt",
   "sources": [],
-  "accessLogPath": ".mimir/access.log",
-  "embeddingModelPath": ".mimir/models",
+  "accessLogPath": ".ragmir/access.log",
+  "embeddingModelPath": ".ragmir/models",
   "tableName": "chunks",
   "embeddingProvider": "local-hash",
   "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
@@ -822,14 +822,14 @@ Every field, its default, and what it controls:
 
 | Field | Default | Purpose |
 | --- | --- | --- |
-| `rawDir` | `.mimir/raw` | Local corpus folder, indexed recursively. The primary place to drop documents. |
+| `rawDir` | `.ragmir/raw` | Local corpus folder, indexed recursively. The primary place to drop documents. |
 | `sources` | `[]` | Extra file, directory, and glob paths (plus `!` exclusions) to index, resolved from the project root. See below. |
-| `sourcesFile` | `.mimir/sources.txt` | Legacy one-path-per-line file; still read and merged with `sources` when present. |
-| `storageDir` | `.mimir/storage` | LanceDB vector store location. |
-| `accessLogPath` | `.mimir/access.log` | Query access log (stores hashes/metadata only). |
-| `embeddingModelPath` | `.mimir/models` | Local cache for the Transformers.js embedding model. |
+| `sourcesFile` | `.ragmir/sources.txt` | Legacy one-path-per-line file; still read and merged with `sources` when present. |
+| `storageDir` | `.ragmir/storage` | LanceDB vector store location. |
+| `accessLogPath` | `.ragmir/access.log` | Query access log (stores hashes/metadata only). |
+| `embeddingModelPath` | `.ragmir/models` | Local cache for the Transformers.js embedding model. |
 | `tableName` | `chunks` | LanceDB table name. |
-| `embeddingProvider` | `local-hash` | `local-hash` (offline lexical, not semantic) or `transformers` (semantic). Switching requires `mimir ingest --rebuild`. |
+| `embeddingProvider` | `local-hash` | `local-hash` (offline lexical, not semantic) or `transformers` (semantic). Switching requires `ragmir ingest --rebuild`. |
 | `embeddingModel` | `mixedbread-ai/mxbai-embed-xsmall-v1` | Model used when `embeddingProvider` is `transformers`. |
 | `transformersAllowRemoteModels` | `false` | Allow downloading the embedding model at runtime. |
 | `redaction.enabled` | `true` | Strip secrets/PII before anything is embedded. |
@@ -849,9 +849,9 @@ Every field, its default, and what it controls:
 
 ### Extra source paths (`sources`)
 
-Mimir always indexes everything under `rawDir` (`.mimir/raw/`). To pull in files that live elsewhere —
+Ragmir always indexes everything under `rawDir` (`.ragmir/raw/`). To pull in files that live elsewhere —
 sibling packages in a monorepo, a shared docs folder, a downloaded directory — add them straight to the
-`sources` array in `.mimir/config.json`. No separate file is needed:
+`sources` array in `.ragmir/config.json`. No separate file is needed:
 
 ```json
 {
@@ -870,38 +870,38 @@ Each entry is one of:
 - a **glob** pattern — any entry containing `*`, `?`, `[`, or `{`;
 - an **exclusion** — starts with `!` and filters the glob matches.
 
-> **Legacy `sources.txt`.** Paths listed one per line in `.mimir/sources.txt` are still read when the
-> file exists, and `mimir sources add` / `mimir sources list` continue to manage it. Entries from both
+> **Legacy `sources.txt`.** Paths listed one per line in `.ragmir/sources.txt` are still read when the
+> file exists, and `ragmir sources add` / `ragmir sources list` continue to manage it. Entries from both
 > the `sources` array and `sources.txt` are merged, so existing projects keep working unchanged. New
-> projects should prefer the `sources` array — `mimir init` no longer creates a `sources.txt`.
+> projects should prefer the `sources` array — `ragmir init` no longer creates a `sources.txt`.
 
 Environment overrides:
 
-- `MIMIR_RAW_DIR`
-- `MIMIR_STORAGE_DIR`
-- `MIMIR_SOURCES_FILE`
-- `MIMIR_ACCESS_LOG_PATH`
-- `MIMIR_EMBEDDING_PROVIDER`
-- `MIMIR_EMBEDDING_MODEL`
-- `MIMIR_EMBEDDING_MODEL_PATH`
-- `MIMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS`
-- `MIMIR_REDACTION_ENABLED`
-- `MIMIR_REDACTION_BUILT_IN`
-- `MIMIR_ACCESS_LOG`
-- `MIMIR_MCP_MAX_TOP_K`
-- `MIMIR_TOP_K`
-- `MIMIR_CHUNK_SIZE`
-- `MIMIR_CHUNK_OVERLAP`
-- `MIMIR_MAX_FILE_BYTES`
-- `MIMIR_INGEST_CONCURRENCY`
-- `MIMIR_EMBEDDING_BATCH_SIZE`
-- `MIMIR_INCLUDE_EXTENSIONS`
-- `MIMIR_PDF_OCR_COMMAND` as a JSON array, for example `["mimir-pdf-ocr","{input}"]`
-- `MIMIR_PDF_OCR_TIMEOUT_MS`
-- `MIMIR_IMAGE_OCR_COMMAND` as a JSON array, for example `["mimir-image-ocr","{input}"]`
-- `MIMIR_IMAGE_OCR_TIMEOUT_MS`
-- `MIMIR_LEGACY_WORD_COMMAND` as a JSON array, for example `["mimir-doc-text","{input}"]`
-- `MIMIR_LEGACY_WORD_TIMEOUT_MS`
+- `RAGMIR_RAW_DIR`
+- `RAGMIR_STORAGE_DIR`
+- `RAGMIR_SOURCES_FILE`
+- `RAGMIR_ACCESS_LOG_PATH`
+- `RAGMIR_EMBEDDING_PROVIDER`
+- `RAGMIR_EMBEDDING_MODEL`
+- `RAGMIR_EMBEDDING_MODEL_PATH`
+- `RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS`
+- `RAGMIR_REDACTION_ENABLED`
+- `RAGMIR_REDACTION_BUILT_IN`
+- `RAGMIR_ACCESS_LOG`
+- `RAGMIR_MCP_MAX_TOP_K`
+- `RAGMIR_TOP_K`
+- `RAGMIR_CHUNK_SIZE`
+- `RAGMIR_CHUNK_OVERLAP`
+- `RAGMIR_MAX_FILE_BYTES`
+- `RAGMIR_INGEST_CONCURRENCY`
+- `RAGMIR_EMBEDDING_BATCH_SIZE`
+- `RAGMIR_INCLUDE_EXTENSIONS`
+- `RAGMIR_PDF_OCR_COMMAND` as a JSON array, for example `["ragmir-pdf-ocr","{input}"]`
+- `RAGMIR_PDF_OCR_TIMEOUT_MS`
+- `RAGMIR_IMAGE_OCR_COMMAND` as a JSON array, for example `["ragmir-image-ocr","{input}"]`
+- `RAGMIR_IMAGE_OCR_TIMEOUT_MS`
+- `RAGMIR_LEGACY_WORD_COMMAND` as a JSON array, for example `["ragmir-doc-text","{input}"]`
+- `RAGMIR_LEGACY_WORD_TIMEOUT_MS`
 
 Legacy `KB_*` aliases remain accepted for existing automation.
 
@@ -911,30 +911,30 @@ Legacy `KB_*` aliases remain accepted for existing automation.
 `imageOcrCommand` is also opt-in; image files are treated as supported only when it is configured.
 `legacyWordCommand` is opt-in; `.doc` files are treated as supported only when it is configured.
 External text commands are executed from the target project root without a shell, receive
-`MIMIR_PDF_PATH`, `MIMIR_IMAGE_PATH`, or `MIMIR_LEGACY_WORD_PATH`, replace `{input}` placeholders
+`RAGMIR_PDF_PATH`, `RAGMIR_IMAGE_PATH`, or `RAGMIR_LEGACY_WORD_PATH`, replace `{input}` placeholders
 with the source path, and must print UTF-8 text to stdout.
 
 ## Command And API Reference
 
-Mimir ships two CLIs:
+Ragmir ships two CLIs:
 
-- `mimir`: the main local RAG, MCP, skills, security, and audio command. `kb` remains a legacy alias
+- `ragmir`: the main local RAG, MCP, skills, security, and audio command. `kb` remains a legacy alias
   for compatibility.
-- `mimir-tts`: the standalone text-to-speech renderer used by `mimir audio`.
+- `ragmir-tts`: the standalone text-to-speech renderer used by `ragmir audio`.
 
-Most users start with `mimir setup`, `mimir doctor`, `mimir ingest`, `mimir search`, `mimir ask`,
-`mimir research`, and `mimir security-audit`.
+Most users start with `ragmir setup`, `ragmir doctor`, `ragmir ingest`, `ragmir search`, `ragmir ask`,
+`ragmir research`, and `ragmir security-audit`.
 
-Use `mimir setup --semantic` during first setup, or `mimir models pull --enable` later, when a
+Use `ragmir setup --semantic` during first setup, or `ragmir models pull --enable` later, when a
 one-time Transformers.js model download is acceptable and you want higher-quality semantic retrieval.
-Run `mimir ingest --rebuild` after switching embedding provider or model.
+Run `ragmir ingest --rebuild` after switching embedding provider or model.
 
 Full command table: [`docs/cli-reference.md`](./docs/cli-reference.md).
 
 The TypeScript API mirrors the CLI for applications and sidecars:
 
 ```ts
-import { ask, ingest, search } from "@jcode.labs/mimir"
+import { ask, ingest, search } from "@jcode.labs/ragmir"
 
 await ingest({ rebuild: true })
 const results = await search("vendor invoice status")
@@ -945,16 +945,16 @@ Full API reference: [`docs/api-reference.md`](./docs/api-reference.md).
 
 ## Troubleshooting And Validation
 
-Use `mimir doctor` first. It is the shortest path to the next useful action:
+Use `ragmir doctor` first. It is the shortest path to the next useful action:
 
 ```bash
-npx mimir doctor
+npx ragmir doctor
 ```
 
-Use `doctor --fix` when you want Mimir to repair safe setup issues automatically:
+Use `doctor --fix` when you want Ragmir to repair safe setup issues automatically:
 
 ```bash
-npx mimir doctor --fix
+npx ragmir doctor --fix
 ```
 
 Common fixes for empty indexes, weak search, strict security audit failures, and TTS setup live in
@@ -966,7 +966,7 @@ npm package metadata, semantic-release wiring, and release artifacts.
 
 ## Dependency Footprint
 
-Mimir can run retrieval without a model runtime. Some runtime dependencies remain because they own
+Ragmir can run retrieval without a model runtime. Some runtime dependencies remain because they own
 core features:
 
 | Dependency | Why it remains |
@@ -989,22 +989,22 @@ choose `local-hash`, while preserving richer parsing, MCP support, and optional 
 ## Example Test Workspaces
 
 This repository ships two synthetic examples under
-[`packages/mimir-core/examples`](./packages/mimir-core/examples). Both use the default local-hash
+[`packages/ragmir-core/examples`](./packages/ragmir-core/examples). Both use the default local-hash
 retrieval mode, so they run without downloading an embedding or chat model, and neither uses private
 documents.
 
-> Testing local changes: use the repository's own build, not `npx`. Inside this repo `npx mimir`
+> Testing local changes: use the repository's own build, not `npx`. Inside this repo `npx ragmir`
 > resolves to the **published** npm package, not your working copy — so it would not exercise your
 > local edits. The examples below run the local `dist/` build instead.
 
 ### CLI workspace (`sovereign-rag-demo`)
 
-[`sovereign-rag-demo`](./packages/mimir-core/examples/sovereign-rag-demo) drives the **CLI** to test
+[`sovereign-rag-demo`](./packages/ragmir-core/examples/sovereign-rag-demo) drives the **CLI** to test
 ingestion, retrieval, `security-audit`, and custom text extensions.
 
 ```bash
 pnpm build
-cd packages/mimir-core/examples/sovereign-rag-demo
+cd packages/ragmir-core/examples/sovereign-rag-demo
 node ../../dist/cli.js security-audit
 node ../../dist/cli.js ingest
 node ../../dist/cli.js search "offline retrieval approval"
@@ -1015,16 +1015,16 @@ node ../../dist/cli.js audit
 
 ### Library API demo (`library-api-demo`)
 
-[`library-api-demo`](./packages/mimir-core/examples/library-api-demo) exercises the **library** API
+[`library-api-demo`](./packages/ragmir-core/examples/library-api-demo) exercises the **library** API
 the way an external consumer would `import` it, but Node self-referencing resolves
-`@jcode.labs/mimir` to the local build, never npm. It is the fast inner loop when developing Mimir
+`@jcode.labs/ragmir` to the local build, never npm. It is the fast inner loop when developing Ragmir
 Core itself:
 
 ```bash
 pnpm example
 ```
 
-That builds Mimir Core, then runs `ingest -> search -> ask -> audit` through the public API against
+That builds Ragmir Core, then runs `ingest -> search -> ask -> audit` through the public API against
 the reused synthetic corpus.
 
 ## Development And Release
@@ -1039,17 +1039,17 @@ pnpm validate
 Useful filtered commands:
 
 ```bash
-pnpm --filter @jcode.labs/mimir test
-pnpm --filter @jcode.labs/mimir mcp:smoke
-pnpm --filter @jcode.labs/mimir-tts test
-pnpm --filter @jcode.labs/mimir-app build
-pnpm --filter @jcode.labs/mimir-landing build
-pnpm --filter @jcode.labs/mimir build
-pnpm --filter @jcode.labs/mimir-tts build
+pnpm --filter @jcode.labs/ragmir test
+pnpm --filter @jcode.labs/ragmir mcp:smoke
+pnpm --filter @jcode.labs/ragmir-tts test
+pnpm --filter @jcode.labs/ragmir-app build
+pnpm --filter @jcode.labs/ragmir-landing build
+pnpm --filter @jcode.labs/ragmir build
+pnpm --filter @jcode.labs/ragmir-tts build
 ```
 
-`packages/mimir-core/dist/` and `packages/mimir-tts/dist/` are committed. `packages/mimir-app/dist/`
-and `packages/mimir-landing/dist/` are ignored build artifacts. After changing TypeScript sources in
+`packages/ragmir-core/dist/` and `packages/ragmir-tts/dist/` are committed. `packages/ragmir-app/dist/`
+and `packages/ragmir-landing/dist/` are ignored build artifacts. After changing TypeScript sources in
 published packages, run:
 
 ```bash
@@ -1061,14 +1061,14 @@ CI checks that generated `dist/` files match the source.
 
 The root package is private and only orchestrates workspace tasks. npm publishing is handled by the
 protected `Release npm` GitHub Actions workflow on `main`. semantic-release derives the version from
-Conventional Commits, prepares both package tarballs, publishes `@jcode.labs/mimir-tts` first, then
-publishes `@jcode.labs/mimir`.
+Conventional Commits, prepares both package tarballs, publishes `@jcode.labs/ragmir-tts` first, then
+publishes `@jcode.labs/ragmir`.
 
 Build from source:
 
 ```bash
-git clone git@github.com:jcode-works/jcode-mimir.git
-cd jcode-mimir
+git clone git@github.com:jcode-works/jcode-ragmir.git
+cd jcode-ragmir
 pnpm install
 pnpm build
 ```
@@ -1076,14 +1076,14 @@ pnpm build
 Use a local checkout in another repository:
 
 ```bash
-pnpm add -D file:../jcode-mimir/packages/mimir-core
+pnpm add -D file:../jcode-ragmir/packages/ragmir-core
 ```
 
 Create a local npm tarball:
 
 ```bash
 pnpm build
-pnpm --dir packages/mimir-core pack
+pnpm --dir packages/ragmir-core pack
 ```
 
 ## License

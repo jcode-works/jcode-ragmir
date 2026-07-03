@@ -4,8 +4,8 @@
 node_modules/
 .pnpm-store/
 
-# Local generated Mimir state and agent exposure folders
-.mimir/
+# Local generated Ragmir state and agent exposure folders
+.ragmir/
 .kb/
 .agents/
 .claude/

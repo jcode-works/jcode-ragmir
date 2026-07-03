@@ -4,7 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const packageDirs = ["packages/mimir-tts", "packages/mimir-core"]
+const packageDirs = ["packages/ragmir-tts", "packages/ragmir-core"]
 const version = parseVersionArg(process.argv.slice(2))
 const checkOnly = process.argv.includes("--check")
 

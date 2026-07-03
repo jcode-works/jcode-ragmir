@@ -1,41 +1,41 @@
 # Troubleshooting
 
-Use `mimir doctor` first. It is the shortest path to the next useful action:
+Use `ragmir doctor` first. It is the shortest path to the next useful action:
 
 ```bash
-npx mimir doctor
+npx ragmir doctor
 ```
 
-Use `doctor --fix` when you want Mimir to repair safe setup issues automatically:
+Use `doctor --fix` when you want Ragmir to repair safe setup issues automatically:
 
 ```bash
-npx mimir doctor --fix
+npx ragmir doctor --fix
 ```
 
-## `mimir doctor` Says The Project Is Not Initialized
+## `ragmir doctor` Says The Project Is Not Initialized
 
 Run:
 
 ```bash
-npx mimir setup
-npx mimir doctor
+npx ragmir setup
+npx ragmir doctor
 ```
 
-Commit only safe scaffolding if this is a real repository. Do not commit local Mimir state, env
+Commit only safe scaffolding if this is a real repository. Do not commit local Ragmir state, env
 files, credentials, indexes, reports, audio, model caches, or raw documents.
 
 ## No Files Are Indexed
 
-Check that supported files exist under `.mimir/raw/`:
+Check that supported files exist under `.ragmir/raw/`:
 
 ```bash
-find .mimir/raw -maxdepth 2 -type f
-npx mimir ingest
-npx mimir doctor
+find .ragmir/raw -maxdepth 2 -type f
+npx ragmir ingest
+npx ragmir doctor
 ```
 
-If documents live elsewhere, add paths or glob patterns with `mimir sources add` or edit
-`.mimir/sources.txt`. Relative entries resolve from the project root, and `!` excludes matched files:
+If documents live elsewhere, add paths or glob patterns with `ragmir sources add` or edit
+`.ragmir/sources.txt`. Relative entries resolve from the project root, and `!` excludes matched files:
 
 ```plain text
 ../apps/*/README.md
@@ -46,27 +46,27 @@ If documents live elsewhere, add paths or glob patterns with `mimir sources add`
 If files exist but are not supported yet, inspect the skipped inventory:
 
 ```bash
-npx mimir audit --unsupported
+npx ragmir audit --unsupported
 ```
 
 Then follow the per-file recommendation: convert unsupported binaries to a supported format,
 OCR/transcribe them, or add a safe custom UTF-8 text extension with `includeExtensions` /
-`MIMIR_INCLUDE_EXTENSIONS`.
+`RAGMIR_INCLUDE_EXTENSIONS`.
 
 ## Scanned PDFs Or Images Produce No Text
 
-Mimir extracts embedded PDF text by default. For scanned/image-only PDFs, configure an explicit local
+Ragmir extracts embedded PDF text by default. For scanned/image-only PDFs, configure an explicit local
 OCR wrapper that prints UTF-8 text to stdout:
 
 ```json
 {
-  "pdfOcrCommand": ["mimir-pdf-ocr", "{input}"],
+  "pdfOcrCommand": ["ragmir-pdf-ocr", "{input}"],
   "pdfOcrTimeoutMs": 120000
 }
 ```
 
 The command runs only when normal PDF extraction returns no text. It is executed without a shell,
-receives `MIMIR_PDF_PATH`, and may use `{input}` in its arguments for the PDF path. Keep OCR tooling
+receives `RAGMIR_PDF_PATH`, and may use `{input}` in its arguments for the PDF path. Keep OCR tooling
 local for confidential documents.
 
 Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` are skipped by default. To index
@@ -74,16 +74,16 @@ them directly, configure an explicit local image OCR wrapper:
 
 ```json
 {
-  "imageOcrCommand": ["mimir-image-ocr", "{input}"],
+  "imageOcrCommand": ["ragmir-image-ocr", "{input}"],
   "imageOcrTimeoutMs": 120000
 }
 ```
 
-The command runs from the target project root, receives `MIMIR_IMAGE_PATH`, may use `{input}` in its
+The command runs from the target project root, receives `RAGMIR_IMAGE_PATH`, may use `{input}` in its
 arguments for the image path, and must print UTF-8 text to stdout. Images become supported only when
 `imageOcrCommand` is configured.
 
-If ingestion finishes but a scanned PDF still has no text, `mimir ingest --json` lists it under
+If ingestion finishes but a scanned PDF still has no text, `ragmir ingest --json` lists it under
 `emptyTextFiles`. If you do not want direct image OCR, OCR images to text or convert them to OCRed
 PDFs before ingesting.
 
@@ -94,12 +94,12 @@ them to `.docx`, PDF, HTML, or text, or configure an explicit wrapper:
 
 ```json
 {
-  "legacyWordCommand": ["mimir-doc-text", "{input}"],
+  "legacyWordCommand": ["ragmir-doc-text", "{input}"],
   "legacyWordTimeoutMs": 120000
 }
 ```
 
-The command runs from the target project root without a shell, receives `MIMIR_LEGACY_WORD_PATH`,
+The command runs from the target project root without a shell, receives `RAGMIR_LEGACY_WORD_PATH`,
 may use `{input}` in its arguments for the source path, and must print UTF-8 text to stdout. `.doc`
 files become supported only when `legacyWordCommand` is configured.
 
@@ -116,7 +116,7 @@ usually better than the default lexical/hash mode.
 {
   "embeddingProvider": "transformers",
   "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
-  "embeddingModelPath": ".mimir/models",
+  "embeddingModelPath": ".ragmir/models",
   "transformersAllowRemoteModels": false
 }
 ```
@@ -124,38 +124,38 @@ usually better than the default lexical/hash mode.
 When remote download is acceptable during first setup, use:
 
 ```bash
-npx mimir setup --semantic
+npx ragmir setup --semantic
 ```
 
 Or preload the configured embedding model later:
 
 ```bash
-npx mimir models pull --enable
+npx ragmir models pull --enable
 ```
 
 Switching providers requires a full re-ingest:
 
 ```bash
-npx mimir ingest --rebuild
-npx mimir doctor
+npx ragmir ingest --rebuild
+npx ragmir doctor
 ```
 
-## `mimir audit` Reports Missing Or Stale Files
+## `ragmir audit` Reports Missing Or Stale Files
 
 Run:
 
 ```bash
-npx mimir ingest
-npx mimir audit
+npx ragmir ingest
+npx ragmir audit
 ```
 
 Or let doctor perform the safe incremental update:
 
 ```bash
-npx mimir doctor --fix
+npx ragmir doctor --fix
 ```
 
-Mimir incrementally reuses unchanged indexed rows on normal `mimir ingest`. Use `mimir ingest --rebuild`
+Ragmir incrementally reuses unchanged indexed rows on normal `ragmir ingest`. Use `ragmir ingest --rebuild`
 after switching embedding provider/model, after changing chunking settings, or when you want to
 discard and recreate the whole local index.
 
@@ -163,7 +163,7 @@ discard and recreate the whole local index.
 
 Read the warning lines. Common causes:
 
-- `.mimir/` is not ignored by Git.
+- `.ragmir/` is not ignored by Git.
 - Legacy projects using `.kb/`, `private/`, or `private/**` are missing the matching legacy Git ignore entries.
 - Redaction was disabled.
 - Transformers.js remote model loading was enabled.
@@ -171,8 +171,8 @@ Read the warning lines. Common causes:
 Run the safe repair command if Git ignore entries are missing:
 
 ```bash
-npx mimir doctor --fix
-npx mimir security-audit --strict
+npx ragmir doctor --fix
+npx ragmir security-audit --strict
 ```
 
 ## MP3 Audio Fails Without `--engine edge`
@@ -180,18 +180,18 @@ npx mimir security-audit --strict
 This is intentional. MP3 output uses online Edge TTS and requires explicit consent:
 
 ```bash
-npx mimir audio /tmp/summary.txt \
+npx ragmir audio /tmp/summary.txt \
   --engine edge \
-  --out .mimir/audio/summary.mp3
+  --out .ragmir/audio/summary.mp3
 ```
 
 For confidential or offline work, use WAV:
 
 ```bash
-npx mimir audio /tmp/summary.txt \
+npx ragmir audio /tmp/summary.txt \
   --engine transformers \
   --offline \
-  --out .mimir/audio/summary.wav
+  --out .ragmir/audio/summary.wav
 ```
 
 ## Edge TTS Is Not Installed
@@ -200,34 +200,34 @@ Install the external CLI:
 
 ```bash
 pipx install edge-tts
-npx mimir audio --doctor
+npx ragmir audio --doctor
 ```
 
 Only use Edge TTS when sending narration text to the online service is acceptable.
 
-## `mimir-tts --offline` Cannot Render
+## `ragmir-tts --offline` Cannot Render
 
-Offline rendering requires model files to already exist under `.mimir/models/tts` or the path passed
+Offline rendering requires model files to already exist under `.ragmir/models/tts` or the path passed
 with `--model-path`.
 
 For a first online setup, use non-sensitive text:
 
 ```bash
-printf 'Mimir offline speech preload check.' > /tmp/mimir-tts-preload.txt
-npx mimir-tts render /tmp/mimir-tts-preload.txt \
+printf 'Ragmir offline speech preload check.' > /tmp/ragmir-tts-preload.txt
+npx ragmir-tts render /tmp/ragmir-tts-preload.txt \
   --engine transformers \
   --allow-remote-models \
-  --model-path .mimir/models/tts \
-  --out .mimir/audio/preload-check.wav
+  --model-path .ragmir/models/tts \
+  --out .ragmir/audio/preload-check.wav
 ```
 
 Then reuse the cached files with:
 
 ```bash
-npx mimir-tts render /tmp/mimir-tts-preload.txt \
+npx ragmir-tts render /tmp/ragmir-tts-preload.txt \
   --offline \
-  --model-path .mimir/models/tts \
-  --out .mimir/audio/offline-check.wav
+  --model-path .ragmir/models/tts \
+  --out .ragmir/audio/offline-check.wav
 ```
 
 The full workflow is documented in [`offline-tts-preload.md`](./offline-tts-preload.md).

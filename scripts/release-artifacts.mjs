@@ -7,8 +7,8 @@ import YAML from "yaml"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const artifactsDir = path.join(repoRoot, "release-artifacts")
-const corePackageDir = "packages/mimir-core"
-const packageDirs = ["packages/mimir-tts", corePackageDir]
+const corePackageDir = "packages/ragmir-core"
+const packageDirs = ["packages/ragmir-tts", corePackageDir]
 const corePackageJson = await readPackageJson(corePackageDir)
 
 await rm(artifactsDir, { recursive: true, force: true })
@@ -131,7 +131,11 @@ async function buildCycloneDxSbom() {
     metadata: {
       timestamp: new Date().toISOString(),
       tools: [
-        { vendor: "JCode Labs", name: "Mimir release artifacts", version: corePackageJson.version },
+        {
+          vendor: "JCode Labs",
+          name: "Ragmir release artifacts",
+          version: corePackageJson.version,
+        },
       ],
       component: {
         type: "library",

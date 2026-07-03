@@ -6,27 +6,27 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const corePackageRoot = path.join(repoRoot, "packages", "mimir-core")
+const corePackageRoot = path.join(repoRoot, "packages", "ragmir-core")
 const cliPath = path.join(corePackageRoot, "dist", "cli.js")
-const tempRoot = await mkdtemp(path.join(tmpdir(), "mimir-smoke-"))
+const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-smoke-"))
 const MCP_REQUEST_TIMEOUT_MS = 10_000
 const MCP_CLOSE_TIMEOUT_MS = 2_000
 
 try {
   const help = await runKb(["--help"], tempRoot)
-  if (!help.stdout.startsWith("Usage: mimir ")) {
-    throw new Error(`CLI help should expose Mimir as the public command.\nActual:\n${help.stdout}`)
+  if (!help.stdout.startsWith("Usage: ragmir ")) {
+    throw new Error(`CLI help should expose Ragmir as the public command.\nActual:\n${help.stdout}`)
   }
   assertNotIncludes(
     help.stdout,
-    "mimir|kb",
+    "ragmir|kb",
     "CLI help should not advertise the legacy kb compatibility alias",
   )
 
   const setup = await runKb(["setup"], tempRoot)
   assertIncludes(
     setup.stdout,
-    "Mimir setup complete.",
+    "Ragmir setup complete.",
     "setup should complete first-run onboarding",
   )
   assertIncludes(setup.stdout, "Agent integration:", "setup should install the agent kit")
@@ -47,19 +47,19 @@ try {
     "setup should leave the agent kit installed",
   )
 
-  const mcpConfig = await readFile(path.join(tempRoot, ".mimir", "mcp.json"), "utf8")
+  const mcpConfig = await readFile(path.join(tempRoot, ".ragmir", "mcp.json"), "utf8")
   assertIncludes(mcpConfig, '"command": "pnpm"', "default generated MCP config should use pnpm")
   assertIncludes(
     mcpConfig,
     '"serve-mcp"',
-    "generated MCP config should launch the Mimir MCP server",
+    "generated MCP config should launch the Ragmir MCP server",
   )
 
   await configureProject(tempRoot)
   await writeFixtureDocuments(tempRoot)
 
   const fixedDoctor = await runKb(["doctor", "--fix"], tempRoot)
-  assertIncludes(fixedDoctor.stdout, "Mimir repair complete.", "doctor --fix should repair setup")
+  assertIncludes(fixedDoctor.stdout, "Ragmir repair complete.", "doctor --fix should repair setup")
   assertIncludes(
     fixedDoctor.stdout,
     "ingested indexedFiles=2",
@@ -105,7 +105,7 @@ try {
     (await runKb(["search", "French tax residency", "--top-k", "1", "--json"], tempRoot)).stdout,
     "search JSON",
   )
-  if (searchJson.results?.[0]?.relativePath !== ".mimir/raw/tax.md") {
+  if (searchJson.results?.[0]?.relativePath !== ".ragmir/raw/tax.md") {
     throw new Error(`search --json should return tax.md, got ${JSON.stringify(searchJson)}`)
   }
 
@@ -118,7 +118,7 @@ try {
     ).stdout,
     "ask JSON",
   )
-  if (!askJson.answer?.includes("Mimir returns retrieval context only")) {
+  if (!askJson.answer?.includes("Ragmir returns retrieval context only")) {
     throw new Error(
       `ask --json should expose retrieval-only answer, got ${JSON.stringify(askJson)}`,
     )
@@ -134,7 +134,7 @@ try {
   )
   assertIncludes(
     ask.stdout,
-    "Mimir returns retrieval context only",
+    "Ragmir returns retrieval context only",
     "ask should return retrieval context without calling an LLM",
   )
 
@@ -162,7 +162,7 @@ try {
   const unsupportedAudit = await runKb(["audit", "--unsupported"], tempRoot)
   assertIncludes(
     unsupportedAudit.stdout,
-    "skipped: .mimir/raw/scan.png reason=unsupported-extension",
+    "skipped: .ragmir/raw/scan.png reason=unsupported-extension",
     "audit --unsupported should list unsupported image files",
   )
   assertIncludes(
@@ -204,7 +204,7 @@ try {
   )
 
   const audioMp3WithoutEngine = await runKbFailure(
-    ["audio", path.join(tempRoot, ".mimir", "raw", "tax.md"), "--out", ".mimir/audio/tax.mp3"],
+    ["audio", path.join(tempRoot, ".ragmir", "raw", "tax.md"), "--out", ".ragmir/audio/tax.mp3"],
     tempRoot,
   )
   assertIncludes(
@@ -214,46 +214,49 @@ try {
   )
 
   await runKb(["install-skill"], tempRoot)
-  const skill = await readFile(path.join(tempRoot, ".mimir", "skills", "mimir", "SKILL.md"), "utf8")
-  const audioSkill = await readFile(
-    path.join(tempRoot, ".mimir", "skills", "mimir-audio-summary", "SKILL.md"),
+  const skill = await readFile(
+    path.join(tempRoot, ".ragmir", "skills", "ragmir", "SKILL.md"),
     "utf8",
   )
-  assertIncludes(skill, "name: mimir", "install-skill should copy the bundled skill")
+  const audioSkill = await readFile(
+    path.join(tempRoot, ".ragmir", "skills", "ragmir-audio-summary", "SKILL.md"),
+    "utf8",
+  )
+  assertIncludes(skill, "name: ragmir", "install-skill should copy the bundled skill")
   assertIncludes(
     audioSkill,
-    "name: mimir-audio-summary",
+    "name: ragmir-audio-summary",
     "install-skill should copy the optional audio summary skill",
   )
   const gitignore = await readFile(path.join(tempRoot, ".gitignore"), "utf8")
-  assertIncludes(gitignore, ".mimir/", "setup should ignore local Mimir state")
+  assertIncludes(gitignore, ".ragmir/", "setup should ignore local Ragmir state")
   assertNotIncludes(gitignore, ".kb/", "setup should not add legacy .kb ignore rules")
   assertNotIncludes(gitignore, "private/**", "setup should not add legacy private ignore rules")
 
   await runKb(["install-agent", "--agents", "claude,kimi"], tempRoot)
-  const claudeNativeSkillDir = path.join(tempRoot, ".claude", "skills", "mimir")
-  const kimiNativeSkillDir = path.join(tempRoot, ".kimi", "skills", "mimir")
+  const claudeNativeSkillDir = path.join(tempRoot, ".claude", "skills", "ragmir")
+  const kimiNativeSkillDir = path.join(tempRoot, ".kimi", "skills", "ragmir")
   const claudeNativeSkill = await readFile(path.join(claudeNativeSkillDir, "SKILL.md"), "utf8")
   const kimiNativeSkill = await readFile(path.join(kimiNativeSkillDir, "SKILL.md"), "utf8")
   assertIncludes(
     claudeNativeSkill,
-    "name: mimir",
+    "name: ragmir",
     "install-agent should expose the Claude project skill",
   )
   assertIncludes(
     kimiNativeSkill,
-    "name: mimir",
+    "name: ragmir",
     "install-agent should expose the Kimi project skill",
   )
   await assertSymlinkTarget(
     claudeNativeSkillDir,
-    path.join(tempRoot, ".mimir", "skills", "mimir"),
-    "Claude project skill should link to the canonical Mimir skill",
+    path.join(tempRoot, ".ragmir", "skills", "ragmir"),
+    "Claude project skill should link to the canonical Ragmir skill",
   )
   await assertSymlinkTarget(
     kimiNativeSkillDir,
-    path.join(tempRoot, ".mimir", "skills", "mimir"),
-    "Kimi project skill should link to the canonical Mimir skill",
+    path.join(tempRoot, ".ragmir", "skills", "ragmir"),
+    "Kimi project skill should link to the canonical Ragmir skill",
   )
 
   await smokeMcp(tempRoot)
@@ -280,7 +283,7 @@ async function assertSymlinkTarget(actualPath, expectedTarget, message) {
 
 async function smokeExampleWorkspace() {
   const exampleSource = path.join(corePackageRoot, "examples", "sovereign-rag-demo")
-  const exampleTemp = await mkdtemp(path.join(tmpdir(), "mimir-example-"))
+  const exampleTemp = await mkdtemp(path.join(tmpdir(), "ragmir-example-"))
 
   try {
     await cp(exampleSource, exampleTemp, { recursive: true })
@@ -413,7 +416,7 @@ async function smokeExampleWorkspace() {
     )
     assertIncludes(
       retrievalOnlyAsk.stdout,
-      "Mimir returns retrieval context only",
+      "Ragmir returns retrieval context only",
       "example ask should return cited retrieval context",
     )
   } finally {
@@ -422,7 +425,7 @@ async function smokeExampleWorkspace() {
 }
 
 async function configureProject(cwd) {
-  const configPath = path.join(cwd, ".mimir", "config.json")
+  const configPath = path.join(cwd, ".ragmir", "config.json")
   const config = JSON.parse(await readFile(configPath, "utf8"))
   await writeFile(
     configPath,
@@ -443,7 +446,7 @@ async function configureProject(cwd) {
 
 async function writeFixtureDocuments(cwd) {
   await writeFile(
-    path.join(cwd, ".mimir", "raw", "tax.md"),
+    path.join(cwd, ".ragmir", "raw", "tax.md"),
     [
       "# Tax situation",
       "",
@@ -454,7 +457,7 @@ async function writeFixtureDocuments(cwd) {
     "utf8",
   )
   await writeFile(
-    path.join(cwd, ".mimir", "raw", "thailand.md"),
+    path.join(cwd, ".ragmir", "raw", "thailand.md"),
     [
       "# Thailand situation",
       "",
@@ -463,7 +466,7 @@ async function writeFixtureDocuments(cwd) {
     "utf8",
   )
   await writeFile(
-    path.join(cwd, ".mimir", "raw", "scan.png"),
+    path.join(cwd, ".ragmir", "raw", "scan.png"),
     "synthetic image placeholder\n",
     "utf8",
   )
@@ -525,7 +528,7 @@ async function smokeMcp(cwd) {
     const initialized = await client.request("initialize", {
       protocolVersion: "2025-06-18",
       capabilities: {},
-      clientInfo: { name: "mimir-smoke", version: "0.0.0" },
+      clientInfo: { name: "ragmir-smoke", version: "0.0.0" },
     })
     if (!initialized.result?.serverInfo?.name) {
       throw new Error(`MCP initialize failed: ${JSON.stringify(initialized)}`)
@@ -534,29 +537,29 @@ async function smokeMcp(cwd) {
     client.notify("notifications/initialized", {})
 
     const tools = await client.request("tools/list", {})
-    assertIncludes(JSON.stringify(tools), "mimir_search", "MCP should expose mimir_search")
-    assertIncludes(JSON.stringify(tools), "mimir_research", "MCP should expose mimir_research")
-    assertIncludes(JSON.stringify(tools), "mimir_evaluate", "MCP should expose mimir_evaluate")
+    assertIncludes(JSON.stringify(tools), "ragmir_search", "MCP should expose ragmir_search")
+    assertIncludes(JSON.stringify(tools), "ragmir_research", "MCP should expose ragmir_research")
+    assertIncludes(JSON.stringify(tools), "ragmir_evaluate", "MCP should expose ragmir_evaluate")
     assertIncludes(
       JSON.stringify(tools),
-      "mimir_usage_report",
-      "MCP should expose mimir_usage_report",
+      "ragmir_usage_report",
+      "MCP should expose ragmir_usage_report",
     )
 
     const status = await client.request("tools/call", {
-      name: "mimir_status",
+      name: "ragmir_status",
       arguments: {},
     })
     assertIncludes(mcpText(status), "chunksIndexed", "MCP status should return index metadata")
 
     const search = await client.request("tools/call", {
-      name: "mimir_search",
+      name: "ragmir_search",
       arguments: { query: "French tax residency", topK: 1 },
     })
     assertIncludes(mcpText(search), "tax.md", "MCP search should retrieve indexed content")
 
     const research = await client.request("tools/call", {
-      name: "mimir_research",
+      name: "ragmir_research",
       arguments: { query: "French tax residency", topK: 2, compact: true },
     })
     const researchJson = parseJson(mcpText(research), "MCP research JSON")
@@ -576,7 +579,7 @@ async function smokeMcp(cwd) {
           queries: [
             {
               query: "What proves the French tax residency risk?",
-              expectedPaths: [".mimir/raw/tax.md"],
+              expectedPaths: [".ragmir/raw/tax.md"],
             },
           ],
         },
@@ -586,7 +589,7 @@ async function smokeMcp(cwd) {
       "utf8",
     )
     const evaluation = await client.request("tools/call", {
-      name: "mimir_evaluate",
+      name: "ragmir_evaluate",
       arguments: { goldenPath: "mcp-golden-queries.json", failUnder: 1 },
     })
     const evaluationJson = parseJson(mcpText(evaluation), "MCP evaluation JSON")
@@ -595,7 +598,7 @@ async function smokeMcp(cwd) {
     }
 
     const usage = await client.request("tools/call", {
-      name: "mimir_usage_report",
+      name: "ragmir_usage_report",
       arguments: { days: 7 },
     })
     const usageJson = parseJson(mcpText(usage), "MCP usage report JSON")
