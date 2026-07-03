@@ -13,49 +13,54 @@ import type { Config } from "./types.js"
 
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
 
-const rawConfigSchema = z.object({
-  rawDir: z.string().default(DEFAULT_CONFIG.rawDir),
-  storageDir: z.string().default(DEFAULT_CONFIG.storageDir),
-  sourcesFile: z.string().default(DEFAULT_CONFIG.sourcesFile),
-  sources: z.array(z.string().min(1)).default(DEFAULT_CONFIG.sources),
-  accessLogPath: z.string().default(DEFAULT_CONFIG.accessLogPath),
-  embeddingModelPath: z.string().default(DEFAULT_CONFIG.embeddingModelPath),
-  tableName: z.string().default(DEFAULT_CONFIG.tableName),
-  embeddingProvider: embeddingProviderSchema.default(DEFAULT_CONFIG.embeddingProvider),
-  embeddingModel: z.string().default(DEFAULT_CONFIG.embeddingModel),
-  transformersAllowRemoteModels: z.boolean().default(DEFAULT_CONFIG.transformersAllowRemoteModels),
-  redaction: z
-    .object({
-      enabled: z.boolean().default(DEFAULT_CONFIG.redaction.enabled),
-      builtIn: z.boolean().default(DEFAULT_CONFIG.redaction.builtIn),
-      patterns: z
-        .array(
-          z.object({
-            name: z.string().min(1),
-            pattern: z.string().min(1),
-            flags: z.string().optional(),
-            replacement: z.string().optional(),
-          }),
-        )
-        .default(DEFAULT_CONFIG.redaction.patterns),
-    })
-    .default(DEFAULT_CONFIG.redaction),
-  accessLog: z.boolean().default(DEFAULT_CONFIG.accessLog),
-  mcpMaxTopK: z.number().int().positive().default(DEFAULT_CONFIG.mcpMaxTopK),
-  topK: z.number().int().positive().default(DEFAULT_CONFIG.topK),
-  chunkSize: z.number().int().positive().default(DEFAULT_CONFIG.chunkSize),
-  chunkOverlap: z.number().int().nonnegative().default(DEFAULT_CONFIG.chunkOverlap),
-  maxFileBytes: z.number().int().positive().default(DEFAULT_CONFIG.maxFileBytes),
-  ingestConcurrency: z.number().int().positive().default(DEFAULT_CONFIG.ingestConcurrency),
-  embeddingBatchSize: z.number().int().positive().default(DEFAULT_CONFIG.embeddingBatchSize),
-  includeExtensions: z.array(z.string().min(1)).default(DEFAULT_CONFIG.includeExtensions),
-  pdfOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.pdfOcrCommand),
-  pdfOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.pdfOcrTimeoutMs),
-  imageOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.imageOcrCommand),
-  imageOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.imageOcrTimeoutMs),
-  legacyWordCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.legacyWordCommand),
-  legacyWordTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.legacyWordTimeoutMs),
-})
+const rawConfigSchema = z
+  .object({
+    rawDir: z.string().default(DEFAULT_CONFIG.rawDir),
+    storageDir: z.string().default(DEFAULT_CONFIG.storageDir),
+    sourcesFile: z.string().default(DEFAULT_CONFIG.sourcesFile),
+    sources: z.array(z.string().min(1)).default(DEFAULT_CONFIG.sources),
+    accessLogPath: z.string().default(DEFAULT_CONFIG.accessLogPath),
+    embeddingModelPath: z.string().default(DEFAULT_CONFIG.embeddingModelPath),
+    tableName: z.string().default(DEFAULT_CONFIG.tableName),
+    embeddingProvider: embeddingProviderSchema.default(DEFAULT_CONFIG.embeddingProvider),
+    embeddingModel: z.string().default(DEFAULT_CONFIG.embeddingModel),
+    transformersAllowRemoteModels: z
+      .boolean()
+      .default(DEFAULT_CONFIG.transformersAllowRemoteModels),
+    redaction: z
+      .object({
+        enabled: z.boolean().default(DEFAULT_CONFIG.redaction.enabled),
+        builtIn: z.boolean().default(DEFAULT_CONFIG.redaction.builtIn),
+        patterns: z
+          .array(
+            z.object({
+              name: z.string().min(1),
+              pattern: z.string().min(1),
+              flags: z.string().optional(),
+              replacement: z.string().optional(),
+              verify: z.enum(["luhn"]).optional(),
+            }),
+          )
+          .default(DEFAULT_CONFIG.redaction.patterns),
+      })
+      .default(DEFAULT_CONFIG.redaction),
+    accessLog: z.boolean().default(DEFAULT_CONFIG.accessLog),
+    mcpMaxTopK: z.number().int().positive().default(DEFAULT_CONFIG.mcpMaxTopK),
+    topK: z.number().int().positive().default(DEFAULT_CONFIG.topK),
+    chunkSize: z.number().int().positive().default(DEFAULT_CONFIG.chunkSize),
+    chunkOverlap: z.number().int().nonnegative().default(DEFAULT_CONFIG.chunkOverlap),
+    maxFileBytes: z.number().int().positive().default(DEFAULT_CONFIG.maxFileBytes),
+    ingestConcurrency: z.number().int().positive().default(DEFAULT_CONFIG.ingestConcurrency),
+    embeddingBatchSize: z.number().int().positive().default(DEFAULT_CONFIG.embeddingBatchSize),
+    includeExtensions: z.array(z.string().min(1)).default(DEFAULT_CONFIG.includeExtensions),
+    pdfOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.pdfOcrCommand),
+    pdfOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.pdfOcrTimeoutMs),
+    imageOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.imageOcrCommand),
+    imageOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.imageOcrTimeoutMs),
+    legacyWordCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.legacyWordCommand),
+    legacyWordTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.legacyWordTimeoutMs),
+  })
+  .strict()
 
 type RawConfig = z.infer<typeof rawConfigSchema>
 
@@ -277,8 +282,16 @@ function readEmbeddingProviderEnv(
   legacyName: string,
   fallback: RawConfig["embeddingProvider"],
 ): RawConfig["embeddingProvider"] {
-  const parsed = embeddingProviderSchema.safeParse(process.env[name] ?? process.env[legacyName])
-  return parsed.success ? parsed.data : fallback
+  const raw = process.env[name] ?? process.env[legacyName]
+  if (!raw) {
+    return fallback
+  }
+  const parsed = embeddingProviderSchema.safeParse(raw)
+  if (!parsed.success) {
+    warnInvalidEnv(name, raw, `"local-hash" or "transformers"`)
+    return fallback
+  }
+  return parsed.data
 }
 
 function readStringEnv(name: string, legacyName: string, fallback: string): string {
@@ -302,7 +315,19 @@ function readPositiveIntEnv(name: string, legacyName: string, fallback: number):
     return fallback
   }
   const value = Number.parseInt(raw, 10)
-  return Number.isInteger(value) && value > 0 ? value : fallback
+  if (!(Number.isInteger(value) && value > 0)) {
+    warnInvalidEnv(name, raw, "a positive integer")
+    return fallback
+  }
+  return value
+}
+
+function warnInvalidEnv(name: string, raw: string, expected: string): void {
+  // Only the CLI writes to stdout; config warnings go to stderr so the operator
+  // notices an env override that was silently ignored (e.g. RAGMIR_TOP_K=abc).
+  console.warn(
+    `[ragmir] Ignoring invalid ${name}=${JSON.stringify(raw)} (expected ${expected}); using the default instead.`,
+  )
 }
 
 function readNonNegativeIntEnv(name: string, legacyName: string, fallback: number): number {
