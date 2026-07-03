@@ -187,9 +187,10 @@
 - `packages/ragmir-core/examples/library-api-demo` is the local library-API smoke (`pnpm example`). It
   `import`s `@jcode.labs/ragmir` via Node self-referencing so it always exercises the local
   `packages/ragmir-core/dist` build, never the npm-published package, and it reuses the
-  `sovereign-rag-demo` synthetic corpus rather than adding a second one. Testing local changes must
-  use this local build (or `node packages/ragmir-core/dist/cli.js`), not `npx ragmir`, which would
-  resolve the released npm version.
+  `sovereign-rag-demo` synthetic corpus rather than adding a second one. `dist/` is a gitignored build
+  output: build it first with `pnpm build` (or run `pnpm example`, which builds first), then run
+  `node packages/ragmir-core/dist/cli.js`. Never use `npx ragmir`, which would resolve the released npm
+  version.
 - Use Context7 before changing dependencies or public APIs that rely on external libraries.
 - Run `pnpm validate` before opening a release pull request or publishing. It covers
   Biome, dependency security audit, TypeScript, Vitest, build output, production CLI/MCP smoke
@@ -234,7 +235,8 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   `openRowsTable`, `redactText`, `supportedExtensions`, `recordAccess`); extract instead of copying.
   `embedText` delegating to `embedTexts` is the reference pattern.
 - No dead or obsolete code. Delete replaced code, unused exports, and commented-out blocks in the
-  same change; a deletion must cover both source and the regenerated package `dist/`.
+  same change. `dist/` is gitignored build output: regenerate it locally with `pnpm build` before
+  running CLI/MCP smoke or the library-API demo, but do not commit it.
 - No magic strings or numbers. Name meaningful literals as constants, and put shared paths, provider
   defaults, and ignore constants in `packages/ragmir-core/src/defaults.ts` rather than copying them across
   modules.
