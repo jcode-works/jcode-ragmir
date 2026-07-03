@@ -46,13 +46,13 @@ unencrypted disk.
 ## At-Rest Encryption
 
 Native encrypted LanceDB storage is not implemented yet. For sensitive environments, put the
-repository and `.kb/` on an encrypted volume:
+repository and `.ragmir/` on an encrypted volume:
 
 - macOS: FileVault or an encrypted APFS volume.
 - Linux: LUKS, fscrypt, or an encrypted VM disk.
-- Containers/VMs: mount `.kb/` on an encrypted host volume.
+- Containers/VMs: mount `.ragmir/` on an encrypted host volume.
 
-`kb destroy-index --yes` removes generated index files, but secure deletion on SSDs and copy-on-write
+`ragmir destroy-index --yes` removes generated index files, but secure deletion on SSDs and copy-on-write
 filesystems cannot be guaranteed without encrypted storage and key destruction.
 
 ## Air-Gapped Operation
@@ -128,7 +128,7 @@ assuming a dossier was fully indexed.
 Built-in redaction is enabled by default for common secret and identifier shapes: private keys,
 JWTs, API tokens, emails, IBANs, and card-like numbers.
 
-Custom patterns can be added in `.kb/config.json`:
+Custom patterns can be added in `.ragmir/config.json`:
 
 ```json
 {

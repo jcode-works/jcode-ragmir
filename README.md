@@ -870,10 +870,21 @@ Each entry is one of:
 - a **glob** pattern — any entry containing `*`, `?`, `[`, or `{`;
 - an **exclusion** — starts with `!` and filters the glob matches.
 
-> **Legacy `sources.txt`.** Paths listed one per line in `.ragmir/sources.txt` are still read when the
-> file exists, and `ragmir sources add` / `ragmir sources list` continue to manage it. Entries from both
-> the `sources` array and `sources.txt` are merged, so existing projects keep working unchanged. New
-> projects should prefer the `sources` array — `ragmir init` no longer creates a `sources.txt`.
+```mermaid
+flowchart LR
+  Raw["rawDir<br/>.ragmir/raw/"] --> Merge["Source merge"]
+  Cfg["sources[]<br/>in config.json"] --> Merge
+  Legacy["legacy sources.txt<br/>(read-only, optional)"] -.-> Merge
+  Merge --> Discover["file discovery"]
+  Discover --> Index["LanceDB index"]
+```
+
+> **Legacy `sources.txt`.** `ragmir sources add` and `ragmir sources list` read and write the `sources`
+> array in `.ragmir/config.json` — this is the canonical location. A pre-existing `.ragmir/sources.txt`
+> is still read (read-only) and merged with the config array, so existing projects keep working
+> unchanged; nothing writes to it anymore. New projects never get a `sources.txt`.
+
+Environment overrides:
 
 Environment overrides:
 

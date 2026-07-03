@@ -33,8 +33,9 @@
   repairs. `ragmir init`, `ragmir install-skill`, and `ragmir ingest` remain available as explicit
   lower-level commands.
 - Keep monorepo source onboarding simple: the `sources` array in `.ragmir/config.json` accepts paths,
-  glob patterns, and `!` exclusions. The legacy `.ragmir/sources.txt` file (managed by `ragmir sources
-  add/list`) is still read and merged when present, but `ragmir init` no longer creates it.
+  glob patterns, and `!` exclusions, and `ragmir sources add/list` read and write that array. The
+  legacy `.ragmir/sources.txt` file is still read (read-only) and merged when present, but it is never
+  created or written anymore; `ragmir init` no longer creates it.
 - Keep product documentation canonical in the root `README.md`. Package README files under
   `packages/*/README.md` are intentionally minimal npm entrypoints and must link clearly to the
   GitHub root README because npm displays package README files separately.
@@ -263,8 +264,9 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `packages/ragmir-core/src/defaults.ts` owns shared default paths, provider defaults, and generated-state ignore
   constants. Keep config/init/security/gitignore aligned through this module instead of copying
   literals.
-- `packages/ragmir-core/src/sources.ts` owns the `.ragmir/sources.txt` management API used by
-  `ragmir sources add/list`; file discovery itself remains in `files.ts`.
+- `packages/ragmir-core/src/sources.ts` owns the `sources` array management API used by
+  `ragmir sources add/list` (reads/writes `.ragmir/config.json`); file discovery itself remains in
+  `files.ts`.
 - `packages/ragmir-core/src/skill.ts` owns agent skill installation and the per-agent
   `agentHelpers`/MCP config generation (`AgentHelperFile`) behind `ragmir setup` and
   `ragmir install-skill`/`install-agent`. Add a new agent target through `SUPPORTED_AGENT_TARGETS`
