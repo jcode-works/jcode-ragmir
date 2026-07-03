@@ -57,9 +57,6 @@ jobs:
       - name: Smoke test production CLI and MCP
         run: pnpm smoke
 
-      - name: Verify generated dist is committed
-        run: git diff --exit-code -- packages/ragmir-core/dist packages/ragmir-tts/dist
-
       - name: Verify npm package metadata
         run: pnpm package:check
 

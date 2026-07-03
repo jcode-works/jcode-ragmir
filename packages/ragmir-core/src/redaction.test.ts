@@ -97,6 +97,24 @@ describe("redactText", () => {
       leaked: "4111 1111 1111 1111",
     },
     {
+      name: "Stripe secret key",
+      sample: `sk_live_${"a".repeat(24)}`,
+      token: "[REDACTED_STRIPE_SECRET_KEY]",
+      leaked: `sk_live_${"a".repeat(24)}`,
+    },
+    {
+      name: "GitLab token",
+      sample: `glpat-${"0".repeat(20)}`,
+      token: "[REDACTED_GITLAB_TOKEN]",
+      leaked: `glpat-${"0".repeat(20)}`,
+    },
+    {
+      name: "bearer token",
+      sample: `Authorization: Bearer ${"a".repeat(40)}`,
+      token: "[REDACTED_BEARER_TOKEN]",
+      leaked: `${"a".repeat(40)}`,
+    },
+    {
       name: "URL credentials",
       sample: urlWithCredentialsFixture(),
       token: "[REDACTED_URL_CREDENTIALS]",
@@ -117,5 +135,35 @@ describe("redactText", () => {
 
     expect(result.text).toBe(secret)
     expect(result.counts).toEqual([])
+  })
+
+  it("only redacts credit-card numbers that pass the Luhn checksum", () => {
+    const config = testConfig()
+    // 4111 1111 1111 1111 is a valid Luhn test card.
+    const valid = redactText("card 4111 1111 1111 1111 done", config)
+    expect(valid.text).toContain("[REDACTED_CREDIT_CARD]")
+
+    // Same length, fails Luhn: must be preserved (no over-redaction).
+    const invalid = redactText("ref 4111 1111 1111 1112 done", config)
+    expect(invalid.text).not.toContain("[REDACTED_CREDIT_CARD]")
+    expect(invalid.text).toContain("4111 1111 1111 1112")
+  })
+
+  it("redacts both the username and password in URLs with credentials", () => {
+    const config = testConfig()
+    const result = redactText(urlWithCredentialsFixture(), config)
+
+    expect(result.text).not.toContain("s3cr3tPass")
+    expect(result.text).not.toContain("admin")
+  })
+
+  it("does not match obfuscated or cross-line secrets (documented limitation)", () => {
+    const config = testConfig()
+    // Whitespace inserted inside a token is NOT caught: redaction is pattern-based,
+    // not context-aware. This documents the boundary honestly rather than claiming coverage.
+    const obfuscated = "key sk-proj- 0123456789abcdefghijklmnopqrstuvwxyz"
+    const result = redactText(obfuscated, config)
+
+    expect(result.text).toBe(obfuscated)
   })
 })

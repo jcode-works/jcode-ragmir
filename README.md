@@ -994,8 +994,9 @@ retrieval mode, so they run without downloading an embedding or chat model, and 
 documents.
 
 > Testing local changes: use the repository's own build, not `npx`. Inside this repo `npx ragmir`
-> resolves to the **published** npm package, not your working copy — so it would not exercise your
-> local edits. The examples below run the local `dist/` build instead.
+> resolves to the **published** npm package, not your working copy—so it would not exercise your
+> local edits. Build once with `pnpm build`, then run the examples against the local `dist/` build.
+> (`dist/` is gitignored build output, so a clean clone has none until `pnpm build` runs.)
 
 ### CLI workspace (`sovereign-rag-demo`)
 
@@ -1048,16 +1049,18 @@ pnpm --filter @jcode.labs/ragmir build
 pnpm --filter @jcode.labs/ragmir-tts build
 ```
 
-`packages/ragmir-core/dist/` and `packages/ragmir-tts/dist/` are committed. `packages/ragmir-app/dist/`
-and `packages/ragmir-landing/dist/` are ignored build artifacts. After changing TypeScript sources in
-published packages, run:
+All `packages/*/dist/` directories (`ragmir-core`, `ragmir-tts`, `ragmir-app`, `ragmir-landing`) are
+gitignored build output — they are not checked into Git. After changing TypeScript sources in published
+packages, build and validate locally:
 
 ```bash
 pnpm build
 pnpm validate
 ```
 
-CI checks that generated `dist/` files match the source.
+CI rebuilds `dist/` from source before smoke tests, and the release pipeline rebuilds it again before
+`pnpm pack`/`publish`, so the published tarball always carries fresh output. A clean clone has no
+`dist/` until `pnpm build` runs.
 
 The root package is private and only orchestrates workspace tasks. npm publishing is handled by the
 protected `Release npm` GitHub Actions workflow on `main`. semantic-release derives the version from

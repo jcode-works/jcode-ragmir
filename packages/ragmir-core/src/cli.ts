@@ -1,9 +1,19 @@
 #!/usr/bin/env node
 import path from "node:path"
-import { isTtsLanguage, TTS_LANGUAGES, type TtsLanguage } from "@jcode.labs/ragmir-tts"
+import type { TtsLanguage } from "@jcode.labs/ragmir-tts"
 import { Command } from "commander"
 import pc from "picocolors"
 import { accessLogUsageReport } from "./access-log.js"
+import {
+  audioAllowRemoteModels,
+  audioEngine,
+  audioLanguage,
+  parseAgentInstallMode,
+  parseAgentInstallScope,
+  parseNumber,
+  parsePositiveInt,
+  parseRecallThreshold,
+} from "./cli-options.js"
 import { loadConfig } from "./config.js"
 import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js"
 import { destroyIndex } from "./destroy.js"
@@ -21,8 +31,6 @@ import { securityAudit } from "./security.js"
 import { enableSemanticEmbeddings } from "./semantic-config.js"
 import { setupProject } from "./setup.js"
 import {
-  type AgentInstallMode,
-  type AgentInstallScope,
   bundledSkillPath,
   installAgentSkills,
   installSkill,
@@ -854,31 +862,6 @@ try {
   process.exitCode = 1
 }
 
-function parsePositiveInt(value: string): number {
-  const parsed = Number.parseInt(value, 10)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error("Expected a positive integer.")
-  }
-  return parsed
-}
-
-function parseRecallThreshold(value: string): number {
-  const trimmed = value.trim()
-  const parsed = Number(trimmed)
-  if (trimmed.length === 0 || !Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
-    throw new Error("Expected a recall threshold between 0 and 1.")
-  }
-  return parsed
-}
-
-function parseNumber(value: string): number {
-  const parsed = Number.parseFloat(value)
-  if (!Number.isFinite(parsed)) {
-    throw new Error("Expected a number.")
-  }
-  return parsed
-}
-
 function collectOptionValue(value: string, previous: string[]): string[] {
   return [...previous, value]
 }
@@ -953,58 +936,6 @@ function isTtsModule(value: unknown): value is TtsModule {
     "renderSpeech" in value &&
     typeof value.renderSpeech === "function"
   )
-}
-
-function audioAllowRemoteModels(options: AudioOptions): boolean | undefined {
-  if (options.offline) {
-    return false
-  }
-  if (options.allowRemoteModels) {
-    return true
-  }
-  return undefined
-}
-
-function audioLanguage(options: AudioOptions): TtsLanguage | undefined {
-  if (options.lang === undefined) {
-    return undefined
-  }
-  if (isTtsLanguage(options.lang)) {
-    return options.lang
-  }
-  throw new Error(`Expected --lang to be one of: ${TTS_LANGUAGES.join(", ")}.`)
-}
-
-function audioEngine(options: AudioOptions): TtsRenderOptions["engine"] {
-  if (options.offline) {
-    return "transformers"
-  }
-  if (options.engine === undefined) {
-    if (options.out?.toLowerCase().endsWith(".mp3")) {
-      throw new Error(
-        "MP3 output uses online Edge TTS. Re-run with `--engine edge` only when sending narration text to Edge TTS is acceptable.",
-      )
-    }
-    return "transformers"
-  }
-  if (options.engine === "auto" || options.engine === "edge" || options.engine === "transformers") {
-    return options.engine
-  }
-  throw new Error("Expected --engine to be auto, edge, or transformers.")
-}
-
-function parseAgentInstallScope(value: string | undefined): AgentInstallScope {
-  if (value === "project" || value === "user") {
-    return value
-  }
-  throw new Error("Expected --scope to be project or user.")
-}
-
-function parseAgentInstallMode(value: string | undefined): AgentInstallMode {
-  if (value === "link" || value === "copy") {
-    return value
-  }
-  throw new Error("Expected --mode to be link or copy.")
 }
 
 function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {

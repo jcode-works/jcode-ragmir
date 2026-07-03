@@ -5,6 +5,19 @@ import { isRecord } from "./guards.js"
 import type { Config, VectorRow } from "./types.js"
 
 const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json"
+/**
+ * LanceDB requires a minimum number of rows to train an IVF_PQ vector index.
+ * Below this threshold, brute-force (flat) scan is used instead, which is
+ * optimal for small corpora and avoids wasted index-training work.
+ */
+const MIN_INDEX_ROWS = 256
+/**
+ * IVF partition count heuristic: roughly sqrt(row_count), bounded to keep both
+ * small corpora (too many empty partitions) and very large corpora (training
+ * cost) well-behaved. See LanceDB production guidance.
+ */
+const MIN_IVF_PARTITIONS = 8
+const MAX_IVF_PARTITIONS = 1024
 
 export interface EmptyTextFileRecord {
   relativePath: string
@@ -24,9 +37,44 @@ export async function writeRows(rows: VectorRow[], config: Config): Promise<void
   }
 
   const records = rows.map((row) => ({ ...row }))
-  await db.createTable(config.tableName, records, {
+  const table = await db.createTable(config.tableName, records, {
     mode: "overwrite",
   })
+
+  // Train an IVF_PQ vector index once the corpus is large enough to benefit
+  // from approximate nearest-neighbour search. Below the threshold, LanceDB
+  // falls back to an exact flat scan, which is faster for small corpora and
+  // avoids wasting work training an index on too few vectors.
+  if (rows.length >= MIN_INDEX_ROWS) {
+    await ensureVectorIndex(table, rows.length)
+  }
+}
+
+async function ensureVectorIndex(table: lancedb.Table, rowCount: number): Promise<void> {
+  const existing = await table.listIndices()
+  const hasVectorIndex = existing.some((index) => index.name === "vector_idx")
+  if (hasVectorIndex) {
+    return
+  }
+
+  // numSubVectors must divide the vector dimension evenly. 16 is a safe default
+  // for the 384-dim local-hash and mxbai-xsmall models; LanceDB validates and
+  // will reject a value that does not divide evenly, so larger models still
+  // fall back to flat scan rather than corrupting the index.
+  const numSubVectors = 16
+  const numPartitions = clampIvfPartitions(Math.round(Math.sqrt(rowCount)))
+  try {
+    await table.createIndex("vector", {
+      config: lancedb.Index.ivfPq({ numPartitions, numSubVectors }),
+    })
+  } catch {
+    // Index training can fail on edge-case dimensionality or tiny effective
+    // corpora; the table remains usable via flat scan. Do not fail the ingest.
+  }
+}
+
+function clampIvfPartitions(value: number): number {
+  return Math.min(MAX_IVF_PARTITIONS, Math.max(MIN_IVF_PARTITIONS, value))
 }
 
 export async function writeEmptyTextFiles(
