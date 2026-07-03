@@ -12,7 +12,6 @@ private/**
 *.tgz
 release-artifacts/
 *.pid
-*dist
 
 packages/ragmir-core/dist/
 packages/ragmir-tts/dist/
