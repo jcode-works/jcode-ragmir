@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Only the latest published version of `@jcode.labs/mimir` receives security fixes.
+Only the latest published version of `@jcode.labs/ragmir` receives security fixes.
 
 ## Reporting A Vulnerability
 
@@ -17,6 +17,6 @@ or private document disclosure.
 
 ## Data Boundary
 
-Mimir is designed to index local project documents. Raw project documents,
-`.kb/`, `.mimir/`, environment files, credentials, customer records, and commercial validation notes
+Ragmir is designed to index local project documents. Raw project documents,
+`.kb/`, `.ragmir/`, environment files, credentials, customer records, and commercial validation notes
 must remain outside commits.

@@ -5,7 +5,7 @@ coverage/
 .DS_Store
 private/**
 .kb/
-.mimir/
+.ragmir/
 .claude/
 .codex/
 .agents/
@@ -13,22 +13,22 @@ private/**
 release-artifacts/
 *.pid
 
-packages/mimir-app/dist/
-packages/mimir-app/src-tauri/target/
-packages/mimir-app/src-tauri/gen/
-packages/mimir-landing/.astro/
-packages/mimir-landing/dist/
-packages/mimir-license-webhook/dist/
+packages/ragmir-app/dist/
+packages/ragmir-app/src-tauri/target/
+packages/ragmir-app/src-tauri/gen/
+packages/ragmir-landing/.astro/
+packages/ragmir-landing/dist/
+packages/ragmir-license-webhook/dist/
 
 # Tracked synthetic examples. Keep generated example runtime state ignored.
-!packages/mimir-core/examples/
-!packages/mimir-core/examples/**/
-!packages/mimir-core/examples/**/.mimir/
-!packages/mimir-core/examples/**/.mimir/config.json
-!packages/mimir-core/examples/**/.mimir/sources.txt
-packages/mimir-core/examples/**/.mimir/storage/
-packages/mimir-core/examples/**/.mimir/access.log
-packages/mimir-core/examples/**/.mimir/models/
-packages/mimir-core/examples/**/.mimir/reports/
-packages/mimir-core/examples/**/.mimir/audio/
+!packages/ragmir-core/examples/
+!packages/ragmir-core/examples/**/
+!packages/ragmir-core/examples/**/.ragmir/
+!packages/ragmir-core/examples/**/.ragmir/config.json
+!packages/ragmir-core/examples/**/.ragmir/sources.txt
+packages/ragmir-core/examples/**/.ragmir/storage/
+packages/ragmir-core/examples/**/.ragmir/access.log
+packages/ragmir-core/examples/**/.ragmir/models/
+packages/ragmir-core/examples/**/.ragmir/reports/
+packages/ragmir-core/examples/**/.ragmir/audio/
 .gitnexus

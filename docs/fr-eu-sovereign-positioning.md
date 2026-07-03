@@ -1,6 +1,6 @@
 # FR/EU Sovereign Positioning
 
-This document keeps Mimir's sovereignty, privacy, and legal-vertical positioning precise. It is
+This document keeps Ragmir's sovereignty, privacy, and legal-vertical positioning precise. It is
 public product guidance, not legal advice or a compliance certificate.
 
 Sources checked on 2026-06-29:
@@ -12,21 +12,21 @@ Sources checked on 2026-06-29:
 
 ## Core Position
 
-Mimir is positioned as sovereign local retrieval for confidential dossiers:
+Ragmir is positioned as sovereign local retrieval for confidential dossiers:
 
 - Documents stay in user-selected local folders.
-- Indexes, reports, audio files, agent configs, and access logs stay under ignored local Mimir state.
-- There is no hosted Mimir document store, no hosted vector database, and no product telemetry by
+- Indexes, reports, audio files, agent configs, and access logs stay under ignored local Ragmir state.
+- There is no hosted Ragmir document store, no hosted vector database, and no product telemetry by
   default.
 - Redaction runs before indexing.
 - Remote model downloads are explicit; confidential workflows should keep remote model loading
   disabled and use preloaded local models.
 - Retrieval returns cited passages and source paths; final professional conclusions remain outside
-  Mimir Core.
-- Mimir Desktop is distributed through direct downloads and sideloadable installers, not App Store or
+  Ragmir Core.
+- Ragmir Desktop is distributed through direct downloads and sideloadable installers, not App Store or
   Play Store listings.
 
-This is stronger and more defensible than claiming generic "GDPR compliant AI". Mimir can help a
+This is stronger and more defensible than claiming generic "GDPR compliant AI". Ragmir can help a
 customer reduce data exposure, but each organization still owns its own processing purpose, legal
 basis, retention, security controls, and professional obligations.
 
@@ -35,7 +35,7 @@ basis, retention, security controls, and professional obligations.
 Use these claims in landing pages, sales calls, and documentation:
 
 - "Local-first retrieval for confidential documents."
-- "No document upload to a hosted Mimir service."
+- "No document upload to a hosted Ragmir service."
 - "No product telemetry by default."
 - "Metadata-only access logs; raw queries are not stored by default."
 - "Redaction before indexing."
@@ -60,15 +60,15 @@ Do not use these claims unless a separate legal/security review proves them for 
 
 ## GDPR-Oriented Product Evidence
 
-Mimir should keep these evidence points easy to show during buyer review:
+Ragmir should keep these evidence points easy to show during buyer review:
 
-| GDPR-oriented theme | Mimir evidence |
+| GDPR-oriented theme | Ragmir evidence |
 | --- | --- |
 | Purpose and minimization | Users choose explicit folders; unsupported files are reported; remote models require an explicit action. |
-| Local control | Raw documents, indexes, reports, audio, and agent configs remain under local `.mimir/` state ignored by Git. |
+| Local control | Raw documents, indexes, reports, audio, and agent configs remain under local `.ragmir/` state ignored by Git. |
 | Security and confidentiality | No hosted document store, no default telemetry, redaction before indexing, metadata-only access logs. |
-| Transparency | CLI and app expose `mimir doctor`, `mimir audit`, `mimir audit --unsupported`, and `mimir security-audit`. |
-| Retention | Users can delete generated `.mimir/` state locally; Mimir should not retain hosted copies. |
+| Transparency | CLI and app expose `ragmir doctor`, `ragmir audit`, `ragmir audit --unsupported`, and `ragmir security-audit`. |
+| Retention | Users can delete generated `.ragmir/` state locally; Ragmir should not retain hosted copies. |
 | Accountability | Public README, security hardening notes, source boundary, and reproducible local validation commands. |
 
 For support, if JCode ever receives customer documents, excerpts, logs, or screenshots that may
@@ -77,7 +77,7 @@ repository and define access, retention, deletion, and customer approval before 
 
 ## AI Act-Oriented Position
 
-Mimir Core is a retrieval layer. It indexes local documents, searches them, and returns cited context.
+Ragmir Core is a retrieval layer. It indexes local documents, searches them, and returns cited context.
 It does not train a general-purpose model, provide a hosted AI system, or automate legal decisions by
 default.
 
@@ -90,7 +90,7 @@ Reassess the AI Act posture before shipping any of the following:
 - public claims that generated legal outputs are authoritative.
 
 If embedded generation ships later, keep human review explicit, label generated content clearly, and
-document whether Mimir is acting as a provider of an AI system, a deployer tool, or only a local
+document whether Ragmir is acting as a provider of an AI system, a deployer tool, or only a local
 interface over user-controlled models.
 
 ## Legal Vertical Packaging
@@ -104,7 +104,7 @@ The legal vertical can be sold as workflow packaging, not legal judgment:
 - redaction and professional-review checklists;
 - French-language onboarding and support.
 
-The `mimir-legal-dossier` skill must stay aligned with this boundary: it prepares structured,
+The `ragmir-legal-dossier` skill must stay aligned with this boundary: it prepares structured,
 cited work products and flags professional-review items. It must not present conclusions as legal
 advice.
 

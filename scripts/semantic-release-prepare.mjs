@@ -4,14 +4,14 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const packageDirs = ["packages/mimir-tts", "packages/mimir-core"]
+const packageDirs = ["packages/ragmir-tts", "packages/ragmir-core"]
 const version = parseVersionArg(process.argv.slice(2))
 const checkOnly = process.argv.includes("--check")
 
 for (const directory of packageDirs) {
   const manifestPath = path.join(repoRoot, directory, "package.json")
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
-  if (typeof manifest.name !== "string" || !manifest.name.startsWith("@jcode.labs/mimir")) {
+  if (typeof manifest.name !== "string" || !manifest.name.startsWith("@jcode.labs/ragmir")) {
     throw new Error(`Unexpected publish package manifest at ${directory}`)
   }
   if (!checkOnly) {
@@ -20,7 +20,7 @@ for (const directory of packageDirs) {
   }
 }
 
-const versionSourcePath = path.join(repoRoot, "packages/mimir-core/src/version.ts")
+const versionSourcePath = path.join(repoRoot, "packages/ragmir-core/src/version.ts")
 if (!checkOnly) {
   await writeFile(versionSourcePath, `export const VERSION = ${JSON.stringify(version)}\n`, "utf8")
 }
@@ -28,7 +28,7 @@ if (!checkOnly) {
 if (checkOnly) {
   console.log(`Semantic release prepare check passed for ${version}`)
 } else {
-  run("pnpm", ["--filter", "@jcode.labs/mimir", "build"])
+  run("pnpm", ["--filter", "@jcode.labs/ragmir", "build"])
   run("pnpm", ["package:check"])
   run("pnpm", ["release:artifacts"])
 }

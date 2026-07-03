@@ -58,7 +58,7 @@ jobs:
         run: pnpm smoke
 
       - name: Verify generated dist is committed
-        run: git diff --exit-code -- packages/mimir-core/dist packages/mimir-tts/dist
+        run: git diff --exit-code -- packages/ragmir-core/dist packages/ragmir-tts/dist
 
       - name: Verify npm package metadata
         run: pnpm package:check
