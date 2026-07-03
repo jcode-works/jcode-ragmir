@@ -2,7 +2,7 @@ import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { embedText } from "./embeddings.js"
 import { openRowsTable } from "./store.js"
-import { normalizeForMatch, tokenize } from "./text.js"
+import { tokenize } from "./text.js"
 import type { AskResult, SearchOptions, SearchResult } from "./types.js"
 
 interface SearchRow {
@@ -23,9 +23,22 @@ interface RankedRow {
 const MIN_VECTOR_CANDIDATES = 80
 const VECTOR_CANDIDATE_MULTIPLIER = 4
 const HYBRID_TEXT_SCAN_LIMIT = 5_000
-const VECTOR_SCORE_WEIGHT = 0.55
-const LEXICAL_SCORE_WEIGHT = 0.45
-const EXACT_QUERY_BOOST = 0.15
+/**
+ * Reciprocal Rank Fusion (Cormack et al. 2009). Each candidate scores
+ * `weight / (RRF_K + rank)` per retriever it appears in, summed across
+ * retrievers. Rank-only fusion removes the score-calibration problem of
+ * weighted-sum fusion: the BM25 and vector score distributions never need to
+ * be normalized against each other.
+ *
+ * The retriever weights follow the weighted-RRF variant (as in Azure AI
+ * Search). The vector retriever is weighted higher because, with the default
+ * `local-hash` embeddings, vector proximity is the more discriminant signal
+ * on small corpora; the lexical weight still lets exact-keyword evidence pull
+ * in candidates the vector retriever missed.
+ */
+const RRF_K = 60
+const RRF_VECTOR_WEIGHT = 0.7
+const RRF_LEXICAL_WEIGHT = 0.3
 const BM25_K1 = 1.2
 const BM25_B = 0.75
 
@@ -104,6 +117,16 @@ function retrievalOnlyAnswer(sources: SearchResult[]): string {
   ].join("\n")
 }
 
+/**
+ * Reciprocal Rank Fusion of vector and lexical retrievers. Rank-only: each
+ * candidate scores `1/(RRF_K + rank)` per retriever it appears in, summed.
+ * This removes the score-calibration problem of weighted-sum fusion (the BM25
+ * and vector score distributions have nothing in common) and is the standard
+ * hybrid retrieval approach.
+ *
+ * Ranks are 0-based internally; a candidate absent from a retriever contributes
+ * nothing from that retriever. Tie-breaks keep the result deterministic.
+ */
 function rankHybridRows(
   query: string,
   vectorRows: SearchRow[],
@@ -111,31 +134,43 @@ function rankHybridRows(
 ): RankedRow[] {
   const queryTokens = tokenize(query)
   const rows = mergeRows(vectorRows, textRows)
-  const vectorScores = new Map<string, number>()
-  for (const row of vectorRows) {
-    vectorScores.set(rowKey(row), vectorScore(row))
-  }
 
+  // Vector ranks: lower _distance is better, so sort ascending then assign rank 0..
+  const vectorRanked = [...vectorRows]
+    .filter((row) => Number.isFinite(rowDistance(row)))
+    .sort((a, b) => rowDistance(a) - rowDistance(b))
+  const vectorRanks = new Map<string, number>()
+  vectorRanked.forEach((row, index) => {
+    vectorRanks.set(rowKey(row), index)
+  })
+
+  // Lexical ranks: higher BM25 score is better, so sort descending.
   const lexicalScores = bm25Scores(queryTokens, rows)
-  const maxVectorScore = Math.max(...vectorScores.values(), 0)
-  const maxLexicalScore = Math.max(...lexicalScores.values(), 0)
-  const normalizedQuery = normalizeForMatch(query)
+  const lexicalRanked = [...lexicalScores.entries()]
+    .filter(([, score]) => score > 0)
+    .sort((a, b) => b[1] - a[1])
+  const lexicalRanks = new Map<string, number>()
+  lexicalRanked.forEach(([key, index]) => {
+    lexicalRanks.set(key, index)
+  })
 
   return rows
     .map((row) => {
       const key = rowKey(row)
-      const vector = normalizeScore(vectorScores.get(key) ?? 0, maxVectorScore)
-      const lexical = normalizeScore(lexicalScores.get(key) ?? 0, maxLexicalScore)
-      const exactBoost =
-        normalizedQuery.length > 0 && normalizeForMatch(row.text).includes(normalizedQuery)
-          ? EXACT_QUERY_BOOST
-          : 0
-      return {
-        row,
-        vectorScore: vector,
-        lexicalScore: lexical,
-        combinedScore: vector * VECTOR_SCORE_WEIGHT + lexical * LEXICAL_SCORE_WEIGHT + exactBoost,
+      const vectorRank = vectorRanks.get(key)
+      const lexicalRank = lexicalRanks.get(key)
+      let combinedScore = 0
+      let vectorScore = 0
+      let lexicalScore = 0
+      if (vectorRank !== undefined) {
+        vectorScore = RRF_VECTOR_WEIGHT / (RRF_K + vectorRank)
+        combinedScore += vectorScore
       }
+      if (lexicalRank !== undefined) {
+        lexicalScore = RRF_LEXICAL_WEIGHT / (RRF_K + lexicalRank)
+        combinedScore += lexicalScore
+      }
+      return { row, vectorScore, lexicalScore, combinedScore }
     })
     .filter((ranked) => ranked.combinedScore > 0)
     .sort((a, b) => {
@@ -213,19 +248,10 @@ function bm25Scores(queryTokens: string[], rows: SearchRow[]): Map<string, numbe
   return scores
 }
 
-function vectorScore(row: SearchRow): number {
-  const distance = rowDistance(row)
-  return 1 / (1 + distance)
-}
-
 function rowDistance(row: SearchRow): number {
   return typeof row._distance === "number" && row._distance >= 0
     ? row._distance
     : Number.POSITIVE_INFINITY
-}
-
-function normalizeScore(score: number, maxScore: number): number {
-  return maxScore > 0 ? score / maxScore : 0
 }
 
 function rowKey(row: SearchRow): string {

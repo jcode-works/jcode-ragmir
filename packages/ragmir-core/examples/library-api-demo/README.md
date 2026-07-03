@@ -25,7 +25,8 @@ That builds Ragmir Core, then runs the demo. It reuses the committed synthetic c
 `sovereign-rag-demo`, so it needs no private documents and writes only to that example's gitignored
 `.ragmir/storage`.
 
-To run it directly against the already-built `dist/` without rebuilding:
+To run it directly against the already-built `dist/` without rebuilding (run `pnpm build` first;
+`dist/` is gitignored, so a clean clone has none):
 
 ```bash
 node packages/ragmir-core/examples/library-api-demo/run.mjs

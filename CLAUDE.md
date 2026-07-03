@@ -40,13 +40,15 @@ Run only the TTS package tests: `pnpm --filter @jcode.labs/ragmir-tts test`
 
 Tests are colocated as `packages/*/src/*.test.ts` and run on the TypeScript sources.
 
-## Committed `dist/` — critical
+## `dist/` is gitignored build output — critical
 
-`packages/ragmir-core/dist/` and `packages/ragmir-tts/dist/` are checked into Git. CI enforces
-`git diff --exit-code -- packages/ragmir-core/dist packages/ragmir-tts/dist`. After any change under
-`packages/ragmir-core/src/` or `packages/ragmir-tts/src/`, run `pnpm build` and commit the regenerated
-output in the same commit, or CI fails. This is the single easiest mistake to make in this repo.
-`packages/ragmir-app/dist/` and `packages/ragmir-landing/dist/` are build artifacts and stay ignored.
+All `packages/*/dist/` directories (`ragmir-core`, `ragmir-tts`, `ragmir-app`, `ragmir-landing`,
+`ragmir-license-webhook`) are gitignored build output and are NOT checked into Git. Build them locally
+with `pnpm build` before running the CLI, MCP smoke, the library-API demo, or `pnpm validate`. CI
+rebuilds `dist/` from source in the `Build` step before smoke tests, and the release pipeline rebuilds
+it again (`scripts/semantic-release-prepare.mjs` runs `pnpm --filter @jcode.labs/ragmir build`) before
+`pnpm pack`/`publish`, so the published npm tarball always contains freshly built output. Never commit
+`dist/`; a clean clone has none until `pnpm build` runs.
 
 ## Naming map (the package has several names on purpose)
 

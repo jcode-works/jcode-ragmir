@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { existsSync } from "node:fs"
-import { appendFile, mkdir, readFile } from "node:fs/promises"
+import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { loadConfig } from "./config.js"
 import type {
@@ -36,6 +36,14 @@ const ACCESS_LOG_ACTIONS: AccessLogAction[] = [
 const ACCESS_LOG_ACTION_SET = new Set<string>(ACCESS_LOG_ACTIONS)
 const DEFAULT_USAGE_REPORT_DAYS = 7
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
+/**
+ * Soft cap above which the access log is trimmed to its most recent lines.
+ * Keeps the file bounded so long-lived installations (MCP server) do not grow
+ * it without limit, and so usage reports do not load an unbounded file.
+ */
+const MAX_ACCESS_LOG_BYTES = 10 * 1024 * 1024
+/** Number of most recent lines retained when the log exceeds the byte cap. */
+const TRIMMED_ACCESS_LOG_LINES = 50_000
 
 export async function recordAccess(config: Config, event: AccessLogEvent): Promise<void> {
   if (!config.accessLog) {
@@ -44,10 +52,36 @@ export async function recordAccess(config: Config, event: AccessLogEvent): Promi
 
   try {
     await mkdir(path.dirname(config.accessLogPath), { recursive: true })
+    await trimAccessLogIfNeeded(config.accessLogPath)
     await appendFile(config.accessLogPath, `${JSON.stringify(toLogLine(event))}\n`, "utf8")
   } catch {
     // Access logging is best-effort so read-only workspaces do not block local use.
   }
+}
+
+async function trimAccessLogIfNeeded(accessLogPath: string): Promise<void> {
+  let size = 0
+  try {
+    size = (await stat(accessLogPath)).size
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return
+    }
+    throw error
+  }
+
+  if (size <= MAX_ACCESS_LOG_BYTES) {
+    return
+  }
+
+  const content = await readFile(accessLogPath, "utf8")
+  const lines = content.split("\n").filter((line) => line.length > 0)
+  const kept = lines.slice(Math.max(0, lines.length - TRIMMED_ACCESS_LOG_LINES))
+  await writeFile(accessLogPath, `${kept.join("\n")}\n`, "utf8")
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error
 }
 
 export async function accessLogUsageReport(

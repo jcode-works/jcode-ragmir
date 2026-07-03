@@ -12,6 +12,21 @@ const BUILT_IN_PATTERNS: RedactionPattern[] = [
     flags: "g",
   },
   {
+    name: "stripe_secret_key",
+    pattern: "\\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{20,}\\b",
+    flags: "g",
+  },
+  {
+    name: "gitlab_token",
+    pattern: "\\bglpat-[A-Za-z0-9_-]{18,}\\b",
+    flags: "g",
+  },
+  {
+    name: "bearer_token",
+    pattern: "\\b(?:Bearer|bearer)\\s+[A-Za-z0-9_-]{32,}\\b",
+    flags: "g",
+  },
+  {
     name: "api_token",
     pattern:
       "\\b(?:sk|pk|ghp|gho|github_pat|npm)_[A-Za-z0-9_=-]{20,}\\b|\\b[A-Za-z0-9_-]{32,}\\.[A-Za-z0-9_-]{16,}\\.[A-Za-z0-9_-]{16,}\\b",
@@ -44,7 +59,7 @@ const BUILT_IN_PATTERNS: RedactionPattern[] = [
   },
   {
     name: "url_credentials",
-    pattern: "\\b[a-z][a-z0-9+.-]*://[^\\s:/@]+:[^\\s/@]+@",
+    pattern: "\\b[a-z][a-z0-9+.-]*://[^\\s/@]+:[^\\s/@]+@",
     flags: "gi",
   },
   {
@@ -61,6 +76,7 @@ const BUILT_IN_PATTERNS: RedactionPattern[] = [
     name: "credit_card",
     pattern: "\\b(?:\\d[ -]*?){13,19}\\b",
     flags: "g",
+    verify: "luhn",
   },
 ]
 
@@ -81,8 +97,12 @@ export function redactText(
 
   for (const pattern of patterns) {
     const regexp = compilePattern(pattern)
+    const verifier = pattern.verify === "luhn" ? matchesLuhn : undefined
     let count = 0
-    text = text.replace(regexp, () => {
+    text = text.replace(regexp, (match) => {
+      if (verifier && !verifier(match)) {
+        return match
+      }
       count += 1
       return pattern.replacement ?? `[REDACTED_${pattern.name.toUpperCase()}]`
     })
@@ -92,6 +112,33 @@ export function redactText(
   }
 
   return { text, counts }
+}
+
+/**
+ * Luhn checksum used by credit card numbers. Applied as a match-then-verify on
+ * the `credit_card` pattern so numeric runs that are not valid card numbers
+ * (version numbers, account IDs, hex runs) are left untouched instead of being
+ * over-redacted.
+ */
+function matchesLuhn(candidate: string): boolean {
+  const digits = candidate.replace(/\D/gu, "")
+  if (digits.length < 13 || digits.length > 19) {
+    return false
+  }
+  let sum = 0
+  let shouldDouble = false
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let value = Number.parseInt(digits[index] ?? "", 10)
+    if (shouldDouble) {
+      value *= 2
+      if (value > 9) {
+        value -= 9
+      }
+    }
+    sum += value
+    shouldDouble = !shouldDouble
+  }
+  return sum % 10 === 0
 }
 
 export function totalRedactions(counts: RedactionCount[]): number {

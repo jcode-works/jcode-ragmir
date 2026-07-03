@@ -6,6 +6,14 @@ import type { Config } from "./types.js"
 const LOCAL_HASH_DIMENSIONS = 384
 const LONG_TOKEN_MIN_LENGTH = 6
 const LONG_TOKEN_WEIGHT = 1.4
+/**
+ * Maximum number of Transformers.js pipelines kept live in the process. Each
+ * pipeline pins ONNX runtime weights (often hundreds of MB), so a long-lived
+ * process such as the MCP server that changes embedding config could otherwise
+ * leak memory. A small bound is enough: a single project uses one model at a
+ * time; the cache is keyed by (model, path, allowRemoteModels).
+ */
+const MAX_TRANSFORMERS_PIPELINES = 3
 const transformersPipelines = new Map<string, TransformersExtractor>()
 
 type TransformersExtractor = (
@@ -75,6 +83,9 @@ async function transformersExtractor(config: Config): Promise<TransformersExtrac
   ].join("\n")
   const cached = transformersPipelines.get(key)
   if (cached) {
+    // Move to the end so the Map insertion order reflects recent use (LRU).
+    transformersPipelines.delete(key)
+    transformersPipelines.set(key, cached)
     return cached
   }
 
@@ -87,8 +98,30 @@ async function transformersExtractor(config: Config): Promise<TransformersExtrac
     "feature-extraction",
     config.embeddingModel,
   )) as TransformersExtractor
+  evictTransformersPipeline()
   transformersPipelines.set(key, extractor)
   return extractor
+}
+
+function evictTransformersPipeline(): void {
+  while (transformersPipelines.size >= MAX_TRANSFORMERS_PIPELINES) {
+    // Map iteration order is insertion order, so the first key is the least
+    // recently used entry.
+    const oldest = transformersPipelines.keys().next()
+    if (oldest.done) {
+      break
+    }
+    transformersPipelines.delete(oldest.value)
+  }
+}
+
+/**
+ * Release all cached Transformers.js pipelines. Used by `destroy-index` and on
+ * embedding-config changes in long-lived processes (MCP server) so stale model
+ * weights are not pinned in memory.
+ */
+export function clearTransformersCache(): void {
+  transformersPipelines.clear()
 }
 
 function localHashEmbedding(text: string): number[] {
