@@ -69,6 +69,8 @@ export interface RedactionPattern {
   pattern: string
   flags?: string | undefined
   replacement?: string | undefined
+  /** Optional post-match verification for patterns prone to false positives. */
+  verify?: "luhn" | undefined
 }
 
 export interface RedactionCount {
