@@ -10,14 +10,6 @@ export const DEFAULT_SKILL_TARGET_DIR = `${RAGMIR_DIR}/skills`
 
 export const RAGMIR_PROJECT_ROOT_ENV = "RAGMIR_PROJECT_ROOT"
 
-export const SOURCES_FILE_HEADER = [
-  "# Optional extra source paths or glob patterns, one per line.",
-  "# Relative paths resolve from the project root. Prefix glob exclusions with !.",
-  "# Example: ../apps/*/docs/**/*.md",
-  "# Example: !../apps/**/node_modules/**",
-  "",
-]
-
 export const RAGMIR_GITIGNORE_ENTRY = `${RAGMIR_DIR}/`
 export const LEGACY_KB_GITIGNORE_ENTRY = `${LEGACY_KB_DIR}/`
 export const LEGACY_PRIVATE_GITIGNORE_ENTRY = `${LEGACY_PRIVATE_DIR}/`

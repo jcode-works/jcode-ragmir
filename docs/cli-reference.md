@@ -16,8 +16,8 @@ Ragmir ships two CLIs:
 | `ragmir doctor --fix` | Create missing scaffolding, install skills/MCP config, and update stale indexes when safe. |
 | `ragmir models pull` | Download the configured Transformers.js embedding model into `embeddingModelPath`. |
 | `ragmir models pull --enable` | Download the embedding model and switch Ragmir config to safe Transformers embeddings. |
-| `ragmir sources add "../apps/*/docs/**/*.md"` | Add source paths, glob patterns, or `!` exclusions to `.ragmir/sources.txt`. |
-| `ragmir sources list` | List active extra source entries from `.ragmir/sources.txt`. |
+| `ragmir sources add "../apps/*/docs/**/*.md"` | Add source paths, glob patterns, or `!` exclusions to the `sources` array in `.ragmir/config.json`. |
+| `ragmir sources list` | List active extra source entries (merged from `config.json` and any legacy `sources.txt`). |
 | `ragmir ingest` | Parse changed source files, redact, chunk, embed, and update the local LanceDB index. |
 | `ragmir ingest --rebuild` | Force a full re-index, required after switching embedding provider or model. |
 | `ragmir audit` | Check whether supported source files are missing from or stale in the index. |
