@@ -2,9 +2,10 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import * as lancedb from "@lancedb/lancedb"
 import { isRecord } from "./guards.js"
-import type { Config, VectorRow } from "./types.js"
+import type { Config, IndexManifest, VectorRow } from "./types.js"
 
 const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json"
+const INDEX_MANIFEST = "index-manifest.json"
 /**
  * LanceDB requires a minimum number of rows to train an IVF_PQ vector index.
  * Below this threshold, brute-force (flat) scan is used instead, which is
@@ -24,7 +25,11 @@ export interface EmptyTextFileRecord {
   checksum: string
 }
 
-export async function writeRows(rows: VectorRow[], config: Config): Promise<void> {
+export interface IndexWriteResult {
+  vectorIndexWarning: string | null
+}
+
+export async function writeRows(rows: VectorRow[], config: Config): Promise<IndexWriteResult> {
   await mkdir(config.storageDir, { recursive: true })
   const db = await lancedb.connect(config.storageDir)
 
@@ -33,7 +38,8 @@ export async function writeRows(rows: VectorRow[], config: Config): Promise<void
     if (tableNames.includes(config.tableName)) {
       await db.dropTable(config.tableName)
     }
-    return
+    await rm(path.join(config.storageDir, INDEX_MANIFEST), { force: true })
+    return { vectorIndexWarning: null }
   }
 
   const records = rows.map((row) => ({ ...row }))
@@ -45,16 +51,27 @@ export async function writeRows(rows: VectorRow[], config: Config): Promise<void
   // from approximate nearest-neighbour search. Below the threshold, LanceDB
   // falls back to an exact flat scan, which is faster for small corpora and
   // avoids wasting work training an index on too few vectors.
-  if (rows.length >= MIN_INDEX_ROWS) {
-    await ensureVectorIndex(table, rows.length)
+  if (rows.length < MIN_INDEX_ROWS) {
+    return { vectorIndexWarning: null }
   }
+
+  const result = await ensureVectorIndex(table, rows.length)
+  return { vectorIndexWarning: result.warning }
 }
 
-async function ensureVectorIndex(table: lancedb.Table, rowCount: number): Promise<void> {
+interface EnsureVectorIndexResult {
+  created: boolean
+  warning: string | null
+}
+
+async function ensureVectorIndex(
+  table: lancedb.Table,
+  rowCount: number,
+): Promise<EnsureVectorIndexResult> {
   const existing = await table.listIndices()
   const hasVectorIndex = existing.some((index) => index.name === "vector_idx")
   if (hasVectorIndex) {
-    return
+    return { created: false, warning: null }
   }
 
   // numSubVectors must divide the vector dimension evenly. 16 is a safe default
@@ -67,14 +84,67 @@ async function ensureVectorIndex(table: lancedb.Table, rowCount: number): Promis
     await table.createIndex("vector", {
       config: lancedb.Index.ivfPq({ numPartitions, numSubVectors }),
     })
-  } catch {
+    return { created: true, warning: null }
+  } catch (error) {
     // Index training can fail on edge-case dimensionality or tiny effective
-    // corpora; the table remains usable via flat scan. Do not fail the ingest.
+    // corpora; the table remains usable via flat scan, but the operator
+    // deserves to know queries will be slower than expected.
+    const detail = error instanceof Error ? error.message : String(error)
+    return {
+      created: false,
+      warning: `Vector index training failed (${detail}). Falling back to flat scan; queries will be slower on large corpora.`,
+    }
   }
 }
 
 function clampIvfPartitions(value: number): number {
   return Math.min(MAX_IVF_PARTITIONS, Math.max(MIN_IVF_PARTITIONS, value))
+}
+
+export async function writeIndexManifest(manifest: IndexManifest, config: Config): Promise<void> {
+  await mkdir(config.storageDir, { recursive: true })
+  const manifestPath = path.join(config.storageDir, INDEX_MANIFEST)
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8")
+}
+
+export async function readIndexManifest(config: Config): Promise<IndexManifest | null> {
+  try {
+    const raw = JSON.parse(
+      await readFile(path.join(config.storageDir, INDEX_MANIFEST), "utf8"),
+    ) as unknown
+    if (!isRecord(raw)) {
+      return null
+    }
+    return isIndexManifest(raw) ? raw : null
+  } catch (error) {
+    // The manifest is purely diagnostic. A missing file (pre-manifest index) or
+    // a corrupt/unreadable file should surface as "no freshness info" rather
+    // than fail the caller.
+    if (error instanceof SyntaxError) {
+      return null
+    }
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return null
+    }
+    throw error
+  }
+}
+
+function isIndexManifest(value: unknown): value is IndexManifest {
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    typeof value.schemaVersion === "number" &&
+    typeof value.createdAt === "string" &&
+    typeof value.ragmirVersion === "string" &&
+    (value.embeddingProvider === "local-hash" || value.embeddingProvider === "transformers") &&
+    typeof value.embeddingModel === "string" &&
+    typeof value.chunkSize === "number" &&
+    typeof value.chunkOverlap === "number" &&
+    typeof value.fileCount === "number" &&
+    typeof value.chunkCount === "number"
+  )
 }
 
 export async function writeEmptyTextFiles(

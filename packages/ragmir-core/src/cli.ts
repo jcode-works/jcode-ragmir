@@ -21,6 +21,7 @@ import { doctor } from "./doctor.js"
 import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
+import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { serveMcp } from "./mcp.js"
@@ -279,6 +280,9 @@ program
     )
     printUnsupportedSummary(result.unsupportedExtensions)
     printEmptyTextFiles(result.emptyTextFiles)
+    if (result.vectorIndexWarning) {
+      console.log(pc.yellow(result.vectorIndexWarning))
+    }
     if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
       const auditCommand = await ragmirCommand(cwd, ["audit", "--unsupported"])
       console.log(
@@ -324,6 +328,8 @@ program
         return
       }
 
+      await printStaleIndexWarnings(cwd)
+
       for (const [index, result] of outputResults.entries()) {
         const distance = result.distance === null ? "n/a" : result.distance.toFixed(4)
         console.log(
@@ -354,6 +360,9 @@ program
     }
 
     console.log(`\n${result.answer}\n`)
+    if (result.staleWarning) {
+      console.error(pc.yellow(result.staleWarning))
+    }
     if (result.sources.length > 0) {
       console.log(pc.dim("Sources:"))
       for (const [index, source] of result.sources.entries()) {
@@ -938,6 +947,20 @@ function isTtsModule(value: unknown): value is TtsModule {
   )
 }
 
+async function printStaleIndexWarnings(cwd: string): Promise<void> {
+  const config = await loadConfig(cwd)
+  const freshnessWarning = await getIndexFreshnessWarning(config)
+  if (freshnessWarning) {
+    console.error(pc.yellow(freshnessWarning))
+    return
+  }
+  const chunkCount = await countRows(config)
+  const lexicalScanWarning = getLexicalScanWarning(config, chunkCount)
+  if (lexicalScanWarning) {
+    console.error(pc.yellow(lexicalScanWarning))
+  }
+}
+
 function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`projectRoot=${report.projectRoot}`)
   console.log(`initialized=${report.initialized}`)
@@ -961,6 +984,10 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
     for (const warning of report.securityWarnings) {
       console.log(pc.yellow(`warning: ${warning}`))
     }
+  }
+  console.log(`indexFreshness.manifestFound=${report.indexFreshness.manifestFound}`)
+  if (report.indexFreshness.warning) {
+    console.log(pc.yellow(`indexFreshness: ${report.indexFreshness.warning}`))
   }
   console.log("nextSteps:")
   for (const step of report.nextSteps) {

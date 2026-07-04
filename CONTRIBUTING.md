@@ -2,6 +2,23 @@
 
 Ragmir is an open-source project under the MIT License. Issues and pull requests are welcome.
 
+Ragmir is maintained by a single developer ([Jean-Baptiste Thery](https://github.com/jb-thery)).
+Be kind, be specific, and keep the scope of each contribution focused so it can be reviewed
+within a reasonable time.
+
+## Reporting Issues
+
+Use the [issue templates](https://github.com/jcode-works/jcode-ragmir/issues/new/choose):
+
+- **Bug report**: include the Ragmir version, a minimal reproduction (commands + sample files,
+  no private documents or secrets), and the expected behavior.
+- **Feature request**: describe the problem you are trying to solve and the proposed solution.
+  Confirm the feature stays compatible with Ragmir's local-first, zero-telemetry posture.
+
+Before opening a new issue, search [existing issues](https://github.com/jcode-works/jcode-ragmir/issues)
+to avoid duplicates. Security vulnerabilities must not be reported through public issues — follow
+[`SECURITY.md`](./SECURITY.md).
+
 ## Development
 
 This repo pins its Node.js and Rust versions with [mise](https://mise.jdx.dev/) (see `mise.toml`),

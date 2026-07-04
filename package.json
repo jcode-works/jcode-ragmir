@@ -5,6 +5,33 @@
   "description": "Monorepo for Ragmir Core and open-source Ragmir add-ons.",
   "type": "module",
   "license": "MIT",
+  "author": {
+    "name": "Jean-Baptiste Thery",
+    "url": "https://github.com/jb-thery"
+  },
+  "homepage": "https://github.com/jcode-works/jcode-ragmir#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jcode-works/jcode-ragmir.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jcode-works/jcode-ragmir/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/jb-thery"
+  },
+  "keywords": [
+    "ragmir",
+    "rag",
+    "local-rag",
+    "sovereign-rag",
+    "mcp",
+    "ai-agents",
+    "private-ai",
+    "local-first",
+    "knowledge-base"
+  ],
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "bootstrap": "mise install && pnpm install",

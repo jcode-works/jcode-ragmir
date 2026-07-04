@@ -2,8 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { loadConfig } from "./config.js"
 import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { readIndexManifest } from "./store.js"
 
 const tempDirs: string[] = []
 
@@ -64,6 +66,22 @@ describe("ingest", () => {
     expect(second.indexedFiles).toBe(2)
     expect(second.rebuiltFiles).toBe(1)
     expect(second.reusedFiles).toBe(1)
+  })
+
+  it("writes an index manifest after ingest and reports a null vectorIndexWarning", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-manifest-write-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "alpha.md"), "Alpha evidence.\n", "utf8")
+
+    const result = await ingest({ cwd: root })
+
+    expect(result.vectorIndexWarning).toBeNull()
+    const manifest = await readIndexManifest(await loadConfig(root))
+    expect(manifest).not.toBeNull()
+    expect(manifest?.embeddingProvider).toBe("local-hash")
+    expect(manifest?.chunkCount).toBe(result.chunks)
   })
 
   it("forces a full re-index of every file when rebuild is requested", async () => {
