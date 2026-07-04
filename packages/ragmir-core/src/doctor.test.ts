@@ -59,6 +59,8 @@ describe("doctor", () => {
     expect(ready.nextSteps).toContain(
       "For natural-language Q&A, run `pnpm exec ragmir models pull --enable`, then run `pnpm exec ragmir ingest --rebuild`.",
     )
+    expect(ready.indexFreshness.manifestFound).toBe(true)
+    expect(ready.indexFreshness.warning).toBeNull()
   })
 
   it("detects an installed agent kit from the files installSkill writes", async () => {

@@ -8,6 +8,7 @@ import {
   inventorySourceFiles,
   summarizeUnsupportedExtensions,
 } from "./files.js"
+import { INDEX_SCHEMA_VERSION } from "./index-diagnostics.js"
 import { parseFile } from "./parsing.js"
 import { redactText, totalRedactions } from "./redaction.js"
 import {
@@ -15,6 +16,7 @@ import {
   readEmptyTextFiles,
   readRows,
   writeEmptyTextFiles,
+  writeIndexManifest,
   writeRows,
 } from "./store.js"
 import { normalizeForMatch } from "./text.js"
@@ -28,6 +30,7 @@ import type {
   TextChunk,
   VectorRow,
 } from "./types.js"
+import { VERSION } from "./version.js"
 
 const MAX_AUDIT_ROWS = 100_000
 const MAX_SOURCE_DIAGNOSTIC_ITEMS = 20
@@ -119,7 +122,23 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
   }
 
   const indexRows = [...reusableRows, ...rows]
-  await writeRows(indexRows, config)
+  const writeResult = await writeRows(indexRows, config)
+  if (indexRows.length > 0) {
+    await writeIndexManifest(
+      {
+        schemaVersion: INDEX_SCHEMA_VERSION,
+        createdAt: new Date().toISOString(),
+        ragmirVersion: VERSION,
+        embeddingProvider: config.embeddingProvider,
+        embeddingModel: config.embeddingModel,
+        chunkSize: config.chunkSize,
+        chunkOverlap: config.chunkOverlap,
+        fileCount: new Set(indexRows.map((row) => row.relativePath)).size,
+        chunkCount: indexRows.length,
+      },
+      config,
+    )
+  }
   await writeEmptyTextFiles(
     emptyTextFiles.flatMap((relativePath) => {
       const file = currentFiles.get(relativePath)
@@ -147,6 +166,7 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
     emptyTextFiles,
     unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
     redactions: totalRedactions(redactionCounts),
+    vectorIndexWarning: writeResult.vectorIndexWarning,
     errors,
   }
 }

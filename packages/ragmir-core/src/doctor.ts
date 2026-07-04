@@ -3,6 +3,7 @@ import path from "node:path"
 import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
+import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit } from "./ingest.js"
 import { ragmirCommand } from "./package-manager.js"
 import { securityAudit } from "./security.js"
@@ -12,7 +13,7 @@ import {
   MCP_CONFIG_FILENAME,
   SKILL_NAMES,
 } from "./skill.js"
-import { countRows } from "./store.js"
+import { countRows, readIndexManifest } from "./store.js"
 import type { DoctorReport } from "./types.js"
 
 export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
@@ -21,11 +22,20 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
   const config = await loadConfig(cwd)
   const command = await ragmirCommand(config.projectRoot, [])
   const agentKitInstalled = isAgentKitInstalled(config.projectRoot)
-  const [auditReport, securityReport, chunksIndexed] = await Promise.all([
-    audit(config.projectRoot),
-    securityAudit(config.projectRoot),
-    countRows(config),
-  ])
+  const [auditReport, securityReport, chunksIndexed, manifest, freshnessWarning] =
+    await Promise.all([
+      audit(config.projectRoot),
+      securityAudit(config.projectRoot),
+      countRows(config),
+      readIndexManifest(config),
+      getIndexFreshnessWarning(config),
+    ])
+
+  const lexicalScanWarning = chunksIndexed > 0 ? getLexicalScanWarning(config, chunksIndexed) : null
+  const indexFreshness = {
+    manifestFound: manifest !== null,
+    warning: freshnessWarning,
+  }
 
   const nextSteps = nextActions({
     initialized,
@@ -38,6 +48,8 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     warnings: securityReport.warnings.length,
     embeddingProvider: config.embeddingProvider,
     agentKitInstalled,
+    freshnessWarning,
+    lexicalScanWarning,
     run: (args) => command.display + (args.length > 0 ? ` ${args.join(" ")}` : ""),
   })
 
@@ -61,12 +73,14 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     missingFromIndex: auditReport.missingFromIndex.length,
     staleInIndex: auditReport.staleInIndex.length,
     securityWarnings: securityReport.warnings,
+    indexFreshness,
     ready:
       initialized &&
       chunksIndexed > 0 &&
       auditReport.missingFromIndex.length === 0 &&
       auditReport.staleInIndex.length === 0 &&
-      securityReport.warnings.length === 0,
+      securityReport.warnings.length === 0 &&
+      freshnessWarning === null,
     nextSteps,
   }
 }
@@ -82,6 +96,8 @@ interface NextActionInput {
   warnings: number
   embeddingProvider: string
   agentKitInstalled: boolean
+  freshnessWarning: string | null
+  lexicalScanWarning: string | null
   run: (args: string[]) => string
 }
 
@@ -112,6 +128,16 @@ function nextActions(input: NextActionInput): string[] {
     steps.push(
       "If files remain missing because they are scanned or image-only, configure `pdfOcrCommand` or `imageOcrCommand`, or convert scans/images to OCR text before ingesting.",
     )
+  }
+
+  if (input.freshnessWarning) {
+    steps.push(
+      `${input.freshnessWarning.replace(/`/g, "\\`")} Run \`${input.run(["ingest", "--rebuild"])}\` to align the index with the active configuration.`,
+    )
+  }
+
+  if (input.lexicalScanWarning) {
+    steps.push(input.lexicalScanWarning)
   }
 
   if (input.warnings > 0) {

@@ -52,6 +52,7 @@ const rawConfigSchema = z
     maxFileBytes: z.number().int().positive().default(DEFAULT_CONFIG.maxFileBytes),
     ingestConcurrency: z.number().int().positive().default(DEFAULT_CONFIG.ingestConcurrency),
     embeddingBatchSize: z.number().int().positive().default(DEFAULT_CONFIG.embeddingBatchSize),
+    hybridTextScanLimit: z.number().int().positive().default(DEFAULT_CONFIG.hybridTextScanLimit),
     includeExtensions: z.array(z.string().min(1)).default(DEFAULT_CONFIG.includeExtensions),
     pdfOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.pdfOcrCommand),
     pdfOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.pdfOcrTimeoutMs),
@@ -146,6 +147,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     maxFileBytes: withEnv.maxFileBytes,
     ingestConcurrency: withEnv.ingestConcurrency,
     embeddingBatchSize: withEnv.embeddingBatchSize,
+    hybridTextScanLimit: withEnv.hybridTextScanLimit,
     includeExtensions: normalizeExtensions(withEnv.includeExtensions),
     pdfOcrCommand: withEnv.pdfOcrCommand,
     pdfOcrTimeoutMs: withEnv.pdfOcrTimeoutMs,
@@ -227,6 +229,11 @@ function applyEnv(config: RawConfig): RawConfig {
       "RAGMIR_EMBEDDING_BATCH_SIZE",
       "KB_EMBEDDING_BATCH_SIZE",
       config.embeddingBatchSize,
+    ),
+    hybridTextScanLimit: readPositiveIntEnv(
+      "RAGMIR_HYBRID_TEXT_SCAN_LIMIT",
+      "KB_HYBRID_TEXT_SCAN_LIMIT",
+      config.hybridTextScanLimit,
     ),
     includeExtensions: readExtensionsEnv(
       "RAGMIR_INCLUDE_EXTENSIONS",

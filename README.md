@@ -5,6 +5,7 @@
 [![npm](https://img.shields.io/npm/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir?label=downloads%2Fmonth)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
+[![GitHub Sponsors](https://img.shields.io/badge/sponsor-JCode%20Labs-ea4aaa.svg)](https://github.com/sponsors/jb-thery)
 
 Open-source local RAG library, CLI, and MCP server. Ragmir indexes your specs, docs, and code
 locally and gives your AI agents only the useful cited passages, over MCP, without burning tokens on

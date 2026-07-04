@@ -37,6 +37,7 @@ export function testConfig(
     maxFileBytes: DEFAULT_CONFIG.maxFileBytes,
     ingestConcurrency: DEFAULT_CONFIG.ingestConcurrency,
     embeddingBatchSize: DEFAULT_CONFIG.embeddingBatchSize,
+    hybridTextScanLimit: DEFAULT_CONFIG.hybridTextScanLimit,
     includeExtensions: [...DEFAULT_CONFIG.includeExtensions],
     pdfOcrCommand: [...DEFAULT_CONFIG.pdfOcrCommand],
     pdfOcrTimeoutMs: DEFAULT_CONFIG.pdfOcrTimeoutMs,
