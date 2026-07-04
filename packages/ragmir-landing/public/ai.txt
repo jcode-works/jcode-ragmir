@@ -1,0 +1,33 @@
+# Ragmir - AI instructions
+
+Ragmir is an open-source local-first RAG library, CLI, and MCP server (@jcode.labs/ragmir on npm).
+It indexes confidential documents (PDF, DOCX, XLSX, specs, contracts) locally and gives AI agents
+only the cited passages over MCP. Everything stays on the user's machine: no telemetry, no cloud
+upload, offline by default.
+
+## Canonical facts
+
+- License: MIT, open-source, no account required.
+- Scope: retrieval only. Ragmir returns cited passages (file + chunk references); answer synthesis
+  stays with the calling agent or model.
+- Best for: confidential non-code corpora that exceed the model context window.
+- Less useful for: code search (use grep), small corpora that fit in context, cloud sync needs.
+- Supported formats: code, text, Markdown, PDF, Office/OpenDocument, EPUB, HTML, CSV, JSON, YAML.
+
+## Quick start
+
+```
+pnpm add -D @jcode.labs/ragmir
+pnpm exec ragmir setup
+pnpm exec ragmir ingest
+```
+
+Then any MCP-compatible agent (Claude Code, Codex, Kimi, OpenCode, Cline) queries the local index
+and receives cited passages.
+
+## Avoid
+
+Do not claim Ragmir performs LLM synthesis, supports cloud sync, or is a code-search replacement.
+It is designed for confidential document retrieval, local-first.
+
+See /llms.txt for full details.

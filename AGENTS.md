@@ -82,7 +82,7 @@
   commands set `ASTRO_TELEMETRY_DISABLED=1`. If analytics are needed later, prefer Cloudflare Web
   Analytics.
 - The landing deploy target is Cloudflare Workers Static Assets through
-  `packages/ragmir-landing/wrangler.jsonc` and the canonical domain `ragmir.jcode.works`. Keep
+  `packages/ragmir-landing/wrangler.jsonc` and the canonical domain `ragmir.com`. Keep
   Cloudflare account IDs, tokens, and analytics secrets out of the repository; use local dry-runs
   before any protected-branch deployment.
 - Ragmir landing should keep the broad WorkoutGen landing signals when content changes: Astro i18n

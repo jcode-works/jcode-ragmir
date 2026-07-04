@@ -1,5 +1,17 @@
 ---
-import { LandingHero } from "../../components/landing-hero"
+import { RagmirBackground } from "@jcode.labs/ragmir-ui"
+import { CommandCopyToast } from "../../components/command-copy-toast"
+import { LibrarySection } from "../../components/library-section"
+import { LandingNavbar } from "../../components/landing-navbar"
+import Agents from "../../components/sections/agents.astro"
+import ClosingCta from "../../components/sections/closing-cta.astro"
+import Desktop from "../../components/sections/desktop.astro"
+import Faq from "../../components/sections/faq.astro"
+import Footer from "../../components/sections/footer.astro"
+import Hero from "../../components/sections/hero.astro"
+import Privacy from "../../components/sections/privacy.astro"
+import Strengths from "../../components/sections/strengths.astro"
+import UseCases from "../../components/sections/use-cases.astro"
 import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
 
@@ -16,52 +28,28 @@ const alternateLocales = locales.map((entry) => ({
   label: languages[entry],
   href: getLocalizedUrl("/", entry),
 }))
-const siteUrl = new URL("/", Astro.site ?? "https://ragmir.jcode.works").href
-const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.jcode.works").href
+const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
+const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const faqItems = [
-  {
-    question: t("faq_what_question"),
-    answer: t("faq_what_answer"),
-  },
-  {
-    question: t("faq_private_question"),
-    answer: t("faq_private_answer"),
-  },
-  {
-    question: t("faq_agents_question"),
-    answer: t("faq_agents_answer"),
-  },
-  {
-    question: t("faq_offline_question"),
-    answer: t("faq_offline_answer"),
-  },
-  {
-    question: t("faq_compare_question"),
-    answer: t("faq_compare_answer"),
-  },
-  {
-    question: t("faq_role_question"),
-    answer: t("faq_role_answer"),
-  },
-  {
-    question: t("faq_formats_question"),
-    answer: t("faq_formats_answer"),
-  },
-  {
-    question: t("faq_license_question"),
-    answer: t("faq_license_answer"),
-  },
+  { question: t("faq_what_question"), answer: t("faq_what_answer") },
+  { question: t("faq_private_question"), answer: t("faq_private_answer") },
+  { question: t("faq_agents_question"), answer: t("faq_agents_answer") },
+  { question: t("faq_offline_question"), answer: t("faq_offline_answer") },
+  { question: t("faq_compare_question"), answer: t("faq_compare_answer") },
+  { question: t("faq_role_question"), answer: t("faq_role_answer") },
+  { question: t("faq_formats_question"), answer: t("faq_formats_answer") },
+  { question: t("faq_license_question"), answer: t("faq_license_answer") },
 ]
 const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "@id": "https://ragmir.jcode.works/#organization",
+    "@id": "https://ragmir.com/#organization",
     name: "JCode Labs",
     url: "https://github.com/jcode-works",
     founder: {
       "@type": "Person",
-      "@id": "https://ragmir.jcode.works/#jb-thery",
+      "@id": "https://ragmir.com/#jb-thery",
       name: "Jean-Baptiste Thery",
       url: "https://github.com/jb-thery",
       sameAs: ["https://github.com/jb-thery"],
@@ -78,13 +66,13 @@ const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "@id": "https://ragmir.jcode.works/#website",
+    "@id": "https://ragmir.com/#website",
     url: siteUrl,
     name: "Ragmir",
     alternateName: t("seo_og_site_name"),
     description: t("seo_home_description"),
     inLanguage: locale,
-    publisher: { "@id": "https://ragmir.jcode.works/#organization" },
+    publisher: { "@id": "https://ragmir.com/#organization" },
   },
   {
     "@context": "https://schema.org",
@@ -101,7 +89,7 @@ const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "@id": "https://ragmir.jcode.works/#software",
+    "@id": "https://ragmir.com/#software",
     name: "Ragmir",
     description: t("seo_home_description"),
     url: pageUrl,
@@ -127,10 +115,10 @@ const structuredData = [
       "Metadata-only access logs",
     ],
     publisher: {
-      "@id": "https://ragmir.jcode.works/#organization",
+      "@id": "https://ragmir.com/#organization",
     },
     author: {
-      "@id": "https://ragmir.jcode.works/#jb-thery",
+      "@id": "https://ragmir.com/#jb-thery",
     },
   },
   {
@@ -148,6 +136,12 @@ const structuredData = [
     })),
   },
 ]
+const localizedHomeUrl = `${getLocalizedUrl("/", locale)}#top`
+const localizedLibraryUrl = `${getLocalizedUrl("/", locale)}#library`
+const localizedUseCasesUrl = `${getLocalizedUrl("/", locale)}#use-cases`
+const localizedAgentsUrl = `${getLocalizedUrl("/", locale)}#agents`
+const localizedDesktopUrl = `${getLocalizedUrl("/", locale)}#desktop`
+const localizedTeamUrl = getLocalizedUrl("/team", locale)
 ---
 
 <Layout
@@ -161,16 +155,54 @@ const structuredData = [
   availableLocales={locales}
   structuredData={structuredData}
 >
-  <LandingHero
-    client:idle
-    alternateLocales={alternateLocales}
-    locale={locale}
-    localizedAgentsUrl={`${getLocalizedUrl("/", locale)}#agents`}
-    localizedHomeUrl={`${getLocalizedUrl("/", locale)}#top`}
-    localizedLibraryUrl={`${getLocalizedUrl("/", locale)}#library`}
-    localizedUseCasesUrl={`${getLocalizedUrl("/", locale)}#use-cases`}
-    localizedDesktopUrl={`${getLocalizedUrl("/", locale)}#desktop`}
-    localizedTeamUrl={getLocalizedUrl("/team", locale)}
-    translations={translations}
-  />
+  <main class="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <RagmirBackground
+      client:load
+      height="100dvh"
+      className="inset-0 min-h-[110dvh]"
+      behindContent={false}
+    />
+
+    <LandingNavbar
+      client:load
+      alternateLocales={alternateLocales}
+      locale={locale}
+      localizedAgentsUrl={localizedAgentsUrl}
+      localizedDesktopUrl={localizedDesktopUrl}
+      localizedHomeUrl={localizedHomeUrl}
+      localizedLibraryUrl={localizedLibraryUrl}
+      localizedTeamUrl={localizedTeamUrl}
+      localizedUseCasesUrl={localizedUseCasesUrl}
+      translations={translations}
+    />
+
+    <Hero
+      translations={translations}
+      localizedLibraryUrl={localizedLibraryUrl}
+      localizedUseCasesUrl={localizedUseCasesUrl}
+    />
+
+    <UseCases translations={translations} />
+
+    <Privacy translations={translations} />
+
+    <Strengths translations={translations} />
+
+    <LibrarySection client:visible translations={translations} />
+
+    <Agents translations={translations} />
+
+    <Desktop translations={translations} />
+
+    <Faq translations={translations} />
+
+    <ClosingCta translations={translations} localizedLibraryUrl={localizedLibraryUrl} />
+
+    <Footer
+      localizedHomeUrl={localizedHomeUrl}
+      translations={translations}
+    />
+
+    <CommandCopyToast client:idle message={t("command_copied")} />
+  </main>
 </Layout>

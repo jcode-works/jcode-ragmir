@@ -1,0 +1,75 @@
+---
+import { ArrowDown, ArrowRight } from "@lucide/astro"
+import { HeroDemo } from "../hero-demo"
+
+interface Props {
+  translations: Record<string, string>
+  localizedLibraryUrl: string
+  localizedUseCasesUrl: string
+}
+
+const { translations, localizedLibraryUrl, localizedUseCasesUrl } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+
+const heroMetrics = [
+  { value: t("hero_metric_private_value"), label: t("hero_metric_private_label") },
+  { value: t("hero_metric_agents_value"), label: t("hero_metric_agents_label") },
+  { value: t("hero_metric_license_value"), label: t("hero_metric_license_label") },
+]
+---
+
+<section
+  id="top"
+  aria-labelledby="hero-heading"
+  class="container-default relative z-10 grid min-h-dvh w-full items-center gap-10 px-5 pt-24 pb-28 md:px-8 lg:content-center lg:gap-20 lg:pt-16 lg:pb-28 lg:grid-cols-[1fr_0.9fr]"
+>
+  <div class="max-w-4xl">
+    <h1
+      id="hero-heading"
+      class="display-title max-w-3xl font-black text-2xl leading-[1.06] sm:text-3xl lg:text-4xl"
+    >
+      <span class="block">{t("hero_title_line_1")}</span>
+      <span class="block">{t("hero_title_line_2")}</span>
+    </h1>
+    <p class="mt-5 max-w-xl text-[0.7rem] font-medium leading-5 text-muted-foreground/80 sm:text-xs sm:leading-5">
+      {t("hero_description")}
+    </p>
+    <div class="mt-7 flex flex-col gap-3 sm:flex-row">
+      <a
+        class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+        href={localizedLibraryUrl}
+      >
+        {t("hero_primary_cta")}
+        <ArrowRight class="size-4" />
+      </a>
+      <a
+        class="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-border px-8 text-sm font-bold text-foreground transition hover:bg-muted"
+        href={localizedUseCasesUrl}
+      >
+        {t("hero_secondary_cta")}
+      </a>
+    </div>
+    <div class="mt-8 flex flex-wrap gap-2">
+      {heroMetrics.map((metric) => (
+        <span class="inline-flex items-center rounded-full bg-muted px-3 py-1.5 text-xs font-semibold">
+          {metric.value}
+        </span>
+      ))}
+    </div>
+  </div>
+
+  <HeroDemo client:visible translations={translations} />
+
+  <nav
+    class="absolute inset-x-0 bottom-6 z-20 flex justify-center lg:bottom-8"
+    aria-label={t("hero_scroll_aria_nav")}
+  >
+    <a
+      class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-background text-foreground shadow-lg ring-1 ring-border backdrop-blur-sm transition-transform duration-200 hover:scale-110 animate-pulse focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:animate-none motion-reduce:transition-none"
+      href="#use-cases"
+      aria-label={t("hero_scroll_aria_link")}
+    >
+      <ArrowDown class="size-5" />
+    </a>
+  </nav>
+</section>

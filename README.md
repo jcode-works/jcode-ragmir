@@ -201,7 +201,7 @@ waitlist, or hosted account flow in this repository. When released, it is planne
 downloads and sideloadable installers, not App Store or Play Store distribution.
 
 The canonical landing and future direct-download release URL is
-[`ragmir.jcode.works`](https://ragmir.jcode.works). It is prepared as a Cloudflare Workers Static Assets
+[`ragmir.com`](https://ragmir.com). It is prepared as a Cloudflare Workers Static Assets
 site, but public deployment remains a separate release action.
 
 ## What Ragmir Is For

@@ -1,6 +1,6 @@
 ---
 import { RagmirBackground } from "@jcode.labs/ragmir-ui"
-import { LandingFooter } from "../../components/landing-footer"
+import Footer from "../../components/sections/footer.astro"
 import { LandingNavbar } from "../../components/landing-navbar"
 import { TeamCard } from "../../components/team-card"
 import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
@@ -14,7 +14,7 @@ export function getStaticPaths() {
 
 const locale = (Astro.params.locale as string | undefined) ?? defaultLang
 const { t, translations } = await useTranslations(locale)
-const siteBase = Astro.site ?? new URL("https://ragmir.jcode.works")
+const siteBase = Astro.site ?? new URL("https://ragmir.com")
 const homeUrl = getLocalizedUrl("/", locale)
 const pageUrl = new URL(getLocalizedUrl("/team", locale), siteBase).href
 const alternateLocales = locales.map((entry) => ({
@@ -39,9 +39,9 @@ const structuredData = [
     name: t("seo_team_title"),
     description: t("seo_team_description"),
     url: pageUrl,
-    isPartOf: { "@id": "https://ragmir.jcode.works/#website" },
-    publisher: { "@id": "https://ragmir.jcode.works/#organization" },
-    mainEntity: { "@id": "https://ragmir.jcode.works/#jb-thery" },
+    isPartOf: { "@id": "https://ragmir.com/#website" },
+    publisher: { "@id": "https://ragmir.com/#organization" },
+    mainEntity: { "@id": "https://ragmir.com/#jb-thery" },
   },
   {
     "@context": "https://schema.org",
@@ -64,13 +64,13 @@ const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "Person",
-    "@id": "https://ragmir.jcode.works/#jb-thery",
+    "@id": "https://ragmir.com/#jb-thery",
     name: "Jean-Baptiste Thery",
     jobTitle: t("team_member_jb_subtitle"),
     description: t("team_member_jb_description"),
     url: pageUrl,
     image: new URL(memberImg, siteBase).href,
-    worksFor: { "@id": "https://ragmir.jcode.works/#organization" },
+    worksFor: { "@id": "https://ragmir.com/#organization" },
     sameAs: [
       "https://github.com/jb-thery",
       "https://www.linkedin.com/in/jean-baptiste-thery/",
@@ -139,5 +139,5 @@ const structuredData = [
     </main>
   </div>
 
-  <LandingFooter client:visible localizedHomeUrl={`${homeUrl}#top`} translations={translations} />
+  <Footer localizedHomeUrl={`${homeUrl}#top`} translations={translations} />
 </Layout>

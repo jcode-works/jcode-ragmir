@@ -151,6 +151,9 @@ importers:
       '@jcode.labs/ragmir-ui':
         specifier: workspace:*
         version: link:../ragmir-ui
+      '@lucide/astro':
+        specifier: ^1.23.0
+        version: 1.23.0(astro@7.0.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@24.13.2)(jiti@2.7.0)(yaml@2.9.0))
       '@tailwindcss/vite':
         specifier: ^4.3.1
         version: 4.3.1(vite@8.1.0(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -191,6 +194,9 @@ importers:
       wrangler:
         specifier: ^4.105.0
         version: 4.105.0
+      xml2js:
+        specifier: ^0.6.2
+        version: 0.6.2
 
   packages/ragmir-license-webhook:
     devDependencies:
@@ -1151,6 +1157,11 @@ packages:
     os: [darwin, linux, win32]
     peerDependencies:
       apache-arrow: '>=15.0.0 <=18.1.0'
+
+  '@lucide/astro@1.23.0':
+    resolution: {integrity: sha512-SP5JHwI46QJjCJGzS8BTQsUXcHJoGkVIeywN12NraSiTEt4uh0iNLPs4hEHTSJr+LbZeHxc3W1BiRJPF2tS5Yw==}
+    peerDependencies:
+      astro: ^4 || ^5 || ^6 || ^7
 
   '@modelcontextprotocol/sdk@1.29.0':
     resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
@@ -4703,8 +4714,16 @@ packages:
       utf-8-validate:
         optional: true
 
+  xml2js@0.6.2:
+    resolution: {integrity: sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA==}
+    engines: {node: '>=4.0.0'}
+
   xmlbuilder@10.1.1:
     resolution: {integrity: sha512-OyzrcFLL/nb6fMGHbiRDuPup9ljBycsdCypwuyg5AAHvyWzGfChJpCXMG88AGTIMFhGZ9RccFN1e6lhg3hkwKg==}
+    engines: {node: '>=4.0'}
+
+  xmlbuilder@11.0.1:
+    resolution: {integrity: sha512-fDlsI/kFEx7gLvbecc0/ohLG50fugQp8ryHzMTuW9vSa1GJ0XYWKnhsUx7oie3G98+r56aTQIUB4kht42R3JvA==}
     engines: {node: '>=4.0'}
 
   xtend@4.0.2:
@@ -5588,6 +5607,10 @@ snapshots:
       '@lancedb/lancedb-linux-x64-musl': 0.30.0
       '@lancedb/lancedb-win32-arm64-msvc': 0.30.0
       '@lancedb/lancedb-win32-x64-msvc': 0.30.0
+
+  '@lucide/astro@1.23.0(astro@7.0.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@24.13.2)(jiti@2.7.0)(yaml@2.9.0))':
+    dependencies:
+      astro: 7.0.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@24.13.2)(jiti@2.7.0)(yaml@2.9.0)
 
   '@modelcontextprotocol/sdk@1.29.0(zod@4.4.3)':
     dependencies:
@@ -9076,7 +9099,14 @@ snapshots:
 
   ws@8.21.0: {}
 
+  xml2js@0.6.2:
+    dependencies:
+      sax: 1.6.0
+      xmlbuilder: 11.0.1
+
   xmlbuilder@10.1.1: {}
+
+  xmlbuilder@11.0.1: {}
 
   xtend@4.0.2: {}
 

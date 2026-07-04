@@ -181,61 +181,73 @@ export function LandingNavbar({
       />
       <header
         className={cn(
-          "fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between px-4 transition-all duration-300 md:px-6",
+          "fixed inset-x-0 top-0 z-40 transition-all duration-300",
           hasScrolled && "bg-linear-to-b from-background via-background to-transparent",
         )}
         ref={headerRef}
       >
-        <a
-          aria-label="Ragmir"
-          className="flex items-center transition hover:opacity-80"
-          href={localizedHomeUrl}
-        >
-          <RagmirLogo />
-        </a>
-
-        <div className="hidden items-center gap-7 md:flex">
-          <nav aria-label={t("nav_aria_label")} className="flex items-center gap-7">
-            {navLinks.map((link) => (
-              <a
-                className="whitespace-nowrap font-bold text-muted-foreground text-sm transition hover:text-foreground"
-                href={link.href}
-                key={link.href}
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
-
-          <LanguageSwitcher
-            alternateLocales={alternateLocales}
-            currentLocale={locale}
-            label={t("language_label")}
-          />
-
-          <Button asChild size="sm" variant="ghost">
-            <a href={GITHUB_URL} {...externalLinkProps}>
-              <GithubIcon data-icon="inline-start" />
-              {t("nav_github")}
+        <div className="container-navbar flex h-16 items-center justify-between px-5 md:px-8">
+          <div className="flex items-center">
+            <a
+              aria-label="Ragmir"
+              className="flex items-center transition hover:opacity-80"
+              href={localizedHomeUrl}
+            >
+              <RagmirLogo />
             </a>
-          </Button>
-        </div>
+            <a
+              href="https://www.npmjs.com/package/@jcode.labs/ragmir"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
+            >
+              v{import.meta.env.PUBLIC_RAGMIR_VERSION}
+            </a>
+          </div>
 
-        <div className="flex items-center gap-2 md:hidden">
-          <LanguageSwitcher
-            alternateLocales={alternateLocales}
-            currentLocale={locale}
-            label={t("language_label")}
-          />
-          <button
-            aria-expanded={menuOpen}
-            aria-label={t("nav_menu")}
-            className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => setMenuOpen(true)}
-            type="button"
-          >
-            <Menu aria-hidden="true" className="size-5" />
-          </button>
+          <div className="hidden items-center gap-7 md:flex">
+            <nav aria-label={t("nav_aria_label")} className="flex items-center gap-7">
+              {navLinks.map((link) => (
+                <a
+                  className="whitespace-nowrap font-bold text-muted-foreground text-sm transition hover:text-foreground"
+                  href={link.href}
+                  key={link.href}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+
+            <LanguageSwitcher
+              alternateLocales={alternateLocales}
+              currentLocale={locale}
+              label={t("language_label")}
+            />
+
+            <Button asChild size="sm" variant="ghost">
+              <a href={GITHUB_URL} {...externalLinkProps}>
+                <GithubIcon data-icon="inline-start" />
+                {t("nav_github")}
+              </a>
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2 md:hidden">
+            <LanguageSwitcher
+              alternateLocales={alternateLocales}
+              currentLocale={locale}
+              label={t("language_label")}
+            />
+            <button
+              aria-expanded={menuOpen}
+              aria-label={t("nav_menu")}
+              className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setMenuOpen(true)}
+              type="button"
+            >
+              <Menu aria-hidden="true" className="size-5" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -296,6 +308,15 @@ export function LandingNavbar({
                 {t("nav_github")}
               </a>
             </Button>
+            <a
+              href="https://www.npmjs.com/package/@jcode.labs/ragmir"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 block text-center text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
+              tabIndex={menuOpen ? 0 : -1}
+            >
+              v{import.meta.env.PUBLIC_RAGMIR_VERSION}
+            </a>
           </div>
         </div>
       </div>

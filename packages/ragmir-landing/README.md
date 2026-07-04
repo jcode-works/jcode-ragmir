@@ -16,7 +16,7 @@ passages over MCP without burning tokens), sovereign local retrieval, and a ligh
 future Tauri desktop client. It does not collect emails.
 
 Cloudflare Workers Static Assets configuration lives in [`wrangler.jsonc`](./wrangler.jsonc). The
-canonical domain is `ragmir.jcode.works`; it is the future direct-download release surface for Ragmir
+canonical domain is `ragmir.com`; it is the future direct-download release surface for Ragmir
 Desktop, not an App Store or Play Store destination.
 
 No PostHog or hosted document telemetry belongs here. If analytics are needed later, prefer

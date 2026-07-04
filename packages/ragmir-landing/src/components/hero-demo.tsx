@@ -1,240 +1,191 @@
-import { useGSAP } from "@gsap/react"
 import { cn } from "@jcode.labs/ragmir-ui/utils"
-import { gsap } from "gsap"
-import { TextPlugin } from "gsap/TextPlugin"
-import { Bot, Check, Lock, Workflow, Zap } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
-
-gsap.registerPlugin(TextPlugin)
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 interface HeroDemoProps {
-  t: (key: string) => string
+  translations: Record<string, string>
 }
 
-// Resume automatic playback after this idle time (ms) following a manual click.
-const RESUME_DELAY = 10000
+type LineType =
+  | "command"
+  | "file"
+  | "summary"
+  | "citation"
+  | "result"
+  | "code"
+  | "stat"
+  | "prompt"
+  | "mcp"
+  | "agent"
 
-// Animated "how it works" demo: for each step it types the user's action (a
-// command / prompt) and shows what it does below. Clicking a step takes manual
-// control (auto-play pauses); it resumes after idle. Paused while off-screen.
-export function HeroDemo({ t }: HeroDemoProps): React.JSX.Element {
-  const container = useRef<HTMLDivElement>(null)
-  const timelineRef = useRef<gsap.core.Timeline | null>(null)
-  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const userPaused = useRef(false)
-  const isVisible = useRef(true)
-  const [activeStep, setActiveStep] = useState(0)
+interface TerminalLine {
+  type: LineType
+  text: string
+}
 
-  const steps = [t("demo_step_index"), t("demo_step_ask"), t("demo_step_cite")]
+export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
+  const t = useCallback((key: string): string => translations[key] ?? key, [translations])
 
-  const syncPlayState = useCallback(() => {
-    const timeline = timelineRef.current
-    if (!timeline) return
-    if (isVisible.current && !userPaused.current) {
-      timeline.play()
-    } else {
-      timeline.pause()
-    }
-  }, [])
-
-  useGSAP(
-    () => {
-      const panels = gsap.utils.toArray<HTMLElement>(".demo-panel")
-
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        gsap.set(panels, { autoAlpha: 0 })
-        if (panels[0]) gsap.set(panels[0], { autoAlpha: 1 })
-        return
-      }
-
-      const hold = 4
-      const timeline = gsap.timeline({ repeat: -1 })
-      panels.forEach((panel, index) => {
-        const typed = panel.querySelector<HTMLElement>(".demo-typed")
-        const result = panel.querySelector<HTMLElement>(".demo-result")
-        const label = `step-${index}`
-        timeline.addLabel(label)
-        timeline.call(() => setActiveStep(index), [], label)
-        timeline.fromTo(
-          panel,
-          { autoAlpha: 0, y: 16 },
-          { autoAlpha: 1, y: 0, duration: 0.55, ease: "power3.out" },
-          label,
-        )
-
-        let resultAt = 0.6
-        if (typed) {
-          const full = typed.textContent ?? ""
-          const typingDuration = Math.min(1.4, Math.max(0.5, full.length * 0.045))
-          timeline.set(typed, { text: "" }, label)
-          timeline.to(
-            typed,
-            { text: full, duration: typingDuration, ease: "none" },
-            `${label}+=0.45`,
-          )
-          resultAt = 0.45 + typingDuration + 0.15
-        }
-        if (result) {
-          timeline.fromTo(
-            result,
-            { autoAlpha: 0, y: 6 },
-            { autoAlpha: 1, y: 0, duration: 0.4, ease: "power2.out" },
-            `${label}+=${resultAt}`,
-          )
-        }
-
-        timeline.to(
-          panel,
-          { autoAlpha: 0, y: -14, duration: 0.45, ease: "power2.in" },
-          `${label}+=${hold}`,
-        )
-      })
-      timelineRef.current = timeline
-    },
-    { scope: container },
+  const lines = useMemo<TerminalLine[]>(
+    () => [
+      { type: "command", text: t("demo_cmd_1") },
+      { type: "file", text: t("demo_out_1a") },
+      { type: "file", text: t("demo_out_1b") },
+      { type: "file", text: t("demo_out_1c") },
+      { type: "file", text: t("demo_out_1d") },
+      { type: "summary", text: t("demo_out_1e") },
+      { type: "prompt", text: t("demo_cmd_2") },
+      { type: "mcp", text: t("demo_out_2a") },
+      { type: "citation", text: t("demo_out_2b") },
+      { type: "result", text: t("demo_out_2c") },
+      { type: "result", text: t("demo_out_2d") },
+      { type: "mcp", text: t("demo_out_2e") },
+      { type: "citation", text: t("demo_out_2f") },
+      { type: "result", text: t("demo_out_2g") },
+      { type: "agent", text: t("demo_out_3a") },
+      { type: "code", text: t("demo_out_3b") },
+      { type: "code", text: t("demo_out_3c") },
+      { type: "citation", text: t("demo_out_3d") },
+      { type: "command", text: t("demo_cmd_5") },
+      { type: "stat", text: t("demo_out_5") },
+    ],
+    [t],
   )
 
-  // Pause the timeline when the demo is off-screen, and clean up the idle timer.
+  const [visibleCount, setVisibleCount] = useState(0)
+  const [isTyping, setIsTyping] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isVisible = useRef(false)
+  const hasPlayedRef = useRef(false)
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const clearAllTimeouts = useCallback(() => {
+    for (const timeout of timeoutsRef.current) clearTimeout(timeout)
+    timeoutsRef.current = []
+  }, [])
+
+  const startSequence = useCallback(() => {
+    clearAllTimeouts()
+    setVisibleCount(0)
+    let elapsed = 400
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (!line) continue
+      const isCommand = line.type === "command"
+      const isPrompt = line.type === "prompt"
+      const needsTyping = isCommand || isPrompt
+      const delay = needsTyping ? 800 : 160
+      const typing = needsTyping ? Math.min(1000, Math.max(300, line.text.length * 22)) : 0
+
+      if (needsTyping) {
+        timeoutsRef.current.push(setTimeout(() => setIsTyping(true), elapsed))
+        timeoutsRef.current.push(setTimeout(() => setIsTyping(false), elapsed + typing))
+      }
+
+      elapsed += delay + typing
+      const lineIndex = i
+      timeoutsRef.current.push(setTimeout(() => setVisibleCount(lineIndex + 1), elapsed))
+    }
+  }, [lines, clearAllTimeouts])
+
   useEffect(() => {
-    const element = container.current
+    const element = containerRef.current
     if (!element) return
+
     const observer = new IntersectionObserver(
       (entries) => {
-        isVisible.current = entries[0]?.isIntersecting ?? true
-        syncPlayState()
+        const wasVisible = isVisible.current
+        isVisible.current = entries[0]?.isIntersecting ?? false
+        if (isVisible.current && !wasVisible && !hasPlayedRef.current) {
+          hasPlayedRef.current = true
+          startSequence()
+        }
       },
-      { threshold: 0 },
+      { threshold: 0.3 },
     )
     observer.observe(element)
     return () => {
       observer.disconnect()
-      if (resumeTimer.current) clearTimeout(resumeTimer.current)
+      clearAllTimeouts()
     }
-  }, [syncPlayState])
+  }, [startSequence, clearAllTimeouts])
 
-  const handleStepClick = (index: number) => {
-    setActiveStep(index)
-    const timeline = timelineRef.current
-
-    if (!timeline) {
-      // Reduced motion: no timeline, just reveal the chosen panel.
-      const panels = container.current?.querySelectorAll<HTMLElement>(".demo-panel")
-      const target = panels?.[index]
-      if (panels) gsap.set(panels, { autoAlpha: 0 })
-      if (target) gsap.set(target, { autoAlpha: 1 })
-      return
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
+  })
 
-    userPaused.current = true
-    timeline.pause()
-    timeline.seek((timeline.labels[`step-${index}`] ?? 0) + 2.5)
+  const lineClass: Record<LineType, string> = {
+    command: "text-foreground/90",
+    file: "text-foreground/70",
+    summary: "mt-1 text-emerald-400",
+    citation: "mt-1 font-semibold text-[var(--accent-title)]",
+    result: "pl-4 text-muted-foreground",
+    code: "text-cyan-400",
+    stat: "mt-1 text-cyan-400",
+    prompt: "text-amber-400",
+    mcp: "mt-1 text-[var(--accent-title)]/80",
+    agent: "mt-2 text-emerald-400",
+  }
 
-    if (resumeTimer.current) clearTimeout(resumeTimer.current)
-    resumeTimer.current = setTimeout(() => {
-      userPaused.current = false
-      syncPlayState()
-    }, RESUME_DELAY)
+  const linePrefix: Partial<Record<LineType, string>> = {
+    prompt: ">",
+    command: "$",
   }
 
   return (
     <div
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-2xl shadow-black/55"
-      ref={container}
+      className="mx-auto w-full max-w-sm overflow-hidden rounded-xl border border-border bg-[#0a0a0a] shadow-2xl shadow-black/60"
+      ref={containerRef}
     >
-      <div className="flex items-center justify-between gap-4 border-b border-border p-4 md:p-5">
-        <div className="flex items-center gap-3">
-          <Workflow aria-hidden="true" className="size-5 text-foreground" />
-          <h2 className="font-black text-lg leading-none">{t("demo_title")}</h2>
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-card/50 px-4 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full bg-red-500/80" />
+          <span className="size-2.5 rounded-full bg-yellow-500/80" />
+          <span className="size-2.5 rounded-full bg-green-500/80" />
         </div>
-        <span className="rounded-full border border-border bg-muted/50 px-3 py-1 font-bold text-foreground text-xs uppercase tracking-wide">
+        <span className="truncate font-mono text-[0.65rem] text-muted-foreground">
+          {t("demo_terminal_title")}
+        </span>
+        <span className="font-mono text-[0.6rem] font-bold uppercase tracking-wider text-[var(--accent-title)]">
           {t("demo_badge")}
         </span>
       </div>
 
-      <div className="flex items-center gap-3 px-4 pt-4 md:px-5">
-        {steps.map((label, index) => {
-          const active = activeStep === index
+      <div
+        className="h-[22rem] overflow-y-auto p-4 font-mono text-xs leading-relaxed"
+        ref={scrollRef}
+      >
+        {lines.slice(0, visibleCount).map((line, index) => {
+          const key = `${line.type}-${index}`
+          const prefix = linePrefix[line.type]
+          if (prefix) {
+            return (
+              <div key={key} className="mt-2 mb-1 flex items-start gap-2">
+                <span className="shrink-0 text-green-400">{prefix}</span>
+                <span className={lineClass[line.type]}>{line.text}</span>
+              </div>
+            )
+          }
           return (
-            <button
-              aria-current={active ? "step" : undefined}
-              className={cn(
-                "flex flex-1 items-center gap-2 overflow-hidden rounded-lg py-1 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-ring",
-                active ? "opacity-100" : "opacity-60 hover:opacity-100",
-              )}
-              key={label}
-              onClick={() => handleStepClick(index)}
-              type="button"
-            >
-              <span
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full font-bold text-xs transition",
-                  active ? "bg-[var(--accent-title)] text-white" : "bg-muted text-muted-foreground",
-                )}
-              >
-                {index + 1}
-              </span>
-              <span
-                className={cn(
-                  "truncate font-semibold text-sm transition",
-                  active ? "text-foreground" : "text-muted-foreground",
-                )}
-              >
-                {label}
-              </span>
-            </button>
+            <div key={key} className={cn("mb-0.5", lineClass[line.type])}>
+              {line.text}
+            </div>
           )
         })}
-      </div>
 
-      <div className="grid p-4 md:p-5">
-        <div
-          className="demo-panel col-start-1 row-start-1 flex flex-col justify-center gap-3"
-          data-step="0"
-        >
-          <p className="text-muted-foreground text-xs">{t("demo_index_action")}</p>
-          <div className="rounded-lg border border-border bg-background p-4 font-mono text-foreground/80 text-sm">
-            <span className="text-[var(--accent-title)]">$ </span>
-            <span className="demo-typed">{t("demo_index_command")}</span>
+        {isTyping && (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-green-400">$</span>
+            <span className="inline-block h-3.5 w-2 animate-pulse bg-[var(--accent-title)]" />
           </div>
-          <p className="demo-result flex items-center gap-2 pt-1 font-semibold text-[var(--accent-title)] text-xs">
-            <Lock aria-hidden="true" className="size-3.5 shrink-0" />
-            {t("demo_index_result")}
-          </p>
-        </div>
+        )}
 
-        <div
-          className="demo-panel col-start-1 row-start-1 flex flex-col justify-center gap-3 opacity-0"
-          data-step="1"
-        >
-          <p className="text-muted-foreground text-xs">{t("demo_ask_action")}</p>
-          <div className="rounded-lg border border-border bg-muted/45 p-4">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Bot aria-hidden="true" className="size-4 text-[var(--accent-title)]" />
-              Codex
-            </div>
-            <p className="mt-2 text-foreground/90 text-sm leading-6">
-              <span className="demo-typed">{t("demo_ask_command")}</span>
-            </p>
-          </div>
-          <p className="demo-result flex items-center gap-2 pt-1 font-semibold text-[var(--accent-title)] text-xs">
-            <Zap aria-hidden="true" className="size-3.5 shrink-0" />
-            {t("demo_ask_result")}
-          </p>
-        </div>
-
-        <div
-          className="demo-panel col-start-1 row-start-1 flex flex-col justify-center gap-3 opacity-0"
-          data-step="2"
-        >
-          <p className="text-muted-foreground text-xs">{t("demo_cite_action")}</p>
-          <div className="rounded-lg border border-border bg-background/70 p-4 font-mono text-[var(--accent-title)] text-xs leading-6">
-            {t("workspace_answer_citations")}
-          </div>
-          <p className="demo-result flex items-center gap-2 pt-1 font-semibold text-[var(--accent-title)] text-xs">
-            <Check aria-hidden="true" className="size-3.5 shrink-0" />
-            {t("demo_cite_result")}
-          </p>
-        </div>
+        {!isTyping && visibleCount < lines.length && (
+          <span className="inline-block h-3.5 w-2 animate-pulse bg-green-400/70" />
+        )}
       </div>
     </div>
   )

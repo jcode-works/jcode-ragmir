@@ -1,0 +1,85 @@
+---
+import { RagmirBackground } from "@jcode.labs/ragmir-ui"
+import RagmirLogo from "../ragmir-logo.astro"
+
+interface Props {
+  translations: Record<string, string>
+  localizedHomeUrl: string
+}
+
+const { translations, localizedHomeUrl } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+const version = import.meta.env.PUBLIC_RAGMIR_VERSION
+
+const footerLinks = [
+  { href: "https://github.com/jcode-works/jcode-ragmir", label: t("nav_github") },
+  { href: "https://www.npmjs.com/package/@jcode.labs/ragmir", label: t("footer_link_npm") },
+  { href: "https://github.com/jcode-works/jcode-ragmir#readme", label: t("footer_link_docs") },
+  { href: "https://github.com/sponsors/jb-thery", label: t("footer_link_sponsors") },
+]
+
+const marqueeCopy =
+  "whitespace-nowrap pr-8 font-black text-5xl text-foreground/90 uppercase italic leading-[1.1] tracking-tighter md:pr-14 md:text-7xl"
+---
+
+<footer class="relative z-10 mt-10 overflow-hidden">
+  <div class="relative isolate overflow-hidden pt-16 pb-10">
+    <RagmirBackground client:visible behindContent={true} className="inset-0" height="100%" />
+
+    <div class="relative z-10 mx-auto flex max-w-7xl flex-col items-center gap-6 px-5 md:px-8">
+      <a
+        aria-label="Ragmir"
+        class="flex items-center transition hover:opacity-80"
+        href={localizedHomeUrl}
+      >
+        <RagmirLogo />
+      </a>
+      <nav aria-label={t("footer_nav_label")}>
+        <ul class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+          {footerLinks.map((link) => (
+            <li>
+              <a
+                class="font-semibold text-muted-foreground text-sm transition hover:text-foreground"
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {link.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </div>
+
+    <div
+      aria-hidden="true"
+      class="relative z-10 my-10 overflow-hidden py-3"
+    >
+      <div class="flex w-max animate-marquee-text">
+        <span class={marqueeCopy}>{t("footer_marquee")}</span>
+        <span class={marqueeCopy}>{t("footer_marquee")}</span>
+      </div>
+    </div>
+
+    <div
+      class="relative z-10 mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-5 text-muted-foreground text-xs sm:flex-row md:px-8"
+    >
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span>{t("footer_text")}</span>
+        <span aria-hidden="true">|</span>
+        <span>MIT</span>
+        <span aria-hidden="true">|</span>
+        <span>JCode Labs</span>
+      </div>
+      <a
+        href="https://www.npmjs.com/package/@jcode.labs/ragmir"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="no-underline transition hover:text-foreground"
+      >
+        v{version}
+      </a>
+    </div>
+  </div>
+</footer>
