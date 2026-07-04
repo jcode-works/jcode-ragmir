@@ -1,6 +1,7 @@
 import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { embedText } from "./embeddings.js"
+import { getIndexFreshnessWarning } from "./index-diagnostics.js"
 import { openRowsTable } from "./store.js"
 import { tokenize } from "./text.js"
 import type { AskResult, SearchOptions, SearchResult } from "./types.js"
@@ -22,7 +23,6 @@ interface RankedRow {
 
 const MIN_VECTOR_CANDIDATES = 80
 const VECTOR_CANDIDATE_MULTIPLIER = 4
-const HYBRID_TEXT_SCAN_LIMIT = 5_000
 /**
  * Reciprocal Rank Fusion (Cormack et al. 2009). Each candidate scores
  * `weight / (RRF_K + rank)` per retriever it appears in, summed across
@@ -55,7 +55,7 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     .vectorSearch(vector)
     .limit(vectorCandidateLimit(topK))
     .toArray()) as SearchRow[]
-  const textRows = (await table.query().limit(HYBRID_TEXT_SCAN_LIMIT).toArray()) as SearchRow[]
+  const textRows = (await table.query().limit(config.hybridTextScanLimit).toArray()) as SearchRow[]
   const rows = rankHybridRows(query, vectorRows, textRows).slice(0, topK)
 
   const results = rows.map((row) => ({
@@ -81,11 +81,13 @@ export function vectorCandidateLimit(topK: number): number {
 export async function ask(query: string, options: SearchOptions = {}): Promise<AskResult> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
   const sources = await search(query, options)
+  const staleWarning = await getIndexFreshnessWarning(config)
 
   if (sources.length === 0) {
     return {
       answer: "No relevant passages were found. Add documents and run `ragmir doctor --fix` first.",
       sources,
+      staleWarning,
     }
   }
 
@@ -99,6 +101,7 @@ export async function ask(query: string, options: SearchOptions = {}): Promise<A
   return {
     answer: retrievalOnlyAnswer(sources),
     sources,
+    staleWarning,
   }
 }
 

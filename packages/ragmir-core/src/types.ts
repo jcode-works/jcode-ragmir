@@ -22,6 +22,7 @@ export interface Config {
   maxFileBytes: number
   ingestConcurrency: number
   embeddingBatchSize: number
+  hybridTextScanLimit: number
   includeExtensions: string[]
   pdfOcrCommand: string[]
   pdfOcrTimeoutMs: number
@@ -57,6 +58,24 @@ export interface AccessLogUsageReport {
 }
 
 export type EmbeddingProvider = "local-hash" | "transformers"
+
+/**
+ * Manifest written next to the LanceDB table at each ingest. It captures the
+ * configuration that produced the indexed vectors so callers can detect a
+ * stale index cheaply (without re-scanning every file's checksum) when the
+ * embedding model, provider, chunking, or Ragmir schema has changed.
+ */
+export interface IndexManifest {
+  schemaVersion: number
+  createdAt: string
+  ragmirVersion: string
+  embeddingProvider: EmbeddingProvider
+  embeddingModel: string
+  chunkSize: number
+  chunkOverlap: number
+  fileCount: number
+  chunkCount: number
+}
 
 export interface RedactionConfig {
   enabled: boolean
@@ -146,6 +165,7 @@ export interface IngestResult {
   emptyTextFiles: string[]
   unsupportedExtensions: Array<{ extension: string; count: number }>
   redactions: number
+  vectorIndexWarning: string | null
   errors: Array<{ path: string; message: string }>
 }
 
@@ -270,6 +290,7 @@ export interface EvaluationResult {
 export interface AskResult {
   answer: string
   sources: SearchResult[]
+  staleWarning: string | null
 }
 
 export interface AuditReport {
@@ -310,6 +331,10 @@ export interface DoctorReport {
   missingFromIndex: number
   staleInIndex: number
   securityWarnings: string[]
+  indexFreshness: {
+    manifestFound: boolean
+    warning: string | null
+  }
   ready: boolean
   nextSteps: string[]
 }

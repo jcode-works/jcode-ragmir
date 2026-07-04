@@ -2,8 +2,17 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { countRows, readEmptyTextFiles, readRows, writeEmptyTextFiles, writeRows } from "./store.js"
+import {
+  countRows,
+  readEmptyTextFiles,
+  readIndexManifest,
+  readRows,
+  writeEmptyTextFiles,
+  writeIndexManifest,
+  writeRows,
+} from "./store.js"
 import { testConfig } from "./test-support/config.js"
+import type { IndexManifest } from "./types.js"
 
 const tempDirs: string[] = []
 
@@ -82,6 +91,15 @@ describe("store", () => {
     const rows = await readRows(config)
     expect(rows.map((row) => row.relativePath)).toEqual([".ragmir/raw/b.md", ".ragmir/raw/b.md"])
   })
+
+  it("returns a null vectorIndexWarning on a nominal small write (flat scan)", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-warning-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+
+    const result = await writeRows([sampleRow(".ragmir/raw/a.md", 0, [0.1, 0.2], config)], config)
+    expect(result.vectorIndexWarning).toBeNull()
+  })
 })
 
 describe("empty-text-files manifest", () => {
@@ -156,5 +174,61 @@ describe("empty-text-files manifest", () => {
     const records = await readEmptyTextFiles(config)
     expect(records).toHaveLength(1)
     expect(records[0]?.relativePath).toBe("good.pdf")
+  })
+})
+
+describe("index manifest", () => {
+  const sampleManifest: IndexManifest = {
+    schemaVersion: 1,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    ragmirVersion: "0.4.12",
+    embeddingProvider: "local-hash",
+    embeddingModel: "mixedbread-ai/mxbai-embed-xsmall-v1",
+    chunkSize: 1200,
+    chunkOverlap: 200,
+    fileCount: 3,
+    chunkCount: 12,
+  }
+
+  it("round-trips the index manifest", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-index-manifest-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+
+    await writeIndexManifest(sampleManifest, config)
+    const manifest = await readIndexManifest(config)
+
+    expect(manifest).toEqual(sampleManifest)
+  })
+
+  it("returns null when the manifest is missing", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-index-manifest-missing-"))
+    tempDirs.push(root)
+
+    expect(await readIndexManifest(testConfig(root))).toBeNull()
+  })
+
+  it("returns null when the manifest is malformed", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-index-manifest-bad-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await mkdir(config.storageDir, { recursive: true })
+    await writeFile(path.join(config.storageDir, "index-manifest.json"), "{not valid json", "utf8")
+
+    expect(await readIndexManifest(config)).toBeNull()
+  })
+
+  it("returns null when the manifest has the wrong shape", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-index-manifest-shape-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await mkdir(config.storageDir, { recursive: true })
+    await writeFile(
+      path.join(config.storageDir, "index-manifest.json"),
+      JSON.stringify({ schemaVersion: 1, createdAt: "x" }),
+      "utf8",
+    )
+
+    expect(await readIndexManifest(config)).toBeNull()
   })
 })

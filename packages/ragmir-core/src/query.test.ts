@@ -101,6 +101,7 @@ describe("ask", () => {
     expect(result.answer).toContain("retrieval context only")
     expect(result.answer).toContain("[1]")
     expect(result.answer).toContain("policy.md#0")
+    expect(result.staleWarning).toBeNull()
   })
 })
 

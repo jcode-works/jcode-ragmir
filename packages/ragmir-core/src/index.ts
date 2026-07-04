@@ -4,6 +4,11 @@ export { destroyIndex } from "./destroy.js"
 export { doctor } from "./doctor.js"
 export { clearTransformersCache, pullEmbeddingModel } from "./embeddings.js"
 export { evaluateGoldenQueries } from "./evaluate.js"
+export {
+  getIndexFreshnessWarning,
+  getLexicalScanWarning,
+  INDEX_SCHEMA_VERSION,
+} from "./index-diagnostics.js"
 export { audit, ingest } from "./ingest.js"
 export { initProject } from "./init.js"
 export { serveMcp } from "./mcp.js"
@@ -55,6 +60,7 @@ export type {
   EvaluationOptions,
   EvaluationResult,
   GoldenQuery,
+  IndexManifest,
   IngestResult,
   ResearchEvidence,
   ResearchOptions,

@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a new Ragmir feature or improvement
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a feature. Ragmir focuses on
+        sovereign local RAG for confidential datasets and AI agents. Features
+        that add cloud dependencies, telemetry, or hosted services are out of
+        scope.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this feature solve? What are you trying to do that Ragmir cannot do today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or change you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you tried any workarounds or existing tools?
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Ragmir does this concern?
+      options:
+        - Ingestion (parsing, chunking, redaction)
+        - Retrieval (search, ask, research, evaluate)
+        - MCP server / agent integration
+        - CLI
+        - Desktop app
+        - Skills (audio, report, legal)
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: sovereign
+    attributes:
+      label: Sovereignty check
+      description: Confirm this feature is compatible with Ragmir's local-first, zero-telemetry posture.
+      options:
+        - label: This feature does not require sending documents, queries, or telemetry to a hosted service.
+          required: true

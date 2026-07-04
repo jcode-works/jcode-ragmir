@@ -304,6 +304,27 @@ describe("loadConfig", () => {
     }
   })
 
+  it("defaults hybridTextScanLimit and overrides it from env", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-scan-limit-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir/config.json"), "{}\n", "utf8")
+
+    expect((await loadConfig(root)).hybridTextScanLimit).toBe(5000)
+
+    const original = process.env.RAGMIR_HYBRID_TEXT_SCAN_LIMIT
+    process.env.RAGMIR_HYBRID_TEXT_SCAN_LIMIT = "2000"
+    try {
+      expect((await loadConfig(root)).hybridTextScanLimit).toBe(2000)
+    } finally {
+      if (original === undefined) {
+        delete process.env.RAGMIR_HYBRID_TEXT_SCAN_LIMIT
+      } else {
+        process.env.RAGMIR_HYBRID_TEXT_SCAN_LIMIT = original
+      }
+    }
+  })
+
   it("rejects unknown config keys so typos surface instead of being ignored", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-strict-"))
     tempDirs.push(root)

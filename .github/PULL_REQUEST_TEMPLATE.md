@@ -8,7 +8,12 @@
 - [ ] `pnpm test`
 - [ ] `pnpm build`
 
+## Commits
+
+- [ ] Conventional Commits format (`feat:`, `fix:`, `docs:`, `chore:`, `test:`...).
+- [ ] Branch follows Git Flow (`feature/*`, `fix/*`, `chore/*` from `develop`).
+
 ## Security
 
-- [ ] No secrets, private documents, `.env` files, generated `.kb/` or generated `.ragmir/` state are included.
+- [ ] No secrets, private documents, `.env` files, or generated `.ragmir/` state are included.
 - [ ] Public documentation does not expose private project, customer, pricing, or validation details.
