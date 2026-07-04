@@ -132,7 +132,7 @@ function nextActions(input: NextActionInput): string[] {
 
   if (input.freshnessWarning) {
     steps.push(
-      `${input.freshnessWarning.replace(/`/g, "\\`")} Run \`${input.run(["ingest", "--rebuild"])}\` to align the index with the active configuration.`,
+      `${input.freshnessWarning} Run \`${input.run(["ingest", "--rebuild"])}\` to align the index with the active configuration.`,
     )
   }
 
