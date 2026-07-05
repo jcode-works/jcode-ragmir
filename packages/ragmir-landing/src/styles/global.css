@@ -166,7 +166,9 @@ textarea {
   --logo-glitch-b: #22d3ee;
 }
 
-.logo-stack span {
+.logo-stack::before,
+.logo-stack::after,
+.logo-stack .logo-text {
   grid-row-start: 1;
   grid-column-start: 1;
   --stack-height: calc(100% / var(--stacks) - 1px);
@@ -177,28 +179,34 @@ textarea {
   animation: logo-glitch ease infinite 2s alternate-reverse;
 }
 
-.logo-stack span:nth-child(odd) {
-  --glitch-translate: 8px;
+.logo-stack::before,
+.logo-stack::after {
+  content: attr(data-logo-text);
+  pointer-events: none;
 }
 
-.logo-stack span:nth-child(even) {
+.logo-stack::before {
+  --index: 1;
   --glitch-translate: -8px;
+}
+
+.logo-stack::after {
+  --index: 2;
+  --glitch-translate: 8px;
 }
 
 .logo-index-1 {
   --index: 0;
-}
-
-.logo-index-2 {
-  --index: 1;
-}
-
-.logo-index-3 {
-  --index: 2;
+  --glitch-translate: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .logo-stack span {
+  .logo-stack::before,
+  .logo-stack::after {
+    content: none;
+  }
+
+  .logo-stack .logo-text {
     animation: none;
     clip-path: none;
   }

@@ -30,14 +30,11 @@ const GITHUB_URL = "https://github.com/jcode-works/jcode-ragmir"
 
 export function RagmirLogo(): React.JSX.Element {
   return (
-    <span className="logo-stack font-black text-2xl text-foreground leading-none tracking-tight md:text-3xl">
-      <span className="logo-index-1">Ragmir</span>
-      <span aria-hidden="true" className="logo-index-2">
-        Ragmir
-      </span>
-      <span aria-hidden="true" className="logo-index-3">
-        Ragmir
-      </span>
+    <span
+      className="logo-stack font-black text-2xl text-foreground leading-none tracking-tight md:text-3xl"
+      data-logo-text="Ragmir"
+    >
+      <span className="logo-index-1 logo-text">Ragmir</span>
     </span>
   )
 }
