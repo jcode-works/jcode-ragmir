@@ -1,7 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Ragmir">
   <rect width="1024" height="1024" fill="#000000" />
-  <path
-    d="M202 760V312c0-61 49-110 110-110h62l138 207 138-207h62c61 0 110 49 110 110v448H652V478L512 672 372 478v282H202Z"
-    fill="#8b47ff"
-  />
+  <text
+    x="512"
+    y="672"
+    fill="#ffffff"
+    font-family="Inter, Arial, sans-serif"
+    font-size="560"
+    font-weight="900"
+    letter-spacing="0"
+    text-anchor="middle"
+  >
+    R
+  </text>
 </svg>
