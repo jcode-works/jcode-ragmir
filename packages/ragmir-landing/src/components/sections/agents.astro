@@ -1,5 +1,5 @@
 ---
-import { Bot } from "@lucide/astro"
+import { Cloud, Cpu, Terminal } from "@lucide/astro"
 import { CommandCopyBox } from "../command-copy"
 
 interface Props {
@@ -10,10 +10,9 @@ const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 
 const agentTargets = [
-  { name: "Claude", text: t("agents_claude_text") },
-  { name: "Codex", text: t("agents_codex_text") },
-  { name: "Kimi", text: t("agents_kimi_text") },
-  { name: "OpenCode / Cline", text: t("agents_other_text") },
+  { icon: Cloud, name: t("agents_cloud_name"), text: t("agents_cloud_text") },
+  { icon: Terminal, name: "OpenCode", text: t("agents_opencode_text") },
+  { icon: Cpu, name: "Ollama", text: t("agents_ollama_text") },
 ]
 ---
 
@@ -55,7 +54,7 @@ const agentTargets = [
       {agentTargets.map((agent) => (
         <div class="rounded-lg border border-border bg-muted/45 p-4">
           <div class="flex items-center gap-3">
-            <Bot class="size-5 text-muted-foreground" aria-hidden="true" />
+            <agent.icon class="size-5 text-muted-foreground" aria-hidden="true" />
             <p class="font-bold text-sm">{agent.name}</p>
           </div>
           <p class="mt-2 text-muted-foreground text-sm leading-6">{agent.text}</p>

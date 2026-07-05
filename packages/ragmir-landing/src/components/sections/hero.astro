@@ -1,15 +1,19 @@
 ---
 import { ArrowDown, ArrowRight } from "@lucide/astro"
 import { HeroDemo } from "../hero-demo"
+import { NpmDownloadCounter } from "../npm-download-counter"
+import { getMonthlyNpmDownloads } from "../../services/npm-downloads"
 
 interface Props {
   translations: Record<string, string>
+  locale: string
   localizedLibraryUrl: string
   localizedUseCasesUrl: string
 }
 
-const { translations, localizedLibraryUrl, localizedUseCasesUrl } = Astro.props
+const { translations, locale, localizedLibraryUrl, localizedUseCasesUrl } = Astro.props
 const t = (key: string): string => translations[key] ?? key
+const monthlyNpmDownloads = await getMonthlyNpmDownloads()
 
 const heroMetrics = [
   { value: t("hero_metric_private_value"), label: t("hero_metric_private_label") },
@@ -21,9 +25,9 @@ const heroMetrics = [
 <section
   id="top"
   aria-labelledby="hero-heading"
-  class="container-default relative z-10 grid min-h-dvh w-full items-center gap-10 px-5 pt-24 pb-28 md:px-8 lg:content-center lg:gap-20 lg:pt-16 lg:pb-28 lg:grid-cols-[1fr_0.9fr]"
+  class="container-default relative z-10 grid min-h-dvh w-full items-center gap-10 px-5 pt-24 pb-28 md:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)] md:gap-10 md:px-8 lg:content-center lg:grid-cols-[1fr_0.9fr] lg:gap-20 lg:py-20"
 >
-  <div class="max-w-4xl">
+  <div class="min-w-0 max-w-4xl">
     <h1
       id="hero-heading"
       class="display-title max-w-3xl font-black text-2xl leading-[1.06] sm:text-3xl lg:text-4xl"
@@ -31,7 +35,7 @@ const heroMetrics = [
       <span class="block">{t("hero_title_line_1")}</span>
       <span class="block">{t("hero_title_line_2")}</span>
     </h1>
-    <p class="mt-5 max-w-xl text-[0.7rem] font-medium leading-5 text-muted-foreground/80 sm:text-xs sm:leading-5">
+    <p class="mt-5 max-w-xl text-xs font-medium leading-5 text-white sm:text-sm sm:leading-6">
       {t("hero_description")}
     </p>
     <div class="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -43,12 +47,22 @@ const heroMetrics = [
         <ArrowRight class="size-4" />
       </a>
       <a
-        class="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-border px-8 text-sm font-bold text-foreground transition hover:bg-muted"
+        class="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-black bg-black px-8 text-sm font-bold text-white outline outline-1 outline-offset-2 outline-white/20 transition hover:bg-black/90 hover:outline-white/35"
         href={localizedUseCasesUrl}
       >
         {t("hero_secondary_cta")}
       </a>
     </div>
+    {monthlyNpmDownloads !== null && (
+      <div class="mt-3">
+        <NpmDownloadCounter
+          client:idle
+          downloads={monthlyNpmDownloads}
+          label={t("hero_npm_downloads_label")}
+          locale={locale}
+        />
+      </div>
+    )}
     <div class="mt-8 flex flex-wrap gap-2">
       {heroMetrics.map((metric) => (
         <span class="inline-flex items-center rounded-full bg-muted px-3 py-1.5 text-xs font-semibold">
@@ -58,18 +72,20 @@ const heroMetrics = [
     </div>
   </div>
 
-  <HeroDemo client:visible translations={translations} />
+  <div class="min-w-0 w-full md:justify-self-end">
+    <HeroDemo client:visible translations={translations} />
+  </div>
 
   <nav
-    class="absolute inset-x-0 bottom-6 z-20 flex justify-center lg:bottom-8"
+    class="pointer-events-none absolute inset-x-0 bottom-6 z-20 h-8 lg:bottom-8"
     aria-label={t("hero_scroll_aria_nav")}
   >
     <a
-      class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-background text-foreground shadow-lg ring-1 ring-border backdrop-blur-sm transition-transform duration-200 hover:scale-110 animate-pulse focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:animate-none motion-reduce:transition-none"
+      class="pointer-events-auto absolute left-1/2 top-0 inline-flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full text-white/70 transition-colors duration-200 hover:text-white focus-visible:outline-none motion-reduce:transition-none"
       href="#use-cases"
       aria-label={t("hero_scroll_aria_link")}
     >
-      <ArrowDown class="size-5" />
+      <ArrowDown class="size-3.5 animate-bounce motion-reduce:animate-none" />
     </a>
   </nav>
 </section>

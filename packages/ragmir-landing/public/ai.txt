@@ -18,8 +18,8 @@ upload, offline by default.
 
 ```
 pnpm add -D @jcode.labs/ragmir
-pnpm exec ragmir setup
-pnpm exec ragmir ingest
+pnpm exec rgr setup
+pnpm exec rgr ingest
 ```
 
 Then any MCP-compatible agent (Claude Code, Codex, Kimi, OpenCode, Cline) queries the local index

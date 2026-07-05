@@ -109,7 +109,7 @@ const structuredData = [
       "Local-first document indexing",
       "Cited retrieval context",
       "MCP server for AI agents",
-      "Agent setup for Claude, Codex, Kimi, OpenCode, and Cline",
+      "Agent setup for cloud agents and local OpenCode workflows",
       "Planned desktop client distributed through direct downloads",
       "Redaction before indexing",
       "Metadata-only access logs",
@@ -140,7 +140,6 @@ const localizedHomeUrl = `${getLocalizedUrl("/", locale)}#top`
 const localizedLibraryUrl = `${getLocalizedUrl("/", locale)}#library`
 const localizedUseCasesUrl = `${getLocalizedUrl("/", locale)}#use-cases`
 const localizedAgentsUrl = `${getLocalizedUrl("/", locale)}#agents`
-const localizedDesktopUrl = `${getLocalizedUrl("/", locale)}#desktop`
 const localizedTeamUrl = getLocalizedUrl("/team", locale)
 ---
 
@@ -168,7 +167,6 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       alternateLocales={alternateLocales}
       locale={locale}
       localizedAgentsUrl={localizedAgentsUrl}
-      localizedDesktopUrl={localizedDesktopUrl}
       localizedHomeUrl={localizedHomeUrl}
       localizedLibraryUrl={localizedLibraryUrl}
       localizedTeamUrl={localizedTeamUrl}
@@ -178,19 +176,20 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
 
     <Hero
       translations={translations}
+      locale={locale}
       localizedLibraryUrl={localizedLibraryUrl}
       localizedUseCasesUrl={localizedUseCasesUrl}
     />
+
+    <LibrarySection client:visible translations={translations} />
+
+    <Agents translations={translations} />
 
     <UseCases translations={translations} />
 
     <Privacy translations={translations} />
 
     <Strengths translations={translations} />
-
-    <LibrarySection client:visible translations={translations} />
-
-    <Agents translations={translations} />
 
     <Desktop translations={translations} />
 

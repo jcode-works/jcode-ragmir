@@ -47,18 +47,18 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
     {
       key: "setup",
       label: t("quickstart_setup_label"),
-      build: (manager: PackageManager) => `${manager.exec} ragmir setup`,
+      build: (manager: PackageManager) => `${manager.exec} rgr setup`,
     },
     {
       key: "agent",
       label: t("quickstart_agent_label"),
       build: (manager: PackageManager) =>
-        `${manager.exec} ragmir install-agent --agents claude,codex,kimi`,
+        `${manager.exec} rgr install-agent --agents claude,codex,kimi`,
     },
     {
       key: "search",
       label: t("quickstart_search_label"),
-      build: (manager: PackageManager) => `${manager.exec} ragmir search "${searchQuery}"`,
+      build: (manager: PackageManager) => `${manager.exec} rgr search "${searchQuery}"`,
     },
   ]
 

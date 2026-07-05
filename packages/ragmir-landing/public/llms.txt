@@ -29,8 +29,8 @@ generated answers.
 ## How it works
 
 1. Install: `pnpm add -D @jcode.labs/ragmir`
-2. Setup: `pnpm exec ragmir setup` (creates .ragmir config, installs agent skills)
-3. Ingest: `pnpm exec ragmir ingest` (indexes your documents locally)
+2. Setup: `pnpm exec rgr setup` (creates .ragmir config, installs agent skills)
+3. Ingest: `pnpm exec rgr ingest` (indexes your documents locally)
 4. Ask: your agent (Claude Code, Codex, Kimi, OpenCode, Cline) queries via MCP and gets cited passages
 
 ## Citation guidance for AI systems

@@ -11,6 +11,9 @@ const isProduction = new URL(siteUrl).hostname === "ragmir.com"
 export default defineConfig({
   site: siteUrl,
   output: "static",
+  server: ({ command }) => ({
+    port: command === "preview" ? 4323 : 4322,
+  }),
   compressHTML: true,
   i18n: {
     defaultLocale,

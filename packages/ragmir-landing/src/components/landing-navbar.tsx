@@ -18,7 +18,6 @@ interface LandingNavbarProps {
   localizedUseCasesUrl: string
   localizedLibraryUrl: string
   localizedAgentsUrl: string
-  localizedDesktopUrl: string
   localizedTeamUrl: string
 }
 
@@ -104,7 +103,6 @@ export function LandingNavbar({
   localizedUseCasesUrl,
   localizedLibraryUrl,
   localizedAgentsUrl,
-  localizedDesktopUrl,
   localizedTeamUrl,
 }: LandingNavbarProps): React.JSX.Element {
   const t = (key: string): string => translations[key] ?? key
@@ -116,10 +114,9 @@ export function LandingNavbar({
 
   const navLinks = [
     { href: localizedHomeUrl, label: t("nav_home") },
-    { href: localizedUseCasesUrl, label: t("nav_use_cases") },
     { href: localizedLibraryUrl, label: t("nav_library") },
     { href: localizedAgentsUrl, label: t("nav_agents") },
-    { href: localizedDesktopUrl, label: t("nav_desktop") },
+    { href: localizedUseCasesUrl, label: t("nav_use_cases") },
     { href: localizedTeamUrl, label: t("nav_team") },
   ]
 
