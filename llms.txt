@@ -6,16 +6,16 @@
 > LanceDB; answer synthesis stays with the calling agent or model.
 
 Ragmir Core (`@jcode.labs/ragmir`, npm) ingests local files from the target repository, redacts
-secrets and PII before anything is embedded, and serves cited passages through a CLI (`ragmir ...`),
-an MCP server (`ragmir serve-mcp`), a TypeScript library, and portable skills for Claude Code, Codex,
-Kimi Code CLI, OpenCode, and Cline. It does not perform LLM answer synthesis itself; `ragmir ask`
+secrets and PII before anything is embedded, and serves cited passages through a CLI (`rgr ...`),
+an MCP server (`rgr serve-mcp`), a TypeScript library, and portable skills for Claude Code, Codex,
+Kimi Code CLI, OpenCode, and Cline. It does not perform LLM answer synthesis itself; `rgr ask`
 returns cited passages only, and synthesis stays with the calling agent or model. Ragmir TTS
 (`@jcode.labs/ragmir-tts`, npm) renders offline audio summaries.
 
 ## Docs
 
 - [README](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/README.md): overview, install, quick start, developer use cases, full CLI walkthrough
-- [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/cli-reference.md): every `ragmir` command and flag
+- [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/cli-reference.md): every `rgr` command and flag
 - [API reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/api-reference.md): library exports and MCP tools
 - [Agent integration](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/agent-integration.md): wiring Ragmir into Claude Code, Codex, Kimi Code CLI, OpenCode, Cline
 - [Troubleshooting](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/troubleshooting.md)

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from "node:path"
 import { parseArgs } from "node:util"
 import {
   doctor,
@@ -11,6 +12,15 @@ import {
 } from "./index.js"
 
 type CliValues = Record<string, string | boolean | undefined>
+
+const DEPRECATED_CLI_NAME = "ragmir-tts"
+const PUBLIC_CLI_NAME = "rgr-tts"
+
+if (isDeprecatedCliInvocation()) {
+  console.error(
+    `The \`${DEPRECATED_CLI_NAME}\` CLI command is deprecated and will be removed in a future release. Use \`${PUBLIC_CLI_NAME}\` instead.`,
+  )
+}
 
 const command = process.argv[2]
 
@@ -77,7 +87,7 @@ async function runRender(args: string[]): Promise<void> {
   })
   const textFile = positionals[0]
   if (!textFile) {
-    throw new Error("usage: ragmir-tts render <text-file> [--out output.wav]")
+    throw new Error(`usage: ${PUBLIC_CLI_NAME} render <text-file> [--out output.wav]`)
   }
 
   const renderOptions: RenderSpeechOptions = {
@@ -212,12 +222,12 @@ function printKeyValue(key: string, value: string): void {
 }
 
 function printHelp(): void {
-  console.log(`ragmir-tts
+  console.log(`${PUBLIC_CLI_NAME}
 
 Usage:
-  ragmir-tts doctor [--json]
-  ragmir-tts render <text-file> [--out output.wav]
-  ragmir-tts render <text-file> --engine edge --out output.mp3
+  ${PUBLIC_CLI_NAME} doctor [--json]
+  ${PUBLIC_CLI_NAME} render <text-file> [--out output.wav]
+  ${PUBLIC_CLI_NAME} render <text-file> --engine edge --out output.mp3
 
 Options:
   --engine <engine>             transformers, edge, or auto. Default is transformers.
@@ -232,4 +242,12 @@ Options:
   --speed <number>             Optional model-specific speech speed.
   --json                       Print JSON output.
 `)
+}
+
+function isDeprecatedCliInvocation(): boolean {
+  const invokedPath = process.argv[1]
+  if (!invokedPath) return false
+
+  const commandName = path.basename(invokedPath).replace(/\.(?:cmd|ps1)$/iu, "")
+  return commandName === DEPRECATED_CLI_NAME
 }

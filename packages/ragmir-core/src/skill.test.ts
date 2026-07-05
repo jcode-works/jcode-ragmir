@@ -55,16 +55,16 @@ describe("installSkill", () => {
     expect(reportSkill).toContain("name: ragmir-markdown-report")
     expect(legalSkill).toContain("name: ragmir-legal-dossier")
     expect(mcpConfig.mcpServers.ragmir.command).toBe("pnpm")
-    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["exec", "ragmir", "serve-mcp"])
+    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["exec", "rgr", "serve-mcp"])
     expect(mcpConfig.mcpServers.ragmir.cwd).toBe(root)
     expect(claudeConfig).toEqual({
       type: "stdio",
       command: "pnpm",
-      args: ["exec", "ragmir", "serve-mcp"],
+      args: ["exec", "rgr", "serve-mcp"],
     })
     expect(codexConfig).toContain("[mcp_servers.ragmir]")
     expect(codexConfig).toContain('command = "pnpm"')
-    expect(codexConfig).toContain('args = ["exec", "ragmir", "serve-mcp"]')
+    expect(codexConfig).toContain('args = ["exec", "rgr", "serve-mcp"]')
     expect(codexConfig).toContain(`cwd = ${JSON.stringify(root)}`)
     expect(codexConfig).toContain("[[skills.config]]")
     expect(codexConfig).toContain(path.join(root, ".ragmir", "skills", "ragmir"))
@@ -72,12 +72,13 @@ describe("installSkill", () => {
     expect(kimiConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(opencodeConfig.mcp.ragmir).toEqual({
       type: "local",
-      command: ["pnpm", "exec", "ragmir", "serve-mcp"],
+      command: ["pnpm", "exec", "rgr", "serve-mcp"],
       enabled: true,
       environment: { RAGMIR_PROJECT_ROOT: root },
     })
     expect(clineConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(agentSetup).toContain("Claude Code")
+    expect(agentSetup).toContain("ragmir_route_prompt")
     expect(agentSetup).toContain("Kimi Code CLI")
     expect(agentSetup).toContain("OpenCode")
     expect(agentSetup).toContain("Cline")
@@ -121,10 +122,10 @@ describe("installSkill", () => {
     const readme = await readFile(result.readmePath, "utf8")
 
     expect(mcpConfig.mcpServers.ragmir.command).toBe("npx")
-    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["ragmir", "serve-mcp"])
+    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["rgr", "serve-mcp"])
     expect(codexConfig).toContain('command = "npx"')
-    expect(codexConfig).toContain('args = ["ragmir", "serve-mcp"]')
-    expect(readme).toContain("npx ragmir serve-mcp")
+    expect(codexConfig).toContain('args = ["rgr", "serve-mcp"]')
+    expect(readme).toContain("npx rgr serve-mcp")
   })
 
   it("can generate selected agent helpers with a custom MCP command", async () => {

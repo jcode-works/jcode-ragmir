@@ -32,9 +32,9 @@ npm install --save-dev @jcode.labs/ragmir-tts
 ## Quick Start
 
 ```bash
-npx ragmir-tts doctor --json
-npx ragmir-tts render /tmp/summary.txt --offline --out .ragmir/audio/summary.wav
-npx ragmir-tts render /tmp/summary.txt --engine edge --out .ragmir/audio/summary.mp3
+npx rgr-tts doctor --json
+npx rgr-tts render /tmp/summary.txt --offline --out .ragmir/audio/summary.wav
+npx rgr-tts render /tmp/summary.txt --engine edge --out .ragmir/audio/summary.mp3
 ```
 
 The default engine is `transformers` for offline/confidential WAV output. Use `--engine edge` only

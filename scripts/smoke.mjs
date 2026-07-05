@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
-import { cp, lstat, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
+import { cp, lstat, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -8,19 +8,66 @@ import { fileURLToPath } from "node:url"
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const corePackageRoot = path.join(repoRoot, "packages", "ragmir-core")
 const cliPath = path.join(corePackageRoot, "dist", "cli.js")
+const ttsCliPath = path.join(repoRoot, "packages", "ragmir-tts", "dist", "cli.js")
 const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-smoke-"))
 const MCP_REQUEST_TIMEOUT_MS = 10_000
 const MCP_CLOSE_TIMEOUT_MS = 2_000
 
 try {
   const help = await runKb(["--help"], tempRoot)
-  if (!help.stdout.startsWith("Usage: ragmir ")) {
-    throw new Error(`CLI help should expose Ragmir as the public command.\nActual:\n${help.stdout}`)
+  if (!help.stdout.startsWith("Usage: rgr ")) {
+    throw new Error(`CLI help should expose rgr as the public command.\nActual:\n${help.stdout}`)
   }
   assertNotIncludes(
     help.stdout,
     "ragmir|kb",
-    "CLI help should not advertise the legacy kb compatibility alias",
+    "CLI help should not advertise previous command aliases",
+  )
+
+  const deprecatedCliPath = path.join(tempRoot, "ragmir")
+  await symlink(cliPath, deprecatedCliPath)
+  const deprecatedHelp = await runProcess(process.execPath, [deprecatedCliPath, "--help"], tempRoot)
+  assertIncludes(
+    deprecatedHelp.stderr,
+    "The `ragmir` CLI command is deprecated",
+    "deprecated ragmir bin should tell users to use rgr",
+  )
+  assertIncludes(deprecatedHelp.stderr, "Use `rgr` instead.", "deprecated bin should name rgr")
+
+  const deprecatedKbCliPath = path.join(tempRoot, "kb")
+  await symlink(cliPath, deprecatedKbCliPath)
+  const deprecatedKbHelp = await runProcess(
+    process.execPath,
+    [deprecatedKbCliPath, "--help"],
+    tempRoot,
+  )
+  assertIncludes(
+    deprecatedKbHelp.stderr,
+    "The `kb` CLI command is deprecated",
+    "deprecated kb bin should tell users to use rgr",
+  )
+  assertIncludes(deprecatedKbHelp.stderr, "Use `rgr` instead.", "deprecated kb bin should name rgr")
+
+  const ttsHelp = await runProcess(process.execPath, [ttsCliPath], tempRoot)
+  assertIncludes(ttsHelp.stdout, "rgr-tts", "TTS help should expose rgr-tts as the public command")
+  assertNotIncludes(
+    ttsHelp.stdout,
+    "ragmir-tts",
+    "TTS help should not advertise the previous command alias",
+  )
+
+  const deprecatedTtsCliPath = path.join(tempRoot, "ragmir-tts")
+  await symlink(ttsCliPath, deprecatedTtsCliPath)
+  const deprecatedTtsHelp = await runProcess(process.execPath, [deprecatedTtsCliPath], tempRoot)
+  assertIncludes(
+    deprecatedTtsHelp.stderr,
+    "The `ragmir-tts` CLI command is deprecated",
+    "deprecated ragmir-tts bin should tell users to use rgr-tts",
+  )
+  assertIncludes(
+    deprecatedTtsHelp.stderr,
+    "Use `rgr-tts` instead.",
+    "deprecated TTS bin should name rgr-tts",
   )
 
   const setup = await runKb(["setup"], tempRoot)
@@ -210,7 +257,7 @@ try {
   assertIncludes(
     audioMp3WithoutEngine.stderr,
     "MP3 output uses online Edge TTS",
-    "kb audio should require explicit Edge selection for MP3 output",
+    "audio should require explicit Edge selection for MP3 output",
   )
 
   await runKb(["install-skill"], tempRoot)

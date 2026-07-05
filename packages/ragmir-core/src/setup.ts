@@ -4,7 +4,7 @@ import { doctor } from "./doctor.js"
 import { type PullEmbeddingModelResult, pullEmbeddingModel } from "./embeddings.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
-import { type PackageManager, ragmirCommand } from "./package-manager.js"
+import { type PackageManager, rgrCommand } from "./package-manager.js"
 import { type EnableSemanticEmbeddingsResult, enableSemanticEmbeddings } from "./semantic-config.js"
 import { type AgentTarget, type InstallSkillResult, installSkill } from "./skill.js"
 import type { DoctorReport, IngestResult } from "./types.js"
@@ -66,7 +66,7 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
     report = await doctor(cwd)
   }
 
-  const command = await ragmirCommand(cwd, ["doctor"])
+  const command = await rgrCommand(cwd, ["doctor"])
 
   return {
     projectRoot: report.projectRoot,
@@ -102,8 +102,8 @@ function canAutoIngest(report: DoctorReport): boolean {
 function setupNextSteps(report: DoctorReport): string[] {
   if (report.ready) {
     return [
-      "Ask questions with the search or ask command shown by `ragmir doctor`.",
-      "Run `ragmir install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Ask questions with the search or ask command shown by `rgr doctor`.",
+      "Run `rgr install-agent --agents claude` or another targeted agent list for native skill discovery.",
       "Wire the matching MCP helper from .ragmir/ when the agent should call Ragmir tools directly.",
     ]
   }

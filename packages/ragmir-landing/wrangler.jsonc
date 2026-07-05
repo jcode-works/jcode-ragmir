@@ -9,7 +9,11 @@
   },
   "routes": [
     {
-      "pattern": "ragmir.jcode.works",
+      "pattern": "ragmir.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.ragmir.com",
       "custom_domain": true
     }
   ],

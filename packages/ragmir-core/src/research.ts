@@ -361,10 +361,10 @@ function researchNextSteps(gaps: string[]): string[] {
   }
   return gaps.map((gap) => {
     if (gap.includes("missing") || gap.includes("stale")) {
-      return "Run `ragmir doctor --fix`, then rerun `ragmir research`."
+      return "Run `rgr doctor --fix`, then rerun `rgr research`."
     }
     if (gap.includes("unsupported")) {
-      return "Run `ragmir audit --unsupported` and transcribe, OCR, convert, or explicitly configure unsupported formats."
+      return "Run `rgr audit --unsupported` and transcribe, OCR, convert, or explicitly configure unsupported formats."
     }
     if (gap.includes("duplicate") || gap.includes("archive") || gap.includes("mirror")) {
       return "Review source diagnostics and prefer the canonical source before presenting conclusions."

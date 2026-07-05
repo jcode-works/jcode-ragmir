@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 export type PackageManager = "pnpm" | "npm" | "yarn" | "bun"
-const RAGMIR_CLI_BIN = "ragmir"
+const RGR_CLI_BIN = "rgr"
 
 export interface RagmirCommand {
   packageManager: PackageManager
@@ -36,7 +36,7 @@ export async function detectPackageManager(cwd = process.cwd()): Promise<Package
   return "pnpm"
 }
 
-export async function ragmirCommand(cwd: string, args: string[]): Promise<RagmirCommand> {
+export async function rgrCommand(cwd: string, args: string[]): Promise<RagmirCommand> {
   const packageManager = await detectPackageManager(cwd)
   const commandArgs = commandArgsFor(packageManager, args)
   return {
@@ -47,7 +47,8 @@ export async function ragmirCommand(cwd: string, args: string[]): Promise<Ragmir
   }
 }
 
-export const kbCommand = ragmirCommand
+export const ragmirCommand = rgrCommand
+export const kbCommand = rgrCommand
 
 async function packageJsonManager(root: string): Promise<PackageManager | null> {
   const packageJsonPath = path.join(root, "package.json")
@@ -87,13 +88,13 @@ function commandArgsFor(
 ): { command: string; args: string[] } {
   switch (packageManager) {
     case "npm":
-      return { command: "npx", args: [RAGMIR_CLI_BIN, ...args] }
+      return { command: "npx", args: [RGR_CLI_BIN, ...args] }
     case "yarn":
-      return { command: "yarn", args: ["exec", RAGMIR_CLI_BIN, ...args] }
+      return { command: "yarn", args: ["exec", RGR_CLI_BIN, ...args] }
     case "bun":
-      return { command: "bunx", args: [RAGMIR_CLI_BIN, ...args] }
+      return { command: "bunx", args: [RGR_CLI_BIN, ...args] }
     case "pnpm":
-      return { command: "pnpm", args: ["exec", RAGMIR_CLI_BIN, ...args] }
+      return { command: "pnpm", args: ["exec", RGR_CLI_BIN, ...args] }
   }
 }
 
@@ -101,13 +102,13 @@ function displayCommand(packageManager: PackageManager, args: string[]): string 
   const suffix = args.map(formatArg).join(" ")
   switch (packageManager) {
     case "npm":
-      return `npx ${RAGMIR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`
+      return `npx ${RGR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`
     case "yarn":
-      return `yarn exec ${RAGMIR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`
+      return `yarn exec ${RGR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`
     case "bun":
-      return `bunx ${RAGMIR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`
+      return `bunx ${RGR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`
     case "pnpm":
-      return `pnpm exec ${RAGMIR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`
+      return `pnpm exec ${RGR_CLI_BIN}${suffix ? ` ${suffix}` : ""}`
   }
 }
 

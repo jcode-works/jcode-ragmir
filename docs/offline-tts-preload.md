@@ -1,6 +1,6 @@
 # Offline TTS Preload
 
-`ragmir audio` and `ragmir-tts` disable remote model downloads by default. `--offline` keeps that
+`rgr audio` and `rgr-tts` disable remote model downloads by default. `--offline` keeps that
 network posture explicit and only works after the Transformers.js TTS model has already been cached
 under `.ragmir/models/tts` or the path passed with `--model-path`.
 
@@ -28,7 +28,7 @@ mkdir -p .ragmir/audio
 Preload the default Transformers.js model:
 
 ```bash
-pnpm exec ragmir audio /tmp/ragmir-tts-preload.txt \
+pnpm exec rgr audio /tmp/ragmir-tts-preload.txt \
   --engine transformers \
   --allow-remote-models \
   --model-path .ragmir/models/tts \
@@ -38,7 +38,7 @@ pnpm exec ragmir audio /tmp/ragmir-tts-preload.txt \
 Then prove the cache works with remote loading disabled:
 
 ```bash
-pnpm exec ragmir audio /tmp/ragmir-tts-preload.txt \
+pnpm exec rgr audio /tmp/ragmir-tts-preload.txt \
   --engine transformers \
   --offline \
   --model-path .ragmir/models/tts \
@@ -48,7 +48,7 @@ pnpm exec ragmir audio /tmp/ragmir-tts-preload.txt \
 After that, render confidential narration offline:
 
 ```bash
-pnpm exec ragmir audio /tmp/RAGMIR-SUMMARY-project.txt \
+pnpm exec rgr audio /tmp/RAGMIR-SUMMARY-project.txt \
   --engine transformers \
   --offline \
   --model-path .ragmir/models/tts \
@@ -60,13 +60,13 @@ pnpm exec ragmir audio /tmp/RAGMIR-SUMMARY-project.txt \
 The standalone package uses the same model cache:
 
 ```bash
-pnpm exec ragmir-tts render /tmp/ragmir-tts-preload.txt \
+pnpm exec rgr-tts render /tmp/ragmir-tts-preload.txt \
   --engine transformers \
   --allow-remote-models \
   --model-path .ragmir/models/tts \
   --out .ragmir/audio/preload-check.wav
 
-pnpm exec ragmir-tts render /tmp/ragmir-tts-preload.txt \
+pnpm exec rgr-tts render /tmp/ragmir-tts-preload.txt \
   --offline \
   --model-path .ragmir/models/tts \
   --out .ragmir/audio/offline-check.wav

@@ -85,7 +85,7 @@ export async function ask(query: string, options: SearchOptions = {}): Promise<A
 
   if (sources.length === 0) {
     return {
-      answer: "No relevant passages were found. Add documents and run `ragmir doctor --fix` first.",
+      answer: "No relevant passages were found. Add documents and run `rgr doctor --fix` first.",
       sources,
       staleWarning,
     }

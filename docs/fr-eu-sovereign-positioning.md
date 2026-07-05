@@ -67,7 +67,7 @@ Ragmir should keep these evidence points easy to show during buyer review:
 | Purpose and minimization | Users choose explicit folders; unsupported files are reported; remote models require an explicit action. |
 | Local control | Raw documents, indexes, reports, audio, and agent configs remain under local `.ragmir/` state ignored by Git. |
 | Security and confidentiality | No hosted document store, no default telemetry, redaction before indexing, metadata-only access logs. |
-| Transparency | CLI and app expose `ragmir doctor`, `ragmir audit`, `ragmir audit --unsupported`, and `ragmir security-audit`. |
+| Transparency | CLI and app expose `rgr doctor`, `rgr audit`, `rgr audit --unsupported`, and `rgr security-audit`. |
 | Retention | Users can delete generated `.ragmir/` state locally; Ragmir should not retain hosted copies. |
 | Accountability | Public README, security hardening notes, source boundary, and reproducible local validation commands. |
 

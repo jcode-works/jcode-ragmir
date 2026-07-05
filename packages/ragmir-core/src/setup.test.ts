@@ -34,7 +34,7 @@ describe("setupProject", () => {
     expect(result.semantic).toBeNull()
     expect(result.ingested).toBeNull()
     expect(mcpConfig.mcpServers.ragmir.command).toBe("pnpm")
-    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["exec", "ragmir", "serve-mcp"])
+    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["exec", "rgr", "serve-mcp"])
   })
 
   it("can preload and enable semantic embeddings during setup", async () => {
@@ -83,10 +83,10 @@ describe("setupProject", () => {
     expect(second.ingested?.indexedFiles).toBe(1)
     expect(second.doctor.ready).toBe(true)
     expect(second.doctor.nextSteps).toContain(
-      "Run `ragmir install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Run `rgr install-agent --agents claude` or another targeted agent list for native skill discovery.",
     )
     expect(second.nextSteps).toContain(
-      "Run `ragmir install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Run `rgr install-agent --agents claude` or another targeted agent list for native skill discovery.",
     )
   })
 

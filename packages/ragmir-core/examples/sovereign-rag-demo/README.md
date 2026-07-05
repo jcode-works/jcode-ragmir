@@ -52,7 +52,7 @@ Retrieval is lexical/hash-based rather than model-semantic.
 
 ## Agent Report Prompt
 
-After running `ragmir setup` in a real project, an MCP-compatible agent can use the generated
+After running `rgr setup` in a real project, an MCP-compatible agent can use the generated
 `.ragmir/mcp.json`. For this synthetic demo, ask an agent:
 
 ```plain text

@@ -46,7 +46,7 @@
   --muted-foreground: rgba(255, 255, 255, 0.62);
   --accent: #f1f5f9;
   --accent-foreground: #000000;
-  --accent-title: #8b47ff;
+  --accent-title: #9a52ff;
   --border: rgba(255, 255, 255, 0.12);
   --input: rgba(0, 0, 0, 0.14);
   --ring: rgba(255, 255, 255, 0.52);
@@ -83,6 +83,32 @@ textarea {
 .display-title {
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "cv11";
+}
+
+/* Container widths: 1000px for standard sections, 1320px for wide califourchou sections */
+.container-default {
+  width: 100%;
+  max-width: 62.5rem; /* 1000px */
+  margin-inline: auto;
+}
+
+.container-wide {
+  width: 100%;
+  max-width: 82.5rem; /* 1320px */
+  margin-inline: auto;
+}
+
+/* Navbar: wider than section-wide on large screens, full-width feel without edge kissing */
+.container-navbar {
+  width: 100%;
+  max-width: 82.5rem; /* 1320px default */
+  margin-inline: auto;
+}
+
+@media (min-width: 96rem) {
+  .container-navbar {
+    max-width: 110rem; /* 1760px on ultrawide screens */
+  }
 }
 
 ::selection {

@@ -15,10 +15,10 @@ Ragmir lets a Node.js repository keep a local knowledge base next to its private
 supported local files, stores the generated retrieval index in the target repository, and exposes the
 same evidence through:
 
-- the `ragmir` CLI (`kb` remains a legacy alias);
+- the `rgr` CLI;
 - a TypeScript library API;
 - a local MCP stdio server for compatible AI agents;
-- portable agent skills copied by `ragmir setup`, including audio, Markdown-report, and legal-dossier
+- portable agent skills copied by `rgr setup`, including audio, Markdown-report, and legal-dossier
   workflows.
 
 Ragmir does not send documents to a hosted RAG service and does not generate final LLM answers in
@@ -41,9 +41,9 @@ npm install --save-dev @jcode.labs/ragmir
 ## Quick Start
 
 ```bash
-npx ragmir setup
-npx ragmir install-agent --agents claude,codex,kimi,opencode,cline
-npx ragmir doctor --fix
+npx rgr setup
+npx rgr install-agent --agents claude,codex,kimi,opencode,cline
+npx rgr doctor --fix
 
 # Claude Code
 claude mcp add-json --scope local ragmir "$(cat .ragmir/claude-mcp-server.json)"
@@ -61,37 +61,43 @@ cat .ragmir/opencode.jsonc
 cat .ragmir/cline-mcp.json
 ```
 
-Use `npx ragmir setup --agents claude,codex --mcp-command ./scripts/serve-mcp.sh` when a
+`rgr` is the public CLI command. The older `ragmir` command and legacy `kb` alias remain available as
+deprecated compatibility bins for existing scripts and print migration warnings; update automation to
+use `rgr`.
+
+Use `npx rgr setup --agents claude,codex --mcp-command ./scripts/serve-mcp.sh` when a
 repository should generate only selected MCP helpers or launch through a local wrapper.
 
 By default, Ragmir keeps local config, raw documents, generated indexes, access logs, models, reports,
 audio, and agent helper files under a single ignored `.ragmir/` project folder. It reports
 unsupported/skipped files during ingestion and reports supported files that produced no extractable
-text. `ragmir setup` adds the matching Git ignore entry for local Ragmir state.
+text. `rgr setup` adds the matching Git ignore entry for local Ragmir state.
 
 The primary workflow is agent-first: Claude Code, Codex, Kimi, OpenCode, Cline, or another
 MCP-capable assistant asks Ragmir for cited local context, then writes or reasons from those
-citations. For terminal checks, use `npx ragmir search "your question"` or
-`npx ragmir ask "your question"`. For broader implementation or review work, use
-`npx ragmir research "your topic" --compact` before asking the agent to synthesize.
+citations. For terminal checks, use `npx rgr search "your question"` or
+`npx rgr ask "your question"`. For broader implementation or review work, use
+`npx rgr research "your topic" --compact` before asking the agent to synthesize.
+Agent hooks can call `npx rgr route-prompt "..." --json` first to decide whether a prompt needs
+Ragmir local context without storing prompt text or calling an LLM.
 
-Run `npx ragmir doctor --fix` later to repair missing setup or rebuild stale indexes.
-For better semantic Q&A, run `npx ragmir models pull --enable`, then run
-`npx ragmir ingest --rebuild`.
+Run `npx rgr doctor --fix` later to repair missing setup or rebuild stale indexes.
+For better semantic Q&A, run `npx rgr models pull --enable`, then run
+`npx rgr ingest --rebuild`.
 
 ## Entry Points
 
-- CLI: `ragmir`
+- CLI: `rgr`
 - Library import: `@jcode.labs/ragmir`
-- MCP server: `npx ragmir serve-mcp`
-- Bundled skills: `npx ragmir setup` or `npx ragmir install-skill`
+- MCP server: `npx rgr serve-mcp`
+- Bundled skills: `npx rgr setup` or `npx rgr install-skill`
 
 The public TypeScript API reference is maintained in the root repository at
 [`docs/api-reference.md`](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md).
 
 ## Main Agent Setup
 
-After `npx ragmir setup`, use `npx ragmir install-agent --agents claude`, `--agents kimi`,
+After `npx rgr setup`, use `npx rgr install-agent --agents claude`, `--agents kimi`,
 `--agents cline`, or a comma-separated list for native agent skill discovery. Native agent folders
 link back to `.ragmir/skills/` by default so there is one original skill source. Ragmir Core also
 generates MCP helpers for Claude Code, Codex, Kimi, OpenCode, and Cline under `.ragmir/`. See the
