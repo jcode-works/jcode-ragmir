@@ -58,20 +58,20 @@ it again (`scripts/semantic-release-prepare.mjs` runs `pnpm --filter @jcode.labs
 - UI package: **Ragmir UI**, unpublished workspace package `@jcode.labs/ragmir-ui`.
 - Landing package: unpublished workspace package `@jcode.labs/ragmir-landing`.
 - App package: unpublished workspace package `@jcode.labs/ragmir-app`.
-- CLI binary: **`ragmir`** (`packages/ragmir-core/bin.ragmir` -> `packages/ragmir-core/dist/cli.js`).
-  The `kb` binary remains only as a legacy compatibility alias. Commands: `init`, `setup`, `ingest`,
-  `sources add`, `sources list`, `models pull`, `search`, `ask`, `research`, `evaluate`, `audit`,
-  `usage-report`, `status`, `security-audit`, `destroy-index`, `audio`, `doctor`, `serve-mcp`,
-  `skill-path`, `install-skill`, `install-agent`.
-- TTS CLI binary: **`ragmir-tts`** (`packages/ragmir-tts/dist/cli.js`). Commands: `doctor`, `render`.
-- Project config/state in the target repo: **`.ragmir/`** (`config.json`, `sources.txt`, `raw/`,
-  `storage/`, `access.log`, `skills/`, reports, audio, and model caches). **`.kb/`** and
-  **`private/`** are legacy compatibility paths only.
+- CLI binary: **`rgr`** (`packages/ragmir-core/bin.rgr` -> `packages/ragmir-core/dist/cli.js`).
+  `ragmir` and `kb` remain deprecated compatibility bins that warn users to migrate to `rgr`.
+  Commands: `init`, `setup`, `ingest`, `sources add`, `sources list`, `models pull`, `search`,
+  `ask`, `research`, `route-prompt`, `evaluate`, `audit`, `usage-report`, `status`,
+  `security-audit`, `destroy-index`, `audio`, `doctor`, `serve-mcp`, `skill-path`,
+  `install-skill`, `install-agent`.
+- TTS CLI binary: **`rgr-tts`** (`packages/ragmir-tts/bin.rgr-tts` -> `packages/ragmir-tts/dist/cli.js`).
+  `ragmir-tts` remains a deprecated compatibility bin. Commands: `doctor`, `render`.
+- Project config/state in the target repo: **`.ragmir/`** (`config.json`, `raw/`, `storage/`,
+  `access.log`, `skills/`, reports, audio, and model caches).
 - Environment overrides: **`RAGMIR_*`** (e.g. `RAGMIR_EMBEDDING_PROVIDER`, `RAGMIR_CHUNK_SIZE`).
-  **`KB_*`** aliases remain only for existing automation.
 - MCP tools exposed to agents: **`ragmir_*`** (`ragmir_status`, `ragmir_search`, `ragmir_ask`,
-  `ragmir_research`, `ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`,
-  `ragmir_security_audit`).
+  `ragmir_research`, `ragmir_route_prompt`, `ragmir_audit`, `ragmir_evaluate`,
+  `ragmir_usage_report`, `ragmir_security_audit`).
 
 ## Architecture and data flow
 
@@ -97,7 +97,7 @@ synthesis in core).
 
 `packages/ragmir-tts` is a separate ESM package. It defaults to Transformers.js for offline WAV
 rendering without Python or ffmpeg, and uses `edge-tts` for high-quality MP3 only when explicitly
-requested. Core `ragmir audio` imports it dynamically.
+requested. Core `rgr audio` imports it dynamically.
 
 `packages/ragmir-ui` is the shared Tailwind 4 + React UI layer adapted from the WorkoutGen UI/landing
 foundation, but with Ragmir tokens and no WorkoutGen product copy, analytics, CDN paths, or secrets.
@@ -108,22 +108,20 @@ desktop/mobile builds are explicit `pnpm --filter @jcode.labs/ragmir-app tauri:*
 Key behaviors to keep in mind before editing:
 
 - **Config resolution is caller-relative.** `loadConfig` walks up from `cwd` looking for
-  `.ragmir/config.json`, with fallback to legacy `.kb/config.json`. The package must resolve project
-  data from the caller's working directory, never from its own install path. Zod validates config;
-  `RAGMIR_*` env vars override, with `KB_*` kept as legacy aliases.
+  `.ragmir/config.json`. The package must resolve project data from the caller's working directory,
+  never from its own install path. Zod validates config; `RAGMIR_*` env vars override config.
 - **Two embedding providers, not interchangeable at runtime.** `local-hash` (default) is a 384-dim
   sha256 lexical embedding — fully offline, no model, *not semantic*. `transformers` lazily
-  `import()`s `@huggingface/transformers` with `allowRemoteModels` off by default. `ragmir models pull`
-  and `ragmir setup --semantic` are the explicit one-time remote-download paths for preloading the
+  `import()`s `@huggingface/transformers` with `allowRemoteModels` off by default. `rgr models pull`
+  and `rgr setup --semantic` are the explicit one-time remote-download paths for preloading the
   configured embedding model. The two providers produce different vectors, so **switching providers
-  requires `ragmir ingest --rebuild`**.
+  requires `rgr ingest --rebuild`**.
 - **Ingest is incremental by default.** It reuses rows whose checksum, embedding provider, and model
   still match, then overwrites the LanceDB table with reused + rebuilt rows. Use `--rebuild` to force
   every supported file through parsing, redaction, chunking, and embedding again.
 - **Privacy is a feature, not a side effect.** Redaction runs before embedding, the access log stores
   query hashes/metadata only (`access-log.ts`), MCP top-K is clamped to `mcpMaxTopK`, and
-  `gitignore.ts` keeps `.ragmir/` ignored in target repos. `security-audit` also preserves legacy
-  warnings when a project still uses `.kb/` or `private/**`. Preserve these guarantees.
+  `gitignore.ts` keeps `.ragmir/` ignored in target repos. Preserve these guarantees.
 
 Coding conventions (KISS, DRY, YAGNI, SOLID as applied here) live in `AGENTS.md`.
 

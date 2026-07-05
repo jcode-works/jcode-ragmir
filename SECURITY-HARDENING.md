@@ -19,11 +19,10 @@ built to minimize data movement, but it is not a certified high-assurance system
   oversized, and secret-like skipped files.
 - Metadata-only access logs: access logs contain action metadata and query hashes, not raw
   queries or retrieved text.
-- Generated local state is ignored by Git: `.ragmir/` is ignored by default, while legacy `.kb/` and
-  `private/` paths are recognized when encountered.
+- Generated local state is ignored by Git: `.ragmir/` is ignored by default.
 - MCP is read-focused: destructive tools are not exposed over MCP, and MCP retrieval is capped by
   `mcpMaxTopK`.
-- Optional audio summaries use `ragmir audio` / `@jcode.labs/ragmir-tts`. Transformers.js WAV is the
+- Optional audio summaries use `rgr audio` / `@jcode.labs/ragmir-tts`. Transformers.js WAV is the
   default offline/confidential path and does not require Python, ffmpeg, Piper, XTTS, or a local TTS
   server. Remote TTS model downloads are disabled by default and must be explicitly allowed for a
   non-sensitive preload. Edge MP3 gives the highest quality only when online TTS is explicitly
@@ -52,7 +51,7 @@ repository and `.ragmir/` on an encrypted volume:
 - Linux: LUKS, fscrypt, or an encrypted VM disk.
 - Containers/VMs: mount `.ragmir/` on an encrypted host volume.
 
-`ragmir destroy-index --yes` removes generated index files, but secure deletion on SSDs and copy-on-write
+`rgr destroy-index --yes` removes generated index files, but secure deletion on SSDs and copy-on-write
 filesystems cannot be guaranteed without encrypted storage and key destruction.
 
 ## Air-Gapped Operation
@@ -69,15 +68,15 @@ Move the generated tarballs from `release-artifacts/` into the offline environme
 
 ```bash
 pnpm add -D ./jcode.labs-ragmir-tts-<version>.tgz ./jcode.labs-ragmir-<version>.tgz
-pnpm exec ragmir setup
-pnpm exec ragmir doctor --fix
-pnpm exec ragmir audit --unsupported
+pnpm exec rgr setup
+pnpm exec rgr doctor --fix
+pnpm exec rgr audit --unsupported
 ```
 
 For semantic embeddings, preload the Transformers.js-compatible embedding model files inside the
 offline environment under the configured `embeddingModelPath`. For audio, preload the TTS model
 files under `.ragmir/models/tts` and render with
-`pnpm exec ragmir audio <text-file> --engine transformers --offline`.
+`pnpm exec rgr audio <text-file> --engine transformers --offline`.
 
 ## Zero Network Posture
 
@@ -110,13 +109,13 @@ Transformers.js may download model files from Hugging Face during model loading.
 Run:
 
 ```bash
-pnpm exec ragmir security-audit --strict
+pnpm exec rgr security-audit --strict
 ```
 
 Also run:
 
 ```bash
-pnpm exec ragmir audit --unsupported
+pnpm exec rgr audit --unsupported
 ```
 
 This exposes local relative paths for files that were skipped because the extension is unsupported,
@@ -161,15 +160,15 @@ Default ingestion guardrails:
 - `ingestConcurrency`: four parse/chunk workers by default;
 - `embeddingBatchSize`: 32 chunks per embedding batch by default;
 - checksum-based stale detection for supported files;
-- unsupported/skipped file reporting through `ragmir ingest`, `ragmir audit`, and
-  `ragmir audit --unsupported`.
+- unsupported/skipped file reporting through `rgr ingest`, `rgr audit`, and
+  `rgr audit --unsupported`.
 
 These are configurable, but raising limits increases local memory and parsing risk.
 
 ## Optional Audio Summaries
 
-`ragmir install-skill` installs an optional `ragmir-audio-summary` skill. It is designed for listenable
-briefings from a local Ragmir index. The default renderer is `ragmir audio`, backed by
+`rgr install-skill` installs an optional `ragmir-audio-summary` skill. It is designed for listenable
+briefings from a local Ragmir index. The default renderer is `rgr audio`, backed by
 `@jcode.labs/ragmir-tts`.
 
 Confidentiality defaults:
@@ -190,7 +189,7 @@ document.
 
 ## Optional Markdown Reports
 
-`ragmir install-skill` also installs `ragmir-markdown-report`. Reports generated from private evidence
+`rgr install-skill` also installs `ragmir-markdown-report`. Reports generated from private evidence
 are derived confidential documents. Keep them under `.ragmir/reports/` by default, cite source paths
 and chunk numbers, and do not commit them unless the user explicitly asks for a sanitized tracked
 report.

@@ -1,24 +1,24 @@
 # Troubleshooting
 
-Use `ragmir doctor` first. It is the shortest path to the next useful action:
+Use `rgr doctor` first. It is the shortest path to the next useful action:
 
 ```bash
-npx ragmir doctor
+npx rgr doctor
 ```
 
 Use `doctor --fix` when you want Ragmir to repair safe setup issues automatically:
 
 ```bash
-npx ragmir doctor --fix
+npx rgr doctor --fix
 ```
 
-## `ragmir doctor` Says The Project Is Not Initialized
+## `rgr doctor` Says The Project Is Not Initialized
 
 Run:
 
 ```bash
-npx ragmir setup
-npx ragmir doctor
+npx rgr setup
+npx rgr doctor
 ```
 
 Commit only safe scaffolding if this is a real repository. Do not commit local Ragmir state, env
@@ -30,12 +30,13 @@ Check that supported files exist under `.ragmir/raw/`:
 
 ```bash
 find .ragmir/raw -maxdepth 2 -type f
-npx ragmir ingest
-npx ragmir doctor
+npx rgr ingest
+npx rgr doctor
 ```
 
-If documents live elsewhere, add paths or glob patterns with `ragmir sources add` or edit
-`.ragmir/sources.txt`. Relative entries resolve from the project root, and `!` excludes matched files:
+If documents live elsewhere, add paths or glob patterns with `rgr sources add` or edit the
+`sources` array in `.ragmir/config.json`. Relative entries resolve from the project root, and `!`
+excludes matched files:
 
 ```plain text
 ../apps/*/README.md
@@ -46,7 +47,7 @@ If documents live elsewhere, add paths or glob patterns with `ragmir sources add
 If files exist but are not supported yet, inspect the skipped inventory:
 
 ```bash
-npx ragmir audit --unsupported
+npx rgr audit --unsupported
 ```
 
 Then follow the per-file recommendation: convert unsupported binaries to a supported format,
@@ -83,7 +84,7 @@ The command runs from the target project root, receives `RAGMIR_IMAGE_PATH`, may
 arguments for the image path, and must print UTF-8 text to stdout. Images become supported only when
 `imageOcrCommand` is configured.
 
-If ingestion finishes but a scanned PDF still has no text, `ragmir ingest --json` lists it under
+If ingestion finishes but a scanned PDF still has no text, `rgr ingest --json` lists it under
 `emptyTextFiles`. If you do not want direct image OCR, OCR images to text or convert them to OCRed
 PDFs before ingesting.
 
@@ -124,38 +125,38 @@ usually better than the default lexical/hash mode.
 When remote download is acceptable during first setup, use:
 
 ```bash
-npx ragmir setup --semantic
+npx rgr setup --semantic
 ```
 
 Or preload the configured embedding model later:
 
 ```bash
-npx ragmir models pull --enable
+npx rgr models pull --enable
 ```
 
 Switching providers requires a full re-ingest:
 
 ```bash
-npx ragmir ingest --rebuild
-npx ragmir doctor
+npx rgr ingest --rebuild
+npx rgr doctor
 ```
 
-## `ragmir audit` Reports Missing Or Stale Files
+## `rgr audit` Reports Missing Or Stale Files
 
 Run:
 
 ```bash
-npx ragmir ingest
-npx ragmir audit
+npx rgr ingest
+npx rgr audit
 ```
 
 Or let doctor perform the safe incremental update:
 
 ```bash
-npx ragmir doctor --fix
+npx rgr doctor --fix
 ```
 
-Ragmir incrementally reuses unchanged indexed rows on normal `ragmir ingest`. Use `ragmir ingest --rebuild`
+Ragmir incrementally reuses unchanged indexed rows on normal `rgr ingest`. Use `rgr ingest --rebuild`
 after switching embedding provider/model, after changing chunking settings, or when you want to
 discard and recreate the whole local index.
 
@@ -164,15 +165,15 @@ discard and recreate the whole local index.
 Read the warning lines. Common causes:
 
 - `.ragmir/` is not ignored by Git.
-- Legacy projects using `.kb/`, `private/`, or `private/**` are missing the matching legacy Git ignore entries.
+- generated local state is not ignored by Git.
 - Redaction was disabled.
 - Transformers.js remote model loading was enabled.
 
 Run the safe repair command if Git ignore entries are missing:
 
 ```bash
-npx ragmir doctor --fix
-npx ragmir security-audit --strict
+npx rgr doctor --fix
+npx rgr security-audit --strict
 ```
 
 ## MP3 Audio Fails Without `--engine edge`
@@ -180,7 +181,7 @@ npx ragmir security-audit --strict
 This is intentional. MP3 output uses online Edge TTS and requires explicit consent:
 
 ```bash
-npx ragmir audio /tmp/summary.txt \
+npx rgr audio /tmp/summary.txt \
   --engine edge \
   --out .ragmir/audio/summary.mp3
 ```
@@ -188,7 +189,7 @@ npx ragmir audio /tmp/summary.txt \
 For confidential or offline work, use WAV:
 
 ```bash
-npx ragmir audio /tmp/summary.txt \
+npx rgr audio /tmp/summary.txt \
   --engine transformers \
   --offline \
   --out .ragmir/audio/summary.wav
@@ -200,12 +201,12 @@ Install the external CLI:
 
 ```bash
 pipx install edge-tts
-npx ragmir audio --doctor
+npx rgr audio --doctor
 ```
 
 Only use Edge TTS when sending narration text to the online service is acceptable.
 
-## `ragmir-tts --offline` Cannot Render
+## `rgr-tts --offline` Cannot Render
 
 Offline rendering requires model files to already exist under `.ragmir/models/tts` or the path passed
 with `--model-path`.
@@ -214,7 +215,7 @@ For a first online setup, use non-sensitive text:
 
 ```bash
 printf 'Ragmir offline speech preload check.' > /tmp/ragmir-tts-preload.txt
-npx ragmir-tts render /tmp/ragmir-tts-preload.txt \
+npx rgr-tts render /tmp/ragmir-tts-preload.txt \
   --engine transformers \
   --allow-remote-models \
   --model-path .ragmir/models/tts \
@@ -224,7 +225,7 @@ npx ragmir-tts render /tmp/ragmir-tts-preload.txt \
 Then reuse the cached files with:
 
 ```bash
-npx ragmir-tts render /tmp/ragmir-tts-preload.txt \
+npx rgr-tts render /tmp/ragmir-tts-preload.txt \
   --offline \
   --model-path .ragmir/models/tts \
   --out .ragmir/audio/offline-check.wav

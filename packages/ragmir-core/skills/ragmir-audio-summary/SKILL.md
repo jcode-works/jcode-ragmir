@@ -35,7 +35,7 @@ Two reference files sit next to this skill and are read while drafting:
 
 - Treat the source documents, retrieved passages, generated narration, and final audio as sensitive.
 - Do not use online TTS for confidential content unless the user explicitly allows it.
-- Prefer `pnpm exec ragmir audio` or `pnpm exec ragmir-tts render` for plug-and-play output.
+- Prefer `pnpm exec rgr audio` or `pnpm exec rgr-tts render` for plug-and-play output.
 - Use `--engine transformers --offline` when model files are already present and remote model
   loading is not allowed.
 - Use `--engine edge` only when online TTS is acceptable and global Voice Forge quality is required.
@@ -63,21 +63,21 @@ gets dropped at the drafting step, not added because it was "also in the documen
 From the repository root, run:
 
 ```bash
-pnpm exec ragmir doctor
-pnpm exec ragmir status
-pnpm exec ragmir audit
-pnpm exec ragmir audit --unsupported
-pnpm exec ragmir security-audit
+pnpm exec rgr doctor
+pnpm exec rgr status
+pnpm exec rgr audit
+pnpm exec rgr audit --unsupported
+pnpm exec rgr security-audit
 ```
 
 If the audit reports missing or stale files, run:
 
 ```bash
-pnpm exec ragmir doctor --fix
-pnpm exec ragmir audit --unsupported
+pnpm exec rgr doctor --fix
+pnpm exec rgr audit --unsupported
 ```
 
-`ragmir doctor --fix` rebuilds the index only when supported files are present and the privacy posture
+`rgr doctor --fix` rebuilds the index only when supported files are present and the privacy posture
 has no warnings. Do not create an audio summary from stale or incomplete evidence unless the user
 explicitly accepts that limitation.
 
@@ -89,9 +89,9 @@ in step 1 — not from the subject alone.
 For a broad summary, run multiple searches:
 
 ```bash
-pnpm exec ragmir search "<main topic>" --top-k 8
-pnpm exec ragmir search "<people, dates, money, obligations, risks, or decisions>" --top-k 8
-pnpm exec ragmir ask "<specific synthesis question>" --top-k 8
+pnpm exec rgr search "<main topic>" --top-k 8
+pnpm exec rgr search "<people, dates, money, obligations, risks, or decisions>" --top-k 8
+pnpm exec rgr ask "<specific synthesis question>" --top-k 8
 ```
 
 When MCP is available, prefer `ragmir_search`, `ragmir_ask`, `ragmir_audit`, and
@@ -177,7 +177,7 @@ neural voice for the Edge path. Write the narration in the same language you pas
 For global Voice Forge quality on non-confidential text, render with Edge MP3:
 
 ```bash
-pnpm exec ragmir audio /tmp/RAGMIR-SUMMARY-<subject-kebab>.txt \
+pnpm exec rgr audio /tmp/RAGMIR-SUMMARY-<subject-kebab>.txt \
   --engine edge \
   --lang <en|es|fr> \
   --out .ragmir/audio/RAGMIR-SUMMARY-<subject-kebab>.mp3
@@ -189,7 +189,7 @@ the narration text to that service is acceptable.
 For confidential or air-gapped operation, preload the model files under `.ragmir/models/tts` and run:
 
 ```bash
-pnpm exec ragmir audio /tmp/RAGMIR-SUMMARY-<subject-kebab>.txt \
+pnpm exec rgr audio /tmp/RAGMIR-SUMMARY-<subject-kebab>.txt \
   --engine transformers \
   --offline \
   --lang <en|es|fr> \

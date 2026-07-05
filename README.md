@@ -32,13 +32,14 @@ spread across repositories, specifications, exports, and synced folders.
 | Code from a specification or `cahier des charges` | Turn a local PRD, tender response, client brief, or engineering spec into an implementation plan, acceptance checklist, and cited change guidance. |
 | Work from a downloaded Google Drive folder | Point Ragmir at files synced locally through Google Drive for desktop, then let the agent retrieve context without uploading the corpus to a hosted RAG service. |
 | Onboard to a legacy codebase | Ask where a flow is implemented, which modules own a responsibility, which docs explain a behavior, and what to read before changing risky code. |
-| Turn a dense document into a listenable mini-learning | Generate a short spoken summary (MP3/WAV) from cited passages with `ragmir audio`, to review a spec, architecture doc, or research pass hands-free instead of only reading dense text. |
+| Turn a dense document into a listenable mini-learning | Generate a short spoken summary (MP3/WAV) from cited passages with `rgr audio`, to review a spec, architecture doc, or research pass hands-free instead of only reading dense text. |
 | Keep multiple agents on the same evidence | Install the same project skills and MCP server for Claude Code, Codex, Kimi Code CLI, OpenCode, and Cline so each tool retrieves from the same local index. |
+| Let agents decide when local context is needed | Use `rgr route-prompt` or MCP `ragmir_route_prompt` from agent hooks and skills to classify a prompt before spending retrieval tokens. |
 | Research before implementation | Run an audit-backed multi-query pass over specs, docs, and code references before asking an agent to plan a feature, migration, or review. |
 | Prepare implementation and review work | Generate cited task breakdowns, migration notes, release checklists, QA plans, and code-review context from the same local sources the team uses. |
 | Audit local knowledge coverage | Check which supported files were indexed, which formats were skipped, whether secrets are likely present, and whether golden queries still retrieve expected evidence. |
 
-The workflow stays simple: keep files on disk, run `ragmir ingest`, connect your coding agent through
+The workflow stays simple: keep files on disk, run `rgr ingest`, connect your coding agent through
 MCP or portable skills, then ask it to work from cited local passages.
 
 ## At A Glance
@@ -56,8 +57,8 @@ flowchart TD
   end
 
   subgraph Ragmir["Ragmir Core"]
-    Ingest["ragmir ingest<br/>parse, redact, chunk"]
-    Retrieve["ragmir search / ask / research<br/>rank cited evidence"]
+    Ingest["rgr ingest<br/>parse, redact, chunk"]
+    Retrieve["rgr search / ask / research<br/>rank cited evidence"]
     Audit["doctor, audit,<br/>security-audit, evaluate"]
   end
 
@@ -84,12 +85,12 @@ already use, then ask that agent questions grounded in local files:
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir
-npx ragmir setup
+npx rgr setup
 # Optional: download a Transformers.js embedding model once and enable higher-quality semantic retrieval.
-npx ragmir setup --semantic
-npx ragmir install-agent --agents claude,codex,kimi,opencode,cline
-npx ragmir doctor --fix
-npx ragmir research "release readiness and risks" --compact
+npx rgr setup --semantic
+npx rgr install-agent --agents claude,codex,kimi,opencode,cline
+npx rgr doctor --fix
+npx rgr research "release readiness and risks" --compact
 
 # Claude Code
 claude mcp add-json --scope local ragmir "$(cat .ragmir/claude-mcp-server.json)"
@@ -107,6 +108,10 @@ cat .ragmir/opencode.jsonc
 cat .ragmir/cline-mcp.json
 ```
 
+`rgr` is the public CLI command. The older `ragmir` command and legacy `kb` alias remain available as
+deprecated compatibility bins for existing scripts and print migration warnings; update automation to
+use `rgr`.
+
 Use it when an agent needs grounded context over private specs, codebases, legal dossiers, tenders,
 course material, project archives, or meeting notes, but the files should remain on your machine.
 
@@ -117,10 +122,10 @@ This root README is the canonical product documentation for the public npm packa
 | Package | Role |
 | --- | --- |
 | `@jcode.labs/ragmir` | Ragmir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples. |
-| `@jcode.labs/ragmir-tts` | Ragmir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `ragmir audio`. |
+| `@jcode.labs/ragmir-tts` | Ragmir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `rgr audio`. |
 | `@jcode.labs/ragmir-ui` | Unpublished workspace UI package adapted from the WorkoutGen design foundation for Ragmir surfaces. |
 | `@jcode.labs/ragmir-landing` | Unpublished Astro static landing package. Product-facing titles stay `Ragmir`. |
-| `@jcode.labs/ragmir-app` | Unpublished Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses a bounded native command around the `ragmir` CLI, with packaged sidecar distribution still planned. |
+| `@jcode.labs/ragmir-app` | Unpublished Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses a bounded native command around the `rgr` CLI, with packaged sidecar distribution still planned. |
 | `@jcode.labs/ragmir-license-webhook` | Unpublished, undeployed MIT-licensed Cloudflare Worker handler for future Lemon Squeezy webhooks and local `RAGMIR1` license issuance. |
 
 The package README files are intentionally short because npm displays each package README
@@ -141,7 +146,7 @@ agent wiring, API shapes, security details, or app packaging rules:
 
 | Document | Use it for |
 | --- | --- |
-| [`docs/cli-reference.md`](./docs/cli-reference.md) | Complete `ragmir` and `ragmir-tts` command reference. |
+| [`docs/cli-reference.md`](./docs/cli-reference.md) | Complete `rgr` and `rgr-tts` command reference. |
 | [`docs/api-reference.md`](./docs/api-reference.md) | Public TypeScript API, setup options, semantic model preload, and MCP tool inputs. |
 | [`docs/agent-integration.md`](./docs/agent-integration.md) | Claude Code, Codex, Kimi Code CLI, OpenCode, and Cline setup. |
 | [`docs/troubleshooting.md`](./docs/troubleshooting.md) | Empty indexes, weak search, strict security audit warnings, and audio preload fixes. |
@@ -226,7 +231,7 @@ release verification, and an external security review.
 - A repository where generated local folders can be ignored by Git.
 - No model runtime is required for the default `embeddingProvider: "local-hash"` mode.
 - Optional semantic embeddings use Transformers.js with local model files under `.ragmir/models` by
-  default. Use `ragmir models pull` when remote model download is acceptable, then keep
+  default. Use `rgr models pull` when remote model download is acceptable, then keep
   `transformersAllowRemoteModels` false for confidential indexing.
 - Generated answers are intentionally outside Ragmir core. Use Claude, Codex, OpenAI, a local model
   MCP server, or another trusted model runtime to synthesize from Ragmir's cited context.
@@ -268,18 +273,17 @@ when supported files are already present:
 
 ```bash
 # Fast start: no model download, fully local lexical/hash retrieval.
-npx ragmir setup
+npx rgr setup
 
 # Higher-quality natural-language retrieval: one-time Transformers.js model download,
 # then remote model loading stays disabled for normal confidential indexing.
-npx ragmir setup --semantic
+npx rgr setup --semantic
 ```
 
 Fresh setup keeps local state under one ignored `.ragmir/` folder:
 
 ```plain text
 .ragmir/config.json               # local config
-.ragmir/sources.txt               # optional extra source paths
 .ragmir/raw/                      # raw documents to ingest
 .ragmir/storage/                  # generated LanceDB index after ingest
 .ragmir/access.log                # metadata-only access log after use
@@ -298,18 +302,18 @@ Fresh setup keeps local state under one ignored `.ragmir/` folder:
 ```
 
 It detects the repository package manager and writes the MCP helper files with the right command:
-`npx ragmir serve-mcp`, `pnpm exec ragmir serve-mcp`, `yarn exec ragmir serve-mcp`, or `bunx ragmir serve-mcp`.
+`npx rgr serve-mcp`, `pnpm exec rgr serve-mcp`, `yarn exec rgr serve-mcp`, or `bunx rgr serve-mcp`.
 When a repository needs a wrapper script or only a subset of agent helpers, make that explicit during
 setup:
 
 ```bash
-npx ragmir setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
+npx rgr setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
 ```
 
 For the usual agent-first workflow, expose Ragmir to the coding assistants used in the repository:
 
 ```bash
-npx ragmir install-agent --agents claude,codex,kimi,opencode,cline
+npx rgr install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 Then wire the agent you use. Claude Code, Codex, and Cline follow the standard MCP shapes from their
@@ -339,13 +343,13 @@ context.
 Check readiness at any time:
 
 ```bash
-npx ragmir doctor
+npx rgr doctor
 ```
 
 If files are missing from the index, stale, or the setup is incomplete, run:
 
 ```bash
-npx ragmir doctor --fix
+npx rgr doctor --fix
 ```
 
 `doctor --fix` performs safe repairs: missing scaffolding, Git ignore entries, agent kit install, and
@@ -382,12 +386,11 @@ For monorepos or downloaded local folders, add extra paths or glob patterns to t
 }
 ```
 
-The legacy `.ragmir/sources.txt` file (one entry per line) is still read when present and can be managed
-from the CLI:
+Manage extra source paths through the CLI:
 
 ```bash
-npx ragmir sources add "../apps/*/README.md" "../apps/*/docs/**/*.{md,mdx}"
-npx ragmir sources list
+npx rgr sources add "../apps/*/README.md" "../apps/*/docs/**/*.{md,mdx}"
+npx rgr sources list
 ```
 
 ### Team Workflow With A Shared Private Corpus
@@ -405,7 +408,6 @@ Git repository
 
 Ignored local state on each developer machine
   .ragmir/config.json
-  .ragmir/sources.txt
   .ragmir/raw/ or data/private-corpus/
   .ragmir/storage/
   .ragmir/access.log
@@ -423,68 +425,68 @@ mkdir -p .ragmir/raw
 # Example only: replace this with your approved private sync command.
 # rclone copy "team-drive:Project Knowledge" .ragmir/raw --drive-export-formats docx,xlsx,pptx,pdf
 
-npx ragmir ingest
-npx ragmir doctor
+npx rgr ingest
+npx rgr doctor
 ```
 
 Commit the script and instructions, not the synced files. The same pattern works without Google
 Drive: every developer downloads the same approved archive or mirror into the same ignored path, then
-runs `npx ragmir ingest`. Ragmir compares checksums and reuses unchanged rows, so refreshes stay
+runs `npx rgr ingest`. Ragmir compares checksums and reuses unchanged rows, so refreshes stay
 incremental.
 
 Build the local index:
 
 ```bash
-npx ragmir ingest
-npx ragmir doctor
+npx rgr ingest
+npx rgr doctor
 ```
 
-When the index is ready, `ragmir doctor` prints `ready=true`. `ragmir ingest` and `ragmir audit` also report
+When the index is ready, `rgr doctor` prints `ready=true`. `rgr ingest` and `rgr audit` also report
 files that were discovered but not indexed because the type is unsupported, the file is too large,
 or the file name looks like a secret/private key.
 
 List skipped paths explicitly:
 
 ```bash
-npx ragmir audit --unsupported
+npx rgr audit --unsupported
 ```
 
 Summarize recent metadata-only usage without exposing raw queries or local paths:
 
 ```bash
-npx ragmir usage-report --days 7
+npx rgr usage-report --days 7
 ```
 
 Retrieve exact passages:
 
 ```bash
-npx ragmir search "approval for offline operation"
+npx rgr search "approval for offline operation"
 ```
 
 Return cited retrieval context for an agent or model:
 
 ```bash
-npx ragmir ask "What evidence supports offline operation?"
+npx rgr ask "What evidence supports offline operation?"
 ```
 
 Run an audit-backed multi-query research pass before a broad synthesis or implementation task:
 
 ```bash
-npx ragmir research "release readiness and risks" --compact
+npx rgr research "release readiness and risks" --compact
 ```
 
 Measure recall against a golden query file:
 
 ```bash
-npx ragmir evaluate --golden golden-queries.json
+npx rgr evaluate --golden golden-queries.json
 ```
 
 For private dogfooding, keep the real corpus and golden query file outside Git or under an ignored
 local path, then use a threshold that matches the evaluation phase:
 
 ```bash
-npx ragmir --project-root /path/to/workspace ingest
-npx ragmir --project-root /path/to/workspace evaluate --golden .ragmir/evaluations/golden-queries.json --fail-under 0.8 --json
+npx rgr --project-root /path/to/workspace ingest
+npx rgr --project-root /path/to/workspace evaluate --golden .ragmir/evaluations/golden-queries.json --fail-under 0.8 --json
 ```
 
 The JSON report includes the active `embeddingProvider` and `embeddingModel`, so you can compare
@@ -496,9 +498,9 @@ does the writing around those passages.
 With pnpm, use `pnpm exec` after installing the package:
 
 ```bash
-pnpm exec ragmir setup
-pnpm exec ragmir doctor
-pnpm exec ragmir search "approval for offline operation"
+pnpm exec rgr setup
+pnpm exec rgr doctor
+pnpm exec rgr search "approval for offline operation"
 ```
 
 ## Choose A Retrieval Mode
@@ -521,12 +523,12 @@ lexical/hash-based, not semantic.
 Commands:
 
 ```bash
-npx ragmir ingest
-npx ragmir search "offline retrieval approval"
-npx ragmir ask "What evidence supports offline operation?"
+npx rgr ingest
+npx rgr search "offline retrieval approval"
+npx rgr ask "What evidence supports offline operation?"
 ```
 
-`ragmir ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
+`rgr ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
 passages to any LLM or agent you trust.
 
 ### Optional Semantic Embeddings With Transformers.js
@@ -547,30 +549,30 @@ Use this when you want better semantic retrieval while keeping Ragmir core free 
 Commands:
 
 ```bash
-npx ragmir setup --semantic
+npx rgr setup --semantic
 # Or later:
-npx ragmir models pull --enable
-npx ragmir ingest
-npx ragmir ask "Which passages support offline operation?"
+npx rgr models pull --enable
+npx rgr ingest
+npx rgr ask "Which passages support offline operation?"
 ```
 
-`ragmir setup --semantic` is the first-run shortcut. It intentionally allows a one-time download from
+`rgr setup --semantic` is the first-run shortcut. It intentionally allows a one-time download from
 Hugging Face into `embeddingModelPath`, switches `.ragmir/config.json` to `embeddingProvider:
 "transformers"`, and leaves `transformersAllowRemoteModels` false for normal confidential indexing.
-Use `ragmir models pull --enable` when you want to make the same choice later. Re-run
-`ragmir ingest --rebuild` after changing embedding provider or model so stored vectors match the
+Use `rgr models pull --enable` when you want to make the same choice later. Re-run
+`rgr ingest --rebuild` after changing embedding provider or model so stored vectors match the
 active configuration.
 
 ## Agent Skills And MCP
 
 Ragmir ships with portable agent skills and a standard MCP server.
 
-Use `ragmir setup` for the normal path, or install only the agent layer later:
+Use `rgr setup` for the normal path, or install only the agent layer later:
 
 ```bash
-npx ragmir install-skill
-npx ragmir install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
-npx ragmir install-agent --agents claude,codex,kimi,opencode,cline
+npx rgr install-skill
+npx rgr install-skill --agents claude,codex --mcp-command ./scripts/serve-mcp.sh
+npx rgr install-agent --agents claude,codex,kimi,opencode,cline
 ```
 
 Main agent examples:
@@ -595,14 +597,18 @@ cat .ragmir/cline-mcp.json
 Start the MCP server from the repository root when a compatible agent needs tool access:
 
 ```bash
-npx ragmir serve-mcp
+npx rgr serve-mcp
 ```
 
-The MCP server exposes `ragmir_status`, `ragmir_search`, `ragmir_ask`, `ragmir_research`,
-`ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`, and `ragmir_security_audit`. The LLM does not
-need to know about LanceDB or the raw file layout; it asks Ragmir for ranked passages, cited context,
-audit-backed research, local recall gates, or metadata-only usage summaries and uses the returned
-citations.
+The MCP server exposes `ragmir_status`, `ragmir_route_prompt`, `ragmir_search`, `ragmir_ask`,
+`ragmir_research`, `ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`, and
+`ragmir_security_audit`. The LLM does not need to know about LanceDB or the raw file layout; it asks
+Ragmir for prompt-routing advice, ranked passages, cited context, audit-backed research, local
+recall gates, or metadata-only usage summaries and uses the returned citations.
+
+`rgr route-prompt "..." --json` is the local opt-in prompt router for agent hooks. It does not
+store prompt text or call an LLM; it returns an explainable decision such as `shouldUseRagmir`,
+`confidence`, `tool`, `query`, and matched routing signals.
 
 Per-agent setup details live in [`docs/agent-integration.md`](./docs/agent-integration.md).
 
@@ -613,9 +619,9 @@ Ragmir includes a plug-and-play text-to-speech path for listenable summaries.
 For the same quality path as the global Voice Forge skill, install `edge-tts` and render MP3:
 
 ```bash
-npx ragmir audio --doctor
+npx rgr audio --doctor
 pipx install edge-tts
-npx ragmir audio /tmp/RAGMIR-SUMMARY-project.txt \
+npx rgr audio /tmp/RAGMIR-SUMMARY-project.txt \
   --engine edge \
   --out .ragmir/audio/project-summary.mp3
 ```
@@ -624,11 +630,11 @@ The Edge path uses the online Microsoft Edge TTS service through the `edge-tts` 
 when sending the narration text to that service is acceptable. MP3 output requires explicit
 `--engine edge` for this reason.
 
-By default, `ragmir audio` uses the Transformers.js WAV path. For confidential or air-gapped work,
+By default, `rgr audio` uses the Transformers.js WAV path. For confidential or air-gapped work,
 preload Transformers.js-compatible model files with non-sensitive text, then render WAV offline:
 
 ```bash
-npx ragmir audio /tmp/RAGMIR-SUMMARY-project.txt \
+npx rgr audio /tmp/RAGMIR-SUMMARY-project.txt \
   --engine transformers \
   --offline \
   --lang fr \
@@ -639,8 +645,8 @@ npx ragmir audio /tmp/RAGMIR-SUMMARY-project.txt \
 Use the standalone package directly:
 
 ```bash
-npx ragmir-tts doctor --json
-npx ragmir-tts render /tmp/RAGMIR-SUMMARY-project.txt \
+npx rgr-tts doctor --json
+npx rgr-tts render /tmp/RAGMIR-SUMMARY-project.txt \
   --engine edge \
   --out .ragmir/audio/project-summary.mp3
 ```
@@ -661,19 +667,14 @@ where you run the CLI:
 ```plain text
 your-project/
   .ragmir/config.json   # local config
-  .ragmir/sources.txt   # optional extra source paths
   .ragmir/raw/          # raw documents to ingest
   .ragmir/storage/      # generated LanceDB index
   .ragmir/access.log    # metadata-only access log
 ```
 
-The package never ships project documents. `ragmir setup` adds a `.ragmir/` gitignore entry, so
+The package never ships project documents. `rgr setup` adds a `.ragmir/` gitignore entry, so
 generated indexes, agent files, raw documents, reports, models, audio, and access logs stay local to
 the target repository.
-
-Legacy projects that already have `.kb/config.json` keep working. In that mode, Ragmir preserves the
-old defaults (`private/`, `.kb/storage`, `.kb/sources.txt`, `.kb/access.log`) and accepts existing
-`KB_*` environment variables. New setup and docs use `.ragmir/` and `RAGMIR_*`.
 
 ## Confidentiality Defaults
 
@@ -688,7 +689,7 @@ Ragmir is designed for private repositories and sensitive local evidence.
 - Redaction before indexing: common secrets and identifiers are redacted before chunks are embedded
   and stored.
 - Metadata-only access logs: query hashes and action metadata are logged, not raw queries.
-- Metadata-only usage reports: `ragmir usage-report --days 7` summarizes recent local activity
+- Metadata-only usage reports: `rgr usage-report --days 7` summarizes recent local activity
   without exposing query text or local paths.
 - MCP is read-focused and bounded by `mcpMaxTopK`.
 - Generated local state is ignored by Git.
@@ -696,13 +697,13 @@ Ragmir is designed for private repositories and sensitive local evidence.
 Run:
 
 ```bash
-npx ragmir security-audit --strict
+npx rgr security-audit --strict
 ```
 
 Remove the generated vector index:
 
 ```bash
-npx ragmir destroy-index --yes
+npx rgr destroy-index --yes
 ```
 
 `destroy-index` does not securely erase SSD or copy-on-write storage. For strong deletion
@@ -711,235 +712,28 @@ guarantees, use encrypted storage and destroy the encryption key.
 For air-gapped operation, release verification, secure deletion limits, and threat model details,
 read [`SECURITY-HARDENING.md`](./SECURITY-HARDENING.md).
 
-## Supported Files
+## Configuration And Supported Files
 
-Ragmir supports common text, document, data, config, log, and source-code files out of the box:
+Most users should start with `rgr setup` and let `rgr doctor` explain what is missing. Edit
+`.ragmir/config.json` only when you need extra source paths, semantic embeddings, larger files,
+privacy tuning, or local extractors.
 
-- Markdown: `.md`, `.mdx`
-- Text: `.txt`, `.text`
-- JSON: `.json`
-- YAML: `.yaml`, `.yml`
-- CSV/TSV: `.csv`, `.tsv`
-- HTML: `.html`, `.htm`
-- EPUB: `.epub`
-- PDF: `.pdf`
-- Office/OpenDocument: `.docx`, `.pptx`, `.xlsx`, `.odt`, `.ods`, `.odp`
-- Legacy Excel: convert `.xls` workbooks to `.xlsx`, CSV, PDF, HTML, or text before ingesting
-- Legacy Word: `.doc` only when an explicit local `legacyWordCommand` is configured
-- Rich text: `.rtf`
-- Notebook: `.ipynb`
-- Subtitles/calendars/mail: `.vtt`, `.srt`, `.ics`, `.eml`
-- Line data and logs: `.jsonl`, `.ndjson`, `.log`
-- XML feeds and documents: `.xml`, `.rss`, `.atom`, `.svg`
-- Config and data files: `.toml`, `.ini`, `.conf`, `.cfg`, `.properties`, `.sql`, `.example`,
-  `.exemple`
-- Common project metadata: `.gitignore`, `.dockerignore`, `.npmignore`, `.gitlab-ci.yml`,
-  `.vscode/settings.json`, Maven wrapper `.properties`
-- Source code: `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.py`, `.go`, `.rs`,
-  `.java`, `.rb`, `.php`, `.cs`, `.c`, `.cpp`, `.h`, `.hpp`, `.css`, `.scss`, `.vue`, `.svelte`,
-  `.astro`, `.sh`, `.bash`, `.bat`, `.cmd`, `.ps1`
-- Common extensionless text wrappers: `mvnw`, `gradlew`, `Dockerfile`, `Makefile`, `Procfile`,
-  `Gemfile`, `Rakefile`
-- Documentation/code review text: `.rst`, `.adoc`, `.tex`, `.diff`, `.patch`, `.markdown`,
-  `.mdown`, `.mmd`
-
-Custom UTF-8 text extensions can be enabled without changing code:
-
-```json
-{
-  "includeExtensions": [".transcript", ".evidence"]
-}
-```
-
-Or through:
-
-```bash
-RAGMIR_INCLUDE_EXTENSIONS=".transcript,.evidence" npx ragmir ingest
-```
-
-Audio/video files and formats that are not listed are not useful to Ragmir as-is. They can still be
-valuable source evidence, but they should be transcribed, converted, or exported to text/PDF/HTML
-first. `ragmir audit --unsupported` prints per-file recommendations for these skipped formats.
-Scanned PDFs can use an explicit `pdfOcrCommand` wrapper when you accept running local OCR tooling.
-Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` stay unsupported by default, but
-can be indexed through an explicit local `imageOcrCommand` wrapper. Old `.doc` Word binaries stay
-unsupported by default, but can be indexed through an explicit local `legacyWordCommand` wrapper
-when your workstation has a trusted extractor. If a supported file parses to no text, `ragmir ingest
---json` reports it under `emptyTextFiles`. Ragmir intentionally avoids pretending that every binary
-format can be indexed safely without extraction logic.
-
-Secret-like files such as `.env`, `.npmrc`, private keys, and certificates are skipped by default.
-Convert safe examples to a normal text format before ingestion.
-
-Dotfiles are discovered so useful project metadata is not silently missed. Sensitive
-key/certificate-like files such as `.pem`, `.key`, `.p12`, `.pfx`, `.jks`, `.gpg`, and common secret
-filenames such as `.env`, `.npmrc`, `.netrc`, and `.pgpass` are skipped by default even if they sit
-under a source directory.
-
-## Configuration Reference
-
-Most users should start with `ragmir setup` and let `ragmir doctor` explain what is missing. Edit
-`.ragmir/config.json` only when you need to change source paths, retrieval mode, chunking, privacy
-limits, or local extractors.
-
-Default `.ragmir/config.json` for a fresh project:
-
-```json
-{
-  "rawDir": ".ragmir/raw",
-  "storageDir": ".ragmir/storage",
-  "sourcesFile": ".ragmir/sources.txt",
-  "sources": [],
-  "accessLogPath": ".ragmir/access.log",
-  "embeddingModelPath": ".ragmir/models",
-  "tableName": "chunks",
-  "embeddingProvider": "local-hash",
-  "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
-  "transformersAllowRemoteModels": false,
-  "redaction": {
-    "enabled": true,
-    "builtIn": true,
-    "patterns": []
-  },
-  "accessLog": true,
-  "mcpMaxTopK": 10,
-  "topK": 8,
-  "chunkSize": 1200,
-  "chunkOverlap": 200,
-  "maxFileBytes": 50000000,
-  "ingestConcurrency": 4,
-  "embeddingBatchSize": 32,
-  "includeExtensions": [],
-  "pdfOcrCommand": [],
-  "pdfOcrTimeoutMs": 120000,
-  "imageOcrCommand": [],
-  "imageOcrTimeoutMs": 120000,
-  "legacyWordCommand": [],
-  "legacyWordTimeoutMs": 120000
-}
-```
-
-Every field, its default, and what it controls:
-
-| Field | Default | Purpose |
-| --- | --- | --- |
-| `rawDir` | `.ragmir/raw` | Local corpus folder, indexed recursively. The primary place to drop documents. |
-| `sources` | `[]` | Extra file, directory, and glob paths (plus `!` exclusions) to index, resolved from the project root. See below. |
-| `sourcesFile` | `.ragmir/sources.txt` | Legacy one-path-per-line file; still read and merged with `sources` when present. |
-| `storageDir` | `.ragmir/storage` | LanceDB vector store location. |
-| `accessLogPath` | `.ragmir/access.log` | Query access log (stores hashes/metadata only). |
-| `embeddingModelPath` | `.ragmir/models` | Local cache for the Transformers.js embedding model. |
-| `tableName` | `chunks` | LanceDB table name. |
-| `embeddingProvider` | `local-hash` | `local-hash` (offline lexical, not semantic) or `transformers` (semantic). Switching requires `ragmir ingest --rebuild`. |
-| `embeddingModel` | `mixedbread-ai/mxbai-embed-xsmall-v1` | Model used when `embeddingProvider` is `transformers`. |
-| `transformersAllowRemoteModels` | `false` | Allow downloading the embedding model at runtime. |
-| `redaction.enabled` | `true` | Strip secrets/PII before anything is embedded. |
-| `redaction.builtIn` | `true` | Apply the built-in secret/PII patterns. |
-| `redaction.patterns` | `[]` | Extra `{ name, pattern, flags?, replacement? }` redaction rules. |
-| `accessLog` | `true` | Record query metadata to `accessLogPath`. |
-| `mcpMaxTopK` | `10` | Hard cap on results any MCP tool may return. |
-| `topK` | `8` | Default number of passages returned by `search`/`ask`. |
-| `chunkSize` | `1200` | Characters per chunk. |
-| `chunkOverlap` | `200` | Overlapping characters between chunks (must be `< chunkSize`). |
-| `maxFileBytes` | `50000000` | Skip files larger than this. |
-| `ingestConcurrency` | `4` | Files processed in parallel during ingest. |
-| `embeddingBatchSize` | `32` | Chunks embedded per batch. |
-| `includeExtensions` | `[]` | Extra file extensions to treat as indexable text. |
-| `pdfOcrCommand`, `imageOcrCommand`, `legacyWordCommand` | `[]` | Opt-in external extractors (see below). |
-| `pdfOcrTimeoutMs`, `imageOcrTimeoutMs`, `legacyWordTimeoutMs` | `120000` | Timeouts for the external extractors. |
-
-### Extra source paths (`sources`)
-
-Ragmir always indexes everything under `rawDir` (`.ragmir/raw/`). To pull in files that live elsewhere —
-sibling packages in a monorepo, a shared docs folder, a downloaded directory — add them straight to the
-`sources` array in `.ragmir/config.json`. No separate file is needed:
-
-```json
-{
-  "sources": [
-    "../packages/*/README.md",
-    "../docs",
-    "./NOTES.md",
-    "!../packages/**/node_modules/**"
-  ]
-}
-```
-
-Each entry is one of:
-
-- a **file** or **directory** path — relative paths resolve from the project root; directories are indexed recursively;
-- a **glob** pattern — any entry containing `*`, `?`, `[`, or `{`;
-- an **exclusion** — starts with `!` and filters the glob matches.
-
-```mermaid
-flowchart LR
-  Raw["rawDir<br/>.ragmir/raw/"] --> Merge["Source merge"]
-  Cfg["sources[]<br/>in config.json"] --> Merge
-  Legacy["legacy sources.txt<br/>(read-only, optional)"] -.-> Merge
-  Merge --> Discover["file discovery"]
-  Discover --> Index["LanceDB index"]
-```
-
-> **Legacy `sources.txt`.** `ragmir sources add` and `ragmir sources list` read and write the `sources`
-> array in `.ragmir/config.json` — this is the canonical location. A pre-existing `.ragmir/sources.txt`
-> is still read (read-only) and merged with the config array, so existing projects keep working
-> unchanged; nothing writes to it anymore. New projects never get a `sources.txt`.
-
-Environment overrides:
-
-Environment overrides:
-
-- `RAGMIR_RAW_DIR`
-- `RAGMIR_STORAGE_DIR`
-- `RAGMIR_SOURCES_FILE`
-- `RAGMIR_ACCESS_LOG_PATH`
-- `RAGMIR_EMBEDDING_PROVIDER`
-- `RAGMIR_EMBEDDING_MODEL`
-- `RAGMIR_EMBEDDING_MODEL_PATH`
-- `RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS`
-- `RAGMIR_REDACTION_ENABLED`
-- `RAGMIR_REDACTION_BUILT_IN`
-- `RAGMIR_ACCESS_LOG`
-- `RAGMIR_MCP_MAX_TOP_K`
-- `RAGMIR_TOP_K`
-- `RAGMIR_CHUNK_SIZE`
-- `RAGMIR_CHUNK_OVERLAP`
-- `RAGMIR_MAX_FILE_BYTES`
-- `RAGMIR_INGEST_CONCURRENCY`
-- `RAGMIR_EMBEDDING_BATCH_SIZE`
-- `RAGMIR_INCLUDE_EXTENSIONS`
-- `RAGMIR_PDF_OCR_COMMAND` as a JSON array, for example `["ragmir-pdf-ocr","{input}"]`
-- `RAGMIR_PDF_OCR_TIMEOUT_MS`
-- `RAGMIR_IMAGE_OCR_COMMAND` as a JSON array, for example `["ragmir-image-ocr","{input}"]`
-- `RAGMIR_IMAGE_OCR_TIMEOUT_MS`
-- `RAGMIR_LEGACY_WORD_COMMAND` as a JSON array, for example `["ragmir-doc-text","{input}"]`
-- `RAGMIR_LEGACY_WORD_TIMEOUT_MS`
-
-Legacy `KB_*` aliases remain accepted for existing automation.
-
-### External Extractors
-
-`pdfOcrCommand` is opt-in and only runs when normal PDF text extraction returns no text.
-`imageOcrCommand` is also opt-in; image files are treated as supported only when it is configured.
-`legacyWordCommand` is opt-in; `.doc` files are treated as supported only when it is configured.
-External text commands are executed from the target project root without a shell, receive
-`RAGMIR_PDF_PATH`, `RAGMIR_IMAGE_PATH`, or `RAGMIR_LEGACY_WORD_PATH`, replace `{input}` placeholders
-with the source path, and must print UTF-8 text to stdout.
+The full configuration reference, supported-file matrix, environment overrides, and OCR/extractor
+rules live in [`docs/configuration.md`](./docs/configuration.md).
 
 ## Command And API Reference
 
 Ragmir ships two CLIs:
 
-- `ragmir`: the main local RAG, MCP, skills, security, and audio command. `kb` remains a legacy alias
-  for compatibility.
-- `ragmir-tts`: the standalone text-to-speech renderer used by `ragmir audio`.
+- `rgr`: the main local RAG, MCP, skills, security, and audio command.
+- `rgr-tts`: the standalone text-to-speech renderer used by `rgr audio`.
 
-Most users start with `ragmir setup`, `ragmir doctor`, `ragmir ingest`, `ragmir search`, `ragmir ask`,
-`ragmir research`, and `ragmir security-audit`.
+Most users start with `rgr setup`, `rgr doctor`, `rgr ingest`, `rgr route-prompt`,
+`rgr search`, `rgr ask`, `rgr research`, and `rgr security-audit`.
 
-Use `ragmir setup --semantic` during first setup, or `ragmir models pull --enable` later, when a
+Use `rgr setup --semantic` during first setup, or `rgr models pull --enable` later, when a
 one-time Transformers.js model download is acceptable and you want higher-quality semantic retrieval.
-Run `ragmir ingest --rebuild` after switching embedding provider or model.
+Run `rgr ingest --rebuild` after switching embedding provider or model.
 
 Full command table: [`docs/cli-reference.md`](./docs/cli-reference.md).
 
@@ -957,16 +751,16 @@ Full API reference: [`docs/api-reference.md`](./docs/api-reference.md).
 
 ## Troubleshooting And Validation
 
-Use `ragmir doctor` first. It is the shortest path to the next useful action:
+Use `rgr doctor` first. It is the shortest path to the next useful action:
 
 ```bash
-npx ragmir doctor
+npx rgr doctor
 ```
 
 Use `doctor --fix` when you want Ragmir to repair safe setup issues automatically:
 
 ```bash
-npx ragmir doctor --fix
+npx rgr doctor --fix
 ```
 
 Common fixes for empty indexes, weak search, strict security audit failures, and TTS setup live in
@@ -1005,7 +799,7 @@ This repository ships two synthetic examples under
 retrieval mode, so they run without downloading an embedding or chat model, and neither uses private
 documents.
 
-> Testing local changes: use the repository's own build, not `npx`. Inside this repo `npx ragmir`
+> Testing local changes: use the repository's own build, not `npx`. Inside this repo `npx rgr`
 > resolves to the **published** npm package, not your working copy—so it would not exercise your
 > local edits. Build once with `pnpm build`, then run the examples against the local `dist/` build.
 > (`dist/` is gitignored build output, so a clean clone has none until `pnpm build` runs.)

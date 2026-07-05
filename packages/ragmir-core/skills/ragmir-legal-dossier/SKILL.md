@@ -59,8 +59,8 @@ dossier and test them on non-sensitive samples first.
 After changing redaction rules, rebuild the index:
 
 ```bash
-pnpm exec ragmir ingest --rebuild
-pnpm exec ragmir security-audit --strict
+pnpm exec rgr ingest --rebuild
+pnpm exec rgr security-audit --strict
 ```
 
 ## Retrieval Workflow
@@ -68,19 +68,19 @@ pnpm exec ragmir security-audit --strict
 Start from readiness checks:
 
 ```bash
-pnpm exec ragmir doctor
-pnpm exec ragmir audit
-pnpm exec ragmir audit --unsupported
-pnpm exec ragmir security-audit --strict
+pnpm exec rgr doctor
+pnpm exec rgr audit
+pnpm exec rgr audit --unsupported
+pnpm exec rgr security-audit --strict
 ```
 
 Then run targeted retrieval passes:
 
 ```bash
-pnpm exec ragmir search "parties obligations dates amounts" --top-k 8
-pnpm exec ragmir search "termination clause liability indemnity notice" --top-k 8
-pnpm exec ragmir search "timeline meeting decision approval refusal" --top-k 8
-pnpm exec ragmir ask "Which documents support the chronology of events?" --top-k 8
+pnpm exec rgr search "parties obligations dates amounts" --top-k 8
+pnpm exec rgr search "termination clause liability indemnity notice" --top-k 8
+pnpm exec rgr search "timeline meeting decision approval refusal" --top-k 8
+pnpm exec rgr ask "Which documents support the chronology of events?" --top-k 8
 ```
 
 When MCP is available, prefer `ragmir_status`, `ragmir_search`, `ragmir_ask`, `ragmir_audit`, and

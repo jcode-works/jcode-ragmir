@@ -2,14 +2,14 @@
 
 ## Decision
 
-The Ragmir app embeds Ragmir Core through the existing `ragmir` CLI/MCP surface, with a packaged
+The Ragmir app embeds Ragmir Core through the existing `rgr` CLI/MCP surface, with a packaged
 Node sidecar as the intended distribution path. Do not rewrite Ragmir Core as Rust bindings for v1.
 
 ## Rationale
 
 - Ragmir Core already owns parsing, redaction, embeddings, LanceDB storage, query, MCP, and audit
   behavior.
-- Reusing `ragmir` keeps the MIT core and the app shell on the same tested implementation.
+- Reusing `rgr` keeps the MIT core and the app shell on the same tested implementation.
 - A Rust rewrite would duplicate LanceDB and Transformers.js integration risk before product demand
   is validated.
 - The app can keep a narrow native boundary: project selection, process execution, progress/status,
@@ -20,12 +20,12 @@ Node sidecar as the intended distribution path. Do not rewrite Ragmir Core as Ru
 The current app uses a narrow custom Tauri command, `run_ragmir_command`, implemented in
 `packages/ragmir-app/src-tauri/src/lib.rs`. It does not expose a general shell. The command accepts a
 fixed enum of Ragmir workflows, always prepends `--project-root <path>`, always requests `--json`, and
-executes the `ragmir` binary from `PATH` or `RAGMIR_CLI_BIN`. The native boundary rejects empty,
+executes the `rgr` binary from `PATH` or `RAGMIR_CLI_BIN`. The native boundary rejects empty,
 relative, or non-existent project roots before running the CLI.
 
 The future packaged sidecar path remains:
 
-1. Build or package a platform-specific Ragmir Core sidecar binary that exposes bounded `ragmir`
+1. Build or package a platform-specific Ragmir Core sidecar binary that exposes bounded `rgr`
    workflows.
 2. Add that binary to `bundle.externalBin` in `packages/ragmir-app/src-tauri/tauri.conf.json`.
 3. Add `@tauri-apps/plugin-shell` on the frontend and `tauri-plugin-shell` on the Rust side only if
@@ -47,27 +47,27 @@ The app should start with a small allowlist:
 
 | Workflow | Sidecar command |
 | --- | --- |
-| Readiness | `ragmir doctor --json` |
-| Safe repair | `ragmir doctor --fix --json` |
-| Status | `ragmir status --json` |
-| Ingest | `ragmir ingest --json` |
-| Force rebuild | `ragmir ingest --rebuild --json` |
-| Search | `ragmir search "<query>" --json` |
-| Ask context | `ragmir ask "<question>" --json` |
-| Privacy audit | `ragmir security-audit --json` |
-| Unsupported files | `ragmir audit --unsupported --json` |
-| Model preload | `ragmir models pull --enable --json` |
-| Audio report | `ragmir audio "<generated-text-file>" --offline --json` |
+| Readiness | `rgr doctor --json` |
+| Safe repair | `rgr doctor --fix --json` |
+| Status | `rgr status --json` |
+| Ingest | `rgr ingest --json` |
+| Force rebuild | `rgr ingest --rebuild --json` |
+| Search | `rgr search "<query>" --json` |
+| Ask context | `rgr ask "<question>" --json` |
+| Privacy audit | `rgr security-audit --json` |
+| Unsupported files | `rgr audit --unsupported --json` |
+| Model preload | `rgr models pull --enable --json` |
+| Audio report | `rgr audio "<generated-text-file>" --offline --json` |
 
 The UI must pass an explicit project root for each selected knowledge base with
 `ragmir --project-root "<path>" ...` and keep generated state inside that project (`.ragmir/`)
 unless the user intentionally chooses another local folder.
 
 For audio reports, `run_ragmir_command` writes the current retrieval report text under ignored
-`.ragmir/audio/` first, then passes that generated text file to `ragmir audio --offline --json`.
+`.ragmir/audio/` first, then passes that generated text file to `rgr audio --offline --json`.
 
 For watched folders, the app does not expose a broader filesystem watcher. It stores an opt-in flag
-per registered local project and periodically calls the existing incremental `ragmir ingest --json`
+per registered local project and periodically calls the existing incremental `rgr ingest --json`
 workflow through the same bounded command surface.
 
 The Google Drive connector is the same local path flow with a distinct source label: the user selects

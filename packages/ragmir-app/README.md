@@ -41,17 +41,17 @@ names.
 The app uses `@jcode.labs/ragmir-ui` for shared styling and should keep privacy controls visible by
 default.
 
-Ragmir Core integration is a bounded native Tauri command around the existing `ragmir` CLI/MCP
-surface. In local native runs, set `RAGMIR_CLI_BIN` when the `ragmir` binary is not on `PATH`. See
+Ragmir Core integration is a bounded native Tauri command around the existing `rgr` CLI/MCP
+surface. In local native runs, set `RAGMIR_CLI_BIN` when the `rgr` binary is not on `PATH`. See
 [`../../docs/app-sidecar-architecture.md`](../../docs/app-sidecar-architecture.md).
 
-The current shell consumes JSON from `ragmir doctor`, `ragmir status`, `ragmir ingest`,
-`ragmir ask`, `ragmir security-audit`, `ragmir models pull --enable`, and offline `ragmir audio` for
+The current shell consumes JSON from `rgr doctor`, `rgr status`, `rgr ingest`,
+`rgr ask`, `rgr security-audit`, `rgr models pull --enable`, and offline `rgr audio` for
 project status, cited retrieval, privacy posture, explicit semantic model setup, Markdown reports,
 and local audio report rendering.
 
 Registered projects can opt into watched-folder mode from the Projects view. This is a local polling
-layer over incremental `ragmir ingest`: it re-indexes the selected project every 5 minutes, stores the
+layer over incremental `rgr ingest`: it re-indexes the selected project every 5 minutes, stores the
 setting only in local app storage, and does not add a cloud connector or background daemon.
 
 Google Drive support is intentionally implemented as a local-sync connector: select the folder made
