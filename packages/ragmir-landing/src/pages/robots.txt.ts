@@ -1,10 +1,11 @@
 import type { APIRoute } from "astro"
 
 const PRODUCTION_DOMAIN = "https://ragmir.com"
+const PRODUCTION_HOSTNAME = new URL(PRODUCTION_DOMAIN).hostname
 
-const isProduction = (import.meta.env.PUBLIC_RAGMIR_LANDING_URL ?? PRODUCTION_DOMAIN).startsWith(
-  PRODUCTION_DOMAIN,
-)
+const isProduction =
+  siteHostname(import.meta.env.PUBLIC_RAGMIR_LANDING_URL ?? PRODUCTION_DOMAIN) ===
+  PRODUCTION_HOSTNAME
 
 const productionRobots = `User-agent: *
 Content-Signal: search=yes, ai-input=yes, ai-train=no
@@ -21,4 +22,12 @@ export const GET: APIRoute = () => {
   return new Response(isProduction ? productionRobots : stagingRobots, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   })
+}
+
+function siteHostname(siteUrl: string): string {
+  try {
+    return new URL(siteUrl).hostname
+  } catch {
+    return ""
+  }
 }
