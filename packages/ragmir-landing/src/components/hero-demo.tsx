@@ -282,7 +282,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
                     style={{ fontSize: "0.58rem" }}
                     type="button"
                   >
-                    <span className="text-muted-foreground/70" style={{ fontSize: "0.46rem" }}>
+                    <span className="text-foreground/70" style={{ fontSize: "0.46rem" }}>
                       {String(index + 1).padStart(2, "0")}
                     </span>
                     <Icon aria-hidden="true" className="size-2.5 shrink-0" />
