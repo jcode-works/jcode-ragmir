@@ -1,0 +1,68 @@
+---
+import { Check, X } from "@lucide/astro"
+
+interface Props {
+  translations: Record<string, string>
+}
+
+const { translations } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+
+const bestAt = [
+  t("strengths_best_item_1"),
+  t("strengths_best_item_2"),
+  t("strengths_best_item_3"),
+  t("strengths_best_item_4"),
+]
+const lessUseful = [
+  t("strengths_limits_item_1"),
+  t("strengths_limits_item_2"),
+  t("strengths_limits_item_3"),
+]
+---
+
+<section class="container-default relative z-10 px-5 py-24 md:px-8 md:py-32">
+  <div class="mb-10 max-w-3xl">
+    <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+      {t("strengths_eyebrow")}
+    </p>
+    <h2 class="mt-4 font-black text-2xl leading-tight md:text-3xl">{t("strengths_title")}</h2>
+    <p class="mt-4 text-muted-foreground text-sm leading-6">{t("strengths_text")}</p>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <div class="rounded-xl border border-border bg-card/82 p-6 shadow-xl shadow-black/20 md:p-8">
+      <div class="mb-5 flex items-center gap-3">
+        <span class="flex size-8 items-center justify-center rounded-full bg-[var(--accent-title)]/15">
+          <Check class="size-4 text-[var(--accent-title)]" aria-hidden="true" />
+        </span>
+        <h3 class="font-black text-lg">{t("strengths_best_title")}</h3>
+      </div>
+      <ul class="grid gap-3">
+        {bestAt.map((item) => (
+          <li class="flex gap-3 text-sm leading-6">
+            <Check class="mt-0.5 size-4 shrink-0 text-[var(--accent-title)]" aria-hidden="true" />
+            <span class="text-foreground/88">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <div class="rounded-xl border border-border bg-card/60 p-6 shadow-xl shadow-black/10 md:p-8">
+      <div class="mb-5 flex items-center gap-3">
+        <span class="flex size-8 items-center justify-center rounded-full bg-muted-foreground/15">
+          <X class="size-4 text-muted-foreground" aria-hidden="true" />
+        </span>
+        <h3 class="font-black text-lg">{t("strengths_limits_title")}</h3>
+      </div>
+      <ul class="grid gap-3">
+        {lessUseful.map((item) => (
+          <li class="flex gap-3 text-sm leading-6">
+            <X class="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span class="text-muted-foreground">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</section>

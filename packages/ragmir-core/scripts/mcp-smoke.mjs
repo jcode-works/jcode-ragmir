@@ -13,6 +13,7 @@ const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-mcp-smoke-"))
 const demoRoot = path.join(tempRoot, "sovereign-rag-demo")
 const requiredTools = [
   "ragmir_status",
+  "ragmir_route_prompt",
   "ragmir_search",
   "ragmir_ask",
   "ragmir_research",
@@ -59,6 +60,15 @@ try {
   const status = await callJsonTool(client, "ragmir_status", {})
   if (status.chunksIndexed < 1) {
     throw new Error("MCP status reported an empty index.")
+  }
+
+  const routeDecision = await callJsonTool(client, "ragmir_route_prompt", {
+    prompt: "Audit this local repository release readiness from cited evidence.",
+  })
+  if (routeDecision.shouldUseRagmir !== true || routeDecision.tool !== "ragmir_research") {
+    throw new Error(
+      `MCP prompt router returned an unexpected decision: ${JSON.stringify(routeDecision)}`,
+    )
   }
 
   const searchResults = await callJsonTool(client, "ragmir_search", {

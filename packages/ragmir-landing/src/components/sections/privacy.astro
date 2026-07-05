@@ -1,0 +1,40 @@
+---
+import { ClipboardCheck, Database, HardDrive, LockKeyhole } from "@lucide/astro"
+
+interface Props {
+  translations: Record<string, string>
+}
+
+const { translations } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+
+const privacyControls = [
+  { icon: HardDrive, title: t("privacy_docs_title"), text: t("privacy_docs_text") },
+  { icon: Database, title: t("privacy_index_title"), text: t("privacy_index_text") },
+  { icon: LockKeyhole, title: t("privacy_redaction_title"), text: t("privacy_redaction_text") },
+  { icon: ClipboardCheck, title: t("privacy_access_title"), text: t("privacy_access_text") },
+]
+---
+
+<section class="container-default relative z-10" aria-labelledby="privacy-heading">
+  <div class="mx-auto grid gap-8 px-5 py-24 md:px-8 md:py-40 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
+    <div class="lg:order-2">
+      <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+        {t("privacy_eyebrow")}
+      </p>
+      <h2 id="privacy-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
+        {t("privacy_title")}
+      </h2>
+      <p class="mt-4 text-muted-foreground text-sm leading-6">{t("privacy_text")}</p>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-2 lg:order-1">
+      {privacyControls.map((control) => (
+        <div class="rounded-lg border border-border bg-card/72 p-5 shadow-xl shadow-black/20">
+          <control.icon class="size-5 text-muted-foreground" aria-hidden="true" />
+          <h3 class="mt-4 font-bold text-base">{control.title}</h3>
+          <p class="mt-2 text-muted-foreground text-sm leading-6">{control.text}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

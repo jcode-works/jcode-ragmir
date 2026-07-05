@@ -3,14 +3,17 @@ import sitemap from "@astrojs/sitemap"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "astro/config"
 
-const siteUrl = process.env.PUBLIC_RAGMIR_LANDING_URL ?? "https://ragmir.jcode.works"
+const siteUrl = process.env.PUBLIC_RAGMIR_LANDING_URL ?? "https://ragmir.com"
 const locales = ["en", "fr"]
 const defaultLocale = "en"
-const isProduction = new URL(siteUrl).hostname === "ragmir.jcode.works"
+const isProduction = new URL(siteUrl).hostname === "ragmir.com"
 
 export default defineConfig({
   site: siteUrl,
   output: "static",
+  server: ({ command }) => ({
+    port: command === "preview" ? 4323 : 4322,
+  }),
   compressHTML: true,
   i18n: {
     defaultLocale,

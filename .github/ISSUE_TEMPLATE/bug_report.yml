@@ -22,7 +22,7 @@ body:
     id: version
     attributes:
       label: Ragmir version
-      placeholder: "pnpm exec ragmir --version"
+      placeholder: "pnpm exec rgr --version"
     validations:
       required: true
   - type: textarea

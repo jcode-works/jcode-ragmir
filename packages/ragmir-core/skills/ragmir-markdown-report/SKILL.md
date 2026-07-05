@@ -28,16 +28,16 @@ sanitized report is safe to commit or share.
 From the repository root:
 
 ```bash
-pnpm exec ragmir doctor
-pnpm exec ragmir audit
-pnpm exec ragmir security-audit
+pnpm exec rgr doctor
+pnpm exec rgr audit
+pnpm exec rgr security-audit
 ```
 
 If files are missing, stale, or setup is incomplete:
 
 ```bash
-pnpm exec ragmir doctor --fix
-pnpm exec ragmir audit --unsupported
+pnpm exec rgr doctor --fix
+pnpm exec rgr audit --unsupported
 ```
 
 Do not write a final report from stale evidence unless the user explicitly accepts that limitation.
@@ -47,9 +47,9 @@ Do not write a final report from stale evidence unless the user explicitly accep
 For a broad report, use multiple targeted retrieval passes instead of one generic query:
 
 ```bash
-pnpm exec ragmir search "<main report topic>" --top-k 8
-pnpm exec ragmir search "<people, dates, amounts, obligations, risks, decisions>" --top-k 8
-pnpm exec ragmir ask "<specific synthesis question>" --top-k 8
+pnpm exec rgr search "<main report topic>" --top-k 8
+pnpm exec rgr search "<people, dates, amounts, obligations, risks, decisions>" --top-k 8
+pnpm exec rgr ask "<specific synthesis question>" --top-k 8
 ```
 
 When MCP is available, prefer `ragmir_search`, `ragmir_ask`, `ragmir_audit`, and

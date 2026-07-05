@@ -17,6 +17,6 @@ or private document disclosure.
 
 ## Data Boundary
 
-Ragmir is designed to index local project documents. Raw project documents,
-`.ragmir/` (and legacy `.kb/` where present), environment files, credentials, customer records, and commercial validation notes
-must remain outside commits.
+Ragmir is designed to index local project documents. Raw project documents, `.ragmir/`,
+environment files, credentials, customer records, and commercial validation notes must remain
+outside commits.

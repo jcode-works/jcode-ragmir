@@ -22,6 +22,8 @@ jobs:
     environment:
       name: npm-publish
       url: https://www.npmjs.com/package/@jcode.labs/ragmir
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Verify main branch
         run: test "${GITHUB_REF}" = "refs/heads/main"
@@ -59,3 +61,27 @@ jobs:
         with:
           name: ragmir-release-${{ github.sha }}
           path: release-artifacts/
+
+      - name: Resolve released version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  deploy-landing:
+    name: Rebuild and deploy landing with new version
+    runs-on: ubuntu-latest
+    needs: release
+    if: needs.release.outputs.version != ''
+    steps:
+      - name: Trigger landing deploy with version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy-landing.yml',
+              ref: 'main',
+              inputs: { version: '${{ needs.release.outputs.version }}' }
+            })

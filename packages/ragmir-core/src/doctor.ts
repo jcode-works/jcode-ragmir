@@ -5,7 +5,7 @@ import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
 import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit } from "./ingest.js"
-import { ragmirCommand } from "./package-manager.js"
+import { rgrCommand } from "./package-manager.js"
 import { securityAudit } from "./security.js"
 import {
   AGENT_HELPER_CONFIG_FILENAMES,
@@ -20,7 +20,7 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
   const projectConfig = findProjectConfig(cwd)
   const initialized = existsSync(projectConfig.configPath)
   const config = await loadConfig(cwd)
-  const command = await ragmirCommand(config.projectRoot, [])
+  const command = await rgrCommand(config.projectRoot, [])
   const agentKitInstalled = isAgentKitInstalled(config.projectRoot)
   const [auditReport, securityReport, chunksIndexed, manifest, freshnessWarning] =
     await Promise.all([
@@ -112,7 +112,7 @@ function nextActions(input: NextActionInput): string[] {
   if (input.supportedFiles === 0) {
     if (input.skippedFiles > 0) {
       steps.push(
-        "Ragmir found files, but none are currently indexable. Run `ragmir audit --unsupported` to inspect skipped files.",
+        "Ragmir found files, but none are currently indexable. Run `rgr audit --unsupported` to inspect skipped files.",
       )
     } else {
       steps.push(
@@ -149,7 +149,7 @@ function nextActions(input: NextActionInput): string[] {
   if (steps.length === 0) {
     if (input.unsupportedFiles > 0) {
       steps.push(
-        "Run `ragmir audit --unsupported` to inspect files skipped because their type is not supported.",
+        "Run `rgr audit --unsupported` to inspect files skipped because their type is not supported.",
       )
     }
     if (input.embeddingProvider === "local-hash") {
@@ -166,7 +166,7 @@ function nextActions(input: NextActionInput): string[] {
     )
     if (input.agentKitInstalled) {
       steps.push(
-        "Run `ragmir install-agent --agents claude` or another targeted agent list for native skill discovery.",
+        "Run `rgr install-agent --agents claude` or another targeted agent list for native skill discovery.",
       )
       steps.push(
         "Wire the matching MCP helper from .ragmir/ when the agent should call Ragmir tools directly.",

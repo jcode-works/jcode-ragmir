@@ -1,0 +1,65 @@
+---
+import { Cloud, Cpu, Terminal } from "@lucide/astro"
+import { CommandCopyBox } from "../command-copy"
+
+interface Props {
+  translations: Record<string, string>
+}
+
+const { translations } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+
+const agentTargets = [
+  { icon: Cloud, name: t("agents_cloud_name"), text: t("agents_cloud_text") },
+  { icon: Terminal, name: "OpenCode", text: t("agents_opencode_text") },
+  { icon: Cpu, name: "Ollama", text: t("agents_ollama_text") },
+]
+---
+
+<section
+  id="agents"
+  aria-labelledby="agents-heading"
+  class="container-wide relative z-10 grid gap-8 px-5 py-24 md:px-8 md:py-40 lg:grid-cols-[1.1fr_0.9fr] lg:items-center"
+>
+  <div class="lg:order-2">
+    <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+      {t("agents_eyebrow")}
+    </p>
+    <h2 id="agents-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
+      {t("agents_title")}
+    </h2>
+    <p class="mt-4 text-muted-foreground text-sm leading-6">{t("agents_text")}</p>
+    <div class="mt-6">
+      <div class="rounded-lg border border-border bg-muted/45 p-4">
+        <p class="font-bold text-sm">{t("agents_command_label")}</p>
+        <div class="mt-3">
+          <CommandCopyBox
+            client:visible
+            command={t("agents_command")}
+            copyLabel={t("copy_command")}
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="overflow-hidden rounded-xl border border-border bg-card/82 text-card-foreground shadow-2xl shadow-black/30 backdrop-blur-xl lg:order-1"
+  >
+    <div class="flex flex-col gap-3 border-b border-border p-5 md:p-6">
+      <h3 class="font-black text-xl">{t("agents_targets_title")}</h3>
+      <p class="text-sm text-muted-foreground leading-6">{t("agents_targets_text")}</p>
+    </div>
+    <div class="grid gap-3 p-5 sm:grid-cols-2 md:p-6">
+      {agentTargets.map((agent) => (
+        <div class="rounded-lg border border-border bg-muted/45 p-4">
+          <div class="flex items-center gap-3">
+            <agent.icon class="size-5 text-muted-foreground" aria-hidden="true" />
+            <p class="font-bold text-sm">{agent.name}</p>
+          </div>
+          <p class="mt-2 text-muted-foreground text-sm leading-6">{agent.text}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

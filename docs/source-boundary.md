@@ -60,7 +60,7 @@ Keep the public repository limited to:
 Keep outside Git:
 
 - private documents and client corpora;
-- `.ragmir/`, `.pid`, raw reports, audio files, vector stores, and legacy `.kb/` state;
+- `.ragmir/`, `.pid`, raw reports, audio files, vector stores, and generated local state;
 - API keys, webhook secrets, signing keys, certificates, and environment files;
 - customer names, emails, invoices, order exports, and support evidence;
 - internal pricing tests, pre-sales ledgers, interview notes, and GO/NO-GO records.

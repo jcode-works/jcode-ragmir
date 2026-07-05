@@ -1,241 +1,396 @@
-import { useGSAP } from "@gsap/react"
 import { cn } from "@jcode.labs/ragmir-ui/utils"
-import { gsap } from "gsap"
-import { TextPlugin } from "gsap/TextPlugin"
-import { Bot, Check, Lock, Workflow, Zap } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
-
-gsap.registerPlugin(TextPlugin)
+import {
+  BookOpenText,
+  Cpu,
+  type LucideIcon,
+  Plane,
+  RotateCcw,
+  Scale,
+  ShieldCheck,
+  Wrench,
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  DEFAULT_HERO_DEMO_SCENARIO,
+  findHeroDemoScenario,
+  HERO_DEMO_SCENARIOS,
+  type TerminalLineKind,
+  type TerminalScriptLine,
+} from "./hero-demo-script"
 
 interface HeroDemoProps {
-  t: (key: string) => string
+  translations: Record<string, string>
 }
 
-// Resume automatic playback after this idle time (ms) following a manual click.
-const RESUME_DELAY = 10000
+interface PlaybackState {
+  visibleCount: number
+  typingLineIndex: number | null
+  typedText: string
+  isComplete: boolean
+}
 
-// Animated "how it works" demo: for each step it types the user's action (a
-// command / prompt) and shows what it does below. Clicking a step takes manual
-// control (auto-play pauses); it resumes after idle. Paused while off-screen.
-export function HeroDemo({ t }: HeroDemoProps): React.JSX.Element {
-  const container = useRef<HTMLDivElement>(null)
-  const timelineRef = useRef<gsap.core.Timeline | null>(null)
-  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const userPaused = useRef(false)
-  const isVisible = useRef(true)
-  const [activeStep, setActiveStep] = useState(0)
+const INITIAL_PLAYBACK_STATE: PlaybackState = {
+  visibleCount: 0,
+  typingLineIndex: null,
+  typedText: "",
+  isComplete: false,
+}
 
-  const steps = [t("demo_step_index"), t("demo_step_ask"), t("demo_step_cite")]
+const TYPEABLE_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
 
-  const syncPlayState = useCallback(() => {
-    const timeline = timelineRef.current
-    if (!timeline) return
-    if (isVisible.current && !userPaused.current) {
-      timeline.play()
-    } else {
-      timeline.pause()
-    }
+const SCENARIO_ICONS: Record<string, LucideIcon> = {
+  aviation: Plane,
+  security: ShieldCheck,
+  incident: Wrench,
+  legal: Scale,
+  content: BookOpenText,
+  local: Cpu,
+}
+
+export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
+  const t = useCallback((key: string): string => translations[key] ?? key, [translations])
+  const [activeScenarioId, setActiveScenarioId] = useState(DEFAULT_HERO_DEMO_SCENARIO.id)
+  const activeScenario = useMemo(() => findHeroDemoScenario(activeScenarioId), [activeScenarioId])
+  const [playback, setPlayback] = useState<PlaybackState>(INITIAL_PLAYBACK_STATE)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const tabScrollRef = useRef<HTMLDivElement>(null)
+  const isVisible = useRef(false)
+  const hasPlayedRef = useRef(false)
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const clearAllTimeouts = useCallback(() => {
+    for (const timeout of timeoutsRef.current) clearTimeout(timeout)
+    timeoutsRef.current = []
   }, [])
 
-  useGSAP(
-    () => {
-      const panels = gsap.utils.toArray<HTMLElement>(".demo-panel")
-
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        gsap.set(panels, { autoAlpha: 0 })
-        if (panels[0]) gsap.set(panels[0], { autoAlpha: 1 })
-        return
-      }
-
-      const hold = 4
-      const timeline = gsap.timeline({ repeat: -1 })
-      panels.forEach((panel, index) => {
-        const typed = panel.querySelector<HTMLElement>(".demo-typed")
-        const result = panel.querySelector<HTMLElement>(".demo-result")
-        const label = `step-${index}`
-        timeline.addLabel(label)
-        timeline.call(() => setActiveStep(index), [], label)
-        timeline.fromTo(
-          panel,
-          { autoAlpha: 0, y: 16 },
-          { autoAlpha: 1, y: 0, duration: 0.55, ease: "power3.out" },
-          label,
-        )
-
-        let resultAt = 0.6
-        if (typed) {
-          const full = typed.textContent ?? ""
-          const typingDuration = Math.min(1.4, Math.max(0.5, full.length * 0.045))
-          timeline.set(typed, { text: "" }, label)
-          timeline.to(
-            typed,
-            { text: full, duration: typingDuration, ease: "none" },
-            `${label}+=0.45`,
-          )
-          resultAt = 0.45 + typingDuration + 0.15
-        }
-        if (result) {
-          timeline.fromTo(
-            result,
-            { autoAlpha: 0, y: 6 },
-            { autoAlpha: 1, y: 0, duration: 0.4, ease: "power2.out" },
-            `${label}+=${resultAt}`,
-          )
-        }
-
-        timeline.to(
-          panel,
-          { autoAlpha: 0, y: -14, duration: 0.45, ease: "power2.in" },
-          `${label}+=${hold}`,
-        )
-      })
-      timelineRef.current = timeline
+  const resolveLineText = useCallback(
+    (line: TerminalScriptLine): string => {
+      if (line.text !== undefined) return line.text
+      return t(line.textKey)
     },
-    { scope: container },
+    [t],
   )
 
-  // Pause the timeline when the demo is off-screen, and clean up the idle timer.
+  const startSequence = useCallback(() => {
+    clearAllTimeouts()
+    const prefersReducedMotion =
+      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+    if (prefersReducedMotion) {
+      setPlayback({
+        visibleCount: activeScenario.lines.length,
+        typingLineIndex: null,
+        typedText: "",
+        isComplete: true,
+      })
+      return
+    }
+
+    setPlayback(INITIAL_PLAYBACK_STATE)
+    let elapsed = 350
+
+    const schedule = (callback: () => void, delay: number) => {
+      timeoutsRef.current.push(setTimeout(callback, delay))
+    }
+
+    for (let i = 0; i < activeScenario.lines.length; i++) {
+      const line = activeScenario.lines[i]
+      if (!line) continue
+      const lineIndex = i
+      const text = resolveLineText(line)
+
+      if (TYPEABLE_LINE_KINDS.has(line.kind)) {
+        const characters = Array.from(text)
+        const typingDuration = clamp(characters.length * 24, 560, 1800)
+        const stepMs = Math.max(18, Math.round(typingDuration / Math.max(characters.length, 1)))
+
+        schedule(
+          () =>
+            setPlayback({
+              visibleCount: lineIndex,
+              typingLineIndex: lineIndex,
+              typedText: "",
+              isComplete: false,
+            }),
+          elapsed,
+        )
+
+        for (let characterIndex = 0; characterIndex < characters.length; characterIndex++) {
+          const partialText = characters.slice(0, characterIndex + 1).join("")
+          schedule(
+            () =>
+              setPlayback((current) =>
+                current.typingLineIndex === lineIndex
+                  ? { ...current, typedText: partialText }
+                  : current,
+              ),
+            elapsed + (characterIndex + 1) * stepMs,
+          )
+        }
+
+        elapsed += typingDuration + 180
+      } else {
+        elapsed += line.kind === "tree" ? 260 : 430
+      }
+
+      schedule(
+        () =>
+          setPlayback((current) => ({
+            ...current,
+            visibleCount: lineIndex + 1,
+            typingLineIndex: null,
+            typedText: "",
+          })),
+        elapsed,
+      )
+
+      elapsed += line.holdMs ?? defaultLineHoldMs(line.kind)
+    }
+
+    schedule(() => setPlayback((current) => ({ ...current, isComplete: true })), elapsed + 250)
+  }, [activeScenario, clearAllTimeouts, resolveLineText])
+
   useEffect(() => {
-    const element = container.current
+    const element = containerRef.current
     if (!element) return
+
     const observer = new IntersectionObserver(
       (entries) => {
-        isVisible.current = entries[0]?.isIntersecting ?? true
-        syncPlayState()
+        const wasVisible = isVisible.current
+        isVisible.current = entries[0]?.isIntersecting ?? false
+        if (isVisible.current && !wasVisible && !hasPlayedRef.current) {
+          hasPlayedRef.current = true
+          startSequence()
+        }
       },
-      { threshold: 0 },
+      { threshold: 0.3 },
     )
     observer.observe(element)
     return () => {
       observer.disconnect()
-      if (resumeTimer.current) clearTimeout(resumeTimer.current)
+      clearAllTimeouts()
     }
-  }, [syncPlayState])
+  }, [startSequence, clearAllTimeouts])
 
-  const handleStepClick = (index: number) => {
-    setActiveStep(index)
-    const timeline = timelineRef.current
-
-    if (!timeline) {
-      // Reduced motion: no timeline, just reveal the chosen panel.
-      const panels = container.current?.querySelectorAll<HTMLElement>(".demo-panel")
-      const target = panels?.[index]
-      if (panels) gsap.set(panels, { autoAlpha: 0 })
-      if (target) gsap.set(target, { autoAlpha: 1 })
-      return
+  useEffect(() => {
+    if (isVisible.current || hasPlayedRef.current) {
+      startSequence()
     }
+  }, [startSequence])
 
-    userPaused.current = true
-    timeline.pause()
-    timeline.seek((timeline.labels[`step-${index}`] ?? 0) + 2.5)
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  })
 
-    if (resumeTimer.current) clearTimeout(resumeTimer.current)
-    resumeTimer.current = setTimeout(() => {
-      userPaused.current = false
-      syncPlayState()
-    }, RESUME_DELAY)
+  const handleScenarioSelect = useCallback(
+    (scenarioId: string) => {
+      if (scenarioId === activeScenario.id) {
+        startSequence()
+        return
+      }
+
+      setActiveScenarioId(scenarioId)
+    },
+    [activeScenario.id, startSequence],
+  )
+
+  const handleTabWheel = useCallback((event: WheelEvent) => {
+    const element = tabScrollRef.current
+    if (!element || element.scrollWidth <= element.clientWidth) return
+
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+    if (delta === 0) return
+
+    event.preventDefault()
+    element.scrollLeft += delta
+  }, [])
+
+  useEffect(() => {
+    const element = tabScrollRef.current
+    if (!element) return
+
+    element.addEventListener("wheel", handleTabWheel, { passive: false })
+    return () => element.removeEventListener("wheel", handleTabWheel)
+  }, [handleTabWheel])
+
+  const lineClass: Record<TerminalLineKind, string> = {
+    shell: "text-foreground/92",
+    codex: "text-amber-300",
+    tree: "text-sky-300/90",
+    output: "text-muted-foreground",
+    mcp: "text-[var(--accent-title)]",
+    citation: "font-semibold text-yellow-300",
+    insight: "text-emerald-300",
+    change: "text-cyan-300",
+    success: "text-emerald-400",
   }
+
+  const linePrefix: Partial<Record<TerminalLineKind, string>> = {
+    shell: "$",
+    codex: "codex>",
+    mcp: "mcp",
+  }
+
+  const progress = Math.round((playback.visibleCount / activeScenario.lines.length) * 100)
 
   return (
     <div
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-2xl shadow-black/55"
-      ref={container}
+      className="mx-auto flex h-[34rem] min-h-[34rem] max-h-[34rem] min-w-0 w-full max-w-full shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-[#0a0a0a] shadow-2xl shadow-black/60 sm:max-w-lg"
+      ref={containerRef}
     >
-      <div className="flex items-center justify-between gap-4 border-b border-border p-4 md:p-5">
-        <div className="flex items-center gap-3">
-          <Workflow aria-hidden="true" className="size-5 text-foreground" />
-          <h2 className="font-black text-lg leading-none">{t("demo_title")}</h2>
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card/50 px-4 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full bg-red-500/80" />
+          <span className="size-2.5 rounded-full bg-yellow-500/80" />
+          <span className="size-2.5 rounded-full bg-green-500/80" />
         </div>
-        <span className="rounded-full border border-border bg-muted/50 px-3 py-1 font-bold text-foreground text-xs uppercase tracking-wide">
-          {t("demo_badge")}
+        <span className="truncate font-mono text-[0.65rem] text-muted-foreground">
+          {activeScenario.terminalTitle}
+        </span>
+        <span className="font-mono text-[0.6rem] font-bold uppercase tracking-wider text-[var(--accent-title)]">
+          {activeScenario.badge}
         </span>
       </div>
 
-      <div className="flex items-center gap-3 px-4 pt-4 md:px-5">
-        {steps.map((label, index) => {
-          const active = activeStep === index
-          return (
-            <button
-              aria-current={active ? "step" : undefined}
-              className={cn(
-                "flex flex-1 items-center gap-2 overflow-hidden rounded-lg py-1 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-ring",
-                active ? "opacity-100" : "opacity-60 hover:opacity-100",
-              )}
-              key={label}
-              onClick={() => handleStepClick(index)}
-              type="button"
-            >
-              <span
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full font-bold text-xs transition",
-                  active ? "bg-[var(--accent-title)] text-white" : "bg-muted text-muted-foreground",
-                )}
-              >
-                {index + 1}
-              </span>
-              <span
-                className={cn(
-                  "truncate font-semibold text-sm transition",
-                  active ? "text-foreground" : "text-muted-foreground",
-                )}
-              >
-                {label}
-              </span>
-            </button>
-          )
-        })}
+      <div className="shrink-0 border-b border-border bg-card/35">
+        <div className="flex border-b border-border/80 bg-background/55">
+          <div
+            className="h-10 min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            ref={tabScrollRef}
+            role="tablist"
+          >
+            <div className="flex min-w-max">
+              {HERO_DEMO_SCENARIOS.map((scenario, index) => {
+                const Icon = SCENARIO_ICONS[scenario.id] ?? Plane
+                const isActive = scenario.id === activeScenario.id
+
+                return (
+                  <button
+                    aria-selected={isActive}
+                    className={cn(
+                      "relative flex h-10 shrink-0 items-center gap-1.5 border-r border-border px-3 font-mono font-semibold uppercase transition focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-4",
+                      isActive
+                        ? "bg-[#121212] text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-[var(--accent-title)]"
+                        : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                    )}
+                    key={scenario.id}
+                    onClick={() => handleScenarioSelect(scenario.id)}
+                    role="tab"
+                    style={{ fontSize: "0.58rem" }}
+                    type="button"
+                  >
+                    <span className="text-muted-foreground/70" style={{ fontSize: "0.46rem" }}>
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <Icon aria-hidden="true" className="size-2.5 shrink-0" />
+                    <span>{t(scenario.titleKey)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <button
+            aria-label={t("demo_replay_label")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            onClick={startSequence}
+            title={t("demo_replay_label")}
+            type="button"
+          >
+            <RotateCcw aria-hidden="true" className="size-3.5" />
+          </button>
+        </div>
+        <p className="h-16 overflow-y-auto px-4 py-3 text-xs font-medium leading-5 text-muted-foreground">
+          {t(activeScenario.descriptionKey)}
+        </p>
       </div>
 
-      <div className="grid p-4 md:p-5">
-        <div
-          className="demo-panel col-start-1 row-start-1 flex flex-col justify-center gap-3"
-          data-step="0"
-        >
-          <p className="text-muted-foreground text-xs">{t("demo_index_action")}</p>
-          <div className="rounded-lg border border-border bg-background p-4 font-mono text-foreground/80 text-sm">
-            <span className="text-[var(--accent-title)]">$ </span>
-            <span className="demo-typed">{t("demo_index_command")}</span>
-          </div>
-          <p className="demo-result flex items-center gap-2 pt-1 font-semibold text-[var(--accent-title)] text-xs">
-            <Lock aria-hidden="true" className="size-3.5 shrink-0" />
-            {t("demo_index_result")}
-          </p>
-        </div>
+      <div
+        className="min-h-0 flex-1 overflow-y-auto p-4 font-mono text-[0.68rem] leading-relaxed sm:text-xs"
+        ref={scrollRef}
+      >
+        {activeScenario.lines.slice(0, playback.visibleCount).map((line, index) =>
+          renderTerminalLine({
+            key: `${activeScenario.id}-${line.kind}-${index}`,
+            line,
+            lineClass,
+            linePrefix,
+            text: resolveLineText(line),
+          }),
+        )}
 
-        <div
-          className="demo-panel col-start-1 row-start-1 flex flex-col justify-center gap-3 opacity-0"
-          data-step="1"
-        >
-          <p className="text-muted-foreground text-xs">{t("demo_ask_action")}</p>
-          <div className="rounded-lg border border-border bg-muted/45 p-4">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Bot aria-hidden="true" className="size-4 text-[var(--accent-title)]" />
-              Codex
-            </div>
-            <p className="mt-2 text-foreground/90 text-sm leading-6">
-              <span className="demo-typed">{t("demo_ask_command")}</span>
-            </p>
-          </div>
-          <p className="demo-result flex items-center gap-2 pt-1 font-semibold text-[var(--accent-title)] text-xs">
-            <Zap aria-hidden="true" className="size-3.5 shrink-0" />
-            {t("demo_ask_result")}
-          </p>
-        </div>
+        {playback.typingLineIndex !== null &&
+          renderTerminalLine({
+            key: `${activeScenario.id}-typing-${playback.typingLineIndex}`,
+            line: activeScenario.lines[playback.typingLineIndex],
+            lineClass,
+            linePrefix,
+            text: playback.typedText,
+            showCursor: true,
+          })}
 
+        {playback.typingLineIndex === null && !playback.isComplete && (
+          <span className="inline-block h-3.5 w-2 animate-pulse bg-green-400/70" />
+        )}
+      </div>
+
+      <div className="h-1 shrink-0 bg-border/70">
         <div
-          className="demo-panel col-start-1 row-start-1 flex flex-col justify-center gap-3 opacity-0"
-          data-step="2"
-        >
-          <p className="text-muted-foreground text-xs">{t("demo_cite_action")}</p>
-          <div className="rounded-lg border border-border bg-background/70 p-4 font-mono text-[var(--accent-title)] text-xs leading-6">
-            {t("workspace_answer_citations")}
-          </div>
-          <p className="demo-result flex items-center gap-2 pt-1 font-semibold text-[var(--accent-title)] text-xs">
-            <Check aria-hidden="true" className="size-3.5 shrink-0" />
-            {t("demo_cite_result")}
-          </p>
-        </div>
+          className="h-full bg-[var(--accent-title)] transition-[width] duration-300 ease-out"
+          style={{ width: `${progress}%` }}
+        />
       </div>
     </div>
   )
+}
+
+function renderTerminalLine(input: {
+  key: string
+  line: TerminalScriptLine | undefined
+  lineClass: Record<TerminalLineKind, string>
+  linePrefix: Partial<Record<TerminalLineKind, string>>
+  text: string
+  showCursor?: boolean
+}): React.JSX.Element | null {
+  const { key, line, lineClass, linePrefix, text, showCursor = false } = input
+
+  if (!line) return null
+
+  const prefix = linePrefix[line.kind]
+  const content = (
+    <span className={cn("min-w-0 whitespace-pre-wrap break-words", lineClass[line.kind])}>
+      {text}
+      {showCursor && (
+        <span className="ml-1 inline-block h-3.5 w-2 animate-pulse bg-[var(--accent-title)]" />
+      )}
+    </span>
+  )
+
+  if (prefix) {
+    return (
+      <div className="mt-2 mb-1 flex items-start gap-2" key={key}>
+        <span className="w-10 shrink-0 text-right text-green-400">{prefix}</span>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn("mb-0.5 pl-12", lineClass[line.kind])} key={key}>
+      {content}
+    </div>
+  )
+}
+
+function defaultLineHoldMs(kind: TerminalLineKind): number {
+  if (kind === "citation" || kind === "insight" || kind === "success") return 1050
+  if (kind === "mcp") return 750
+  if (kind === "tree" || kind === "change") return 520
+  return 680
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
 }

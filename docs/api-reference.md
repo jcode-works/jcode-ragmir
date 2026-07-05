@@ -30,12 +30,8 @@ const results = await search("offline approval", { cwd: "/path/to/local/workspac
 Creates the local Ragmir scaffolding:
 
 - `.ragmir/config.json`
-- `.ragmir/sources.txt`
 - `.ragmir/raw/`
 - `.gitignore` entries for `.ragmir/`
-
-When a project already has legacy `.kb/config.json`, `initProject` preserves that config instead of
-creating a second active config.
 
 ```ts
 import { initProject } from "@jcode.labs/ragmir"
@@ -84,9 +80,8 @@ Useful result fields:
 
 ### `loadConfig(start?)`
 
-Finds `.ragmir/config.json` by walking upward from `start`, falls back to legacy `.kb/config.json`
-when present, applies defaults and `RAGMIR_*` environment overrides, and returns resolved absolute
-paths. Legacy `KB_*` aliases are still accepted.
+Finds `.ragmir/config.json` by walking upward from `start`, applies defaults and `RAGMIR_*`
+environment overrides, and returns resolved absolute paths.
 
 ```ts
 import { loadConfig } from "@jcode.labs/ragmir"
@@ -97,7 +92,7 @@ console.log(config.projectRoot)
 
 ### `listSourceEntries(cwd?)`
 
-Reads `.ragmir/sources.txt` and returns active non-comment entries.
+Reads the `sources` array from `.ragmir/config.json` and returns active source entries.
 
 ```ts
 import { listSourceEntries } from "@jcode.labs/ragmir"
@@ -108,8 +103,9 @@ console.log(sources.entries)
 
 ### `addSourceEntries(options)`
 
-Adds paths, glob patterns, or `!` exclusion patterns to `.ragmir/sources.txt` without duplicating
-existing entries. This is the programmatic equivalent of `ragmir sources add`.
+Adds paths, glob patterns, or `!` exclusion patterns to the `sources` array in
+`.ragmir/config.json` without duplicating existing entries. This is the programmatic equivalent of
+`rgr sources add`.
 
 ```ts
 import { addSourceEntries } from "@jcode.labs/ragmir"
@@ -183,6 +179,35 @@ Each `SearchResult` includes:
 Use `compactSearchResults(passages)` when an agent or MCP client needs short snippets instead of
 full retrieved chunks.
 
+### `routePrompt(prompt)`
+
+Classifies a user prompt and suggests whether an agent should use Ragmir local context before
+answering. This is deterministic prompt routing, not LLM synthesis and not retrieval.
+
+```ts
+import { routePrompt } from "@jcode.labs/ragmir"
+
+const decision = routePrompt("Audit this repository release checklist from cited evidence.")
+if (decision.shouldUseRagmir && decision.tool === "ragmir_research") {
+  console.log(decision.query)
+}
+```
+
+The decision includes:
+
+| Field | Meaning |
+| --- | --- |
+| `shouldUseRagmir` | Whether the prompt appears to need local Ragmir evidence. |
+| `confidence` | Deterministic confidence score from `0` to `0.95`. |
+| `tool` | Suggested MCP/CLI tool: `ragmir_status`, `ragmir_search`, `ragmir_ask`, `ragmir_research`, or `none`. |
+| `query` | Normalized prompt text when Ragmir should be used; otherwise `null`. |
+| `reason` | Short explanation of the routing decision. |
+| `matchedSignals` | Positive and negative heuristic signals that fired. |
+| `safeguards` | Privacy reminders for agent wrappers. |
+
+The router does not store prompt text, call an LLM, read the vector index, or run retrieval. Agent
+hooks can use it before deciding whether to call Ragmir over MCP.
+
 ### `ask(query, options?)`
 
 Returns retrieval context formatted for an agent or LLM, plus the same cited source list as
@@ -251,8 +276,8 @@ await enableSemanticEmbeddings("/path/to/workspace")
 await ingest({ cwd: "/path/to/workspace", rebuild: true })
 ```
 
-The CLI shortcut `ragmir models pull --enable` combines model preload with this config update. The
-first-run CLI shortcut is `ragmir setup --semantic`.
+The CLI shortcut `rgr models pull --enable` combines model preload with this config update. The
+first-run CLI shortcut is `rgr setup --semantic`.
 
 ## Readiness And Safety
 
@@ -311,8 +336,8 @@ Returns `{ text, counts }`.
 
 ### `destroyIndex(cwd?)`
 
-Deletes generated `.ragmir/storage` index files, or the configured legacy storage directory when a
-legacy project still uses `.kb/config.json`.
+Deletes generated `.ragmir/storage` index files, or the configured storage directory when a project
+uses custom paths.
 
 ```ts
 import { destroyIndex } from "@jcode.labs/ragmir"
@@ -393,6 +418,7 @@ MCP tools exposed by the server:
 | Tool | Input |
 | --- | --- |
 | `ragmir_status` | `{}` |
+| `ragmir_route_prompt` | `{ prompt: string }` |
 | `ragmir_search` | `{ query: string, topK?: number, compact?: boolean }` |
 | `ragmir_ask` | `{ query: string, topK?: number }` |
 | `ragmir_research` | `{ query: string, topK?: number, includeCode?: boolean, compact?: boolean }` |
@@ -410,18 +436,16 @@ inside the MCP project root.
 
 Detects `pnpm`, `npm`, `yarn`, or `bun` from package metadata and lockfiles.
 
-### `ragmirCommand(cwd, args)`
+### `rgrCommand(cwd, args)`
 
-Builds the package-manager-specific command that runs `ragmir`.
+Builds the package-manager-specific command that runs `rgr`.
 
 ```ts
-import { ragmirCommand } from "@jcode.labs/ragmir"
+import { rgrCommand } from "@jcode.labs/ragmir"
 
-const command = await ragmirCommand("/path/to/workspace", ["doctor"])
+const command = await rgrCommand("/path/to/workspace", ["doctor"])
 console.log(command.display)
 ```
-
-`kbCommand` remains available as a legacy compatibility alias.
 
 ## Version
 

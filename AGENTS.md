@@ -13,12 +13,11 @@
 - The package is open source under the MIT License unless the user explicitly changes it.
 - This package must stay reusable across repositories. Resolve project data from the
   caller's working directory or explicit config, not from the package installation path.
-- The public CLI name is `ragmir`; keep `kb` only as a legacy compatibility alias. New docs,
-  generated agent configs, landing copy, and setup guidance should use `ragmir ...` commands.
-- `ragmir init` and `ragmir install-skill` must keep generated local Ragmir state ignored in target
-  repositories. By default, add one `.ragmir/` entry to the target repository `.gitignore`; `.kb/`
-  and `private/` are legacy-only compatibility paths. `security-audit` should still accept older
-  `private/**` entries.
+- The public CLI name is `rgr`. New docs, generated agent configs, landing command examples, and
+  setup guidance should use `rgr ...` commands. `ragmir` and `kb` remain deprecated compatibility
+  bins only and must warn users to migrate to `rgr`. User-facing product copy remains `Ragmir`.
+- `rgr init` and `rgr install-skill` must keep generated local Ragmir state ignored in target
+  repositories. By default, add one `.ragmir/` entry to the target repository `.gitignore`.
 - Keep confidentiality features low-friction: local-hash retrieval by default, optional
   Transformers.js embeddings with remote model loading disabled by default, redaction before
   indexing, metadata-only access logs, bounded MCP retrieval, configurable text-extension ingestion,
@@ -29,13 +28,11 @@
 - Keep FR/EU sovereignty, GDPR, AI Act, and legal-vertical claims bounded by
   `docs/fr-eu-sovereign-positioning.md`. Do not claim blanket compliance, legal advice, or regulated
   sovereignty certification without a separate review.
-- Keep first-run UX centered on `ragmir setup` for full onboarding and `ragmir doctor --fix` for safe
-  repairs. `ragmir init`, `ragmir install-skill`, and `ragmir ingest` remain available as explicit
+- Keep first-run UX centered on `rgr setup` for full onboarding and `rgr doctor --fix` for safe
+  repairs. `rgr init`, `rgr install-skill`, and `rgr ingest` remain available as explicit
   lower-level commands.
 - Keep monorepo source onboarding simple: the `sources` array in `.ragmir/config.json` accepts paths,
-  glob patterns, and `!` exclusions, and `ragmir sources add/list` read and write that array. The
-  legacy `.ragmir/sources.txt` file is still read (read-only) and merged when present, but it is never
-  created or written anymore; `ragmir init` no longer creates it.
+  glob patterns, and `!` exclusions, and `rgr sources add/list` read and write that array.
 - Keep product documentation canonical in the root `README.md`. Package README files under
   `packages/*/README.md` are intentionally minimal npm entrypoints and must link clearly to the
   GitHub root README because npm displays package README files separately.
@@ -44,9 +41,9 @@
 - Keep real-corpus dogfooding, business validation, pricing tests, customer ledgers, interview notes,
   generated JSON, reports, screenshots, paths, and client details outside Git. Commit only public-safe
   aggregate findings or synthetic reproductions.
-- For private retrieval dogfooding, use `ragmir evaluate --fail-under <recall>` as the local recall
+- For private retrieval dogfooding, use `rgr evaluate --fail-under <recall>` as the local recall
   gate, and keep the real corpus, golden query files, and generated evaluation JSON outside Git.
-- Use `ragmir usage-report --days <n>` for metadata-only dogfooding summaries; do not read or commit
+- Use `rgr usage-report --days <n>` for metadata-only dogfooding summaries; do not read or commit
   raw access logs when an aggregate report is enough.
 - Keep user-facing titles and marketing surfaces branded as `Ragmir`. Use `Ragmir Core` only for the
   technical core package and developer-facing metadata.
@@ -81,8 +78,19 @@
   `packages/ragmir-landing/scripts/astro-no-telemetry.mjs` so local dev, check, preview, and build
   commands set `ASTRO_TELEMETRY_DISABLED=1`. If analytics are needed later, prefer Cloudflare Web
   Analytics.
+- Keep Ragmir landing local ports separate from WorkoutGen's Astro landing defaults: `astro dev`
+  uses port `4322`, and `astro preview` uses port `4323` through `packages/ragmir-landing/astro.config.mjs`.
+- The landing hero displays `@jcode.labs/ragmir` npm downloads/month under the primary CTAs. Fetch it
+  at Astro build time through `packages/ragmir-landing/src/services/npm-downloads.ts`; keep the
+  `RAGMIR_NPM_DOWNLOADS` environment override for offline or deterministic builds.
+- Keep the landing section order library-first: hero, install/library, agent integrations, use cases,
+  privacy, honest scope, desktop teaser, FAQ, closing CTA. This sells the open-source package and MCP
+  integration before broader scenarios.
+- In landing target-client copy, keep categories distinct: Claude, Codex, Kimi, and GLM-style tools
+  are cloud agents; OpenCode is a local runner; Ollama is the local model runtime for fully local
+  confidential synthesis. Do not present MCP or Cline as target-client categories in that section.
 - The landing deploy target is Cloudflare Workers Static Assets through
-  `packages/ragmir-landing/wrangler.jsonc` and the canonical domain `ragmir.jcode.works`. Keep
+  `packages/ragmir-landing/wrangler.jsonc` and the canonical domain `ragmir.com`. Keep
   Cloudflare account IDs, tokens, and analytics secrets out of the repository; use local dry-runs
   before any protected-branch deployment.
 - Ragmir landing should keep the broad WorkoutGen landing signals when content changes: Astro i18n
@@ -127,12 +135,12 @@
 - `packages/ragmir-app/src/lib/project-registry.ts` owns the app-side local project registry. Store
   selected project roots there and derive `.ragmir/raw` plus `.ragmir/storage`; keep ingest/query/index
   truth in Ragmir Core through the sidecar/CLI surface.
-- The app's watched-folder feature is an opt-in polling layer over `ragmir ingest`; do not add
+- The app's watched-folder feature is an opt-in polling layer over `rgr ingest`; do not add
   background daemons unless the plan explicitly changes. The first Google Drive connector is an
   opt-in local-sync folder flow using Google Drive for desktop files already present on disk; do not
   add OAuth, Drive API calls, or cloud credentials by default.
 - Keep optional audio summaries separate from core ingestion/query behavior. The
-  `ragmir-audio-summary` skill must prefer `ragmir audio` / `@jcode.labs/ragmir-tts`, default to the
+  `ragmir-audio-summary` skill must prefer `rgr audio` / `@jcode.labs/ragmir-tts`, default to the
   Transformers.js WAV path for offline/confidential rendering, use the Edge MP3 path for global
   Voice Forge quality only when online TTS is explicitly acceptable, and keep generated audio under
   ignored local Ragmir state.
@@ -150,18 +158,17 @@
   rules in `docs/payment-webhook-architecture.md`. Do not introduce App Store, Play Store, hosted
   document storage, committed payment/license secrets, public pricing tests, or customer validation
   ledgers.
-- Ingestion must be explicit about files it did not index. Preserve `ragmir audit --unsupported`,
+- Ingestion must be explicit about files it did not index. Preserve `rgr audit --unsupported`,
   unsupported-extension summaries, secret-like file skipping, max file size limits, and checksum-based
   stale detection.
 - Source discovery should include useful dotfiles (for example `.gitignore`, `.gitlab-ci.yml`, and
   `.vscode/settings.json`) while still ignoring generated/runtime directories and skipping
   secret-like files explicitly.
-- OCR and legacy binary extraction are opt-in only. Keep PDF OCR behind `pdfOcrCommand` /
+- OCR and older binary extraction are opt-in only. Keep PDF OCR behind `pdfOcrCommand` /
   `RAGMIR_PDF_OCR_COMMAND`, image OCR behind `imageOcrCommand` / `RAGMIR_IMAGE_OCR_COMMAND`, and
   legacy `.doc` extraction behind `legacyWordCommand` / `RAGMIR_LEGACY_WORD_COMMAND`; execute
   commands without a shell, require stdout text, and do not add heavy OCR/conversion dependencies or
   claim universal scan/image/binary support.
-  `KB_PDF_OCR_COMMAND` and `KB_IMAGE_OCR_COMMAND` remain legacy aliases only.
 - Keep the repository as a simple pnpm workspace monorepo. Add Turbo only if multiple packages or
   apps start needing task caching/orchestration beyond `pnpm --filter`.
 - The Node.js and Rust versions are each pinned once, in `mise.toml` (via
@@ -190,7 +197,7 @@
   `packages/ragmir-core/dist` build, never the npm-published package, and it reuses the
   `sovereign-rag-demo` synthetic corpus rather than adding a second one. `dist/` is a gitignored build
   output: build it first with `pnpm build` (or run `pnpm example`, which builds first), then run
-  `node packages/ragmir-core/dist/cli.js`. Never use `npx ragmir`, which would resolve the released npm
+  `node packages/ragmir-core/dist/cli.js`. Never use `npx rgr`, which would resolve the released npm
   version.
 - Use Context7 before changing dependencies or public APIs that rely on external libraries.
 - Run `pnpm validate` before opening a release pull request or publishing. It covers
@@ -254,22 +261,22 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 ## Architecture
 
 - `packages/ragmir-core` is Ragmir Core, published as `@jcode.labs/ragmir`.
-- `packages/ragmir-core/src/cli.ts` exposes the `ragmir` CLI and keeps `kb` as a legacy alias.
-- The `ragmir` CLI supports global `--project-root <path>` for sidecar/app usage. Prefer it when a
+- `packages/ragmir-core/src/cli.ts` exposes the `rgr` CLI and keeps `ragmir`/`kb` as deprecated
+  compatibility bins.
+- The `rgr` CLI supports global `--project-root <path>` for sidecar/app usage. Prefer it when a
   process cannot or should not change cwd for each selected knowledge base.
 - `packages/ragmir-core/src/doctor.ts` owns the user-facing readiness diagnosis behind
-  `ragmir doctor`.
-- `packages/ragmir-core/src/config.ts` resolves `.ragmir/config.json` from the target repository and
-  falls back to legacy `.kb/config.json` when present.
+  `rgr doctor`.
+- `packages/ragmir-core/src/config.ts` resolves `.ragmir/config.json` from the target repository.
 - `packages/ragmir-core/src/defaults.ts` owns shared default paths, provider defaults, and generated-state ignore
   constants. Keep config/init/security/gitignore aligned through this module instead of copying
   literals.
 - `packages/ragmir-core/src/sources.ts` owns the `sources` array management API used by
-  `ragmir sources add/list` (reads/writes `.ragmir/config.json`); file discovery itself remains in
+  `rgr sources add/list` (reads/writes `.ragmir/config.json`); file discovery itself remains in
   `files.ts`.
 - `packages/ragmir-core/src/skill.ts` owns agent skill installation and the per-agent
-  `agentHelpers`/MCP config generation (`AgentHelperFile`) behind `ragmir setup` and
-  `ragmir install-skill`/`install-agent`. Add a new agent target through `SUPPORTED_AGENT_TARGETS`
+  `agentHelpers`/MCP config generation (`AgentHelperFile`) behind `rgr setup` and
+  `rgr install-skill`/`install-agent`. Add a new agent target through `SUPPORTED_AGENT_TARGETS`
   and its helper builder here, not by hand-listing agents in `cli.ts`.
 - `packages/ragmir-core/src/ingest.ts` parses supported files, chunks text, embeds chunks, and rebuilds the
   local LanceDB table. Normal ingest is incremental and reuses rows whose checksum/provider/model
@@ -281,11 +288,11 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `packages/ragmir-core/src/query.ts` performs hybrid retrieval (vector candidates plus bounded lexical
   BM25 scoring) and returns cited retrieval context; LLM synthesis belongs outside Ragmir core.
 - `packages/ragmir-core/src/research.ts` runs the audit-backed multi-query research pass behind
-  `ragmir research`, combining `query.ts` search results with `ingest.ts` audit coverage.
+  `rgr research`, combining `query.ts` search results with `ingest.ts` audit coverage.
 - `packages/ragmir-core/src/evaluate.ts` scores retrieval recall against a golden query file behind
-  `ragmir evaluate`, for the local recall gate described above.
+  `rgr evaluate`, for the local recall gate described above.
 - `packages/ragmir-core/src/mcp.ts` exposes Ragmir as an MCP stdio server for agents.
-- `packages/ragmir-tts` is the standalone TTS package used by `ragmir audio`; it uses `edge-tts` for
+- `packages/ragmir-tts` is the standalone TTS package used by `rgr audio`; it uses `edge-tts` for
   high-quality MP3 when available and Transformers.js for offline WAV rendering.
 - `packages/ragmir-ui` owns shared React UI primitives and Tailwind theme tokens used by Ragmir
   product surfaces.
@@ -297,7 +304,7 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
   storage/idempotency, and a release surface exist. Its `wrangler.jsonc` must keep placeholder KV
   namespace IDs until real Cloudflare resources are provisioned; use `cf:dry-run` only before
   protected deployment.
-- The app integrates Ragmir Core through the existing `ragmir` CLI/MCP surface. Keep the sidecar
+- The app integrates Ragmir Core through the existing `rgr` CLI/MCP surface. Keep the sidecar
   decision and command allowlist in `docs/app-sidecar-architecture.md`; the current native bridge is
   the bounded `run_ragmir_command` Tauri command, and `externalBin` stays deferred until real platform
   sidecar binaries exist.
@@ -310,28 +317,30 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `packages/ragmir-core/skills/ragmir-audio-summary/SKILL.md` is the optional bundled audio-summary skill.
 - `packages/ragmir-core/skills/ragmir-markdown-report/SKILL.md` is the optional bundled Markdown-report
   skill.
-- `ragmir setup` must keep generating agent-specific MCP helpers for easy local use by default:
+- `rgr setup` must keep generating agent-specific MCP helpers for easy local use by default:
   `.ragmir/claude-mcp-server.json` for `claude mcp add-json`, `.ragmir/codex-mcp.toml` for Codex
   config layers, `.ragmir/kimi-mcp.json` for Kimi, `.ragmir/opencode.jsonc` for OpenCode, and
   `.ragmir/cline-mcp.json` for Cline. Keep `--agents` available on setup/install-skill so a target
   repository can generate only the helpers it uses and remove stale unselected helpers.
-- `ragmir setup --semantic` is the first-run opt-in path for higher-quality semantic retrieval. It
+- `rgr setup --semantic` is the first-run opt-in path for higher-quality semantic retrieval. It
   may download the configured Transformers.js embedding model once, then must leave
   `transformersAllowRemoteModels` false for normal confidential indexing.
 - Keep `--mcp-name`, `--mcp-command`, and repeatable `--mcp-arg` available on setup/install-skill
   so repositories can generate MCP helper files for a stable server name or local wrapper script
   without post-processing `.ragmir/`.
-- `ragmir install-agent` owns native skill discovery for the main supported coding agents. Keep
+- Keep prompt routing local, deterministic, and opt-in. `rgr route-prompt` and MCP
+  `ragmir_route_prompt` may help agent hooks decide when to call Ragmir, but they must not store raw
+  prompts, call an LLM, or perform retrieval themselves.
+- `rgr install-agent` owns native skill discovery for the main supported coding agents. Keep
   `--agents claude|codex|kimi|opencode|cline` targeted so a user can install only the agent they use,
   with project scope by default and user scope available through `--scope user`.
 - Keep `.ragmir/skills/` as the canonical skill source in target repositories. Native agent folders
-  created by `ragmir install-agent` should link to that source by default; use copy mode only as a
+  created by `rgr install-agent` should link to that source by default; use copy mode only as a
   compatibility fallback for runtimes or filesystems that cannot follow symlinks.
 - `packages/ragmir-core/examples/sovereign-rag-demo` is the tracked synthetic test workspace for manual
   and package validation.
 - `.ragmir/`, `.claude/`, `.codex/`, and `.agents/` are local user data or generated agent state in
-  target repositories and must not be committed. Legacy `.kb/` and project `private/` folders must
-  also stay uncommitted when encountered.
+  target repositories and must not be committed.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

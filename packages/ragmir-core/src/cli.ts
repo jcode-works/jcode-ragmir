@@ -25,7 +25,8 @@ import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnos
 import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { serveMcp } from "./mcp.js"
-import { ragmirCommand } from "./package-manager.js"
+import { rgrCommand } from "./package-manager.js"
+import { routePrompt } from "./prompt-routing.js"
 import { ask, search } from "./query.js"
 import { compactResearchReport, compactSearchResults, research } from "./research.js"
 import { securityAudit } from "./security.js"
@@ -45,11 +46,22 @@ import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
 const TTS_PACKAGE_NAME = "@jcode.labs/ragmir-tts"
+const DEPRECATED_CLI_NAMES = new Set(["ragmir", "kb"])
+const PUBLIC_CLI_NAME = "rgr"
 
 const program = new Command()
 
+const deprecatedCliName = deprecatedCliInvocation()
+if (deprecatedCliName !== null) {
+  console.error(
+    pc.yellow(
+      `The \`${deprecatedCliName}\` CLI command is deprecated and will be removed in a future release. Use \`rgr\` instead.`,
+    ),
+  )
+}
+
 program
-  .name("ragmir")
+  .name(PUBLIC_CLI_NAME)
   .description("Local-first RAG knowledge base for private project documents.")
   .version(VERSION)
   .option("--project-root <path>", "Run project-scoped commands against this local workspace.")
@@ -82,11 +94,11 @@ modelsCommand
     console.log("")
     console.log("Next steps:")
     if (semanticConfig) {
-      console.log("  1. Run `ragmir ingest --rebuild` so existing vectors use the semantic model.")
-      console.log("  2. Run `ragmir doctor` to confirm readiness.")
+      console.log("  1. Run `rgr ingest --rebuild` so existing vectors use the semantic model.")
+      console.log("  2. Run `rgr doctor` to confirm readiness.")
     } else {
-      console.log("  1. Re-run `ragmir models pull --enable` to switch Ragmir config safely.")
-      console.log("  2. Run `ragmir ingest --rebuild` so existing vectors use the semantic model.")
+      console.log("  1. Re-run `rgr models pull --enable` to switch Ragmir config safely.")
+      console.log("  2. Run `rgr ingest --rebuild` so existing vectors use the semantic model.")
     }
   })
 
@@ -187,7 +199,7 @@ program
     const created = await initProject(cwd)
     if (created.length === 0) {
       console.log(pc.green("Already initialized."))
-      const doctorCommand = await ragmirCommand(cwd, ["doctor"])
+      const doctorCommand = await rgrCommand(cwd, ["doctor"])
       console.log(`Run \`${doctorCommand.display}\` to check readiness.`)
       return
     }
@@ -195,9 +207,9 @@ program
     for (const file of created) {
       console.log(`  - ${file}`)
     }
-    const ingestCommand = await ragmirCommand(cwd, ["ingest"])
-    const doctorCommand = await ragmirCommand(cwd, ["doctor"])
-    const searchCommand = await ragmirCommand(cwd, ["search", "your question"])
+    const ingestCommand = await rgrCommand(cwd, ["ingest"])
+    const doctorCommand = await rgrCommand(cwd, ["doctor"])
+    const searchCommand = await rgrCommand(cwd, ["search", "your question"])
     console.log("")
     console.log(pc.cyan("Next steps:"))
     console.log("  1. Add supported documents under .ragmir/raw/")
@@ -208,7 +220,7 @@ program
 
 const sourcesCommand = program
   .command("sources")
-  .description("Manage extra source paths and glob patterns in .ragmir/sources.txt.")
+  .description("Manage extra source paths and glob patterns in .ragmir/config.json.")
 
 sourcesCommand
   .command("list")
@@ -225,7 +237,7 @@ sourcesCommand
     console.log(`sourcesFile=${path.relative(cwd, result.sourcesFile) || result.sourcesFile}`)
     if (result.entries.length === 0) {
       console.log("No extra source entries.")
-      console.log('Add one with `ragmir sources add "../apps/*/docs/**/*.md"`.')
+      console.log('Add one with `rgr sources add "../apps/*/docs/**/*.md"`.')
       return
     }
     for (const entry of result.entries) {
@@ -284,7 +296,7 @@ program
       console.log(pc.yellow(result.vectorIndexWarning))
     }
     if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
-      const auditCommand = await ragmirCommand(cwd, ["audit", "--unsupported"])
+      const auditCommand = await rgrCommand(cwd, ["audit", "--unsupported"])
       console.log(
         pc.yellow(`Some files were not indexed. Run \`${auditCommand.display}\` for details.`),
       )
@@ -322,7 +334,7 @@ program
       }
 
       if (results.length === 0) {
-        const repairCommand = await ragmirCommand(cwd, ["doctor", "--fix"])
+        const repairCommand = await rgrCommand(cwd, ["doctor", "--fix"])
         console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`))
         process.exitCode = 1
         return
@@ -405,6 +417,37 @@ program
       }
     },
   )
+
+program
+  .command("route-prompt")
+  .description("Classify a prompt and suggest whether an agent should use Ragmir local context.")
+  .argument("[prompt...]", "Prompt text to classify. Reads stdin when omitted.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (promptParts: string[] | undefined, options: { json?: boolean }) => {
+    const prompt = await promptInput(promptParts)
+    if (prompt.trim().length === 0) {
+      console.error(pc.red("Missing prompt. Pass text or pipe it on stdin."))
+      process.exitCode = 1
+      return
+    }
+
+    const decision = routePrompt(prompt)
+    if (options.json) {
+      console.log(JSON.stringify(decision, null, 2))
+      return
+    }
+
+    console.log(`shouldUseRagmir=${decision.shouldUseRagmir}`)
+    console.log(`confidence=${decision.confidence.toFixed(2)}`)
+    console.log(`tool=${decision.tool}`)
+    if (decision.query !== null) {
+      console.log(`query=${decision.query}`)
+    }
+    console.log(`reason=${decision.reason}`)
+    if (decision.matchedSignals.length > 0) {
+      console.log(`matchedSignals=${decision.matchedSignals.join(", ")}`)
+    }
+  })
 
 program
   .command("evaluate")
@@ -525,7 +568,7 @@ program
         )
       }
     } else if (report.skippedFiles.length > 0) {
-      console.log(pc.yellow("Run `ragmir audit --unsupported` to list skipped file paths."))
+      console.log(pc.yellow("Run `rgr audit --unsupported` to list skipped file paths."))
     }
 
     if (report.missingFromIndex.length > 0 || report.staleInIndex.length > 0) {
@@ -707,7 +750,7 @@ program
     }
 
     if (!textFile) {
-      console.error(pc.red("Missing text file. Use `ragmir audio <text-file>`."))
+      console.error(pc.red("Missing text file. Use `rgr audio <text-file>`."))
       process.exitCode = 1
       return
     }
@@ -792,7 +835,7 @@ program
         installOptions.mcpArgs = options.mcpArg
       }
       const result = await installSkill(installOptions)
-      const doctorCommand = await ragmirCommand(cwd, ["doctor"])
+      const doctorCommand = await rgrCommand(cwd, ["doctor"])
       console.log("Installed Ragmir agent kit:")
       for (const file of result.written) {
         console.log(`  - ${file}`)
@@ -807,7 +850,7 @@ program
       console.log(`Agent setup guide: ${result.agentSetupPath}`)
       console.log("")
       console.log("Next steps:")
-      console.log("  1. Run `ragmir install-agent --agents claude` or another targeted agent list.")
+      console.log("  1. Run `rgr install-agent --agents claude` or another targeted agent list.")
       console.log(
         "  2. Add the MCP config from .ragmir/ to the same agent when MCP tools are needed.",
       )
@@ -860,7 +903,7 @@ program
       console.log(
         "  3. Wire the matching MCP helper if the agent should call Ragmir tools directly.",
       )
-      console.log(`  4. Run \`${(await ragmirCommand(cwd, ["doctor"])).display}\`.`)
+      console.log(`  4. Run \`${(await rgrCommand(cwd, ["doctor"])).display}\`.`)
     },
   )
 
@@ -886,6 +929,30 @@ function projectRoot(command: Command): string {
 function explicitProjectRoot(command: Command): string | undefined {
   const options = command.optsWithGlobals<GlobalOptions>()
   return options.projectRoot ? path.resolve(options.projectRoot) : undefined
+}
+
+function deprecatedCliInvocation(): string | null {
+  const invokedPath = process.argv[1]
+  if (!invokedPath) return null
+
+  const commandName = path.basename(invokedPath).replace(/\.(?:cmd|ps1)$/iu, "")
+  return DEPRECATED_CLI_NAMES.has(commandName) ? commandName : null
+}
+
+async function promptInput(promptParts: string[] | undefined): Promise<string> {
+  if (promptParts !== undefined && promptParts.length > 0) {
+    return promptParts.join(" ")
+  }
+
+  if (process.stdin.isTTY) {
+    return ""
+  }
+
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks).toString("utf8")
 }
 
 function withTopK(cwd: string, topK: number | undefined): { cwd: string; topK?: number } {
@@ -1098,7 +1165,7 @@ function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: str
   } else {
     console.log(pc.cyan("Semantic retrieval:"))
     console.log(
-      "  - skipped; default local-hash retrieval is fully local but not semantic. Run `ragmir setup --semantic` or `ragmir models pull --enable` when a one-time model download is acceptable.",
+      "  - skipped; default local-hash retrieval is fully local but not semantic. Run `rgr setup --semantic` or `rgr models pull --enable` when a one-time model download is acceptable.",
     )
   }
   console.log("")

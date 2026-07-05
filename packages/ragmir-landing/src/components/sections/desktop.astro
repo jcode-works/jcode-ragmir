@@ -1,0 +1,72 @@
+---
+import { RagmirBackground } from "@jcode.labs/ragmir-ui"
+import { ArrowRight, Download, Monitor, ShieldCheck } from "@lucide/astro"
+
+interface Props {
+  translations: Record<string, string>
+}
+
+const { translations } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+
+const desktopTeasers = [
+  { icon: Monitor, title: t("desktop_teaser_workspace_title"), text: t("desktop_teaser_workspace_text") },
+  { icon: Download, title: t("desktop_teaser_download_title"), text: t("desktop_teaser_download_text") },
+  { icon: ShieldCheck, title: t("desktop_teaser_private_title"), text: t("desktop_teaser_private_text") },
+]
+---
+
+<section
+  id="desktop"
+  aria-labelledby="desktop-heading"
+  class="container-wide relative z-10 grid gap-8 px-5 py-24 md:px-8 md:py-40 lg:grid-cols-[1fr_1fr] lg:items-center"
+>
+  <RagmirBackground client:visible behindContent={true} className="inset-0" height="100%" />
+  <div>
+    <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+      {t("desktop_teaser_eyebrow")}
+    </p>
+    <h2 id="desktop-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
+      {t("desktop_teaser_title")}
+    </h2>
+    <p class="mt-4 text-muted-foreground text-sm leading-6">{t("desktop_teaser_text")}</p>
+    <a
+      class="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-full border border-border bg-background px-6 text-sm font-semibold text-foreground transition hover:bg-muted"
+      href="https://github.com/jcode-works/jcode-ragmir"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {t("desktop_cta")}
+      <ArrowRight class="size-4" aria-hidden="true" />
+    </a>
+  </div>
+
+  <div
+    class="overflow-hidden rounded-xl border border-border bg-card/82 text-card-foreground shadow-2xl shadow-black/40 backdrop-blur-xl"
+  >
+    <div class="flex flex-col gap-3 border-b border-border p-5 md:p-6">
+      <div class="flex items-center justify-between gap-4">
+        <h3 class="font-black text-xl">{t("desktop_teaser_mock_title")}</h3>
+        <span
+          class="inline-flex items-center rounded-full border border-border px-2.5 py-0.5 text-xs font-semibold"
+        >
+          {t("desktop_teaser_badge")}
+        </span>
+      </div>
+      <p class="text-sm text-muted-foreground leading-6">{t("desktop_teaser_mock_text")}</p>
+    </div>
+    <div class="grid gap-3 p-5 md:p-6">
+      {desktopTeasers.map((item) => (
+        <div
+          class="grid gap-3 rounded-lg border border-border bg-muted/45 p-4 sm:grid-cols-[auto_1fr]"
+        >
+          <item.icon class="size-5 text-muted-foreground" aria-hidden="true" />
+          <div>
+            <p class="font-bold text-sm">{item.title}</p>
+            <p class="mt-1 text-muted-foreground text-sm leading-6">{item.text}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

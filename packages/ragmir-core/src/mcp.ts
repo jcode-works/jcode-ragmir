@@ -8,6 +8,7 @@ import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { audit } from "./ingest.js"
+import { routePrompt } from "./prompt-routing.js"
 import { ask, search } from "./query.js"
 import { compactResearchReport, compactSearchResults, research } from "./research.js"
 import { securityAudit } from "./security.js"
@@ -36,6 +37,10 @@ const evaluateToolInputSchema = z.object({
 
 const usageReportInputSchema = z.object({
   days: z.number().int().positive().optional(),
+})
+
+const promptRouteInputSchema = z.object({
+  prompt: z.string().min(1),
 })
 
 export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
@@ -81,6 +86,17 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
 
       return textResult(output)
     },
+  )
+
+  server.registerTool(
+    "ragmir_route_prompt",
+    {
+      title: "Ragmir Prompt Router",
+      description:
+        "Classify a prompt and suggest whether an agent should use Ragmir local context.",
+      inputSchema: promptRouteInputSchema,
+    },
+    async ({ prompt }) => textResult(routePrompt(prompt)),
   )
 
   server.registerTool(
