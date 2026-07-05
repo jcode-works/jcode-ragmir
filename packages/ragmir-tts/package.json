@@ -38,7 +38,8 @@
     }
   },
   "bin": {
-    "ragmir-tts": "dist/cli.js"
+    "ragmir-tts": "dist/cli.js",
+    "rgr-tts": "dist/cli.js"
   },
   "files": [
     "dist",

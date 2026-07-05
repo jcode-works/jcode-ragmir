@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { detectPackageManager, kbCommand, ragmirCommand } from "./package-manager.js"
+import { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
 
 const tempDirs: string[] = []
 
@@ -18,10 +18,10 @@ describe("package manager detection", () => {
     tempDirs.push(root)
 
     expect(await detectPackageManager(root)).toBe("pnpm")
-    await expect(ragmirCommand(root, ["doctor"])).resolves.toMatchObject({
+    await expect(rgrCommand(root, ["doctor"])).resolves.toMatchObject({
       command: "pnpm",
-      args: ["exec", "ragmir", "doctor"],
-      display: "pnpm exec ragmir doctor",
+      args: ["exec", "rgr", "doctor"],
+      display: "pnpm exec rgr doctor",
     })
   })
 
@@ -32,10 +32,10 @@ describe("package manager detection", () => {
     await writeFile(path.join(root, "pnpm-lock.yaml"), "lockfileVersion: 9.0\n", "utf8")
 
     expect(await detectPackageManager(root)).toBe("npm")
-    await expect(ragmirCommand(root, ["serve-mcp"])).resolves.toMatchObject({
+    await expect(rgrCommand(root, ["serve-mcp"])).resolves.toMatchObject({
       command: "npx",
-      args: ["ragmir", "serve-mcp"],
-      display: "npx ragmir serve-mcp",
+      args: ["rgr", "serve-mcp"],
+      display: "npx rgr serve-mcp",
     })
   })
 
@@ -50,7 +50,8 @@ describe("package manager detection", () => {
     expect(await detectPackageManager(yarnRoot)).toBe("yarn")
   })
 
-  it("keeps kbCommand as a legacy compatibility alias", () => {
-    expect(kbCommand).toBe(ragmirCommand)
+  it("keeps existing command helpers as compatibility aliases", () => {
+    expect(ragmirCommand).toBe(rgrCommand)
+    expect(kbCommand).toBe(rgrCommand)
   })
 })

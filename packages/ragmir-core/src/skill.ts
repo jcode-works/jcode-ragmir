@@ -3,7 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { DEFAULT_SKILL_TARGET_DIR, RAGMIR_DIR, RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { ensureRagmirGitignore } from "./gitignore.js"
-import { type RagmirCommand, ragmirCommand } from "./package-manager.js"
+import { type RagmirCommand, rgrCommand } from "./package-manager.js"
 
 export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
 export type AgentInstallScope = "project" | "user"
@@ -218,12 +218,8 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
   await copyBundledSkills(targetDir)
 
   const serveCommand = await resolveMcpCommand(cwd, options)
-  const doctorCommand = await ragmirCommand(cwd, ["doctor"])
-  const installAgentCommand = await ragmirCommand(cwd, [
-    "install-agent",
-    "--agents",
-    agents.join(","),
-  ])
+  const doctorCommand = await rgrCommand(cwd, ["doctor"])
+  const installAgentCommand = await rgrCommand(cwd, ["install-agent", "--agents", agents.join(",")])
   await writeFile(
     mcpConfigPath,
     `${JSON.stringify(mcpConfig(cwd, serveCommand, undefined, mcpServerName), null, 2)}\n`,
@@ -392,7 +388,7 @@ async function resolveMcpCommand(cwd: string, options: InstallSkillOptions): Pro
     if (options.mcpArgs !== undefined && options.mcpArgs.length > 0) {
       throw new Error("--mcp-arg requires --mcp-command.")
     }
-    return ragmirCommand(cwd, ["serve-mcp"])
+    return rgrCommand(cwd, ["serve-mcp"])
   }
 
   const command = options.mcpCommand.trim()
@@ -697,7 +693,10 @@ Use the MCP server when your agent supports MCP tools. The server command is:
 
 \`\`\`bash
 ${input.serveCommand}
-\`\`\``,
+\`\`\`
+
+Use \`ragmir_route_prompt\` when an agent hook or skill needs to decide whether the current user
+prompt should call Ragmir before answering. The router is local and does not store prompt text.`,
   ]
 
   if (hasAgentHelper(input, "claude")) {

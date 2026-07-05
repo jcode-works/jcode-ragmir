@@ -55,7 +55,7 @@ fn run_ragmir_command(request: RagmirCommandRequest) -> Result<RagmirCommandOutp
     }
     let project_root = project_root_path.to_string_lossy().into_owned();
 
-    let cli_bin = std::env::var("RAGMIR_CLI_BIN").unwrap_or_else(|_| "ragmir".into());
+    let cli_bin = std::env::var("RAGMIR_CLI_BIN").unwrap_or_else(|_| "rgr".into());
     let args = ragmir_args(&request, &project_root)?;
     let output = Command::new(cli_bin)
         .args(args)

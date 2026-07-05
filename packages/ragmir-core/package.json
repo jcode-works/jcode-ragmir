@@ -43,7 +43,8 @@
   },
   "bin": {
     "ragmir": "dist/cli.js",
-    "kb": "dist/cli.js"
+    "kb": "dist/cli.js",
+    "rgr": "dist/cli.js"
   },
   "files": [
     "dist",

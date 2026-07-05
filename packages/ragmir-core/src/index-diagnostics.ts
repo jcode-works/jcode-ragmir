@@ -27,19 +27,19 @@ export async function getIndexFreshnessWarning(config: Config): Promise<string |
   }
 
   if (manifest.schemaVersion < INDEX_SCHEMA_VERSION) {
-    return `Index schema is outdated (stored v${manifest.schemaVersion}, current v${INDEX_SCHEMA_VERSION}). Rebuild with \`ragmir ingest --rebuild\` to use the latest index format.`
+    return `Index schema is outdated (stored v${manifest.schemaVersion}, current v${INDEX_SCHEMA_VERSION}). Rebuild with \`rgr ingest --rebuild\` to use the latest index format.`
   }
 
   if (manifest.embeddingProvider !== config.embeddingProvider) {
-    return `Index was built with embedding provider "${manifest.embeddingProvider}" but the active config uses "${config.embeddingProvider}". Rebuild with \`ragmir ingest --rebuild\`.`
+    return `Index was built with embedding provider "${manifest.embeddingProvider}" but the active config uses "${config.embeddingProvider}". Rebuild with \`rgr ingest --rebuild\`.`
   }
 
   if (manifest.embeddingModel !== config.embeddingModel) {
-    return `Index was built with embedding model "${manifest.embeddingModel}" but the active config uses "${config.embeddingModel}". Rebuild with \`ragmir ingest --rebuild\` to refresh vectors.`
+    return `Index was built with embedding model "${manifest.embeddingModel}" but the active config uses "${config.embeddingModel}". Rebuild with \`rgr ingest --rebuild\` to refresh vectors.`
   }
 
   if (manifest.chunkSize !== config.chunkSize || manifest.chunkOverlap !== config.chunkOverlap) {
-    return `Index was built with chunkSize=${manifest.chunkSize}/chunkOverlap=${manifest.chunkOverlap} but the active config uses chunkSize=${config.chunkSize}/chunkOverlap=${config.chunkOverlap}. Rebuild with \`ragmir ingest --rebuild\`.`
+    return `Index was built with chunkSize=${manifest.chunkSize}/chunkOverlap=${manifest.chunkOverlap} but the active config uses chunkSize=${config.chunkSize}/chunkOverlap=${config.chunkOverlap}. Rebuild with \`rgr ingest --rebuild\`.`
   }
 
   return null

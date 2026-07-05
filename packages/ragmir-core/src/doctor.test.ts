@@ -26,7 +26,7 @@ describe("doctor", () => {
     expect(uninitialized.packageManager).toBe("pnpm")
     expect(uninitialized.agentKitInstalled).toBe(false)
     expect(uninitialized.nextSteps).toEqual([
-      "Run `pnpm exec ragmir setup` to initialize Ragmir and install the agent kit.",
+      "Run `pnpm exec rgr setup` to initialize Ragmir and install the agent kit.",
     ])
 
     await initProject(root)
@@ -43,7 +43,7 @@ describe("doctor", () => {
     expect(withEvidence.supportedFiles).toBe(1)
     expect(withEvidence.chunksIndexed).toBe(0)
     expect(withEvidence.nextSteps).toContain(
-      "Run `pnpm exec ragmir doctor --fix` to rebuild stale or missing index data.",
+      "Run `pnpm exec rgr doctor --fix` to rebuild stale or missing index data.",
     )
   })
 
@@ -57,7 +57,7 @@ describe("doctor", () => {
     const ready = await doctor(root)
 
     expect(ready.nextSteps).toContain(
-      "For natural-language Q&A, run `pnpm exec ragmir models pull --enable`, then run `pnpm exec ragmir ingest --rebuild`.",
+      "For natural-language Q&A, run `pnpm exec rgr models pull --enable`, then run `pnpm exec rgr ingest --rebuild`.",
     )
     expect(ready.indexFreshness.manifestFound).toBe(true)
     expect(ready.indexFreshness.warning).toBeNull()
