@@ -6,6 +6,7 @@
     "node_modules",
     "packages/ragmir-core/dist",
     "packages/ragmir-tts/dist",
+    "packages/ragmir-chat/dist",
     "packages/ragmir-app/dist",
     "packages/ragmir-app/src-tauri/target",
     "packages/ragmir-app/src-tauri/gen",
@@ -21,6 +22,7 @@
   "excludeFiles": ["CHANGELOG.md", "pnpm-lock.yaml"],
   "rules": [
     "Ragmir Core returns cited retrieval context only; it does not synthesize answers itself.",
+    "`rgr chat` is optional add-on generation via @jcode.labs/ragmir-chat; the core remains retrieval-only.",
     "The `local-hash` embedding provider (default) is a lexical sha256 embedding, not semantic; use `transformers` for semantic retrieval.",
     "Switching `embeddingProvider` requires `rgr ingest --rebuild`, since the two providers produce incompatible vectors.",
     "Run `rgr doctor --fix` after upgrading or misconfiguration to repair scaffolding, `.gitignore` entries, and the agent skill install.",

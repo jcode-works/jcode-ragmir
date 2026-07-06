@@ -19,15 +19,15 @@ Guardrails" in `AGENTS.md`.
 
 ```bash
 pnpm bootstrap          # mise install (pinned Node/Rust) && pnpm install
-pnpm build              # builds UI, app frontend, landing, TTS, then Ragmir Core
-pnpm check              # typecheck UI/app/landing/TTS/core
+pnpm build              # builds UI, app frontend, landing, TTS, chat, then Ragmir Core
+pnpm check              # typecheck UI/app/landing/TTS/chat/core
 pnpm dev:app            # run the Vite frontend for the Tauri shell
 pnpm dev:landing        # run the Astro landing locally
 pnpm example            # build core + run the library-API smoke against the local build (examples/library-api-demo)
 pnpm lint               # Biome CI (format + lint check, no writes)
 pnpm lint:fix           # Biome auto-fix
 pnpm format             # Biome format --write
-pnpm test               # vitest run for packages/ragmir-tts, then packages/ragmir-core
+pnpm test               # vitest run for packages/ragmir-tts, packages/ragmir-chat, then packages/ragmir-core
 pnpm smoke              # build production CLI + MCP smoke test (scripts/smoke.mjs)
 pnpm audit:security     # dependency security audit at moderate severity and above
 pnpm release:semantic:smoke # checks semantic-release config and monorepo publish scripts without publishing
@@ -37,35 +37,41 @@ pnpm validate           # full release gate: lint + audit + check + test + build
 Run a single core test file: `pnpm --filter @jcode.labs/ragmir exec vitest run src/config.test.ts`
 Run a single core test by name: `pnpm --filter @jcode.labs/ragmir exec vitest run -t "applies env overrides"`
 Run only the TTS package tests: `pnpm --filter @jcode.labs/ragmir-tts test`
+Run only the chat package tests: `pnpm --filter @jcode.labs/ragmir-chat test`
 
 Tests are colocated as `packages/*/src/*.test.ts` and run on the TypeScript sources.
 
 ## `dist/` is gitignored build output — critical
 
-All `packages/*/dist/` directories (`ragmir-core`, `ragmir-tts`, `ragmir-app`, `ragmir-landing`,
-`ragmir-license-webhook`) are gitignored build output and are NOT checked into Git. Build them locally
-with `pnpm build` before running the CLI, MCP smoke, the library-API demo, or `pnpm validate`. CI
-rebuilds `dist/` from source in the `Build` step before smoke tests, and the release pipeline rebuilds
-it again (`scripts/semantic-release-prepare.mjs` runs `pnpm --filter @jcode.labs/ragmir build`) before
-`pnpm pack`/`publish`, so the published npm tarball always contains freshly built output. Never commit
-`dist/`; a clean clone has none until `pnpm build` runs.
+All `packages/*/dist/` directories (`ragmir-core`, `ragmir-tts`, `ragmir-chat`, `ragmir-app`,
+`ragmir-landing`, `ragmir-license-webhook`) are gitignored build output and are NOT checked into Git.
+Build them locally with `pnpm build` before running the CLI, MCP smoke, the library-API demo, or
+`pnpm validate`. CI rebuilds `dist/` from source in the `Build` step before smoke tests, and the
+release pipeline rebuilds the published package directories in order
+(`packages/ragmir-tts`, `packages/ragmir-chat`, then `packages/ragmir-core`) before
+`pnpm pack`/`publish`, so the published npm tarball always contains freshly built output. Never
+commit `dist/`; a clean clone has none until `pnpm build` runs.
 
 ## Naming map (the package has several names on purpose)
 
 - Product name: **Ragmir** on the landing, app, README title, and user-facing copy.
 - Core package: **Ragmir Core**, published as `@jcode.labs/ragmir` from `packages/ragmir-core`.
 - TTS package: **Ragmir TTS**, published as `@jcode.labs/ragmir-tts`.
+- Chat package: **Ragmir Chat**, published as `@jcode.labs/ragmir-chat`.
 - UI package: **Ragmir UI**, unpublished workspace package `@jcode.labs/ragmir-ui`.
 - Landing package: unpublished workspace package `@jcode.labs/ragmir-landing`.
 - App package: unpublished workspace package `@jcode.labs/ragmir-app`.
 - CLI binary: **`rgr`** (`packages/ragmir-core/bin.rgr` -> `packages/ragmir-core/dist/cli.js`).
   `ragmir` and `kb` remain deprecated compatibility bins that warn users to migrate to `rgr`.
   Commands: `init`, `setup`, `ingest`, `sources add`, `sources list`, `models pull`, `search`,
-  `ask`, `research`, `route-prompt`, `evaluate`, `audit`, `usage-report`, `status`,
+  `ask`, `chat`, `research`, `route-prompt`, `evaluate`, `audit`, `usage-report`, `status`,
   `security-audit`, `destroy-index`, `audio`, `doctor`, `serve-mcp`, `skill-path`,
   `install-skill`, `install-agent`.
 - TTS CLI binary: **`rgr-tts`** (`packages/ragmir-tts/bin.rgr-tts` -> `packages/ragmir-tts/dist/cli.js`).
   `ragmir-tts` remains a deprecated compatibility bin. Commands: `doctor`, `render`.
+- Chat CLI binary: **`rgr-chat`** (`packages/ragmir-chat/bin.rgr-chat` ->
+  `packages/ragmir-chat/dist/cli.js`). `ragmir-chat` remains a deprecated compatibility bin.
+  Commands: `doctor`, `setup`, `answer`.
 - Project config/state in the target repo: **`.ragmir/`** (`config.json`, `raw/`, `storage/`,
   `access.log`, `skills/`, reports, audio, and model caches).
 - Environment overrides: **`RAGMIR_*`** (e.g. `RAGMIR_EMBEDDING_PROVIDER`, `RAGMIR_CHUNK_SIZE`).
@@ -75,12 +81,13 @@ it again (`scripts/semantic-release-prepare.mjs` runs `pnpm --filter @jcode.labs
 
 ## Architecture and data flow
 
-This is a pnpm workspace monorepo. `packages/ragmir-core` and `packages/ragmir-tts` are the published
-npm packages. `packages/ragmir-ui`, `packages/ragmir-landing`, and `packages/ragmir-app` are
+This is a pnpm workspace monorepo. `packages/ragmir-core`, `packages/ragmir-tts`, and
+`packages/ragmir-chat` are the published npm packages. `packages/ragmir-ui`,
+`packages/ragmir-landing`, and `packages/ragmir-app` are
 unpublished workspace packages for product surfaces. Do not add Turbo unless `pnpm --filter` stops
 being enough.
-`@jcode.labs/ragmir` depends on `@jcode.labs/ragmir-tts` (`workspace:*`), so release builds still keep
-TTS and core in sync.
+`@jcode.labs/ragmir` depends on `@jcode.labs/ragmir-tts` and `@jcode.labs/ragmir-chat`
+(`workspace:*`), so release builds still keep TTS, chat, and core in sync.
 
 The core package is an ESM-only TypeScript library + CLI + MCP server. Same core, three entry
 points: `packages/ragmir-core/src/cli.ts` (commander), `packages/ragmir-core/src/index.ts` (public library
@@ -98,6 +105,10 @@ synthesis in core).
 `packages/ragmir-tts` is a separate ESM package. It defaults to Transformers.js for offline WAV
 rendering without Python or ffmpeg, and uses `edge-tts` for high-quality MP3 only when explicitly
 requested. Core `rgr audio` imports it dynamically.
+
+`packages/ragmir-chat` is a separate ESM package. It owns local Transformers.js text generation for
+`rgr chat`; Ragmir Core retrieves cited passages and passes them in. Keep the core retrieval-only and
+do not introduce an Ollama or hosted-model dependency for chat.
 
 `packages/ragmir-ui` is the shared Tailwind 4 + React UI layer adapted from the WorkoutGen UI/landing
 foundation, but with Ragmir tokens and no WorkoutGen product copy, analytics, CDN paths, or secrets.
@@ -135,29 +146,31 @@ Coding conventions (KISS, DRY, YAGNI, SOLID as applied here) live in `AGENTS.md`
 - Conventional Commits are enforced by commitlint in CI.
 
 Release policy (no local publish, no direct push to `main`, protected semantic-release workflow)
-lives in `AGENTS.md`. The workflow publishes `@jcode.labs/ragmir-tts` before `@jcode.labs/ragmir`.
+lives in `AGENTS.md`. The workflow publishes `@jcode.labs/ragmir-tts` and
+`@jcode.labs/ragmir-chat` before `@jcode.labs/ragmir`.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **jcode-ragmir** (2829 symbols, 4724 relationships, 241 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **jcode-ragmir** (2311 symbols, 4841 relationships, 190 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER edit a function, class, or method without first running `impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit changes without running `detect_changes()` to check affected scope.
 
 ## Resources
 

@@ -12,6 +12,7 @@ source.
 The repository intentionally contains:
 
 - Ragmir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples.
+- Ragmir Chat: optional local cited chat package.
 - Ragmir TTS: optional audio rendering package.
 - Ragmir UI and landing source.
 - The Tauri app shell source.

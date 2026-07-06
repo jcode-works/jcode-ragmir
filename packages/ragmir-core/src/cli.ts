@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from "node:path"
+import type { ChatSource } from "@jcode.labs/ragmir-chat"
 import type { TtsLanguage } from "@jcode.labs/ragmir-tts"
 import { Command } from "commander"
 import pc from "picocolors"
@@ -45,6 +46,7 @@ import type { ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
+const CHAT_PACKAGE_NAME = "@jcode.labs/ragmir-chat"
 const TTS_PACKAGE_NAME = "@jcode.labs/ragmir-tts"
 const DEPRECATED_CLI_NAMES = new Set(["ragmir", "kb"])
 const PUBLIC_CLI_NAME = "rgr"
@@ -723,6 +725,89 @@ program
   })
 
 program
+  .command("chat")
+  .description("Answer with a local Transformers.js chat model grounded in Ragmir citations.")
+  .argument("[input...]", "Question to answer, or `setup` / `doctor`.")
+  .option("-k, --top-k <number>", "Number of passages to retrieve.", parsePositiveInt)
+  .option("--model <id>", "Transformers.js text-generation model ID.")
+  .option("--model-path <path>", "Local model/cache path.")
+  .option("--offline", "Disable remote model loading.")
+  .option("--allow-remote-models", "Explicitly allow remote model downloads while answering.")
+  .option("--max-new-tokens <number>", "Maximum generated tokens.", parsePositiveInt)
+  .option(
+    "--context-limit <number>",
+    "Maximum context characters sent to the model.",
+    parsePositiveInt,
+  )
+  .option("--dtype <dtype>", "Transformers.js dtype. Default q4.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (input: string[] | undefined, options: ChatOptions, command: Command) => {
+    const cwd = projectRoot(command)
+    const chat = await loadChat()
+    const mode = chatMode(input)
+
+    if (mode === "doctor") {
+      const doctorOptions: ChatDoctorOptions = { cwd }
+      addOption(doctorOptions, "modelPath", options.modelPath)
+      const report = await chat.doctor(doctorOptions)
+      printMaybeJson(report, options.json)
+      return
+    }
+
+    if (mode === "setup") {
+      const setupOptions: ChatSetupOptions = { cwd }
+      addOption(setupOptions, "model", options.model)
+      addOption(setupOptions, "modelPath", options.modelPath)
+      addOption(setupOptions, "dtype", options.dtype)
+      addOption(setupOptions, "allowRemoteModels", options.offline ? false : undefined)
+      const result = await chat.setupChatModel(setupOptions)
+      printMaybeJson(result, options.json)
+      return
+    }
+
+    const question = await promptInput(input)
+    if (question.trim().length === 0) {
+      console.error(pc.red('Missing question. Use `rgr chat "your question"`.'))
+      process.exitCode = 1
+      return
+    }
+
+    const sources = await search(question, withTopK(cwd, options.topK))
+    const chatOptions: ChatGenerateOptions = {
+      cwd,
+      question,
+      sources: sources.map(toChatSource),
+    }
+    addOption(chatOptions, "model", options.model)
+    addOption(chatOptions, "modelPath", options.modelPath)
+    addOption(chatOptions, "dtype", options.dtype)
+    addOption(chatOptions, "allowRemoteModels", chatAllowRemoteModels(options))
+    addOption(chatOptions, "maxNewTokens", options.maxNewTokens)
+    addOption(chatOptions, "contextCharLimit", options.contextLimit)
+
+    const result = await chat.generateChatAnswer(chatOptions)
+    if (options.json) {
+      console.log(JSON.stringify({ query: question, ...result }, null, 2))
+      if (result.emptyContext) {
+        process.exitCode = 1
+      }
+      return
+    }
+
+    console.log(`\n${result.answer}\n`)
+    if (sources.length > 0) {
+      console.log(pc.dim("Sources:"))
+      for (const [index, source] of sources.entries()) {
+        console.log(`  [${index + 1}] ${source.relativePath} chunk=${source.chunkIndex}`)
+      }
+    } else {
+      const repairCommand = await rgrCommand(cwd, ["doctor", "--fix"])
+      console.error(pc.yellow(`No Ragmir context found. Run \`${repairCommand.display}\`.`))
+      process.exitCode = 1
+    }
+  })
+
+program
   .command("audio")
   .description("Render a narration text file to local speech audio with Ragmir TTS.")
   .argument("[text-file]", "Narration text file to render.")
@@ -975,6 +1060,56 @@ interface AudioOptions {
   json?: boolean
 }
 
+interface ChatOptions {
+  topK?: number
+  model?: string
+  modelPath?: string
+  offline?: boolean
+  allowRemoteModels?: boolean
+  maxNewTokens?: number
+  contextLimit?: number
+  dtype?: string
+  json?: boolean
+}
+
+type ChatMode = "ask" | "doctor" | "setup"
+
+interface ChatModule {
+  doctor: (options?: ChatDoctorOptions) => Promise<unknown>
+  generateChatAnswer: (options: ChatGenerateOptions) => Promise<ChatGenerateResult>
+  setupChatModel: (options?: ChatSetupOptions) => Promise<unknown>
+}
+
+interface ChatDoctorOptions {
+  cwd: string
+  modelPath?: string
+}
+
+interface ChatSetupOptions {
+  cwd: string
+  model?: string
+  modelPath?: string
+  allowRemoteModels?: boolean
+  dtype?: string
+}
+
+interface ChatGenerateOptions {
+  cwd: string
+  question: string
+  sources: ChatSource[]
+  model?: string
+  modelPath?: string
+  allowRemoteModels?: boolean
+  maxNewTokens?: number
+  contextCharLimit?: number
+  dtype?: string
+}
+
+interface ChatGenerateResult {
+  answer: string
+  emptyContext: boolean
+}
+
 interface TtsModule {
   doctor: () => Promise<unknown>
   renderSpeech: (options: TtsRenderOptions) => Promise<unknown>
@@ -993,6 +1128,57 @@ interface TtsRenderOptions {
   rate?: string
   speakerEmbeddings?: string
   speed?: number
+}
+
+async function loadChat(): Promise<ChatModule> {
+  const module: unknown = await import(CHAT_PACKAGE_NAME)
+  if (!isChatModule(module)) {
+    throw new Error(`${CHAT_PACKAGE_NAME} did not expose the expected chat API.`)
+  }
+  return module
+}
+
+function isChatModule(value: unknown): value is ChatModule {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "doctor" in value &&
+    typeof value.doctor === "function" &&
+    "generateChatAnswer" in value &&
+    typeof value.generateChatAnswer === "function" &&
+    "setupChatModel" in value &&
+    typeof value.setupChatModel === "function"
+  )
+}
+
+function chatMode(input: string[] | undefined): ChatMode {
+  if (input?.length === 1 && input[0] === "doctor") {
+    return "doctor"
+  }
+  if (input?.length === 1 && input[0] === "setup") {
+    return "setup"
+  }
+  return "ask"
+}
+
+function chatAllowRemoteModels(options: ChatOptions): boolean | undefined {
+  if (options.offline) {
+    return false
+  }
+  if (options.allowRemoteModels) {
+    return true
+  }
+  return undefined
+}
+
+function toChatSource(source: Awaited<ReturnType<typeof search>>[number]): ChatSource {
+  return {
+    source: source.source,
+    relativePath: source.relativePath,
+    chunkIndex: source.chunkIndex,
+    text: source.text,
+    distance: source.distance,
+  }
 }
 
 async function loadTts(): Promise<TtsModule> {

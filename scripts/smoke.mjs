@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url"
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const corePackageRoot = path.join(repoRoot, "packages", "ragmir-core")
 const cliPath = path.join(corePackageRoot, "dist", "cli.js")
+const chatCliPath = path.join(repoRoot, "packages", "ragmir-chat", "dist", "cli.js")
 const ttsCliPath = path.join(repoRoot, "packages", "ragmir-tts", "dist", "cli.js")
 const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-smoke-"))
 const MCP_REQUEST_TIMEOUT_MS = 10_000
@@ -68,6 +69,47 @@ try {
     deprecatedTtsHelp.stderr,
     "Use `rgr-tts` instead.",
     "deprecated TTS bin should name rgr-tts",
+  )
+
+  const chatHelp = await runProcess(process.execPath, [chatCliPath], tempRoot)
+  assertIncludes(
+    chatHelp.stdout,
+    "rgr-chat",
+    "chat help should expose rgr-chat as the public command",
+  )
+  assertNotIncludes(
+    chatHelp.stdout,
+    "ragmir-chat",
+    "chat help should not advertise the previous command alias",
+  )
+
+  const deprecatedChatCliPath = path.join(tempRoot, "ragmir-chat")
+  await symlink(chatCliPath, deprecatedChatCliPath)
+  const deprecatedChatHelp = await runProcess(process.execPath, [deprecatedChatCliPath], tempRoot)
+  assertIncludes(
+    deprecatedChatHelp.stderr,
+    "The `ragmir-chat` CLI command is deprecated",
+    "deprecated ragmir-chat bin should tell users to use rgr-chat",
+  )
+  assertIncludes(
+    deprecatedChatHelp.stderr,
+    "Use `rgr-chat` instead.",
+    "deprecated chat bin should name rgr-chat",
+  )
+  const chatEmptyContext = await runProcess(
+    process.execPath,
+    [chatCliPath, "answer", "What is covered?", "--json"],
+    tempRoot,
+  )
+  assertIncludes(
+    chatEmptyContext.stdout,
+    '"emptyContext": true',
+    "chat answer without context should return an empty-context result",
+  )
+  assertIncludes(
+    chatEmptyContext.stdout,
+    '"allowRemoteModels": false',
+    "chat answer without context should keep remote model loading disabled",
   )
 
   const setup = await runKb(["setup"], tempRoot)
@@ -258,6 +300,18 @@ try {
     audioMp3WithoutEngine.stderr,
     "MP3 output uses online Edge TTS",
     "audio should require explicit Edge selection for MP3 output",
+  )
+
+  const chatDoctor = await runKb(["chat", "doctor", "--json"], tempRoot)
+  assertIncludes(
+    chatDoctor.stdout,
+    '"provider": "transformers"',
+    "chat doctor should report the Transformers.js local provider",
+  )
+  assertIncludes(
+    chatDoctor.stdout,
+    '"ollamaRequired": false',
+    "chat doctor should not require Ollama",
   )
 
   await runKb(["install-skill"], tempRoot)

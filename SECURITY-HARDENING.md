@@ -22,6 +22,9 @@ built to minimize data movement, but it is not a certified high-assurance system
 - Generated local state is ignored by Git: `.ragmir/` is ignored by default.
 - MCP is read-focused: destructive tools are not exposed over MCP, and MCP retrieval is capped by
   `mcpMaxTopK`.
+- Optional local chat uses `rgr chat` / `@jcode.labs/ragmir-chat`. Ragmir Core still stays
+  retrieval-only; the add-on runs a local Transformers.js text-generation model over retrieved
+  passages, with remote model loading disabled by default after explicit setup.
 - Optional audio summaries use `rgr audio` / `@jcode.labs/ragmir-tts`. Transformers.js WAV is the
   default offline/confidential path and does not require Python, ffmpeg, Piper, XTTS, or a local TTS
   server. Remote TTS model downloads are disabled by default and must be explicitly allowed for a
@@ -67,15 +70,16 @@ pnpm release:artifacts
 Move the generated tarballs from `release-artifacts/` into the offline environment and install them:
 
 ```bash
-pnpm add -D ./jcode.labs-ragmir-tts-<version>.tgz ./jcode.labs-ragmir-<version>.tgz
+pnpm add -D ./jcode.labs-ragmir-tts-<version>.tgz ./jcode.labs-ragmir-chat-<version>.tgz ./jcode.labs-ragmir-<version>.tgz
 pnpm exec rgr setup
 pnpm exec rgr doctor --fix
 pnpm exec rgr audit --unsupported
 ```
 
 For semantic embeddings, preload the Transformers.js-compatible embedding model files inside the
-offline environment under the configured `embeddingModelPath`. For audio, preload the TTS model
-files under `.ragmir/models/tts` and render with
+offline environment under the configured `embeddingModelPath`. For chat, preload the local LLM files
+under `.ragmir/models/chat` and answer with `pnpm exec rgr chat "Question" --offline`. For audio,
+preload the TTS model files under `.ragmir/models/tts` and render with
 `pnpm exec rgr audio <text-file> --engine transformers --offline`.
 
 ## Zero Network Posture
@@ -187,6 +191,21 @@ Confidentiality defaults:
 Generated audio can still contain sensitive information. Treat it like a derived confidential
 document.
 
+## Optional Local Chat
+
+`rgr chat` uses `@jcode.labs/ragmir-chat` to run a local Transformers.js text-generation model over
+retrieved Ragmir passages. It does not change the core security audit: Ragmir Core itself still
+reports `llmGeneration=false`.
+
+Confidentiality defaults:
+
+- chat model files are stored under `.ragmir/models/chat/`;
+- `.ragmir/` is ignored by Git;
+- remote model loading is disabled for normal answers;
+- `rgr chat setup` is the explicit one-time preload path that may download model files;
+- answers must cite retrieved context, but local LLM output still needs review against the cited
+  passages.
+
 ## Optional Markdown Reports
 
 `rgr install-skill` also installs `ragmir-markdown-report`. Reports generated from private evidence
@@ -210,17 +229,19 @@ For team use, prefer one checkout per user or per role. Ragmir does not implemen
 
 ## Release Verification
 
-The protected npm workflow runs validation, generates release artifacts, and publishes both
+The protected npm workflow runs validation, generates release artifacts, and publishes the
 workspace packages with provenance:
 
 ```bash
 pnpm --dir packages/ragmir-tts publish --access public --provenance --no-git-checks
+pnpm --dir packages/ragmir-chat publish --access public --provenance --no-git-checks
 pnpm --dir packages/ragmir-core publish --access public --provenance --no-git-checks
 ```
 
 Release artifacts include:
 
-- npm tarballs for `@jcode.labs/ragmir-tts` and `@jcode.labs/ragmir`;
+- npm tarballs for `@jcode.labs/ragmir-tts`, `@jcode.labs/ragmir-chat`, and
+  `@jcode.labs/ragmir`;
 - `SHA256SUMS`;
 - CycloneDX SBOM;
 - `release-manifest.json`.

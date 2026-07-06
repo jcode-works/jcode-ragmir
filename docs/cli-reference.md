@@ -1,8 +1,9 @@
 # CLI Reference
 
-Ragmir ships two CLIs:
+Ragmir ships three CLIs:
 
 - `rgr`: the main local RAG, MCP, skills, security, and audio command.
+- `rgr-chat`: the standalone optional local chat add-on used by `rgr chat`.
 - `rgr-tts`: the standalone text-to-speech renderer used by `rgr audio`.
 
 ## Main Workflow
@@ -24,6 +25,9 @@ Ragmir ships two CLIs:
 | `rgr audit --unsupported` | List files skipped because they are unsupported, too large, or secret-like. |
 | `rgr search "<query>"` | Retrieve ranked passages without asking an LLM to write an answer. |
 | `rgr ask "<question>"` | Return cited retrieval context for an agent or trusted model runtime. |
+| `rgr chat setup` | Download the optional local Transformers.js chat model into `.ragmir/models/chat`. |
+| `rgr chat "<question>" --offline` | Answer from retrieved Ragmir passages with the local chat add-on. |
+| `rgr chat doctor --json` | Inspect optional local chat readiness without generating an answer. |
 | `rgr research "<topic>"` | Run audit, security, multi-query retrieval, source diagnostics, and lightweight code matching for broad agent tasks. |
 | `rgr route-prompt "..."` | Classify a prompt and suggest whether an agent should use Ragmir local context. |
 | `rgr evaluate --golden golden-queries.json` | Measure retrieval recall against expected source paths. |
@@ -55,6 +59,8 @@ Ragmir ships two CLIs:
 | `rgr audio /tmp/preload.txt --engine transformers --allow-remote-models --model-path .ragmir/models/tts --out .ragmir/audio/preload-check.wav` | Preload the TTS model with non-sensitive text. |
 | `rgr audio <file> --engine transformers --offline --out .ragmir/audio/name.wav` | Render a confidential/offline WAV. |
 | `rgr audio <file> --engine edge --out .ragmir/audio/name.mp3` | Render a higher-quality online Edge MP3. |
+| `rgr-chat doctor --json` | Inspect the standalone chat package. |
+| `rgr-chat setup --model-path .ragmir/models/chat` | Preload a Transformers.js chat model directly through the add-on. |
 | `rgr-tts doctor --json` | Inspect the standalone TTS package. |
 | `rgr-tts render <file> --offline --out .ragmir/audio/name.wav` | Render directly through the TTS package. |
 
@@ -68,21 +74,22 @@ Ragmir ships two CLIs:
 | `--mcp-command <command>` | `setup`, `install-skill` | Use a repository wrapper or custom executable as the generated MCP stdio command. |
 | `--mcp-arg <arg>` | `setup`, `install-skill` | Add one argument to `--mcp-command`; repeat for multiple arguments. Use `--mcp-arg=--flag` for dash-prefixed values. |
 | `--semantic` | `setup` | Explicitly download the configured Transformers.js embedding model once, enable `embeddingProvider: "transformers"`, and keep remote model loading disabled for normal indexing. |
-| `--top-k <number>` | `search`, `ask`, `research`, `evaluate` | Number of passages to return or keep. |
+| `--top-k <number>` | `search`, `ask`, `chat`, `research`, `evaluate` | Number of passages to return or keep. |
 | `--fail-under <recall>` | `evaluate` | Exit non-zero only when recall is below a threshold from `0` to `1`; without this option evaluation remains strict and fails on any miss. |
 | `--days <number>` | `usage-report` | Number of recent days to include in the metadata-only usage summary. |
-| `--json` | `doctor`, `ingest`, `search`, `ask`, `research`, `route-prompt`, `evaluate`, `audit`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `rgr-tts doctor` | Print machine-readable JSON. |
+| `--json` | `doctor`, `ingest`, `search`, `ask`, `chat`, `research`, `route-prompt`, `evaluate`, `audit`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `rgr-chat doctor`, `rgr-tts doctor` | Print machine-readable JSON. |
 | `--compact` | `search`, `research` | Return short snippets instead of full retrieved passages. |
 | `--no-code` | `research` | Skip the lightweight repository code scan. |
 | `--unsupported` | `audit` | List skipped file paths and reasons. |
 | `--strict` | `security-audit` | Exit non-zero when warnings exist. |
-| `--offline` | `audio`, `rgr-tts render` | Disable remote model downloads and force the local Transformers.js path. |
-| `--allow-remote-models` | `audio`, `rgr-tts render` | Explicitly allow model downloads for Transformers.js. |
+| `--offline` | `chat`, `audio`, `rgr-chat answer`, `rgr-tts render` | Disable remote model downloads and force the local Transformers.js path. |
+| `--allow-remote-models` | `chat`, `audio`, `rgr-chat answer`, `rgr-tts render` | Explicitly allow model downloads for Transformers.js. |
 | `--engine edge` | `audio`, `rgr-tts render` | Use online Edge TTS for MP3 output. |
 | `--lang <en\|es\|fr>` | `audio`, `rgr-tts render` | Select the TTS language; picks the offline model and Edge voice. Default `fr`. |
 
-See [`offline-tts-preload.md`](./offline-tts-preload.md) before using `--offline` on a fully
-air-gapped machine.
+See [`offline-chat-preload.md`](./offline-chat-preload.md) and
+[`offline-tts-preload.md`](./offline-tts-preload.md) before using `--offline` on a fully air-gapped
+machine.
 
 ## External Text Extraction Configuration
 
