@@ -54,9 +54,9 @@
     "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.1",
-    "@commitlint/cli": "^21.1.0",
-    "@commitlint/config-conventional": "^21.1.0",
+    "@biomejs/biome": "^2.5.2",
+    "@commitlint/cli": "^21.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
     "@semantic-release/exec": "^7.1.0",
     "semantic-release": "^25.0.5",
     "yaml": "^2.9.0"

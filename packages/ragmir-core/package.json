@@ -65,7 +65,7 @@
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
     "@jcode.labs/ragmir-tts": "workspace:*",
-    "@lancedb/lancedb": "^0.30.0",
+    "@lancedb/lancedb": "^0.31.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^14.0.2",
     "fast-glob": "^3.3.3",
