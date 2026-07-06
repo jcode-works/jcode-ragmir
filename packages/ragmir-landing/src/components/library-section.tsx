@@ -4,7 +4,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  RagmirBackground,
   Tabs,
   TabsContent,
   TabsList,
@@ -29,12 +28,12 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
   const searchQuery = t("quickstart_search_query")
   const packageManagers: PackageManager[] = [
     { id: "pnpm", label: "pnpm", add: "pnpm add -D @jcode.labs/ragmir", exec: "pnpm exec" },
-    { id: "npm", label: "npm", add: "npm install --save-dev @jcode.labs/ragmir", exec: "npm exec" },
+    { id: "npm", label: "npm", add: "npm install -D @jcode.labs/ragmir", exec: "npm exec" },
     { id: "yarn", label: "yarn", add: "yarn add --dev @jcode.labs/ragmir", exec: "yarn exec" },
     {
       id: "mise",
       label: "mise",
-      add: "mise exec node@24 -- npm install --save-dev @jcode.labs/ragmir",
+      add: "mise exec node@24 -- npm install -D @jcode.labs/ragmir",
       exec: "mise exec node@24 -- npm exec",
     },
   ]
@@ -64,11 +63,10 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
 
   return (
     <section
-      className="container-wide relative z-10 grid gap-8 px-5 py-24 md:px-8 md:py-40 lg:grid-cols-[0.82fr_1.18fr] lg:items-center"
+      className="container-default relative z-10 grid gap-8 px-5 py-24 md:px-8 md:py-40 lg:grid-cols-[0.82fr_1.18fr] lg:items-center"
       id="library"
       aria-labelledby="library-heading"
     >
-      <RagmirBackground behindContent className="inset-0" height="100%" />
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
           {t("library_eyebrow")}

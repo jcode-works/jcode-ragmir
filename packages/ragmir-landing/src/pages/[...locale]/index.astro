@@ -7,6 +7,7 @@ import Agents from "../../components/sections/agents.astro"
 import ClosingCta from "../../components/sections/closing-cta.astro"
 import Desktop from "../../components/sections/desktop.astro"
 import Faq from "../../components/sections/faq.astro"
+import Features from "../../components/sections/features.astro"
 import Footer from "../../components/sections/footer.astro"
 import Hero from "../../components/sections/hero.astro"
 import Privacy from "../../components/sections/privacy.astro"
@@ -110,6 +111,8 @@ const structuredData = [
       "Cited retrieval context",
       "MCP server for AI agents",
       "Agent setup for cloud agents and local OpenCode workflows",
+      "Optional local chat with Transformers.js and cited answers",
+      "Optional local audio summaries with MP3 or WAV output",
       "Planned desktop client distributed through direct downloads",
       "Redaction before indexing",
       "Metadata-only access logs",
@@ -138,6 +141,7 @@ const structuredData = [
 ]
 const localizedHomeUrl = `${getLocalizedUrl("/", locale)}#top`
 const localizedLibraryUrl = `${getLocalizedUrl("/", locale)}#library`
+const localizedFeaturesUrl = `${getLocalizedUrl("/", locale)}#features`
 const localizedUseCasesUrl = `${getLocalizedUrl("/", locale)}#use-cases`
 const localizedAgentsUrl = `${getLocalizedUrl("/", locale)}#agents`
 const localizedTeamUrl = getLocalizedUrl("/team", locale)
@@ -167,6 +171,7 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       alternateLocales={alternateLocales}
       locale={locale}
       localizedAgentsUrl={localizedAgentsUrl}
+      localizedFeaturesUrl={localizedFeaturesUrl}
       localizedHomeUrl={localizedHomeUrl}
       localizedLibraryUrl={localizedLibraryUrl}
       localizedTeamUrl={localizedTeamUrl}
@@ -182,6 +187,8 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
     />
 
     <LibrarySection client:visible translations={translations} />
+
+    <Features translations={translations} />
 
     <Agents translations={translations} />
 

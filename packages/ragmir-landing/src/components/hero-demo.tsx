@@ -10,6 +10,7 @@ import {
   Wrench,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { CommandCopyButton } from "./command-copy"
 import {
   DEFAULT_HERO_DEMO_SCENARIO,
   findHeroDemoScenario,
@@ -37,6 +38,9 @@ const INITIAL_PLAYBACK_STATE: PlaybackState = {
 }
 
 const TYPEABLE_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
+const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
+const TERMINAL_PROMPT_GRID_CLASS = "grid-cols-[4rem_minmax(0,1fr)_auto]"
+const TERMINAL_CONTENT_INDENT_CLASS = "pl-[4.5rem]"
 
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
   aviation: Plane,
@@ -317,6 +321,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
             line,
             lineClass,
             linePrefix,
+            copyLabel: t("copy_command"),
             text: resolveLineText(line),
           }),
         )}
@@ -327,6 +332,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
             line: activeScenario.lines[playback.typingLineIndex],
             lineClass,
             linePrefix,
+            copyLabel: t("copy_command"),
             text: playback.typedText,
             showCursor: true,
           })}
@@ -351,14 +357,16 @@ function renderTerminalLine(input: {
   line: TerminalScriptLine | undefined
   lineClass: Record<TerminalLineKind, string>
   linePrefix: Partial<Record<TerminalLineKind, string>>
+  copyLabel: string
   text: string
   showCursor?: boolean
 }): React.JSX.Element | null {
-  const { key, line, lineClass, linePrefix, text, showCursor = false } = input
+  const { key, line, lineClass, linePrefix, copyLabel, text, showCursor = false } = input
 
   if (!line) return null
 
   const prefix = linePrefix[line.kind]
+  const copyable = !showCursor && COPYABLE_TERMINAL_LINE_KINDS.has(line.kind) && text.trim()
   const content = (
     <span className={cn("min-w-0 whitespace-pre-wrap break-words", lineClass[line.kind])}>
       {text}
@@ -370,15 +378,28 @@ function renderTerminalLine(input: {
 
   if (prefix) {
     return (
-      <div className="mt-2 mb-1 flex items-start gap-2" key={key}>
-        <span className="w-10 shrink-0 text-right text-green-400">{prefix}</span>
-        {content}
+      <div
+        className={cn(
+          "group/terminal-line mt-2 mb-1 grid items-start gap-2",
+          TERMINAL_PROMPT_GRID_CLASS,
+        )}
+        key={key}
+      >
+        <span className="text-right text-green-400">{prefix}</span>
+        <span className="min-w-0 flex-1">{content}</span>
+        {copyable && (
+          <CommandCopyButton
+            className="mt-0.5 opacity-0 group-hover/terminal-line:opacity-100 focus-visible:opacity-100"
+            command={text}
+            copyLabel={copyLabel}
+          />
+        )}
       </div>
     )
   }
 
   return (
-    <div className={cn("mb-0.5 pl-12", lineClass[line.kind])} key={key}>
+    <div className={cn("mb-0.5", TERMINAL_CONTENT_INDENT_CLASS, lineClass[line.kind])} key={key}>
       {content}
     </div>
   )

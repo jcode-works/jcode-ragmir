@@ -8,7 +8,10 @@ interface CommandCopyBoxProps {
   copyLabel: string
 }
 
-export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): React.JSX.Element {
+function useCommandCopy(command: string): {
+  copied: boolean
+  handleCopy: () => Promise<void>
+} {
   const [copied, setCopied] = useState(false)
   const resetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -20,7 +23,7 @@ export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): Rea
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(command)
+      await writeCommandToClipboard(command)
     } catch {
       return
     }
@@ -29,6 +32,33 @@ export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): Rea
     if (resetTimeout.current) clearTimeout(resetTimeout.current)
     resetTimeout.current = setTimeout(() => setCopied(false), 1500)
   }
+
+  return { copied, handleCopy }
+}
+
+async function writeCommandToClipboard(command: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(command)
+    return
+  }
+
+  const textarea = document.createElement("textarea")
+  textarea.value = command
+  textarea.setAttribute("readonly", "")
+  textarea.style.position = "fixed"
+  textarea.style.left = "-9999px"
+  document.body.append(textarea)
+  textarea.select()
+  const copyFallback = document.execCommand.bind(document) as (commandId: string) => boolean
+  const copied = copyFallback("copy")
+  textarea.remove()
+  if (!copied) {
+    throw new Error("Clipboard copy failed.")
+  }
+}
+
+export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): React.JSX.Element {
+  const { copied, handleCopy } = useCommandCopy(command)
 
   return (
     <button
@@ -45,6 +75,67 @@ export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): Rea
           aria-hidden="true"
           className="size-4 shrink-0 text-muted-foreground transition group-hover:text-foreground"
         />
+      )}
+    </button>
+  )
+}
+
+export function CommandCopyPill({ command, copyLabel }: CommandCopyBoxProps): React.JSX.Element {
+  const { copied, handleCopy } = useCommandCopy(command)
+
+  return (
+    <button
+      aria-label={`${copyLabel}: ${command}`}
+      className="group inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-muted/55 px-3 py-1 text-left transition hover:border-foreground/30 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={() => void handleCopy()}
+      type="button"
+    >
+      <code className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[0.68rem] text-muted-foreground group-hover:text-foreground">
+        {command}
+      </code>
+      {copied ? (
+        <Check aria-hidden="true" className="size-3.5 shrink-0 text-[var(--accent-title)]" />
+      ) : (
+        <Copy
+          aria-hidden="true"
+          className="size-3.5 shrink-0 text-muted-foreground transition group-hover:text-foreground"
+        />
+      )}
+    </button>
+  )
+}
+
+interface CommandCopyButtonProps extends CommandCopyBoxProps {
+  className?: string
+  iconClassName?: string
+}
+
+export function CommandCopyButton({
+  command,
+  copyLabel,
+  className,
+  iconClassName,
+}: CommandCopyButtonProps): React.JSX.Element {
+  const { copied, handleCopy } = useCommandCopy(command)
+
+  return (
+    <button
+      aria-label={`${copyLabel}: ${command}`}
+      className={cn(
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-background/70 text-muted-foreground opacity-80 transition hover:border-foreground/30 hover:bg-muted hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
+      onClick={() => void handleCopy()}
+      title={`${copyLabel}: ${command}`}
+      type="button"
+    >
+      {copied ? (
+        <Check
+          aria-hidden="true"
+          className={cn("size-3.5 text-[var(--accent-title)]", iconClassName)}
+        />
+      ) : (
+        <Copy aria-hidden="true" className={cn("size-3.5", iconClassName)} />
       )}
     </button>
   )
