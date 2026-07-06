@@ -1,11 +1,285 @@
 @import "@jcode.labs/ragmir-ui/globals.css";
 
+@font-face {
+  font-display: swap;
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  src: url("/fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  src: url("/fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/fonts/inter-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 900;
+  src: url("/fonts/inter-latin-900-normal.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: dark;
+  --background: #070808;
+  --foreground: #f6f0dd;
+  --card: #0d0f10;
+  --card-foreground: #f6f0dd;
+  --primary: #f1dfad;
+  --primary-foreground: #111413;
+  --secondary: #171a1a;
+  --secondary-foreground: #f6f0dd;
+  --muted: #151818;
+  --muted-foreground: rgba(246, 240, 221, 0.64);
+  --accent: #1f9ca8;
+  --accent-foreground: #071011;
+  --accent-title: #f1dfad;
+  --border: rgba(246, 240, 221, 0.12);
+  --input: rgba(0, 0, 0, 0.14);
+  --ring: rgba(241, 223, 173, 0.52);
+  --radius: 0.5rem;
+  --ragmir-app-border: rgba(246, 240, 221, 0.13);
+  --ragmir-app-panel: rgba(13, 15, 16, 0.88);
+  --ragmir-app-panel-soft: rgba(246, 240, 221, 0.035);
+  --ragmir-app-active: rgba(241, 223, 173, 0.08);
+  --ragmir-app-active-line: rgba(241, 223, 173, 0.28);
+  --ragmir-app-cyan-line: rgba(31, 156, 168, 0.18);
+}
+
+html,
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 #root {
   min-height: 100vh;
 }
 
-.desktop-shell {
+.ragmir-app-frame {
+  background: var(--background);
+}
+
+.ragmir-sidebar-surface {
+  border-color: var(--ragmir-app-border);
   background:
-    radial-gradient(circle at top left, color-mix(in oklch, var(--accent) 24%, transparent), transparent 32rem),
-    linear-gradient(135deg, var(--background), color-mix(in oklch, var(--background) 82%, var(--accent)));
+    linear-gradient(180deg, rgba(13, 15, 16, 0.96), rgba(7, 8, 8, 0.88)),
+    var(--background);
+  box-shadow:
+    inset -1px 0 0 rgba(241, 223, 173, 0.08),
+    18px 0 56px rgba(0, 0, 0, 0.28);
+}
+
+.ragmir-topbar-surface {
+  border-color: var(--ragmir-app-border);
+  background: var(--ragmir-app-panel);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.24);
+}
+
+.ragmir-card-surface {
+  border-color: var(--ragmir-app-border);
+  background: var(--ragmir-app-panel);
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.3);
+}
+
+.ragmir-soft-surface {
+  border-color: var(--ragmir-app-border);
+  background: var(--ragmir-app-panel-soft);
+}
+
+.ragmir-chat-markdown > :first-child {
+  margin-top: 0;
+}
+
+.ragmir-chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.ragmir-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  min-width: 1.15rem;
+}
+
+.ragmir-typing-dots span {
+  width: 0.24rem;
+  height: 0.24rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.4;
+  animation: ragmir-typing-dot 1s infinite ease-in-out;
+}
+
+.ragmir-typing-dots span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.ragmir-typing-dots span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+.ragmir-active-nav {
+  border: 1px solid var(--ragmir-app-active-line);
+  background: var(--ragmir-app-active);
+  color: var(--foreground);
+}
+
+.ragmir-active-nav:hover {
+  background: rgba(241, 223, 173, 0.12);
+}
+
+.ragmir-app-frame button.inline-flex.rounded-full:not([data-slot="switch"]) {
+  min-height: 0;
+  border-radius: 0.5rem;
+}
+
+.ragmir-app-frame button.inline-flex.h-9.rounded-full:not([data-slot="switch"]) {
+  height: 1.9rem;
+  padding-inline: 0.7rem;
+  font-size: 0.75rem;
+}
+
+.ragmir-app-frame button.inline-flex.h-10.rounded-full:not([data-slot="switch"]) {
+  height: 2.05rem;
+  padding-inline: 0.8rem;
+  font-size: 0.75rem;
+}
+
+.ragmir-app-frame button.inline-flex.h-14.rounded-full:not([data-slot="switch"]) {
+  height: 2.15rem;
+  padding-inline: 0.95rem;
+  font-size: 0.8125rem;
+}
+
+.ragmir-app-frame button.inline-flex.size-10.rounded-full:not([data-slot="switch"]) {
+  width: 1.95rem;
+  height: 1.95rem;
+  padding: 0;
+  border-radius: 0.5rem;
+}
+
+.display-title {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "cv11";
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.88);
+  color: #000000;
+}
+
+@keyframes logo-glitch {
+  0% {
+    text-shadow:
+      3px 4px 0 var(--logo-glitch-a),
+      3px -4px 0 var(--logo-glitch-b);
+    transform: translate(var(--glitch-translate));
+  }
+  2% {
+    text-shadow:
+      3px -4px 0 var(--logo-glitch-a),
+      -3px 4px 0 var(--logo-glitch-b);
+  }
+  4%,
+  100% {
+    text-shadow: none;
+    transform: none;
+  }
+}
+
+@keyframes ragmir-typing-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 0.95;
+    transform: translateY(-0.12rem);
+  }
+}
+
+.logo-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  --stacks: 3;
+  --logo-glitch-a: #c87936;
+  --logo-glitch-b: #1f9ca8;
+}
+
+.logo-stack::before,
+.logo-stack::after,
+.logo-stack .logo-text {
+  grid-column-start: 1;
+  grid-row-start: 1;
+  --stack-height: calc(100% / var(--stacks) - 1px);
+  --inverse-index: calc(calc(var(--stacks) - 1) - var(--index));
+  --clip-top: calc(var(--stack-height) * var(--index));
+  --clip-bottom: calc(var(--stack-height) * var(--inverse-index));
+  animation: logo-glitch ease infinite 2s alternate-reverse;
+  clip-path: inset(var(--clip-top) 0 var(--clip-bottom) 0);
+}
+
+.logo-stack::before,
+.logo-stack::after {
+  content: attr(data-logo-text);
+  pointer-events: none;
+}
+
+.logo-stack::before {
+  --index: 1;
+  --glitch-translate: -8px;
+}
+
+.logo-stack::after {
+  --index: 2;
+  --glitch-translate: 8px;
+}
+
+.logo-index-1 {
+  --index: 0;
+  --glitch-translate: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-stack::before,
+  .logo-stack::after {
+    content: none;
+  }
+
+  .logo-stack .logo-text {
+    animation: none;
+    clip-path: none;
+  }
+
+  .ragmir-typing-dots span {
+    animation: none;
+  }
 }

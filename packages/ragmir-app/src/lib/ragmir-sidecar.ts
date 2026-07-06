@@ -10,7 +10,12 @@ export type RagmirCommandKind =
   | "security-audit"
   | "audit-unsupported"
   | "models-pull"
+  | "audio-doctor"
+  | "audio-preload"
   | "audio-summary"
+  | "chat"
+  | "chat-setup"
+  | "chat-doctor"
 
 export interface RagmirCommandRequest {
   projectRoot: string
@@ -25,6 +30,12 @@ interface RagmirCommandOutput {
   status: number
   stdout: string
   stderr: string
+}
+
+export interface RagmirConfigFile {
+  exists: boolean
+  configPath: string
+  content: string
 }
 
 export interface DoctorReport {
@@ -74,6 +85,19 @@ export interface AskResult {
   query: string
   answer: string
   sources: SearchResult[]
+}
+
+export interface ChatResult {
+  query: string
+  question: string
+  answer: string
+  sources: SearchResult[]
+  model: string
+  modelPath: string
+  allowRemoteModels: boolean
+  maxNewTokens: number
+  contextCharLimit: number
+  emptyContext: boolean
 }
 
 export interface StatusReport {
@@ -147,6 +171,7 @@ export interface ModelsPullResult {
 export interface AudioRenderResult {
   outputPath: string
   engine: "edge" | "transformers"
+  language: "en" | "es" | "fr"
   outputFormat: "mp3" | "wav"
   model: string
   modelPath: string
@@ -155,6 +180,47 @@ export interface AudioRenderResult {
   rate: string | null
   samplingRate: number | null
   samples: number | null
+}
+
+export interface AudioDoctorReport {
+  node: string
+  defaultEngine: "auto" | "edge" | "transformers"
+  defaultLanguage: "en" | "es" | "fr"
+  languages: Array<"en" | "es" | "fr">
+  defaultModel: string
+  defaultModelPath: string
+  defaultAllowRemoteModels: boolean
+  transformersAvailable: boolean
+  edgeTtsAvailable: boolean
+  edgeDefaultVoice: string
+  pythonRequired: false
+  ffmpegRequired: false
+  outputFormat: "mp3-or-wav"
+}
+
+export interface ChatSetupResult {
+  model: string
+  modelPath: string
+  allowRemoteModels: boolean
+  dtype: string
+  ready: true
+}
+
+export interface ChatDoctorReport {
+  node: string
+  provider: "transformers"
+  defaultModel: string
+  defaultModelPath: string
+  defaultAllowRemoteModels: boolean
+  defaultSetupAllowsRemoteModels: boolean
+  defaultMaxNewTokens: number
+  defaultContextCharLimit: number
+  defaultDtype: string
+  transformersAvailable: boolean
+  localModelPathExists: boolean
+  ollamaRequired: false
+  pythonRequired: false
+  storesRawPrompts: false
 }
 
 interface SetupResult {
@@ -194,6 +260,18 @@ export async function runAsk(
   return runJsonCommand(request, isAskResult, "ask result", { allowNonZero: true })
 }
 
+export async function runChat(
+  projectRoot: string,
+  query: string,
+  topK?: number,
+): Promise<ChatResult> {
+  const request: RagmirCommandRequest = { projectRoot, command: "chat", query }
+  if (topK !== undefined) {
+    request.topK = topK
+  }
+  return runJsonCommand(request, isChatResult, "chat result", { allowNonZero: true })
+}
+
 export async function runStatus(projectRoot: string): Promise<StatusReport> {
   return runJsonCommand({ projectRoot, command: "status" }, isStatusReport, "status report")
 }
@@ -203,6 +281,42 @@ export async function runModelsPull(projectRoot: string): Promise<ModelsPullResu
     { projectRoot, command: "models-pull" },
     isModelsPullResult,
     "models pull result",
+  )
+}
+
+export async function runChatSetup(projectRoot: string): Promise<ChatSetupResult> {
+  return runJsonCommand(
+    { projectRoot, command: "chat-setup" },
+    isChatSetupResult,
+    "chat setup result",
+  )
+}
+
+export async function runChatDoctor(projectRoot: string): Promise<ChatDoctorReport> {
+  return runJsonCommand(
+    { projectRoot, command: "chat-doctor" },
+    isChatDoctorReport,
+    "chat doctor report",
+  )
+}
+
+export async function runAudioDoctor(projectRoot: string): Promise<AudioDoctorReport> {
+  return runJsonCommand(
+    { projectRoot, command: "audio-doctor" },
+    isAudioDoctorReport,
+    "audio doctor report",
+  )
+}
+
+export async function runAudioPreload(projectRoot: string): Promise<AudioRenderResult> {
+  return runJsonCommand(
+    {
+      projectRoot,
+      command: "audio-preload",
+      text: "Ragmir offline audio model preload.",
+    },
+    isAudioRenderResult,
+    "audio preload result",
   )
 }
 
@@ -225,6 +339,29 @@ export async function runSecurityAudit(projectRoot: string): Promise<SecurityAud
   )
 }
 
+export async function readRagmirConfig(projectRoot: string): Promise<RagmirConfigFile> {
+  const output = await invoke<unknown>("read_ragmir_config", {
+    request: { projectRoot },
+  })
+  if (!isRagmirConfigFile(output)) {
+    throw new Error("The native runtime returned an invalid config file response.")
+  }
+  return output
+}
+
+export async function writeRagmirConfig(
+  projectRoot: string,
+  content: string,
+): Promise<RagmirConfigFile> {
+  const output = await invoke<unknown>("write_ragmir_config", {
+    request: { projectRoot, content },
+  })
+  if (!isRagmirConfigFile(output)) {
+    throw new Error("The native runtime returned an invalid config file response.")
+  }
+  return output
+}
+
 async function runJsonCommand<T>(
   request: RagmirCommandRequest,
   guard: (value: unknown) => value is T,
@@ -236,7 +373,7 @@ async function runJsonCommand<T>(
     throw new Error("The native runtime returned an invalid response.")
   }
 
-  if (output.status !== 0 && !options.allowNonZero && output.stdout.trim() === "") {
+  if (output.status !== 0 && output.stdout.trim() === "") {
     const stderr = output.stderr.trim()
     throw new Error(stderr || `Ragmir command exited with status ${output.status}.`)
   }
@@ -266,6 +403,15 @@ function isRagmirCommandOutput(value: unknown): value is RagmirCommandOutput {
     typeof value.status === "number" &&
     typeof value.stdout === "string" &&
     typeof value.stderr === "string"
+  )
+}
+
+function isRagmirConfigFile(value: unknown): value is RagmirConfigFile {
+  return (
+    isRecord(value) &&
+    typeof value.exists === "boolean" &&
+    typeof value.configPath === "string" &&
+    typeof value.content === "string"
   )
 }
 
@@ -325,6 +471,23 @@ function isAskResult(value: unknown): value is AskResult {
   )
 }
 
+function isChatResult(value: unknown): value is ChatResult {
+  return (
+    isRecord(value) &&
+    typeof value.query === "string" &&
+    typeof value.question === "string" &&
+    typeof value.answer === "string" &&
+    Array.isArray(value.sources) &&
+    value.sources.every(isSearchResult) &&
+    typeof value.model === "string" &&
+    typeof value.modelPath === "string" &&
+    typeof value.allowRemoteModels === "boolean" &&
+    typeof value.maxNewTokens === "number" &&
+    typeof value.contextCharLimit === "number" &&
+    typeof value.emptyContext === "boolean"
+  )
+}
+
 function isStatusReport(value: unknown): value is StatusReport {
   return (
     isRecord(value) &&
@@ -366,6 +529,7 @@ function isAudioRenderResult(value: unknown): value is AudioRenderResult {
     isRecord(value) &&
     typeof value.outputPath === "string" &&
     (value.engine === "edge" || value.engine === "transformers") &&
+    isAudioLanguage(value.language) &&
     (value.outputFormat === "mp3" || value.outputFormat === "wav") &&
     typeof value.model === "string" &&
     typeof value.modelPath === "string" &&
@@ -374,6 +538,59 @@ function isAudioRenderResult(value: unknown): value is AudioRenderResult {
     (typeof value.rate === "string" || value.rate === null) &&
     (typeof value.samplingRate === "number" || value.samplingRate === null) &&
     (typeof value.samples === "number" || value.samples === null)
+  )
+}
+
+function isAudioDoctorReport(value: unknown): value is AudioDoctorReport {
+  return (
+    isRecord(value) &&
+    typeof value.node === "string" &&
+    (value.defaultEngine === "auto" ||
+      value.defaultEngine === "edge" ||
+      value.defaultEngine === "transformers") &&
+    isAudioLanguage(value.defaultLanguage) &&
+    Array.isArray(value.languages) &&
+    value.languages.every(isAudioLanguage) &&
+    typeof value.defaultModel === "string" &&
+    typeof value.defaultModelPath === "string" &&
+    typeof value.defaultAllowRemoteModels === "boolean" &&
+    typeof value.transformersAvailable === "boolean" &&
+    typeof value.edgeTtsAvailable === "boolean" &&
+    typeof value.edgeDefaultVoice === "string" &&
+    value.pythonRequired === false &&
+    value.ffmpegRequired === false &&
+    value.outputFormat === "mp3-or-wav"
+  )
+}
+
+function isChatSetupResult(value: unknown): value is ChatSetupResult {
+  return (
+    isRecord(value) &&
+    typeof value.model === "string" &&
+    typeof value.modelPath === "string" &&
+    typeof value.allowRemoteModels === "boolean" &&
+    typeof value.dtype === "string" &&
+    value.ready === true
+  )
+}
+
+function isChatDoctorReport(value: unknown): value is ChatDoctorReport {
+  return (
+    isRecord(value) &&
+    typeof value.node === "string" &&
+    value.provider === "transformers" &&
+    typeof value.defaultModel === "string" &&
+    typeof value.defaultModelPath === "string" &&
+    typeof value.defaultAllowRemoteModels === "boolean" &&
+    typeof value.defaultSetupAllowsRemoteModels === "boolean" &&
+    typeof value.defaultMaxNewTokens === "number" &&
+    typeof value.defaultContextCharLimit === "number" &&
+    typeof value.defaultDtype === "string" &&
+    typeof value.transformersAvailable === "boolean" &&
+    typeof value.localModelPathExists === "boolean" &&
+    value.ollamaRequired === false &&
+    value.pythonRequired === false &&
+    value.storesRawPrompts === false
   )
 }
 
@@ -429,6 +646,10 @@ function isCommandError(value: unknown): value is { path: string; message: strin
 
 function isEmbeddingProvider(value: unknown): value is "local-hash" | "transformers" {
   return value === "local-hash" || value === "transformers"
+}
+
+function isAudioLanguage(value: unknown): value is "en" | "es" | "fr" {
+  return value === "en" || value === "es" || value === "fr"
 }
 
 function isStringArray(value: unknown): value is string[] {

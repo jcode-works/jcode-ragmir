@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default Ragmir app capabilities.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:allow-open"]
 }
