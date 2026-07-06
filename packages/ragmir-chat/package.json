@@ -62,6 +62,6 @@
     "@types/node": "^24.10.1",
     "publint": "^0.3.21",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.15"
+    "vitest": "^4.1.10"
   }
 }

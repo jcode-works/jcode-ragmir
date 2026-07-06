@@ -66,7 +66,7 @@
     "@huggingface/transformers": "^4.2.0",
     "@jcode.labs/ragmir-chat": "workspace:*",
     "@jcode.labs/ragmir-tts": "workspace:*",
-    "@lancedb/lancedb": "^0.30.0",
+    "@lancedb/lancedb": "^0.31.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^14.0.2",
     "fast-glob": "^3.3.3",
@@ -84,6 +84,6 @@
     "@types/node": "^24.10.1",
     "publint": "^0.3.21",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.15"
+    "vitest": "^4.1.10"
   }
 }
