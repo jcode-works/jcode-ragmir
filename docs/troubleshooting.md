@@ -232,3 +232,24 @@ npx rgr-tts render /tmp/ragmir-tts-preload.txt \
 ```
 
 The full workflow is documented in [`offline-tts-preload.md`](./offline-tts-preload.md).
+
+## `rgr chat --offline` Cannot Answer
+
+Offline chat requires model files to already exist under `.ragmir/models/chat` or the path passed
+with `--model-path`.
+
+For a first online setup, run:
+
+```bash
+npx rgr chat setup
+```
+
+Then reuse the cached files with:
+
+```bash
+npx rgr chat "Which evidence supports offline operation?" --offline
+```
+
+If `rgr chat` returns no context, run `npx rgr doctor --fix` and try `npx rgr search "<query>"` to
+confirm that the relevant passages are indexed. The full chat preload workflow is documented in
+[`offline-chat-preload.md`](./offline-chat-preload.md).

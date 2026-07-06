@@ -52,6 +52,7 @@ the corpus to a hosted RAG service.
 flowchart TD
   subgraph Workspace["Your repository"]
     Docs["Local files<br/>docs, specs, code, PDFs"]
+    Narration["Narration text<br/>summaries or reports"]
     Config[".ragmir/config.json<br/>.ragmir/raw/"]
     Index[".ragmir/storage<br/>local LanceDB index"]
   end
@@ -60,6 +61,11 @@ flowchart TD
     Ingest["rgr ingest<br/>parse, redact, chunk"]
     Retrieve["rgr search / ask / research<br/>rank cited evidence"]
     Audit["doctor, audit,<br/>security-audit, evaluate"]
+  end
+
+  subgraph Addons["Optional local add-ons"]
+    Chat["rgr chat<br/>Transformers.js cited answer"]
+    TTS["rgr audio / rgr-tts<br/>offline narration"]
   end
 
   subgraph Agents["Developer tools"]
@@ -74,8 +80,12 @@ flowchart TD
   Ingest --> Index
   Index --> Retrieve
   Index --> Audit
+  Retrieve --> Chat
+  Narration --> TTS
   Retrieve --> CLI
   Retrieve --> MCP
+  Chat --> CLI
+  TTS --> CLI
   Skills --> MCP
   MCP --> LLM
 ```
@@ -123,6 +133,7 @@ This root README is the canonical product documentation for the public npm packa
 | --- | --- |
 | `@jcode.labs/ragmir` | Ragmir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples. |
 | `@jcode.labs/ragmir-tts` | Ragmir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `rgr audio`. |
+| `@jcode.labs/ragmir-chat` | Optional local cited chat add-on for `rgr chat`, backed by Transformers.js and preloaded model files. |
 | `@jcode.labs/ragmir-ui` | Unpublished workspace UI package adapted from the WorkoutGen design foundation for Ragmir surfaces. |
 | `@jcode.labs/ragmir-landing` | Unpublished Astro static landing package. Product-facing titles stay `Ragmir`. |
 | `@jcode.labs/ragmir-app` | Unpublished Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses a bounded native command around the `rgr` CLI, with packaged sidecar distribution still planned. |
@@ -146,11 +157,12 @@ agent wiring, API shapes, security details, or app packaging rules:
 
 | Document | Use it for |
 | --- | --- |
-| [`docs/cli-reference.md`](./docs/cli-reference.md) | Complete `rgr` and `rgr-tts` command reference. |
+| [`docs/cli-reference.md`](./docs/cli-reference.md) | Complete `rgr`, `rgr-chat`, and `rgr-tts` command reference. |
 | [`docs/api-reference.md`](./docs/api-reference.md) | Public TypeScript API, setup options, semantic model preload, and MCP tool inputs. |
 | [`docs/agent-integration.md`](./docs/agent-integration.md) | Claude Code, Codex, Kimi Code CLI, OpenCode, and Cline setup. |
 | [`docs/troubleshooting.md`](./docs/troubleshooting.md) | Empty indexes, weak search, strict security audit warnings, and audio preload fixes. |
 | [`SECURITY-HARDENING.md`](./SECURITY-HARDENING.md) | Threat model, offline operation, release verification, and higher-assurance deployment notes. |
+| [`docs/offline-chat-preload.md`](./docs/offline-chat-preload.md) | Preload and verify the optional local Transformers.js chat model cache. |
 | [`docs/offline-tts-preload.md`](./docs/offline-tts-preload.md) | Preload and verify the offline Transformers.js TTS cache. |
 | [`docs/fr-eu-sovereign-positioning.md`](./docs/fr-eu-sovereign-positioning.md) | Bounded FR/EU sovereignty, GDPR, AI Act, and legal-vertical positioning. |
 | [`docs/source-boundary.md`](./docs/source-boundary.md) | What the public MIT repository contains and what must stay outside Git. |
@@ -234,11 +246,15 @@ release verification, and an external security review.
   default. Use `rgr models pull` when remote model download is acceptable, then keep
   `transformersAllowRemoteModels` false for confidential indexing.
 - Generated answers are intentionally outside Ragmir core. Use Claude, Codex, OpenAI, a local model
-  MCP server, or another trusted model runtime to synthesize from Ragmir's cited context.
+  MCP server, the optional `@jcode.labs/ragmir-chat` add-on, or another trusted model runtime to
+  synthesize from Ragmir's cited context.
 - Optional audio summaries use `@jcode.labs/ragmir-tts`. For highest-quality MP3, install the
   external `edge-tts` CLI and render with `--engine edge`. For confidential or air-gapped content,
   use the Transformers.js WAV path with `--engine transformers --offline`; it does not require
   Python, ffmpeg, Piper, XTTS, or a local server.
+- Optional local chat uses `@jcode.labs/ragmir-chat` through `rgr chat`. Run `rgr chat setup` once to
+  preload a small Transformers.js text-generation model under `.ragmir/models/chat`, then answer with
+  `rgr chat "question" --offline`.
 - Optional Markdown reports use the bundled `ragmir-markdown-report` skill and should stay under
   ignored `.ragmir/reports/` unless explicitly sanitized for sharing.
 
@@ -262,6 +278,12 @@ Install the standalone TTS package only when you want to use it directly:
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir-tts
+```
+
+Install the standalone chat package only when you want to use it directly:
+
+```bash
+npm install --save-dev @jcode.labs/ragmir-chat
 ```
 
 Maintainer tokens are only needed to publish new versions.
@@ -531,6 +553,22 @@ npx rgr ask "What evidence supports offline operation?"
 `rgr ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
 passages to any LLM or agent you trust.
 
+### Optional Local Chat With Transformers.js
+
+Use this when you want a local model to answer from Ragmir citations without adding Ollama or another
+model server. The core stays retrieval-only; `@jcode.labs/ragmir-chat` is the optional generator.
+
+```bash
+npx rgr chat setup
+npx rgr chat "Which evidence supports offline operation?" --offline
+```
+
+`rgr chat setup` downloads the configured Transformers.js text-generation model into
+`.ragmir/models/chat`. Normal `rgr chat` runs with remote model loading disabled by default and cites
+the retrieved Ragmir passages as `[1]`, `[2]`, and so on. See
+[`docs/offline-chat-preload.md`](./docs/offline-chat-preload.md) for air-gapped setup and model
+override details.
+
 ### Optional Semantic Embeddings With Transformers.js
 
 Use this when you want better semantic retrieval while keeping Ragmir core free of an LLM server.
@@ -723,9 +761,10 @@ rules live in [`docs/configuration.md`](./docs/configuration.md).
 
 ## Command And API Reference
 
-Ragmir ships two CLIs:
+Ragmir ships three CLIs:
 
 - `rgr`: the main local RAG, MCP, skills, security, and audio command.
+- `rgr-chat`: the standalone optional local chat add-on used by `rgr chat`.
 - `rgr-tts`: the standalone text-to-speech renderer used by `rgr audio`.
 
 Most users start with `rgr setup`, `rgr doctor`, `rgr ingest`, `rgr route-prompt`,
@@ -777,7 +816,7 @@ core features:
 
 | Dependency | Why it remains |
 | --- | --- |
-| `@huggingface/transformers` | Optional local semantic embeddings and offline TTS; remote model loading is disabled unless explicitly enabled for preload. |
+| `@huggingface/transformers` | Optional local semantic embeddings, offline chat, and offline TTS; remote model loading is disabled unless explicitly enabled for preload. |
 | LanceDB | Local vector storage and nearest-neighbor retrieval. |
 | MCP SDK | MCP server for compatible agents. |
 | fast-glob | Safe source-file discovery. |
@@ -849,15 +888,17 @@ Useful filtered commands:
 pnpm --filter @jcode.labs/ragmir test
 pnpm --filter @jcode.labs/ragmir mcp:smoke
 pnpm --filter @jcode.labs/ragmir-tts test
+pnpm --filter @jcode.labs/ragmir-chat test
 pnpm --filter @jcode.labs/ragmir-app build
 pnpm --filter @jcode.labs/ragmir-landing build
 pnpm --filter @jcode.labs/ragmir build
 pnpm --filter @jcode.labs/ragmir-tts build
+pnpm --filter @jcode.labs/ragmir-chat build
 ```
 
-All `packages/*/dist/` directories (`ragmir-core`, `ragmir-tts`, `ragmir-app`, `ragmir-landing`) are
-gitignored build output — they are not checked into Git. After changing TypeScript sources in published
-packages, build and validate locally:
+All `packages/*/dist/` directories (`ragmir-core`, `ragmir-tts`, `ragmir-chat`, `ragmir-app`,
+`ragmir-landing`) are gitignored build output — they are not checked into Git. After changing
+TypeScript sources in published packages, build and validate locally:
 
 ```bash
 pnpm build
@@ -870,8 +911,8 @@ CI rebuilds `dist/` from source before smoke tests, and the release pipeline reb
 
 The root package is private and only orchestrates workspace tasks. npm publishing is handled by the
 protected `Release npm` GitHub Actions workflow on `main`. semantic-release derives the version from
-Conventional Commits, prepares both package tarballs, publishes `@jcode.labs/ragmir-tts` first, then
-publishes `@jcode.labs/ragmir`.
+Conventional Commits, prepares package tarballs, publishes `@jcode.labs/ragmir-tts` and
+`@jcode.labs/ragmir-chat` first, then publishes `@jcode.labs/ragmir`.
 
 Build from source:
 

@@ -83,12 +83,13 @@
 - The landing hero displays `@jcode.labs/ragmir` npm downloads/month under the primary CTAs. Fetch it
   at Astro build time through `packages/ragmir-landing/src/services/npm-downloads.ts`; keep the
   `RAGMIR_NPM_DOWNLOADS` environment override for offline or deterministic builds.
-- Keep the landing section order library-first: hero, install/library, agent integrations, use cases,
-  privacy, honest scope, desktop teaser, FAQ, closing CTA. This sells the open-source package and MCP
-  integration before broader scenarios.
+- Keep the landing section order library-first: hero, install/library, feature map, agent
+  integrations, use cases, privacy, honest scope, desktop teaser, FAQ, closing CTA. This sells the
+  open-source package, optional add-ons, and MCP integration before broader scenarios.
 - In landing target-client copy, keep categories distinct: Claude, Codex, Kimi, and GLM-style tools
-  are cloud agents; OpenCode is a local runner; Ollama is the local model runtime for fully local
-  confidential synthesis. Do not present MCP or Cline as target-client categories in that section.
+  are cloud agents; OpenCode is a local runner; Ragmir Chat is the optional built-in local synthesis
+  path; Ollama is only an optional external model runtime. Do not present MCP or Cline as
+  target-client categories in that section.
 - The landing deploy target is Cloudflare Workers Static Assets through
   `packages/ragmir-landing/wrangler.jsonc` and the canonical domain `ragmir.com`. Keep
   Cloudflare account IDs, tokens, and analytics secrets out of the repository; use local dry-runs
@@ -148,6 +149,10 @@
   warms `.ragmir/models/tts`, pass `--allow-remote-models` only for that preload, then use `--offline`
   for confidential narration. Remote TTS model loading must stay disabled by default. The
   operational guide lives in `docs/offline-tts-preload.md`.
+- Keep optional local chat separate from core retrieval. `@jcode.labs/ragmir-chat` owns local
+  Transformers.js text generation for `rgr chat`; `rgr chat setup` is the explicit one-command
+  preload path for `.ragmir/models/chat`, and normal answers must keep remote model loading disabled
+  unless the user opts into `--allow-remote-models`.
 - Keep report generation separate from core retrieval. The `ragmir-markdown-report` skill writes cited
   Markdown reports under ignored `.ragmir/reports/` by default and must distinguish evidence,
   inference, uncertainty, missing documents, and professional-review items.
@@ -187,9 +192,10 @@
   would create a second source of truth and break the "plain pnpm works without mise" onboarding
   path. For local dev, contributors activate mise in their shell (`mise activate`) so the pinned
   Node/Rust land on `PATH` via shims and every `pnpm` script uses the CI toolchain automatically.
-- Keep Ragmir core free of Ollama. `embeddingProvider: "local-hash"` supports ingestion, search, MCP,
-  and cited retrieval without a model server, but it must not be described as equivalent to semantic
-  retrieval. `embeddingProvider: "transformers"` is the optional semantic embedding path.
+- Keep Ragmir core free of Ollama and LLM generation. `embeddingProvider: "local-hash"` supports
+  ingestion, search, MCP, and cited retrieval without a model server, but it must not be described as
+  equivalent to semantic retrieval. `embeddingProvider: "transformers"` is the optional semantic
+  embedding path; `@jcode.labs/ragmir-chat` is the optional local generation add-on.
 - Keep `packages/ragmir-core/examples/sovereign-rag-demo` synthetic and safe to commit. It exists for
   package/user testing only; never place real confidential documents there.
 - `packages/ragmir-core/examples/library-api-demo` is the local library-API smoke (`pnpm example`). It
@@ -205,8 +211,8 @@
   tests, npm package metadata, semantic-release wiring, and release artifacts.
 - Do not publish from a local machine or direct push to `main`. npm releases must go through
   the protected `Release npm` GitHub Actions workflow on `main`; semantic-release derives the
-  version from Conventional Commits, prepares both package tarballs, publishes
-  `@jcode.labs/ragmir-tts` first, then publishes `@jcode.labs/ragmir`.
+  version from Conventional Commits, prepares package tarballs, publishes `@jcode.labs/ragmir-tts`
+  and `@jcode.labs/ragmir-chat` first, then publishes `@jcode.labs/ragmir`.
 - Use Git Flow locally: `main` is production, `develop` is integration, feature work starts from
   `develop` under `feature/*`. Do not deploy or publish from feature branches.
 
@@ -294,6 +300,9 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `packages/ragmir-core/src/mcp.ts` exposes Ragmir as an MCP stdio server for agents.
 - `packages/ragmir-tts` is the standalone TTS package used by `rgr audio`; it uses `edge-tts` for
   high-quality MP3 when available and Transformers.js for offline WAV rendering.
+- `packages/ragmir-chat` is the optional local chat package used by `rgr chat`; it uses
+  Transformers.js text generation over cited Ragmir retrieval context and must not make Ragmir Core
+  depend on Ollama or any hosted model API.
 - `packages/ragmir-ui` owns shared React UI primitives and Tailwind theme tokens used by Ragmir
   product surfaces.
 - `packages/ragmir-landing` owns the static Astro landing page.
@@ -345,24 +354,25 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **jcode-ragmir** (2829 symbols, 4724 relationships, 241 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **jcode-ragmir** (2311 symbols, 4841 relationships, 190 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER edit a function, class, or method without first running `impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit changes without running `detect_changes()` to check affected scope.
 
 ## Resources
 
