@@ -151,7 +151,7 @@
   "agents_title": "Un socle de connaissance local pour agents, onboarding et équipes.",
   "agents_text": "Ragmir connecte le même état projet local aux agents que vous utilisez vraiment. Les agents cloud comme Claude, Codex, Kimi et GLM interrogent le contexte cité ; OpenCode reste l'option runner local ; Ragmir Chat ajoute un chat local Transformers.js en une commande quand la synthèse doit rester sur votre machine.",
   "agents_command_label": "Commande agent",
-  "agents_command": "pnpm exec rgr install-agent --agents claude,codex,kimi,opencode",
+  "agents_command": "npx rgr install-agent --agents claude,codex,kimi,opencode",
   "agents_targets_title": "Clients visés",
   "agents_targets_text": "Gardez les catégories nettes : les agents cloud interrogent Ragmir, OpenCode peut tourner localement, Ragmir Chat est le chemin local intégré optionnel, et Ollama reste un runtime externe.",
   "agents_cloud_name": "Agents cloud",

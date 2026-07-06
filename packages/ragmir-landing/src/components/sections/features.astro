@@ -25,7 +25,7 @@ const featureGroups = [
     icon: Library,
     title: t("features_core_title"),
     installCommand: "npm install -D @jcode.labs/ragmir",
-    command: "pnpm exec rgr setup",
+    command: "npx rgr setup",
     text: t("features_core_text"),
     items: [
       { icon: SearchCheck, text: t("features_core_item_1") },
@@ -39,7 +39,7 @@ const featureGroups = [
     icon: Volume2,
     title: t("features_tts_title"),
     installCommand: "npm install -D @jcode.labs/ragmir-tts",
-    command: "pnpm exec rgr audio",
+    command: "npx rgr audio",
     text: t("features_tts_text"),
     items: [
       { icon: Volume2, text: t("features_tts_item_1") },
@@ -53,7 +53,7 @@ const featureGroups = [
     icon: MessageSquareText,
     title: t("features_chat_title"),
     installCommand: "npm install -D @jcode.labs/ragmir-chat",
-    command: "pnpm exec rgr chat setup",
+    command: "npx rgr chat setup",
     text: t("features_chat_text"),
     items: [
       { icon: MessageSquareText, text: t("features_chat_item_1") },
