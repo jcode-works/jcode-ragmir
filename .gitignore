@@ -15,6 +15,7 @@ release-artifacts/
 
 packages/ragmir-core/dist/
 packages/ragmir-tts/dist/
+packages/ragmir-chat/dist/
 packages/ragmir-app/dist/
 packages/ragmir-app/src-tauri/target/
 packages/ragmir-app/src-tauri/gen/

@@ -4,7 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const packageDirs = ["packages/ragmir-tts", "packages/ragmir-core"]
+const packageDirs = ["packages/ragmir-tts", "packages/ragmir-chat", "packages/ragmir-core"]
 const checkOnly = process.argv.includes("--check")
 
 for (const directory of packageDirs) {

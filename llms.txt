@@ -9,8 +9,9 @@ Ragmir Core (`@jcode.labs/ragmir`, npm) ingests local files from the target repo
 secrets and PII before anything is embedded, and serves cited passages through a CLI (`rgr ...`),
 an MCP server (`rgr serve-mcp`), a TypeScript library, and portable skills for Claude Code, Codex,
 Kimi Code CLI, OpenCode, and Cline. It does not perform LLM answer synthesis itself; `rgr ask`
-returns cited passages only, and synthesis stays with the calling agent or model. Ragmir TTS
-(`@jcode.labs/ragmir-tts`, npm) renders offline audio summaries.
+returns cited passages only, and synthesis stays with the calling agent or model. Ragmir Chat
+(`@jcode.labs/ragmir-chat`, npm) is the optional local Transformers.js cited-chat add-on, and Ragmir
+TTS (`@jcode.labs/ragmir-tts`, npm) renders offline audio summaries.
 
 ## Docs
 
@@ -19,11 +20,12 @@ returns cited passages only, and synthesis stays with the calling agent or model
 - [API reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/api-reference.md): library exports and MCP tools
 - [Agent integration](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/agent-integration.md): wiring Ragmir into Claude Code, Codex, Kimi Code CLI, OpenCode, Cline
 - [Troubleshooting](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/troubleshooting.md)
+- [Offline chat preload](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/offline-chat-preload.md)
 - [Contributing](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/CONTRIBUTING.md): dev setup (mise-pinned Node.js toolchain), pull request and Git Flow conventions
 
 ## Optional
 
-- [Source boundary](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/source-boundary.md): open-core split between Ragmir Core and add-ons
+- [Source boundary](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/source-boundary.md): MIT source boundary and package split between Ragmir Core and add-ons
 - [Offline TTS preload](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/offline-tts-preload.md)
 - [FR/EU sovereign positioning](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/fr-eu-sovereign-positioning.md)
 - [Security hardening](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/SECURITY-HARDENING.md)
