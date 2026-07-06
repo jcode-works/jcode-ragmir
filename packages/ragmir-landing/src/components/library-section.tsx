@@ -27,14 +27,19 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
   const t = (key: string): string => translations[key] ?? key
   const searchQuery = t("quickstart_search_query")
   const packageManagers: PackageManager[] = [
+    {
+      id: "npm",
+      label: "npm",
+      add: "npm install -D @jcode.labs/ragmir",
+      exec: "npx",
+    },
     { id: "pnpm", label: "pnpm", add: "pnpm add -D @jcode.labs/ragmir", exec: "pnpm exec" },
-    { id: "npm", label: "npm", add: "npm install -D @jcode.labs/ragmir", exec: "npm exec" },
     { id: "yarn", label: "yarn", add: "yarn add --dev @jcode.labs/ragmir", exec: "yarn exec" },
     {
       id: "mise",
       label: "mise",
       add: "mise exec node@24 -- npm install -D @jcode.labs/ragmir",
-      exec: "mise exec node@24 -- npm exec",
+      exec: "mise exec node@24 -- npx",
     },
   ]
   const installSteps = [
@@ -86,7 +91,7 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
           <CardDescription className="leading-6">{t("quickstart_text")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 p-5 md:p-6">
-          <Tabs className="gap-4" defaultValue={packageManagers[0]?.id ?? "pnpm"}>
+          <Tabs className="gap-4" defaultValue={packageManagers[0]?.id ?? "npm"}>
             <TabsList className="flex w-full rounded-full border border-border bg-card/82 p-1">
               {packageManagers.map((manager) => (
                 <TabsTrigger
