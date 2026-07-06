@@ -4,7 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const packageDirs = ["packages/ragmir-tts", "packages/ragmir-core"]
+const packageDirs = ["packages/ragmir-tts", "packages/ragmir-chat", "packages/ragmir-core"]
 const version = parseVersionArg(process.argv.slice(2))
 const checkOnly = process.argv.includes("--check")
 
@@ -28,7 +28,9 @@ if (!checkOnly) {
 if (checkOnly) {
   console.log(`Semantic release prepare check passed for ${version}`)
 } else {
-  run("pnpm", ["--filter", "@jcode.labs/ragmir", "build"])
+  for (const directory of packageDirs) {
+    run("pnpm", ["--dir", directory, "build"])
+  }
   run("pnpm", ["package:check"])
   run("pnpm", ["release:artifacts"])
 }

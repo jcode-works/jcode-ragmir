@@ -8,7 +8,7 @@ import YAML from "yaml"
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const artifactsDir = path.join(repoRoot, "release-artifacts")
 const corePackageDir = "packages/ragmir-core"
-const packageDirs = ["packages/ragmir-tts", corePackageDir]
+const packageDirs = ["packages/ragmir-tts", "packages/ragmir-chat", corePackageDir]
 const corePackageJson = await readPackageJson(corePackageDir)
 
 await rm(artifactsDir, { recursive: true, force: true })
