@@ -1369,6 +1369,16 @@ function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: str
   }
   console.log("")
   printDoctor(result.doctor)
+  console.log("")
+  printConfigurationPrompt(result.configurationPrompt)
+}
+
+function printConfigurationPrompt(prompt: string): void {
+  console.log(pc.cyan("AI configuration prompt:"))
+  console.log("Copy everything between the markers into your AI assistant or local chat.")
+  console.log("-----BEGIN RAGMIR CONFIGURATION PROMPT-----")
+  console.log(prompt)
+  console.log("-----END RAGMIR CONFIGURATION PROMPT-----")
 }
 
 function printUnsupportedSummary(extensions: Array<{ extension: string; count: number }>): void {
