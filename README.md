@@ -690,9 +690,11 @@ npx rgr-tts render /tmp/RAGMIR-SUMMARY-project.txt \
 ```
 
 The default standalone engine is `transformers` and the default language is `fr`. Pass
-`--lang en|es|fr` (or `RAGMIR_TTS_LANG`) to switch language: it selects the matching self-contained
-offline model (`Xenova/mms-tts-eng`, `Xenova/mms-tts-spa`, or `Xenova/mms-tts-fra`) and, on the Edge
-path, a native neural voice. Override the model directly with `--model` or `RAGMIR_TTS_MODEL`.
+`--lang en|es|fr|ja|th|zh` (or `RAGMIR_TTS_LANG`) to switch language. English, Spanish, and French
+select matching self-contained offline models (`Xenova/mms-tts-eng`, `Xenova/mms-tts-spa`, or
+`Xenova/mms-tts-fra`) and native Edge voices. Japanese, Thai, and Mandarin Chinese currently select
+native Edge voices; for offline rendering in those languages, pass a Transformers.js-compatible
+model directly with `--model` or `RAGMIR_TTS_MODEL`.
 
 See [`docs/offline-tts-preload.md`](./docs/offline-tts-preload.md) for the exact preload and
 offline-check workflow.

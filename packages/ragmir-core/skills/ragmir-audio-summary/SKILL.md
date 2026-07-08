@@ -53,7 +53,8 @@ Capture four things:
 - **Purpose** — what the listener will do with this: decide, learn, monitor, compare, or plan.
 - **Subject** — the precise question or topic, narrower than "summarize everything".
 - **Depth** — a quick scan or a deep dossier. Let the user steer, but default from the material.
-- **Language** — the spoken language, passed later to `--lang` (`fr` default, `en`, `es`).
+- **Language** — the spoken language, passed later to `--lang` (`fr` default, `en`, `es`, `ja`,
+  `th`, `zh`).
 
 This is the guardrail against superfluous data: anything that does not advance the captured intent
 gets dropped at the drafting step, not added because it was "also in the documents".
@@ -170,16 +171,18 @@ Create the output directory and write the narration to a temp file outside the r
 mkdir -p .ragmir/audio
 ```
 
-Select the narration language with `--lang en|es|fr` (default `fr`). It picks the matching
-self-contained offline model (English, Spanish, or French) for the Transformers.js path and a native
-neural voice for the Edge path. Write the narration in the same language you pass to `--lang`.
+Select the narration language with `--lang en|es|fr|ja|th|zh` (default `fr`). English, Spanish, and
+French pick matching self-contained offline models for the Transformers.js path and native neural
+voices for the Edge path. Japanese, Thai, and Mandarin Chinese currently pick native Edge voices; for
+offline rendering in those languages, pass a Transformers.js-compatible model explicitly. Write the
+narration in the same language you pass to `--lang`.
 
 For global Voice Forge quality on non-confidential text, render with Edge MP3:
 
 ```bash
 pnpm exec rgr audio /tmp/RAGMIR-SUMMARY-<subject-kebab>.txt \
   --engine edge \
-  --lang <en|es|fr> \
+  --lang <en|es|fr|ja|th|zh> \
   --out .ragmir/audio/RAGMIR-SUMMARY-<subject-kebab>.mp3
 ```
 
