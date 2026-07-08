@@ -1,6 +1,7 @@
 import { cn } from "@jcode.labs/ragmir-ui/utils"
 import {
   BookOpenText,
+  Code2,
   Cpu,
   type LucideIcon,
   Plane,
@@ -43,6 +44,8 @@ const TERMINAL_PROMPT_GRID_CLASS = "grid-cols-[4rem_minmax(0,1fr)_auto]"
 const TERMINAL_CONTENT_INDENT_CLASS = "pl-[4.5rem]"
 
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
+  military: ShieldCheck,
+  dev: Code2,
   aviation: Plane,
   security: ShieldCheck,
   incident: Wrench,
