@@ -10,7 +10,7 @@ Ragmir ships three CLIs:
 
 | Command | Use it when |
 | --- | --- |
-| `rgr setup` | Initialize Ragmir, install the agent kit, run doctor, and ingest when safe. |
+| `rgr setup` | Initialize Ragmir, install the agent kit, run doctor, ingest when safe, and print a copyable AI prompt for source tuning. |
 | `rgr setup --semantic` | Run first setup and explicitly download the configured Transformers.js embedding model for higher-quality semantic retrieval. |
 | `rgr init` | Create `.ragmir/config.json` (with a `sources` array), `.ragmir/raw/`, and Git ignore rules. |
 | `rgr doctor` | Diagnose setup, index freshness, security warnings, and the next command to run. |
@@ -77,7 +77,7 @@ Ragmir ships three CLIs:
 | `--top-k <number>` | `search`, `ask`, `chat`, `research`, `evaluate` | Number of passages to return or keep. |
 | `--fail-under <recall>` | `evaluate` | Exit non-zero only when recall is below a threshold from `0` to `1`; without this option evaluation remains strict and fails on any miss. |
 | `--days <number>` | `usage-report` | Number of recent days to include in the metadata-only usage summary. |
-| `--json` | `doctor`, `ingest`, `search`, `ask`, `chat`, `research`, `route-prompt`, `evaluate`, `audit`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `rgr-chat doctor`, `rgr-tts doctor` | Print machine-readable JSON. |
+| `--json` | `setup`, `doctor`, `ingest`, `search`, `ask`, `chat`, `research`, `route-prompt`, `evaluate`, `audit`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `rgr-chat doctor`, `rgr-tts doctor` | Print machine-readable JSON. |
 | `--compact` | `search`, `research` | Return short snippets instead of full retrieved passages. |
 | `--no-code` | `research` | Skip the lightweight repository code scan. |
 | `--unsupported` | `audit` | List skipped file paths and reasons. |
@@ -85,11 +85,15 @@ Ragmir ships three CLIs:
 | `--offline` | `chat`, `audio`, `rgr-chat answer`, `rgr-tts render` | Disable remote model downloads and force the local Transformers.js path. |
 | `--allow-remote-models` | `chat`, `audio`, `rgr-chat answer`, `rgr-tts render` | Explicitly allow model downloads for Transformers.js. |
 | `--engine edge` | `audio`, `rgr-tts render` | Use online Edge TTS for MP3 output. |
-| `--lang <en\|es\|fr>` | `audio`, `rgr-tts render` | Select the TTS language; picks the offline model and Edge voice. Default `fr`. |
+| `--lang <en\|es\|fr\|ja\|th\|zh>` | `audio`, `rgr-tts render` | Select the TTS language. `en`, `es`, and `fr` have default offline models; `ja`, `th`, and `zh` use Edge voices unless `--model` supplies a compatible offline model. Default `fr`. |
 
 See [`offline-chat-preload.md`](./offline-chat-preload.md) and
 [`offline-tts-preload.md`](./offline-tts-preload.md) before using `--offline` on a fully air-gapped
 machine.
+
+`rgr setup` ends with an English prompt between copy markers. Paste it into an AI assistant or local
+chat to ask for repository-specific `sources` recommendations while excluding secrets, generated
+files, dependency folders, caches, and unnecessary locale noise.
 
 ## External Text Extraction Configuration
 

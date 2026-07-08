@@ -77,6 +77,7 @@ Useful result fields:
 | `ingested` | `IngestResult` when auto-ingest ran; otherwise `null`. |
 | `doctor` | Final readiness report. |
 | `nextSteps` | User-facing next actions. |
+| `configurationPrompt` | English copy-paste prompt for an AI assistant or local chat to tune repository-specific `sources` entries safely. |
 
 ### `loadConfig(start?)`
 

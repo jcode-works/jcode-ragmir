@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "check": "tsc -p tsconfig.json --noEmit",
-    "dev": "vite",
+    "dev": "tauri dev",
+    "dev:web": "vite",
     "license:from-lemonsqueezy": "node scripts/license-from-lemonsqueezy.mjs",
     "license:lemonsqueezy:smoke": "node scripts/license-from-lemonsqueezy-smoke.mjs",
     "license:issue": "node scripts/license-issue.mjs",
@@ -39,9 +40,11 @@
   "dependencies": {
     "@jcode.labs/ragmir-ui": "workspace:*",
     "@tauri-apps/api": "^2.10.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
     "lucide-react": "^1.21.0",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.0",

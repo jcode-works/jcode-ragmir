@@ -21,7 +21,7 @@ Guardrails" in `AGENTS.md`.
 pnpm bootstrap          # mise install (pinned Node/Rust) && pnpm install
 pnpm build              # builds UI, app frontend, landing, TTS, chat, then Ragmir Core
 pnpm check              # typecheck UI/app/landing/TTS/chat/core
-pnpm dev:app            # run the Vite frontend for the Tauri shell
+pnpm dev:app            # run the Tauri desktop shell; requires Rust on PATH via mise
 pnpm dev:landing        # run the Astro landing locally
 pnpm example            # build core + run the library-API smoke against the local build (examples/library-api-demo)
 pnpm lint               # Biome CI (format + lint check, no writes)
@@ -40,6 +40,14 @@ Run only the TTS package tests: `pnpm --filter @jcode.labs/ragmir-tts test`
 Run only the chat package tests: `pnpm --filter @jcode.labs/ragmir-chat test`
 
 Tests are colocated as `packages/*/src/*.test.ts` and run on the TypeScript sources.
+
+## Claude memory and shared rules
+
+Claude Code has auto memory and `/memory`, but those notes are local to the machine and are not a
+replacement for committed project rules. When a user correction, review, or regression reveals a
+repeatable trap, add a concise shared rule to `AGENTS.md`; only add Claude-specific behavior here.
+Use `.claude/rules/` later only if the rule needs path-specific loading instead of every-session
+context.
 
 ## `dist/` is gitignored build output — critical
 
@@ -115,6 +123,18 @@ foundation, but with Ragmir tokens and no WorkoutGen product copy, analytics, CD
 `packages/ragmir-landing` is an Astro static site using that UI package. `packages/ragmir-app` is a
 Tauri v2 shell using the same UI package; root build validates its Vite frontend, while native Tauri
 desktop/mobile builds are explicit `pnpm --filter @jcode.labs/ragmir-app tauri:*` commands.
+
+Tauri dialog trap: for UI-triggered file/folder selection, use
+`@tauri-apps/plugin-dialog` `open(...)` from the frontend click handler. Do not add Rust commands
+that call `blocking_*` dialog APIs for these flows; they can deadlock the native event loop and leave
+React loading state stuck. Validate by running `mise exec rust -- pnpm dev:app`, clicking the picker
+button, cancelling the native dialog, and confirming the UI leaves its loading state.
+
+Tauri model-preload trap: when editing `packages/ragmir-app/src-tauri/src/lib.rs`, keep setup
+commands explicit about the network boundary. One-time model preloads may pass
+`--allow-remote-models`; normal chat/audio commands must stay offline after preload.
+For app `Prepare` flows, keep the bootstrap order from `AGENTS.md`: write direct-folder sources with
+`local-hash` first, preload semantic models second, then rebuild with Transformers.
 
 Key behaviors to keep in mind before editing:
 

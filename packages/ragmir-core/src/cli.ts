@@ -813,7 +813,7 @@ program
   .argument("[text-file]", "Narration text file to render.")
   .option("-o, --out <path>", "Output MP3 or WAV path.")
   .option("--engine <engine>", "TTS engine: auto, edge, or transformers.")
-  .option("--lang <language>", "TTS language: en, es, or fr. Selects the model and Edge voice.")
+  .option("--lang <language>", "TTS language: en, es, fr, ja, th, or zh.")
   .option("--model <id>", "Transformers.js TTS model ID.")
   .option("--model-path <path>", "Local model/cache path.")
   .option("--offline", "Force the Transformers.js local/offline WAV path.")
@@ -1369,6 +1369,16 @@ function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: str
   }
   console.log("")
   printDoctor(result.doctor)
+  console.log("")
+  printConfigurationPrompt(result.configurationPrompt)
+}
+
+function printConfigurationPrompt(prompt: string): void {
+  console.log(pc.cyan("AI configuration prompt:"))
+  console.log("Copy everything between the markers into your AI assistant or local chat.")
+  console.log("-----BEGIN RAGMIR CONFIGURATION PROMPT-----")
+  console.log(prompt)
+  console.log("-----END RAGMIR CONFIGURATION PROMPT-----")
 }
 
 function printUnsupportedSummary(extensions: Array<{ extension: string; count: number }>): void {

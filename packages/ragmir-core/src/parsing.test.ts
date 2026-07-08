@@ -164,6 +164,23 @@ describe("parseFile", () => {
     expect(parsed.text).toContain("SOVEREIGN REPORT")
   })
 
+  it("rejects archives with too many text entries", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-archive-limit-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "bomb.epub")
+    const entries = Object.fromEntries(
+      Array.from({ length: 520 }, (_entry, index) => [
+        `OPS/chapter-${index}.xhtml`,
+        strToU8("<html><body>Too many entries</body></html>"),
+      ]),
+    )
+    await writeFile(filePath, zipSync(entries))
+
+    await expect(parseFile(sourceFile(root, filePath, ".epub"))).rejects.toThrow(
+      "Archive text payload exceeds Ragmir safety limits.",
+    )
+  })
+
   it("omits long embedded base64 payloads from text files", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-base64-"))
     tempDirs.push(root)

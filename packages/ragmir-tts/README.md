@@ -40,6 +40,10 @@ npx rgr-tts render /tmp/summary.txt --engine edge --out .ragmir/audio/summary.mp
 The default engine is `transformers` for offline/confidential WAV output. Use `--engine edge` only
 when sending narration text to online Edge TTS is acceptable.
 
+Use `--lang en|es|fr|ja|th|zh` to select the spoken language. English, Spanish, and French have
+default offline Transformers.js models; Japanese, Thai, and Mandarin Chinese use Edge voices unless
+you pass a compatible offline model with `--model`.
+
 For first-time setup, preload the Transformers.js model with non-sensitive text and
 `--allow-remote-models` before rendering confidential narration. See the root
 `docs/offline-tts-preload.md` guide.

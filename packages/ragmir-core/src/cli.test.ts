@@ -80,10 +80,13 @@ describe("audioLanguage", () => {
     expect(audioLanguage({ lang: "fr" })).toBe("fr")
     expect(audioLanguage({ lang: "en" })).toBe("en")
     expect(audioLanguage({ lang: "es" })).toBe("es")
+    expect(audioLanguage({ lang: "ja" })).toBe("ja")
+    expect(audioLanguage({ lang: "th" })).toBe("th")
+    expect(audioLanguage({ lang: "zh" })).toBe("zh")
   })
 
   it("rejects an unsupported language with the list of valid options", () => {
-    expect(() => audioLanguage({ lang: "de" })).toThrow("en, es, fr")
+    expect(() => audioLanguage({ lang: "de" })).toThrow("en, es, fr, ja, th, zh")
   })
 })
 

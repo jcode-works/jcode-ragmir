@@ -39,7 +39,7 @@
     "build": "pnpm --filter @jcode.labs/ragmir-ui build && pnpm --filter @jcode.labs/ragmir-app build && pnpm --filter @jcode.labs/ragmir-landing build && pnpm --filter @jcode.labs/ragmir-license-webhook build && pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm --filter @jcode.labs/ragmir build",
     "check": "pnpm --filter @jcode.labs/ragmir-ui check && pnpm --filter @jcode.labs/ragmir-app check && pnpm --filter @jcode.labs/ragmir-landing check && pnpm --filter @jcode.labs/ragmir-license-webhook check && pnpm --filter @jcode.labs/ragmir-tts check && pnpm --filter @jcode.labs/ragmir-chat check && pnpm --filter @jcode.labs/ragmir check",
     "commitlint": "commitlint --from=HEAD~1 --to=HEAD --verbose",
-    "dev:app": "pnpm --filter @jcode.labs/ragmir-app dev",
+    "dev:app": "pnpm --filter @jcode.labs/ragmir-app tauri:dev",
     "dev:landing": "pnpm --filter @jcode.labs/ragmir-landing dev",
     "example": "pnpm --filter @jcode.labs/ragmir build && node packages/ragmir-core/examples/library-api-demo/run.mjs",
     "format": "biome format --write .",
