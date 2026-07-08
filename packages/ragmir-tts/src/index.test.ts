@@ -145,13 +145,61 @@ describe("renderSpeech", () => {
     expect(result.voice).toBe("en-US-AriaNeural")
   })
 
+  it("uses Edge voices for Asian languages without requiring an offline model", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-zh-edge-"))
+    tempDirs.push(root)
+    const textFile = path.join(root, "summary.txt")
+    await writeFile(textFile, "你好，Ragmir。", "utf8")
+
+    const edgeRenderer: EdgeTtsRenderer = async (options) => {
+      expect(options.voice).toBe("zh-CN-XiaoxiaoNeural")
+      await writeFile(options.outputPath, "ID3 fake mp3", "utf8")
+    }
+
+    const result = await renderSpeech({
+      cwd: root,
+      textFile,
+      engine: "edge",
+      language: "zh",
+      outputPath: path.join(root, ".ragmir/audio/summary.mp3"),
+      edgeRenderer,
+    })
+
+    expect(result.language).toBe("zh")
+    expect(result.model).toBeNull()
+    expect(result.voice).toBe("zh-CN-XiaoxiaoNeural")
+  })
+
   it("maps languages to self-contained MMS models and Edge voices", () => {
     expect(mmsModelForLanguage("en")).toBe("Xenova/mms-tts-eng")
     expect(mmsModelForLanguage("es")).toBe("Xenova/mms-tts-spa")
     expect(mmsModelForLanguage("fr")).toBe("Xenova/mms-tts-fra")
+    expect(() => mmsModelForLanguage("ja")).toThrow("No default offline")
+    expect(() => mmsModelForLanguage("th")).toThrow("No default offline")
+    expect(() => mmsModelForLanguage("zh")).toThrow("No default offline")
     expect(edgeVoiceForLanguage("en")).toBe("en-US-AriaNeural")
     expect(edgeVoiceForLanguage("es")).toBe("es-ES-ElviraNeural")
     expect(edgeVoiceForLanguage("fr")).toBe("fr-FR-DeniseNeural")
+    expect(edgeVoiceForLanguage("ja")).toBe("ja-JP-NanamiNeural")
+    expect(edgeVoiceForLanguage("th")).toBe("th-TH-PremwadeeNeural")
+    expect(edgeVoiceForLanguage("zh")).toBe("zh-CN-XiaoxiaoNeural")
+  })
+
+  it("rejects offline rendering for languages without a default Transformers.js model", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-zh-offline-"))
+    tempDirs.push(root)
+    const textFile = path.join(root, "summary.txt")
+    await writeFile(textFile, "你好，Ragmir。", "utf8")
+
+    await expect(
+      renderSpeech({
+        cwd: root,
+        textFile,
+        language: "zh",
+        outputPath: path.join(root, ".ragmir/audio/summary.wav"),
+        synthesizer: silentSynthesizer,
+      }),
+    ).rejects.toThrow("No default offline Transformers.js TTS model is configured for zh")
   })
 
   it("rejects incompatible output formats", async () => {
@@ -177,7 +225,9 @@ describe("doctor", () => {
     await expect(doctor()).resolves.toMatchObject({
       defaultEngine: "transformers",
       defaultLanguage: "fr",
-      languages: ["en", "es", "fr"],
+      languages: ["en", "es", "fr", "ja", "th", "zh"],
+      offlineLanguages: ["en", "es", "fr"],
+      edgeLanguages: ["en", "es", "fr", "ja", "th", "zh"],
       defaultAllowRemoteModels: false,
       edgeDefaultVoice: "fr-FR-DeniseNeural",
       pythonRequired: false,

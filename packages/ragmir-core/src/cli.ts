@@ -813,7 +813,7 @@ program
   .argument("[text-file]", "Narration text file to render.")
   .option("-o, --out <path>", "Output MP3 or WAV path.")
   .option("--engine <engine>", "TTS engine: auto, edge, or transformers.")
-  .option("--lang <language>", "TTS language: en, es, or fr. Selects the model and Edge voice.")
+  .option("--lang <language>", "TTS language: en, es, fr, ja, th, or zh.")
   .option("--model <id>", "Transformers.js TTS model ID.")
   .option("--model-path <path>", "Local model/cache path.")
   .option("--offline", "Force the Transformers.js local/offline WAV path.")

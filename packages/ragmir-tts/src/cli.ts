@@ -114,7 +114,7 @@ async function runRender(args: string[]): Promise<void> {
   printKeyValue("engine", result.engine)
   printKeyValue("language", result.language)
   printKeyValue("outputFormat", result.outputFormat)
-  printKeyValue("model", result.model)
+  printKeyValue("model", result.model ?? "none")
   printKeyValue("modelPath", result.modelPath)
   printKeyValue("allowRemoteModels", String(result.allowRemoteModels))
   printKeyValue("voice", result.voice ?? "none")
@@ -231,7 +231,7 @@ Usage:
 
 Options:
   --engine <engine>             transformers, edge, or auto. Default is transformers.
-  --lang <language>            en, es, or fr. Selects the offline model and Edge voice. Default fr.
+  --lang <language>            en, es, fr, ja, th, or zh. Selects the language. Default fr.
   --model <id>                 Transformers.js TTS model ID.
   --model-path <path>          Local model/cache path. Defaults to .ragmir/models/tts.
   --offline                    Force the Transformers.js local/offline WAV path.
