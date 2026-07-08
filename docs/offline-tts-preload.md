@@ -12,6 +12,8 @@ Use this workflow when you want confidential audio summaries to render without n
 - Render confidential narration only after the offline check succeeds.
 - Keep `.ragmir/models/tts/` and `.ragmir/audio/` untracked.
 - Do not use `--engine edge` for confidential content unless online TTS is explicitly acceptable.
+- Default offline models are configured for `en`, `es`, and `fr`. For `ja`, `th`, or `zh`, pass a
+  Transformers.js-compatible TTS model explicitly with `--model` before relying on offline rendering.
 
 The preload step downloads public model files. It should not need to send narration text to a remote
 TTS service, but using synthetic text keeps the operation easy to audit.

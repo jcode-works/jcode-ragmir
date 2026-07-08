@@ -79,8 +79,9 @@ Avoid these — they are the main causes of "imbuvable" audio.
 
 ## Language
 
-- Write the narration in the same language passed to `--lang` (`fr` default, `en`, `es`).
-- Match the working language the user used when asking for the summary when it is one of the three
+- Write the narration in the same language passed to `--lang` (`fr` default, `en`, `es`, `ja`, `th`,
+  `zh`).
+- Match the working language the user used when asking for the summary when it is one of the
   supported languages.
 - Keep numerals, units, and proper nouns pronounceable in the target language.
 

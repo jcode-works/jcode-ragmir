@@ -101,6 +101,16 @@
 - `packages/ragmir-app` is the cross-platform Tauri desktop/mobile shell. Root `pnpm build` validates
   the frontend bundle only; native `tauri build`, `tauri ios *`, and `tauri android *` commands stay
   explicit and are not part of npm release validation.
+- Desktop app config editing should use structured shadcn-style controls from
+  `@jcode.labs/ragmir-ui`. JSON remains the `.ragmir/config.json` file format, not the primary app
+  editing experience.
+- For Tauri app file and folder pickers triggered from the UI, prefer the official
+  `@tauri-apps/plugin-dialog` JavaScript `open(...)` API from the click handler. Do not add Rust
+  commands that call `blocking_*` dialog APIs for frontend-triggered picker flows; they can deadlock
+  the Tauri event loop and leave app loading state stuck. If a dedicated Rust picker command becomes
+  necessary, use the non-blocking `pick_*` callback APIs and validate the real `pnpm dev:app` flow by
+  clicking the control, opening the native picker, cancelling it, and confirming the loading state
+  clears.
 - Distribute the Ragmir app through direct downloads and sideloadable installers, not App Store or
   Play Store flows. Desktop installers and Android APK-style distribution are first-class; iOS stays
   deferred until a compliant non-store channel is chosen.
@@ -153,6 +163,28 @@
   Transformers.js text generation for `rgr chat`; `rgr chat setup` is the explicit one-command
   preload path for `.ragmir/models/chat`, and normal answers must keep remote model loading disabled
   unless the user opts into `--allow-remote-models`.
+- In `packages/ragmir-app`, keep model preloads explicit in the Tauri sidecar: setup/prepare flows
+  may pass `--allow-remote-models` only for one-time embedding/chat/TTS preload commands, while
+  normal chat answers and audio rendering must use offline/local modes after preload.
+- In `packages/ragmir-app`, chat UX must stay non-blocking: append the user message and a pending
+  assistant bubble before invoking native chat, show visible thinking/streaming/error states, render
+  assistant Markdown, keep recent thread context local and explicit, and run long native CLI work
+  through async Tauri commands or `spawn_blocking` so the webview does not freeze.
+- In `packages/ragmir-app`, distinguish Ragmir Chat from external coding agents. Local chat is the
+  only fully private in-app conversation path. Codex, Claude, Kimi, OpenCode, Cline, or generic MCP
+  modes should be presented as a handoff that generates/copies helper config and prompts for the
+  external agent; do not build a fake duplicate chat UI for agents that already have their own chat.
+  Always warn that prompts, retrieved snippets, and pasted confidential content may leave the
+  machine through cloud agents even though the Ragmir index and MCP server stay local.
+- In `packages/ragmir-app`, chat TTS belongs on assistant messages, not as a vague global export:
+  render the selected answer with `rgr audio --offline`, show per-message rendering/playing/error
+  states, read generated files through Tauri's scoped asset protocol, and keep TTS preload as an
+  explicit non-sensitive setup action.
+- In `packages/ragmir-app`, prepare direct-folder workspaces in bootstrap order: first write or
+  repair `.ragmir/config.json` with `sources: ["."]` and the safe `local-hash` provider, then run
+  `rgr models pull --enable`, then rebuild with Transformers. Do not set
+  `embeddingProvider: "transformers"` before the model preload exists, or `doctor --fix` can ingest
+  against a missing local model.
 - Keep report generation separate from core retrieval. The `ragmir-markdown-report` skill writes cited
   Markdown reports under ignored `.ragmir/reports/` by default and must distinguish evidence,
   inference, uncertainty, missing documents, and professional-review items.
@@ -237,6 +269,11 @@ any other), because several agents may run against this repo in parallel.
   protected-branch back-merge), name it clearly and delete it once merged.
 - **Respect other agents' work.** Before editing, run `git status` and check for other running agents
   or processes; never stage, commit, or discard uncommitted changes you did not make.
+- **Capture durable agent lessons in the repo.** When a bug, review, or user correction reveals a
+  repeatable AI-agent trap, update the nearest shared agent instructions in the same task:
+  `AGENTS.md` for cross-agent project rules, and `CLAUDE.md` only for Claude Code-specific behavior.
+  Keep the entry concise, factual, and tied to a reproducible workflow; do not rely on tool-local
+  memory as the only place for team-shared rules.
 
 ## Coding Conventions
 

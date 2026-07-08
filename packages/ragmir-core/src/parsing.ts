@@ -12,8 +12,11 @@ import { OCR_IMAGE_EXTENSIONS } from "./files.js"
 import type { ParsedDocument, SourceFile } from "./types.js"
 
 const MAX_OFFICE_XML_ENTRY_BYTES = 25_000_000
+const MAX_OFFICE_TEXT_ENTRY_COUNT = 512
+const MAX_OFFICE_XML_TOTAL_BYTES = 50_000_000
 const MAX_EXTERNAL_TEXT_STDIO_BYTES = 25_000_000
 const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu
+const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm)$/iu
 const HTML_TO_TEXT_OPTIONS = {
   wordwrap: false,
   selectors: [
@@ -179,14 +182,37 @@ async function parseEpub(filePath: string): Promise<string> {
 }
 
 function unzipOfficeFile(buffer: Buffer): Map<string, string> {
+  let textEntryCount = 0
+  let totalTextBytes = 0
+  let rejectedForSafetyLimit = false
   const unzipped = unzipSync(new Uint8Array(buffer), {
-    filter: (file) => file.originalSize <= MAX_OFFICE_XML_ENTRY_BYTES,
+    filter: (file) => {
+      if (!OFFICE_TEXT_ENTRY_PATTERN.test(file.name)) {
+        return false
+      }
+      if (file.originalSize > MAX_OFFICE_XML_ENTRY_BYTES) {
+        rejectedForSafetyLimit = true
+        return false
+      }
+      textEntryCount += 1
+      totalTextBytes += file.originalSize
+      if (
+        textEntryCount > MAX_OFFICE_TEXT_ENTRY_COUNT ||
+        totalTextBytes > MAX_OFFICE_XML_TOTAL_BYTES
+      ) {
+        rejectedForSafetyLimit = true
+        return false
+      }
+      return true
+    },
   })
+  if (rejectedForSafetyLimit) {
+    throw new Error("Archive text payload exceeds Ragmir safety limits.")
+  }
+
   const entries = new Map<string, string>()
   for (const [name, content] of Object.entries(unzipped)) {
-    if (/\.(?:xml|rels|xhtml|html|htm)$/iu.test(name)) {
-      entries.set(name, strFromU8(content))
-    }
+    entries.set(name, strFromU8(content))
   }
   return entries
 }

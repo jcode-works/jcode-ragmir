@@ -35,7 +35,23 @@ export interface SetupResult {
   ingested: IngestResult | null
   doctor: DoctorReport
   nextSteps: string[]
+  configurationPrompt: string
 }
+
+const CONFIGURATION_PROMPT = `You are helping configure Ragmir for this repository.
+
+Work from the repository root where \`rgr setup\` was run. Your goal is to improve \`.ragmir/config.json\` so Ragmir indexes useful repository knowledge without indexing secrets, generated files, or noisy bulk data.
+
+Tasks:
+1. Inspect the repository structure and the current \`.ragmir/config.json\`.
+2. Add concise \`sources\` entries for durable knowledge: root README files, AGENTS/CLAUDE/CODEX guidance, CONTRIBUTING/CHANGELOG files, docs, specs, architecture notes, package README files, app/package metadata, and important project configuration.
+3. Include translation or locale files only when they help explain product behavior. Prefer English first; if the project primarily uses another language, include that language too. Do not add every locale by default.
+4. Exclude generated output, dependency folders, build caches, coverage, logs, vendored code, binaries, screenshots/media dumps, \`.env*\`, credentials, private keys, raw customer data, and \`.ragmir/storage\` or \`.ragmir/models\`.
+5. Prefer stable globs over long file lists, but keep the set narrow enough that \`rgr audit\` remains readable.
+6. If you can edit files, update the \`sources\` array in \`.ragmir/config.json\`. If you are read-only, return exact \`rgr sources add ...\` commands instead.
+7. If you can execute commands, run \`rgr audit --unsupported\` and \`rgr doctor --fix\`, then report what you added, what you deliberately excluded, and any skipped files Ragmir reported.
+
+Keep all proposed paths relative to the repository root. Do not add secrets or private documents to Git.`
 
 export async function setupProject(options: SetupOptions = {}): Promise<SetupResult> {
   const cwd = path.resolve(options.cwd ?? process.cwd())
@@ -78,6 +94,7 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
     ingested,
     doctor: report,
     nextSteps: setupNextSteps(report),
+    configurationPrompt: CONFIGURATION_PROMPT,
   }
 }
 
