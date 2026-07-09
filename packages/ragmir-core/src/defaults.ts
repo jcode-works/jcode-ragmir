@@ -9,6 +9,7 @@ export const LEGACY_CONFIG_PATH = `${LEGACY_KB_DIR}/config.json`
 export const DEFAULT_SKILL_TARGET_DIR = `${RAGMIR_DIR}/skills`
 
 export const RAGMIR_PROJECT_ROOT_ENV = "RAGMIR_PROJECT_ROOT"
+export const VECTOR_DISTANCE_METRIC = "l2"
 
 export const RAGMIR_GITIGNORE_ENTRY = `${RAGMIR_DIR}/`
 export const LEGACY_KB_GITIGNORE_ENTRY = `${LEGACY_KB_DIR}/`

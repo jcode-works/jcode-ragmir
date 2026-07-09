@@ -26,6 +26,8 @@ function baseManifest(overrides: Partial<IndexManifest> = {}): IndexManifest {
     ragmirVersion: "0.4.12",
     embeddingProvider: "local-hash",
     embeddingModel: "mixedbread-ai/mxbai-embed-xsmall-v1",
+    vectorDimension: 384,
+    vectorDistanceMetric: "l2",
     chunkSize: 1200,
     chunkOverlap: 200,
     fileCount: 1,
@@ -98,6 +100,17 @@ describe("getIndexFreshnessWarning", () => {
     const warning = await getIndexFreshnessWarning(config)
     expect(warning).not.toBeNull()
     expect(warning).toContain("chunkSize")
+  })
+
+  it("warns when the vector distance metric differs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-freshness-metric-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await writeIndexManifest({ ...baseManifest(), vectorDistanceMetric: "cosine" }, config)
+
+    const warning = await getIndexFreshnessWarning(config)
+    expect(warning).not.toBeNull()
+    expect(warning).toContain("vector distance metric")
   })
 })
 

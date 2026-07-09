@@ -15,23 +15,28 @@ export function chunkDocument(
   }
 
   const chunks: TextChunk[] = []
+  const lineStarts = lineStartOffsets(document.text)
   let cursor = 0
   let chunkIndex = 0
 
   while (cursor < document.text.length) {
     const end = chooseChunkEnd(document.text, cursor, chunkSize)
-    const text = document.text.slice(cursor, end).trim()
+    const span = trimmedSpan(document.text, cursor, end)
 
-    if (text) {
+    if (span.text) {
       const id = createHash("sha256")
-        .update(`${document.file.relativePath}:${chunkIndex}:${text}`)
+        .update(`${document.file.relativePath}:${chunkIndex}:${span.text}`)
         .digest("hex")
       chunks.push({
         id,
         source: document.file.source,
         relativePath: document.file.relativePath,
         chunkIndex,
-        text,
+        text: span.text,
+        charStart: span.start,
+        charEnd: span.end,
+        lineStart: lineNumberForOffset(lineStarts, span.start),
+        lineEnd: lineNumberForOffset(lineStarts, Math.max(span.start, span.end - 1)),
         checksum: document.file.checksum,
         bytes: document.file.bytes,
         mtimeMs: document.file.mtimeMs,
@@ -75,4 +80,51 @@ function chooseChunkEnd(text: string, cursor: number, chunkSize: number): number
   }
 
   return hardEnd
+}
+
+interface TextSpan {
+  start: number
+  end: number
+  text: string
+}
+
+function trimmedSpan(text: string, start: number, end: number): TextSpan {
+  let trimmedStart = start
+  let trimmedEnd = end
+  while (trimmedStart < trimmedEnd && /\s/u.test(text[trimmedStart] ?? "")) {
+    trimmedStart += 1
+  }
+  while (trimmedEnd > trimmedStart && /\s/u.test(text[trimmedEnd - 1] ?? "")) {
+    trimmedEnd -= 1
+  }
+  return {
+    start: trimmedStart,
+    end: trimmedEnd,
+    text: text.slice(trimmedStart, trimmedEnd),
+  }
+}
+
+function lineStartOffsets(text: string): number[] {
+  const starts = [0]
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === "\n" && index + 1 < text.length) {
+      starts.push(index + 1)
+    }
+  }
+  return starts
+}
+
+function lineNumberForOffset(lineStarts: number[], offset: number): number {
+  let low = 0
+  let high = lineStarts.length - 1
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    const lineStart = lineStarts[mid] ?? 0
+    if (lineStart <= offset) {
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+  return Math.max(1, high + 1)
 }
