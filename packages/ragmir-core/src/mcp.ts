@@ -18,14 +18,17 @@ import { VERSION } from "./version.js"
 const queryToolInputSchema = z.object({
   query: z.string().min(1),
   topK: z.number().int().positive().optional(),
+  contextRadius: z.number().int().min(0).optional(),
 })
 
-const searchToolInputSchema = queryToolInputSchema.extend({
+const researchToolInputSchema = z.object({
+  query: z.string().min(1),
+  topK: z.number().int().positive().optional(),
+  includeCode: z.boolean().optional(),
   compact: z.boolean().optional(),
 })
 
-const researchToolInputSchema = queryToolInputSchema.extend({
-  includeCode: z.boolean().optional(),
+const searchToolInputSchema = queryToolInputSchema.extend({
   compact: z.boolean().optional(),
 })
 
@@ -106,8 +109,8 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Retrieve relevant passages from the local Ragmir knowledge base.",
       inputSchema: searchToolInputSchema,
     },
-    async ({ query, topK, compact }) => {
-      const results = await search(query, await searchOptions(cwd, topK))
+    async ({ query, topK, contextRadius, compact }) => {
+      const results = await search(query, await searchOptions(cwd, topK, contextRadius))
       return textResult(compact ? compactSearchResults(results) : results)
     },
   )
@@ -119,7 +122,8 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Return cited retrieval context for a question without calling an LLM.",
       inputSchema: queryToolInputSchema,
     },
-    async ({ query, topK }) => textResult(await ask(query, await searchOptions(cwd, topK))),
+    async ({ query, topK, contextRadius }) =>
+      textResult(await ask(query, await searchOptions(cwd, topK, contextRadius))),
   )
 
   server.registerTool(
@@ -231,10 +235,18 @@ function textResult(value: unknown): { content: Array<{ type: "text"; text: stri
 export async function searchOptions(
   cwd: string,
   topK: number | undefined,
-): Promise<{ cwd: string; topK?: number }> {
+  contextRadius?: number | undefined,
+): Promise<{ cwd: string; topK?: number; contextRadius?: number }> {
   const config = await loadConfig(cwd)
   const boundedTopK = Math.min(topK ?? config.topK, config.mcpMaxTopK)
-  return { cwd, topK: boundedTopK }
+  const boundedContextRadius =
+    contextRadius === undefined ? undefined : Math.min(Math.max(0, contextRadius), 3)
+  const result: { cwd: string; topK?: number; contextRadius?: number } = {
+    cwd,
+    topK: boundedTopK,
+  }
+  addOption(result, "contextRadius", boundedContextRadius)
+  return result
 }
 
 async function evaluationOptions(

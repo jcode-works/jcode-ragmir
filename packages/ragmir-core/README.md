@@ -22,7 +22,8 @@ same evidence through:
   workflows.
 
 Ragmir does not send documents to a hosted RAG service and does not generate final LLM answers in
-core. It returns cited retrieval context so the agent or model you trust can write from local
+core. It complements agent memory with a read-focused local evidence layer, then returns cited
+retrieval context with line-aware citations so the agent or model you trust can write from local
 evidence.
 
 ## Use It For
@@ -76,7 +77,8 @@ text. `rgr setup` adds the matching Git ignore entry for local Ragmir state.
 The primary workflow is agent-first: Claude Code, Codex, Kimi, OpenCode, Cline, or another
 MCP-capable assistant asks Ragmir for cited local context, then writes or reasons from those
 citations. For terminal checks, use `npx rgr search "your question"` or
-`npx rgr ask "your question"`. For broader implementation or review work, use
+`npx rgr ask "your question"`. Add `--context-radius 1` when a matched passage needs bounded
+neighboring chunks. For broader implementation or review work, use
 `npx rgr research "your topic" --compact` before asking the agent to synthesize.
 Agent hooks can call `npx rgr route-prompt "..." --json` first to decide whether a prompt needs
 Ragmir local context without storing prompt text or calling an LLM.

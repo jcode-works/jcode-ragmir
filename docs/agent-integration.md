@@ -100,6 +100,14 @@ knowledge base. The LLM does not need to know about LanceDB or the raw file layo
 prompt-routing advice, ranked passages, cited context, audit-backed research reports, local recall
 gates, or metadata-only usage summaries and uses the returned citations.
 
+Ragmir complements agent memory instead of replacing it. The agent keeps its conversation state,
+task plan, and native code index; Ragmir provides a read-focused local evidence layer for documents
+that need citations. Keeping MCP read-focused is a security boundary, not a missing write feature.
+
+`ragmir_search` and `ragmir_ask` accept `contextRadius` when an agent needs neighboring chunks around
+a cited hit. Ragmir also sanitizes unusually long agent prompts before retrieval, so system,
+developer, or task-planning text does not become the embedded search query.
+
 ## Prompt Routing
 
 `rgr route-prompt` and MCP `ragmir_route_prompt` are the opt-in bridge for agents that support

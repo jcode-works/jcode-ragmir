@@ -67,6 +67,7 @@ export type {
   ResearchEvidence,
   ResearchOptions,
   ResearchReport,
+  SearchContextChunk,
   SearchResult,
   SecurityAuditReport,
   SourceDiagnostics,

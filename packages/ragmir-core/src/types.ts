@@ -71,6 +71,8 @@ export interface IndexManifest {
   ragmirVersion: string
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
+  vectorDimension?: number
+  vectorDistanceMetric?: string
   chunkSize: number
   chunkOverlap: number
   fileCount: number
@@ -135,6 +137,10 @@ export interface TextChunk {
   relativePath: string
   chunkIndex: number
   text: string
+  charStart: number
+  charEnd: number
+  lineStart: number
+  lineEnd: number
   checksum: string
   bytes: number
   mtimeMs: number
@@ -166,28 +172,49 @@ export interface IngestResult {
   unsupportedExtensions: Array<{ extension: string; count: number }>
   redactions: number
   vectorIndexWarning: string | null
+  lexicalIndexWarning: string | null
   errors: Array<{ path: string; message: string }>
 }
 
 export interface SearchOptions {
   cwd?: PathLike
   topK?: number
+  contextRadius?: number
+}
+
+export interface SearchContextChunk {
+  chunkIndex: number
+  text: string
+  charStart: number | null
+  charEnd: number | null
+  lineStart: number | null
+  lineEnd: number | null
+  citation: string
 }
 
 export interface SearchResult {
   source: string
   relativePath: string
   chunkIndex: number
+  citation: string
   text: string
   distance: number | null
+  charStart: number | null
+  charEnd: number | null
+  lineStart: number | null
+  lineEnd: number | null
+  context: SearchContextChunk[]
 }
 
 export interface CompactSearchResult {
   source: string
   relativePath: string
   chunkIndex: number
+  citation: string
   snippet: string
   distance: number | null
+  lineStart: number | null
+  lineEnd: number | null
 }
 
 export interface SourceDuplicateCandidate {
@@ -216,8 +243,11 @@ export interface ResearchEvidence {
   source: string
   relativePath: string
   chunkIndex: number
+  citation: string
   text: string
   distance: number | null
+  lineStart: number | null
+  lineEnd: number | null
   queries: string[]
 }
 
@@ -254,6 +284,7 @@ export interface GoldenQuery {
   id?: string
   query: string
   expectedPaths: string[]
+  expectedCitations?: string[]
   topK?: number
 }
 
@@ -270,9 +301,14 @@ export interface EvaluationCaseResult {
   expectedPaths: string[]
   topK: number
   returnedPaths: string[]
+  returnedCitations: string[]
   matchedPaths: string[]
+  matchedCitations: string[]
+  expectedCitations?: string[]
   hit: boolean
   bestRank: number | null
+  reciprocalRank: number
+  ndcg: number
 }
 
 export interface EvaluationResult {
@@ -284,6 +320,8 @@ export interface EvaluationResult {
   hits: number
   misses: number
   recall: number
+  meanReciprocalRank: number
+  ndcg: number
   cases: EvaluationCaseResult[]
 }
 

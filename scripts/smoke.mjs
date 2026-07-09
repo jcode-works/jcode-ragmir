@@ -197,11 +197,24 @@ try {
   if (searchJson.results?.[0]?.relativePath !== ".ragmir/raw/tax.md") {
     throw new Error(`search --json should return tax.md, got ${JSON.stringify(searchJson)}`)
   }
+  if (!searchJson.results?.[0]?.citation?.includes(".ragmir/raw/tax.md:L")) {
+    throw new Error(
+      `search --json should expose line-aware citations, got ${JSON.stringify(searchJson)}`,
+    )
+  }
 
   const askJson = parseJson(
     (
       await runKb(
-        ["ask", "What proves the French tax residency risk?", "--top-k", "1", "--json"],
+        [
+          "ask",
+          "What proves the French tax residency risk?",
+          "--top-k",
+          "1",
+          "--context-radius",
+          "1",
+          "--json",
+        ],
         tempRoot,
       )
     ).stdout,
@@ -211,6 +224,9 @@ try {
     throw new Error(
       `ask --json should expose retrieval-only answer, got ${JSON.stringify(askJson)}`,
     )
+  }
+  if (!Array.isArray(askJson.sources?.[0]?.context) || askJson.sources[0].context.length === 0) {
+    throw new Error(`ask --json should expose neighboring context, got ${JSON.stringify(askJson)}`)
   }
 
   const search = await runKb(["search", "French tax residency", "--top-k", "1"], tempRoot)
@@ -362,6 +378,7 @@ try {
 
   await smokeMcp(tempRoot)
   await smokeExampleWorkspace()
+  await smokeDocumentBenchmark()
 
   const destroy = await runKb(["destroy-index", "--yes"], tempRoot)
   assertIncludes(destroy.stdout, "removed=true", "destroy-index should remove generated storage")
@@ -525,6 +542,58 @@ async function smokeExampleWorkspace() {
   }
 }
 
+async function smokeDocumentBenchmark() {
+  const benchmarkSource = path.join(corePackageRoot, "examples", "document-evidence-benchmark")
+  const benchmarkTemp = await mkdtemp(path.join(tmpdir(), "ragmir-document-benchmark-"))
+
+  try {
+    await cp(benchmarkSource, benchmarkTemp, { recursive: true })
+
+    const ingest = await runKb(["ingest"], benchmarkTemp)
+    assertIncludes(ingest.stdout, "errors=0", "document benchmark ingest should complete")
+
+    const evaluation = parseJson(
+      (
+        await runKb(
+          ["evaluate", "--golden", "golden-queries.json", "--fail-under", "1", "--json"],
+          benchmarkTemp,
+        )
+      ).stdout,
+      "document benchmark evaluation JSON",
+    )
+    if (
+      evaluation.total !== 5 ||
+      evaluation.embeddingProvider !== "local-hash" ||
+      evaluation.hits !== 5 ||
+      evaluation.misses !== 0 ||
+      evaluation.recall !== 1 ||
+      typeof evaluation.meanReciprocalRank !== "number" ||
+      evaluation.meanReciprocalRank <= 0 ||
+      typeof evaluation.ndcg !== "number" ||
+      evaluation.ndcg <= 0 ||
+      evaluation.passed !== true
+    ) {
+      throw new Error(
+        `document benchmark should hit every exact citation, got ${JSON.stringify(evaluation)}`,
+      )
+    }
+    for (const testCase of evaluation.cases ?? []) {
+      const expectedCitation = testCase.expectedCitations?.[0]
+      if (
+        typeof expectedCitation !== "string" ||
+        !Array.isArray(testCase.matchedCitations) ||
+        !testCase.matchedCitations.includes(expectedCitation)
+      ) {
+        throw new Error(
+          `document benchmark should match exact citations, got ${JSON.stringify(testCase)}`,
+        )
+      }
+    }
+  } finally {
+    await rm(benchmarkTemp, { recursive: true, force: true })
+  }
+}
+
 async function configureProject(cwd) {
   const configPath = path.join(cwd, ".ragmir", "config.json")
   const config = JSON.parse(await readFile(configPath, "utf8"))
@@ -638,13 +707,26 @@ async function smokeMcp(cwd) {
     client.notify("notifications/initialized", {})
 
     const tools = await client.request("tools/list", {})
+    assertIncludes(JSON.stringify(tools), "ragmir_status", "MCP should expose ragmir_status")
+    assertIncludes(
+      JSON.stringify(tools),
+      "ragmir_route_prompt",
+      "MCP should expose ragmir_route_prompt",
+    )
     assertIncludes(JSON.stringify(tools), "ragmir_search", "MCP should expose ragmir_search")
+    assertIncludes(JSON.stringify(tools), "ragmir_ask", "MCP should expose ragmir_ask")
     assertIncludes(JSON.stringify(tools), "ragmir_research", "MCP should expose ragmir_research")
+    assertIncludes(JSON.stringify(tools), "ragmir_audit", "MCP should expose ragmir_audit")
     assertIncludes(JSON.stringify(tools), "ragmir_evaluate", "MCP should expose ragmir_evaluate")
     assertIncludes(
       JSON.stringify(tools),
       "ragmir_usage_report",
       "MCP should expose ragmir_usage_report",
+    )
+    assertIncludes(
+      JSON.stringify(tools),
+      "ragmir_security_audit",
+      "MCP should expose ragmir_security_audit",
     )
 
     const status = await client.request("tools/call", {
@@ -653,11 +735,45 @@ async function smokeMcp(cwd) {
     })
     assertIncludes(mcpText(status), "chunksIndexed", "MCP status should return index metadata")
 
+    const route = await client.request("tools/call", {
+      name: "ragmir_route_prompt",
+      arguments: { prompt: "Find cited local docs about French tax residency evidence." },
+    })
+    const routeJson = parseJson(mcpText(route), "MCP route prompt JSON")
+    if (routeJson.shouldUseRagmir !== true || routeJson.tool !== "ragmir_search") {
+      throw new Error(`MCP route prompt should recommend Ragmir search: ${mcpText(route)}`)
+    }
+
     const search = await client.request("tools/call", {
       name: "ragmir_search",
-      arguments: { query: "French tax residency", topK: 1 },
+      arguments: { query: "French tax residency", topK: 1, contextRadius: 1 },
     })
-    assertIncludes(mcpText(search), "tax.md", "MCP search should retrieve indexed content")
+    const searchJson = parseJson(mcpText(search), "MCP search JSON")
+    if (
+      !Array.isArray(searchJson) ||
+      searchJson.length !== 1 ||
+      !searchJson[0].citation.includes("tax.md:L") ||
+      !Array.isArray(searchJson[0].context) ||
+      searchJson[0].context.length < 1
+    ) {
+      throw new Error(`MCP search should retrieve line-aware context chunks: ${mcpText(search)}`)
+    }
+
+    const ask = await client.request("tools/call", {
+      name: "ragmir_ask",
+      arguments: { query: "What proves the French tax residency risk?", topK: 1, contextRadius: 1 },
+    })
+    const askJson = parseJson(mcpText(ask), "MCP ask JSON")
+    if (
+      !askJson.answer?.includes(":L") ||
+      !Array.isArray(askJson.sources) ||
+      askJson.sources.length !== 1 ||
+      typeof askJson.sources[0].citation !== "string" ||
+      !askJson.sources[0].citation.includes(":L") ||
+      !Array.isArray(askJson.sources[0].context)
+    ) {
+      throw new Error(`MCP ask should return cited retrieval context: ${mcpText(ask)}`)
+    }
 
     const research = await client.request("tools/call", {
       name: "ragmir_research",
@@ -672,6 +788,12 @@ async function smokeMcp(cwd) {
         `MCP compact research should return snippet-only evidence: ${mcpText(research)}`,
       )
     }
+
+    const audit = await client.request("tools/call", {
+      name: "ragmir_audit",
+      arguments: {},
+    })
+    assertIncludes(mcpText(audit), "missingFromIndex", "MCP audit should return index coverage")
 
     await writeFile(
       path.join(cwd, "mcp-golden-queries.json"),
@@ -706,6 +828,12 @@ async function smokeMcp(cwd) {
     if (usageJson.totalEvents < 1) {
       throw new Error(`MCP usage report should summarize local usage: ${mcpText(usage)}`)
     }
+
+    const security = await client.request("tools/call", {
+      name: "ragmir_security_audit",
+      arguments: {},
+    })
+    assertIncludes(mcpText(security), "warnings", "MCP security audit should return posture data")
   } finally {
     await client.close()
   }

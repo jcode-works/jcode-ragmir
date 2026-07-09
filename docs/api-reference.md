@@ -156,7 +156,8 @@ they are not treated as missing while their checksum remains unchanged.
 
 ### `search(query, options?)`
 
-Returns ranked cited passages. Ragmir combines vector candidates with bounded lexical scoring.
+Returns ranked cited passages. Ragmir combines vector candidates with full-text lexical candidates
+when the index is available, then falls back to bounded lexical scoring for older indexes.
 
 ```ts
 import { search } from "@jcode.labs/ragmir"
@@ -164,6 +165,7 @@ import { search } from "@jcode.labs/ragmir"
 const passages = await search("Who approved offline operation?", {
   cwd: "/path/to/workspace",
   topK: 8,
+  contextRadius: 1,
 })
 ```
 
@@ -174,8 +176,11 @@ Each `SearchResult` includes:
 | `relativePath` | Source path relative to the Ragmir project root. |
 | `source` | Source category used by discovery. |
 | `chunkIndex` | Chunk number inside that source file. |
+| `citation` | Stable citation including line span when available, for example `docs/policy.md:L4-L8#2`. |
 | `text` | Retrieved redacted chunk text. |
 | `distance` | Vector distance when available; `null` for lexical-only rows. |
+| `lineStart` / `lineEnd` | 1-based line span for the matched chunk, or `null` for legacy indexes. |
+| `context` | Neighboring chunks when `contextRadius` is set. The matched chunk remains the cited result. |
 
 Use `compactSearchResults(passages)` when an agent or MCP client needs short snippets instead of
 full retrieved chunks.
@@ -219,11 +224,13 @@ import { ask } from "@jcode.labs/ragmir"
 
 const answer = await ask("What evidence supports the project timeline?", {
   cwd: "/path/to/workspace",
+  contextRadius: 1,
 })
 ```
 
 `AskResult.answer` is not an LLM synthesis. It is a deterministic retrieval-only text block that
-lists cited passages.
+lists cited passages. `contextRadius` adds adjacent chunks around each matched passage without
+changing the source citation.
 
 ### `research(query, options?)`
 
@@ -420,16 +427,20 @@ MCP tools exposed by the server:
 | --- | --- |
 | `ragmir_status` | `{}` |
 | `ragmir_route_prompt` | `{ prompt: string }` |
-| `ragmir_search` | `{ query: string, topK?: number, compact?: boolean }` |
-| `ragmir_ask` | `{ query: string, topK?: number }` |
+| `ragmir_search` | `{ query: string, topK?: number, contextRadius?: number, compact?: boolean }` |
+| `ragmir_ask` | `{ query: string, topK?: number, contextRadius?: number }` |
 | `ragmir_research` | `{ query: string, topK?: number, includeCode?: boolean, compact?: boolean }` |
 | `ragmir_audit` | `{}` |
 | `ragmir_evaluate` | `{ goldenPath: string, topK?: number, failUnder?: number }` |
 | `ragmir_usage_report` | `{ days?: number }` |
 | `ragmir_security_audit` | `{}` |
 
-`topK` is bounded by `mcpMaxTopK` from config. `ragmir_evaluate` also requires `goldenPath` to stay
-inside the MCP project root.
+`topK` is bounded by `mcpMaxTopK` from config, and `contextRadius` is capped at 3 chunks on each
+side. `ragmir_evaluate` also requires `goldenPath` to stay inside the MCP project root. Evaluation
+golden files support `expectedPaths` for file-level recall and `expectedCitations` for exact
+`relative/path:Lx-Ly#chunkIndex` checks. Older indexes without line metadata fall back to
+`relative/path#chunkIndex` until they are rebuilt. Evaluation output includes hit-rate recall, MRR,
+and nDCG.
 
 ## Package Manager Helpers
 

@@ -11,6 +11,7 @@ import {
   audioLanguage,
   parseAgentInstallMode,
   parseAgentInstallScope,
+  parseNonNegativeInt,
   parseNumber,
   parsePositiveInt,
   parseRecallThreshold,
@@ -297,6 +298,9 @@ program
     if (result.vectorIndexWarning) {
       console.log(pc.yellow(result.vectorIndexWarning))
     }
+    if (result.lexicalIndexWarning) {
+      console.log(pc.yellow(result.lexicalIndexWarning))
+    }
     if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
       const auditCommand = await rgrCommand(cwd, ["audit", "--unsupported"])
       console.log(
@@ -316,16 +320,21 @@ program
   .description("Retrieve the most relevant passages without calling an LLM.")
   .argument("<query>", "Search query.")
   .option("-k, --top-k <number>", "Number of passages to return.", parsePositiveInt)
+  .option(
+    "--context-radius <number>",
+    "Include neighboring chunks around each matched passage.",
+    parseNonNegativeInt,
+  )
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
       query: string,
-      options: { topK?: number; compact?: boolean; json?: boolean },
+      options: { topK?: number; contextRadius?: number; compact?: boolean; json?: boolean },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
-      const results = await search(query, withTopK(cwd, options.topK))
+      const results = await search(query, withSearchOptions(cwd, options))
       const outputResults = options.compact ? compactSearchResults(results) : results
       if (options.json) {
         console.log(JSON.stringify({ query, results: outputResults }, null, 2))
@@ -347,7 +356,7 @@ program
       for (const [index, result] of outputResults.entries()) {
         const distance = result.distance === null ? "n/a" : result.distance.toFixed(4)
         console.log(
-          `\n${pc.cyan(`[${index + 1}] ${result.relativePath}`)} chunk=${result.chunkIndex} distance=${distance}`,
+          `\n${pc.cyan(`[${index + 1}] ${result.citation}`)} chunk=${result.chunkIndex} distance=${distance}`,
         )
         console.log(
           "snippet" in result ? result.snippet : result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH),
@@ -361,29 +370,40 @@ program
   .description("Return cited retrieval context for a question without calling an LLM.")
   .argument("<query>", "Question to answer.")
   .option("-k, --top-k <number>", "Number of passages to use.", parsePositiveInt)
+  .option(
+    "--context-radius <number>",
+    "Include neighboring chunks around each matched passage.",
+    parseNonNegativeInt,
+  )
   .option("--json", "Print machine-readable JSON.")
-  .action(async (query: string, options: { topK?: number; json?: boolean }, command: Command) => {
-    const cwd = projectRoot(command)
-    const result = await ask(query, withTopK(cwd, options.topK))
-    if (options.json) {
-      console.log(JSON.stringify({ query, ...result }, null, 2))
-      if (result.sources.length === 0) {
-        process.exitCode = 1
+  .action(
+    async (
+      query: string,
+      options: { topK?: number; contextRadius?: number; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      const result = await ask(query, withSearchOptions(cwd, options))
+      if (options.json) {
+        console.log(JSON.stringify({ query, ...result }, null, 2))
+        if (result.sources.length === 0) {
+          process.exitCode = 1
+        }
+        return
       }
-      return
-    }
 
-    console.log(`\n${result.answer}\n`)
-    if (result.staleWarning) {
-      console.error(pc.yellow(result.staleWarning))
-    }
-    if (result.sources.length > 0) {
-      console.log(pc.dim("Sources:"))
-      for (const [index, source] of result.sources.entries()) {
-        console.log(`  [${index + 1}] ${source.relativePath} chunk=${source.chunkIndex}`)
+      console.log(`\n${result.answer}\n`)
+      if (result.staleWarning) {
+        console.error(pc.yellow(result.staleWarning))
       }
-    }
-  })
+      if (result.sources.length > 0) {
+        console.log(pc.dim("Sources:"))
+        for (const [index, source] of result.sources.entries()) {
+          console.log(`  [${index + 1}] ${source.citation} chunk=${source.chunkIndex}`)
+        }
+      }
+    },
+  )
 
 program
   .command("research")
@@ -454,7 +474,10 @@ program
 program
   .command("evaluate")
   .description("Measure retrieval recall against a JSON golden query file.")
-  .requiredOption("--golden <path>", "JSON file with queries and expected relative source paths.")
+  .requiredOption(
+    "--golden <path>",
+    "JSON file with queries and expected paths or exact path:Lx-Ly#chunk citations.",
+  )
   .option(
     "-k, --top-k <number>",
     "Default number of passages to evaluate per query.",
@@ -495,16 +518,26 @@ program
           ? ""
           : ` minimumRecall=${minimumRecall.toFixed(3)} passed=${passed}`
       console.log(
-        `golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} recall=${result.recall.toFixed(3)}${thresholdSummary}`,
+        `golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} recall=${result.recall.toFixed(3)} mrr=${result.meanReciprocalRank.toFixed(3)} ndcg=${result.ndcg.toFixed(3)}${thresholdSummary}`,
       )
       for (const testCase of result.cases) {
         const label = testCase.id ? `${testCase.id}: ${testCase.query}` : testCase.query
         const status = testCase.hit ? pc.green("hit") : pc.red("miss")
         const rank = testCase.bestRank === null ? "n/a" : String(testCase.bestRank)
-        console.log(`${status} rank=${rank} topK=${testCase.topK} ${label}`)
+        console.log(
+          `${status} rank=${rank} rr=${testCase.reciprocalRank.toFixed(3)} ndcg=${testCase.ndcg.toFixed(3)} topK=${testCase.topK} ${label}`,
+        )
         if (!testCase.hit) {
-          console.log(`  expected=${testCase.expectedPaths.join(",")}`)
-          console.log(`  returned=${testCase.returnedPaths.join(",")}`)
+          const expected =
+            testCase.expectedCitations === undefined
+              ? testCase.expectedPaths
+              : testCase.expectedCitations
+          const returned =
+            testCase.expectedCitations === undefined
+              ? testCase.returnedPaths
+              : testCase.returnedCitations
+          console.log(`  expected=${expected.join(",")}`)
+          console.log(`  returned=${returned.join(",")}`)
         }
       }
       if (!passed) {
@@ -1042,6 +1075,16 @@ async function promptInput(promptParts: string[] | undefined): Promise<string> {
 
 function withTopK(cwd: string, topK: number | undefined): { cwd: string; topK?: number } {
   return topK === undefined ? { cwd } : { cwd, topK }
+}
+
+function withSearchOptions(
+  cwd: string,
+  options: { topK?: number; contextRadius?: number },
+): { cwd: string; topK?: number; contextRadius?: number } {
+  const result: { cwd: string; topK?: number; contextRadius?: number } = { cwd }
+  addOption(result, "topK", options.topK)
+  addOption(result, "contextRadius", options.contextRadius)
+  return result
 }
 
 interface AudioOptions {

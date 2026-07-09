@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import * as lancedb from "@lancedb/lancedb"
+import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { isRecord } from "./guards.js"
 import type { Config, IndexManifest, VectorRow } from "./types.js"
 
@@ -27,6 +28,7 @@ export interface EmptyTextFileRecord {
 
 export interface IndexWriteResult {
   vectorIndexWarning: string | null
+  lexicalIndexWarning: string | null
 }
 
 export async function writeRows(rows: VectorRow[], config: Config): Promise<IndexWriteResult> {
@@ -39,7 +41,7 @@ export async function writeRows(rows: VectorRow[], config: Config): Promise<Inde
       await db.dropTable(config.tableName)
     }
     await rm(path.join(config.storageDir, INDEX_MANIFEST), { force: true })
-    return { vectorIndexWarning: null }
+    return { vectorIndexWarning: null, lexicalIndexWarning: null }
   }
 
   const records = rows.map((row) => ({ ...row }))
@@ -52,11 +54,16 @@ export async function writeRows(rows: VectorRow[], config: Config): Promise<Inde
   // falls back to an exact flat scan, which is faster for small corpora and
   // avoids wasting work training an index on too few vectors.
   if (rows.length < MIN_INDEX_ROWS) {
-    return { vectorIndexWarning: null }
+    const lexicalResult = await ensureLexicalIndex(table)
+    return { vectorIndexWarning: null, lexicalIndexWarning: lexicalResult.warning }
   }
 
-  const result = await ensureVectorIndex(table, rows.length)
-  return { vectorIndexWarning: result.warning }
+  const vectorResult = await ensureVectorIndex(table, rows.length)
+  const lexicalResult = await ensureLexicalIndex(table)
+  return {
+    vectorIndexWarning: vectorResult.warning,
+    lexicalIndexWarning: lexicalResult.warning,
+  }
 }
 
 interface EnsureVectorIndexResult {
@@ -82,7 +89,11 @@ async function ensureVectorIndex(
   const numPartitions = clampIvfPartitions(Math.round(Math.sqrt(rowCount)))
   try {
     await table.createIndex("vector", {
-      config: lancedb.Index.ivfPq({ numPartitions, numSubVectors }),
+      config: lancedb.Index.ivfPq({
+        numPartitions,
+        numSubVectors,
+        distanceType: VECTOR_DISTANCE_METRIC,
+      }),
     })
     return { created: true, warning: null }
   } catch (error) {
@@ -93,6 +104,27 @@ async function ensureVectorIndex(
     return {
       created: false,
       warning: `Vector index training failed (${detail}). Falling back to flat scan; queries will be slower on large corpora.`,
+    }
+  }
+}
+
+async function ensureLexicalIndex(table: lancedb.Table): Promise<EnsureVectorIndexResult> {
+  const existing = await table.listIndices()
+  const hasTextIndex = existing.some((index) => index.name === "text_idx")
+  if (hasTextIndex) {
+    return { created: false, warning: null }
+  }
+
+  try {
+    await table.createIndex("text", {
+      config: lancedb.Index.fts(),
+    })
+    return { created: true, warning: null }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    return {
+      created: false,
+      warning: `Full-text index training failed (${detail}). Falling back to bounded lexical scans; keyword recall may be lower on large corpora.`,
     }
   }
 }
@@ -140,6 +172,8 @@ function isIndexManifest(value: unknown): value is IndexManifest {
     typeof value.ragmirVersion === "string" &&
     (value.embeddingProvider === "local-hash" || value.embeddingProvider === "transformers") &&
     typeof value.embeddingModel === "string" &&
+    (!("vectorDimension" in value) || typeof value.vectorDimension === "number") &&
+    (!("vectorDistanceMetric" in value) || typeof value.vectorDistanceMetric === "string") &&
     typeof value.chunkSize === "number" &&
     typeof value.chunkOverlap === "number" &&
     typeof value.fileCount === "number" &&

@@ -20,9 +20,7 @@ describe("evaluateGoldenQueries", () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-"))
     tempDirs.push(parent)
     const root = path.join(parent, "example")
-    await cp(path.join(packageRoot, "examples", "sovereign-rag-demo"), root, {
-      recursive: true,
-    })
+    await copySovereignDemo(root)
 
     await ingest({ cwd: root })
     const report = await evaluateGoldenQueries({
@@ -34,16 +32,18 @@ describe("evaluateGoldenQueries", () => {
     expect(report.embeddingProvider).toBe("local-hash")
     expect(report.misses).toBe(0)
     expect(report.recall).toBe(1)
+    expect(report.meanReciprocalRank).toBeGreaterThan(0)
+    expect(report.ndcg).toBeGreaterThan(0)
     expect(report.cases.every((result) => result.hit)).toBe(true)
+    expect(report.cases.every((result) => result.reciprocalRank > 0)).toBe(true)
+    expect(report.cases.every((result) => result.ndcg > 0)).toBe(true)
   })
 
   it("caps query topK when a caller provides a maximum", async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-cap-"))
     tempDirs.push(parent)
     const root = path.join(parent, "example")
-    await cp(path.join(packageRoot, "examples", "sovereign-rag-demo"), root, {
-      recursive: true,
-    })
+    await copySovereignDemo(root)
     await writeFile(
       path.join(root, "large-top-k-golden.json"),
       `${JSON.stringify(
@@ -75,13 +75,50 @@ describe("evaluateGoldenQueries", () => {
     expect(report.cases[0]?.topK).toBe(3)
   })
 
+  it("measures recall against exact expected citations when provided", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-citation-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    await writeFile(
+      path.join(root, "citation-golden.json"),
+      `${JSON.stringify(
+        {
+          queries: [
+            {
+              id: "exact-citation",
+              query: "Which dataset was rejected for confidential tests?",
+              expectedPaths: ["raw/dataset-inventory.csv"],
+              expectedCitations: ["raw/dataset-inventory.csv:L1-L5#0"],
+              topK: 3,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const report = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "citation-golden.json",
+    })
+
+    expect(report.hits).toBe(1)
+    expect(report.recall).toBe(1)
+    expect(report.meanReciprocalRank).toBe(1)
+    expect(report.ndcg).toBe(1)
+    expect(report.cases[0]?.matchedPaths).toContain("raw/dataset-inventory.csv")
+    expect(report.cases[0]?.matchedCitations).toEqual(["raw/dataset-inventory.csv:L1-L5#0"])
+  })
+
   it("reports a miss when no expected path is retrieved", async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-miss-"))
     tempDirs.push(parent)
     const root = path.join(parent, "example")
-    await cp(path.join(packageRoot, "examples", "sovereign-rag-demo"), root, {
-      recursive: true,
-    })
+    await copySovereignDemo(root)
     await writeFile(
       path.join(root, "miss-golden.json"),
       `${JSON.stringify(
@@ -115,4 +152,53 @@ describe("evaluateGoldenQueries", () => {
     expect(caseResult?.hit).toBe(false)
     expect(caseResult?.bestRank).toBeNull()
   })
+
+  it("reports a miss when only the expected path matches an exact citation query", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-citation-miss-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    await writeFile(
+      path.join(root, "citation-miss-golden.json"),
+      `${JSON.stringify(
+        {
+          queries: [
+            {
+              id: "wrong-citation",
+              query: "Which dataset was rejected for confidential tests?",
+              expectedPaths: ["raw/dataset-inventory.csv"],
+              expectedCitations: ["raw/dataset-inventory.csv#99"],
+              topK: 3,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const report = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "citation-miss-golden.json",
+    })
+
+    expect(report.misses).toBe(1)
+    expect(report.recall).toBe(0)
+    const caseResult = report.cases[0]
+    expect(caseResult?.matchedPaths).toContain("raw/dataset-inventory.csv")
+    expect(caseResult?.matchedCitations).toEqual([])
+    expect(caseResult?.hit).toBe(false)
+    expect(caseResult?.bestRank).toBeNull()
+    expect(caseResult?.reciprocalRank).toBe(0)
+    expect(caseResult?.ndcg).toBe(0)
+  })
 })
+
+async function copySovereignDemo(root: string): Promise<void> {
+  await cp(path.join(packageRoot, "examples", "sovereign-rag-demo"), root, {
+    recursive: true,
+  })
+  await rm(path.join(root, ".ragmir", "storage"), { recursive: true, force: true })
+}

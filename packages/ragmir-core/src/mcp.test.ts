@@ -52,6 +52,7 @@ describe("searchOptions", () => {
     expect((await searchOptions(root, 50)).topK).toBe(5)
     expect((await searchOptions(root, 2)).topK).toBe(2)
     expect((await searchOptions(root, undefined)).topK).toBe(5)
+    expect((await searchOptions(root, 2, 20)).contextRadius).toBe(3)
   })
 })
 
