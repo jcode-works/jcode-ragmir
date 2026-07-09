@@ -256,6 +256,11 @@ any other), because several agents may run against this repo in parallel.
 - **Never create, rename, delete, switch, or reset Git branches on your own.** Ask the user for
   explicit confirmation first, and state the exact branch name and base you intend to use. A
   high-level task is not blanket permission to spawn branches — confirm the branch itself.
+- **Check the branch before editing.** Run `git status --short --branch` before code or docs changes.
+  If the current branch is `develop` or `main`, stop after reporting the status and ask for the exact
+  `feature/*`, `fix/*`, or `chore/*` branch name and base before editing. Uncommitted work already
+  present on a protected branch is not permission to keep working there; move it only after the user
+  confirms the branch operation.
 - **Always follow the repository Git Flow.** `main` is production and `develop` is integration; both
   are protected and only change through a pull request with green required checks (Quality gate,
   Commitlint, Analyze TypeScript). Start work from `develop` under `feature/*` (fixes `fix/*`, chores

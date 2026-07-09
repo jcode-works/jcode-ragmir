@@ -31,6 +31,15 @@ export function parsePositiveInt(value: string): number {
   return parsed
 }
 
+/** Parse and validate a non-negative integer CLI argument. */
+export function parseNonNegativeInt(value: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error("Expected a non-negative integer.")
+  }
+  return parsed
+}
+
 /** Parse and validate a finite number CLI argument. */
 export function parseNumber(value: string): number {
   const parsed = Number.parseFloat(value)

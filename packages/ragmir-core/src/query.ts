@@ -1,16 +1,24 @@
 import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
+import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { embedText } from "./embeddings.js"
 import { getIndexFreshnessWarning } from "./index-diagnostics.js"
-import { openRowsTable } from "./store.js"
+import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
+import { openRowsTable, readIndexManifest } from "./store.js"
 import { tokenize } from "./text.js"
-import type { AskResult, SearchOptions, SearchResult } from "./types.js"
+import type { AskResult, SearchContextChunk, SearchOptions, SearchResult } from "./types.js"
+
+type RowsTable = NonNullable<Awaited<ReturnType<typeof openRowsTable>>>
 
 interface SearchRow {
   source: string
   relativePath: string
   chunkIndex: number
   text: string
+  charStart?: number
+  charEnd?: number
+  lineStart?: number
+  lineEnd?: number
   _distance?: number
 }
 
@@ -41,6 +49,7 @@ const RRF_VECTOR_WEIGHT = 0.7
 const RRF_LEXICAL_WEIGHT = 0.3
 const BM25_K1 = 1.2
 const BM25_B = 0.75
+const MAX_CONTEXT_RADIUS = 3
 
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
@@ -49,25 +58,38 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     return []
   }
 
+  const sanitized = sanitizeRetrievalQuery(query)
+  if (!sanitized.query) {
+    return []
+  }
+
   const topK = options.topK ?? config.topK
-  const vector = await embedText(query, config)
+  const vector = await embedText(sanitized.query, config)
+  await assertVectorIndexCompatibility(config, vector.length)
   const vectorRows = (await table
     .vectorSearch(vector)
     .limit(vectorCandidateLimit(topK))
     .toArray()) as SearchRow[]
-  const textRows = (await table.query().limit(config.hybridTextScanLimit).toArray()) as SearchRow[]
-  const rows = rankHybridRows(query, vectorRows, textRows).slice(0, topK)
+  const textRows = await lexicalCandidateRows(table, sanitized.query, config.hybridTextScanLimit)
+  const rows = rankHybridRows(sanitized.query, vectorRows, textRows).slice(0, topK)
+  const contextByRow = await contextChunksByRow(table, rows, options.contextRadius ?? 0)
 
   const results = rows.map((row) => ({
     source: row.row.source,
     relativePath: row.row.relativePath,
     chunkIndex: row.row.chunkIndex,
+    citation: citationForRow(row.row),
     text: row.row.text,
     distance: typeof row.row._distance === "number" ? row.row._distance : null,
+    charStart: nullableNumber(row.row.charStart),
+    charEnd: nullableNumber(row.row.charEnd),
+    lineStart: nullableNumber(row.row.lineStart),
+    lineEnd: nullableNumber(row.row.lineEnd),
+    context: contextByRow.get(rowKey(row.row)) ?? [],
   }))
   await recordAccess(config, {
     action: "search",
-    query,
+    query: sanitized.query,
     topK,
     resultCount: results.length,
   })
@@ -93,7 +115,7 @@ export async function ask(query: string, options: SearchOptions = {}): Promise<A
 
   await recordAccess(config, {
     action: "ask",
-    query,
+    query: sanitizeRetrievalQuery(query).query,
     topK: options.topK ?? config.topK,
     resultCount: sources.length,
   })
@@ -108,8 +130,8 @@ export async function ask(query: string, options: SearchOptions = {}): Promise<A
 function retrievalOnlyAnswer(sources: SearchResult[]): string {
   const snippets = sources
     .map((source, index) => {
-      const text = source.text.replace(/\s+/gu, " ").trim()
-      return `[${index + 1}] ${source.relativePath}#${source.chunkIndex}: ${text}`
+      const text = answerText(source).replace(/\s+/gu, " ").trim()
+      return `[${index + 1}] ${source.citation}: ${text}`
     })
     .join("\n\n")
 
@@ -118,6 +140,92 @@ function retrievalOnlyAnswer(sources: SearchResult[]): string {
     "",
     snippets,
   ].join("\n")
+}
+
+async function lexicalCandidateRows(
+  table: RowsTable,
+  query: string,
+  limit: number,
+): Promise<SearchRow[]> {
+  const ftsQuery = lexicalQuery(query)
+  if (ftsQuery) {
+    try {
+      return (await table.search(ftsQuery, "fts", "text").limit(limit).toArray()) as SearchRow[]
+    } catch {
+      // Older indexes may not have the FTS index yet. Keep retrieval usable and
+      // let doctor/index freshness tell the operator to rebuild.
+    }
+  }
+  return (await table.query().limit(limit).toArray()) as SearchRow[]
+}
+
+async function contextChunksByRow(
+  table: RowsTable,
+  rows: RankedRow[],
+  requestedRadius: number,
+): Promise<Map<string, SearchContextChunk[]>> {
+  const radius = Math.min(MAX_CONTEXT_RADIUS, Math.max(0, requestedRadius))
+  if (radius === 0 || rows.length === 0) {
+    return new Map()
+  }
+
+  const contexts = new Map<string, SearchContextChunk[]>()
+  for (const ranked of rows) {
+    const row = ranked.row
+    const minChunk = Math.max(0, row.chunkIndex - radius)
+    const maxChunk = row.chunkIndex + radius
+    const contextRows = (await table
+      .query()
+      .where(
+        `relativePath = ${sqlString(row.relativePath)} AND chunkIndex >= ${minChunk} AND chunkIndex <= ${maxChunk}`,
+      )
+      .limit(radius * 2 + 1)
+      .toArray()) as SearchRow[]
+    contexts.set(rowKey(row), contextRows.sort(compareChunkRows).map(contextChunkForRow))
+  }
+  return contexts
+}
+
+async function assertVectorIndexCompatibility(
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  vectorDimension: number,
+): Promise<void> {
+  const manifest = await readIndexManifest(config)
+  if (!manifest) {
+    return
+  }
+  if (manifest.vectorDimension !== undefined && manifest.vectorDimension !== vectorDimension) {
+    throw new Error(
+      `Index vector dimension is ${manifest.vectorDimension} but the active embedding produced ${vectorDimension}. Rebuild with \`rgr ingest --rebuild\`.`,
+    )
+  }
+  if (
+    manifest.vectorDistanceMetric !== undefined &&
+    manifest.vectorDistanceMetric !== VECTOR_DISTANCE_METRIC
+  ) {
+    throw new Error(
+      `Index vector distance metric is ${manifest.vectorDistanceMetric} but Ragmir expects ${VECTOR_DISTANCE_METRIC}. Rebuild with \`rgr ingest --rebuild\`.`,
+    )
+  }
+}
+
+function answerText(source: SearchResult): string {
+  if (source.context.length === 0) {
+    return source.text
+  }
+  return source.context.map((chunk) => `[${chunk.citation}] ${chunk.text}`).join("\n\n")
+}
+
+function contextChunkForRow(row: SearchRow): SearchContextChunk {
+  return {
+    chunkIndex: row.chunkIndex,
+    text: row.text,
+    charStart: nullableNumber(row.charStart),
+    charEnd: nullableNumber(row.charEnd),
+    lineStart: nullableNumber(row.lineStart),
+    lineEnd: nullableNumber(row.lineEnd),
+    citation: citationForRow(row),
+  }
 }
 
 /**
@@ -259,4 +367,29 @@ function rowDistance(row: SearchRow): number {
 
 function rowKey(row: SearchRow): string {
   return `${row.relativePath}\0${row.chunkIndex}`
+}
+
+function citationForRow(row: SearchRow): string {
+  const lineStart = nullableNumber(row.lineStart)
+  const lineEnd = nullableNumber(row.lineEnd)
+  if (lineStart === null || lineEnd === null) {
+    return `${row.relativePath}#${row.chunkIndex}`
+  }
+  return `${row.relativePath}:L${lineStart}-L${lineEnd}#${row.chunkIndex}`
+}
+
+function lexicalQuery(query: string): string {
+  return [...new Set(tokenize(query))].join(" ")
+}
+
+function compareChunkRows(a: SearchRow, b: SearchRow): number {
+  return a.chunkIndex - b.chunkIndex
+}
+
+function nullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function sqlString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
 }

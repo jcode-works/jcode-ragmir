@@ -16,8 +16,13 @@ OpenCode, Cline, or any MCP client answer from your real sources. Ragmir install
 repository, stores vectors locally with LanceDB, and runs fully offline by default, with built-in
 local-hash retrieval or optional Transformers.js semantic embeddings.
 
-Ragmir Core returns cited retrieval context. Answer synthesis belongs to the AI agent, LLM, or local
-model runtime you choose around it, so every answer stays grounded in your real evidence.
+Ragmir Core returns cited retrieval context with line-aware citations after indexing. Answer
+synthesis belongs to the AI agent, LLM, or local model runtime you choose around it, so every answer
+stays grounded in your real evidence.
+
+Ragmir complements agent memory. It does not replace the conversation state, task plan, or native
+code index of Claude, Codex, Kimi, OpenCode, Cline, or another agent. It gives those agents a local,
+read-focused evidence layer for documents they should cite instead of guess from.
 
 Created by Jean-Baptiste Thery and published under the JCode Labs npm scope.
 
@@ -497,11 +502,17 @@ Run an audit-backed multi-query research pass before a broad synthesis or implem
 npx rgr research "release readiness and risks" --compact
 ```
 
-Measure recall against a golden query file:
+Measure recall@k against a golden query file:
 
 ```bash
 npx rgr evaluate --golden golden-queries.json
 ```
+
+Golden queries can require file-level hits with `expectedPaths` and exact citation hits with
+`expectedCitations` in `relative/path:Lx-Ly#chunkIndex` format. Use exact citations when the benchmark
+needs to prove that Ragmir retrieved the right passage, not only the right file. Older indexes without
+line metadata fall back to `relative/path#chunkIndex` until they are rebuilt. Evaluation reports
+hit-rate recall, MRR, and nDCG.
 
 For private dogfooding, keep the real corpus and golden query file outside Git or under an ignored
 local path, then use a threshold that matches the evaluation phase:
@@ -644,6 +655,14 @@ The MCP server exposes `ragmir_status`, `ragmir_route_prompt`, `ragmir_search`, 
 Ragmir for prompt-routing advice, ranked passages, cited context, audit-backed research, local
 recall gates, or metadata-only usage summaries and uses the returned citations.
 
+The read-focused MCP surface is intentional. Ragmir is the evidence layer next to the agent, not the
+agent's memory, editor, or repository mutation engine. That keeps confidential retrieval useful
+without handing a connected model broader write capabilities.
+
+`ragmir_search` and `ragmir_ask` accept `contextRadius` for bounded neighboring chunks. Long agent
+prompts are sanitized before retrieval so system or developer instructions are not embedded as the
+search query.
+
 `rgr route-prompt "..." --json` is the local opt-in prompt router for agent hooks. It does not
 store prompt text or call an LLM; it returns an explainable decision such as `shouldUseRagmir`,
 `confidence`, `tool`, `query`, and matched routing signals.
@@ -731,7 +750,7 @@ Ragmir is designed for private repositories and sensitive local evidence.
 - Metadata-only access logs: query hashes and action metadata are logged, not raw queries.
 - Metadata-only usage reports: `rgr usage-report --days 7` summarizes recent local activity
   without exposing query text or local paths.
-- MCP is read-focused and bounded by `mcpMaxTopK`.
+- MCP is read-focused, non-destructive, and bounded by `mcpMaxTopK`.
 - Generated local state is ignored by Git.
 
 Run:
@@ -859,6 +878,20 @@ node ../../dist/cli.js search "offline retrieval approval"
 node ../../dist/cli.js evaluate --golden golden-queries.json
 node ../../dist/cli.js evaluate --golden golden-queries.json --fail-under 1
 node ../../dist/cli.js audit
+```
+
+### Document evidence benchmark (`document-evidence-benchmark`)
+
+[`document-evidence-benchmark`](./packages/ragmir-core/examples/document-evidence-benchmark) is a
+synthetic benchmark for contracts, RFP answers, runbooks, specs, and legal/tax notes. It checks both
+`recall@k` and exact `path:Lx-Ly#chunkIndex` citations.
+
+```bash
+pnpm build
+cd packages/ragmir-core/examples/document-evidence-benchmark
+node ../../dist/cli.js ingest
+node ../../dist/cli.js evaluate --golden golden-queries.json --json
+node ../../dist/cli.js evaluate --golden golden-queries.json --fail-under 1
 ```
 
 ### Library API demo (`library-api-demo`)

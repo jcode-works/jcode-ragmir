@@ -34,6 +34,10 @@ function sampleRow(
     relativePath,
     chunkIndex,
     text: `content ${chunkIndex}`,
+    charStart: chunkIndex * 10,
+    charEnd: chunkIndex * 10 + 9,
+    lineStart: chunkIndex + 1,
+    lineEnd: chunkIndex + 1,
     checksum: `checksum-${chunkIndex}`,
     bytes: 10,
     mtimeMs: 1,
@@ -99,6 +103,7 @@ describe("store", () => {
 
     const result = await writeRows([sampleRow(".ragmir/raw/a.md", 0, [0.1, 0.2], config)], config)
     expect(result.vectorIndexWarning).toBeNull()
+    expect(result.lexicalIndexWarning).toBeNull()
   })
 })
 
@@ -179,11 +184,13 @@ describe("empty-text-files manifest", () => {
 
 describe("index manifest", () => {
   const sampleManifest: IndexManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     createdAt: "2026-01-01T00:00:00.000Z",
     ragmirVersion: "0.4.12",
     embeddingProvider: "local-hash",
     embeddingModel: "mixedbread-ai/mxbai-embed-xsmall-v1",
+    vectorDimension: 384,
+    vectorDistanceMetric: "l2",
     chunkSize: 1200,
     chunkOverlap: 200,
     fileCount: 3,

@@ -78,9 +78,13 @@ describe("ingest", () => {
     const result = await ingest({ cwd: root })
 
     expect(result.vectorIndexWarning).toBeNull()
+    expect(result.lexicalIndexWarning).toBeNull()
     const manifest = await readIndexManifest(await loadConfig(root))
     expect(manifest).not.toBeNull()
     expect(manifest?.embeddingProvider).toBe("local-hash")
+    expect(manifest?.schemaVersion).toBe(2)
+    expect(manifest?.vectorDimension).toBeGreaterThan(0)
+    expect(manifest?.vectorDistanceMetric).toBe("l2")
     expect(manifest?.chunkCount).toBe(result.chunks)
   })
 

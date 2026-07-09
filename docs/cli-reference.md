@@ -30,7 +30,7 @@ Ragmir ships three CLIs:
 | `rgr chat doctor --json` | Inspect optional local chat readiness without generating an answer. |
 | `rgr research "<topic>"` | Run audit, security, multi-query retrieval, source diagnostics, and lightweight code matching for broad agent tasks. |
 | `rgr route-prompt "..."` | Classify a prompt and suggest whether an agent should use Ragmir local context. |
-| `rgr evaluate --golden golden-queries.json` | Measure retrieval recall against expected source paths. |
+| `rgr evaluate --golden golden-queries.json` | Measure retrieval recall against expected source paths or exact citations. |
 | `rgr security-audit` | Inspect privacy posture: telemetry, providers, redaction, Git ignore, MCP. |
 | `rgr usage-report` | Summarize metadata-only local access-log activity for recent private dogfooding without query text or local paths. |
 | `rgr status` | Print raw config paths, provider settings, and indexed chunk count. |
@@ -75,6 +75,7 @@ Ragmir ships three CLIs:
 | `--mcp-arg <arg>` | `setup`, `install-skill` | Add one argument to `--mcp-command`; repeat for multiple arguments. Use `--mcp-arg=--flag` for dash-prefixed values. |
 | `--semantic` | `setup` | Explicitly download the configured Transformers.js embedding model once, enable `embeddingProvider: "transformers"`, and keep remote model loading disabled for normal indexing. |
 | `--top-k <number>` | `search`, `ask`, `chat`, `research`, `evaluate` | Number of passages to return or keep. |
+| `--context-radius <number>` | `search`, `ask` | Include neighboring chunks around each matched passage. MCP clamps this to 3 chunks on each side. |
 | `--fail-under <recall>` | `evaluate` | Exit non-zero only when recall is below a threshold from `0` to `1`; without this option evaluation remains strict and fails on any miss. |
 | `--days <number>` | `usage-report` | Number of recent days to include in the metadata-only usage summary. |
 | `--json` | `setup`, `doctor`, `ingest`, `search`, `ask`, `chat`, `research`, `route-prompt`, `evaluate`, `audit`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `rgr-chat doctor`, `rgr-tts doctor` | Print machine-readable JSON. |
@@ -157,9 +158,18 @@ index, or run retrieval. It returns `shouldUseRagmir`, `confidence`, the suggest
 only when Ragmir should be used, matched routing signals, and privacy safeguards. Agents can then
 call `ragmir_search`, `ragmir_ask`, or `ragmir_research` over MCP.
 
+`rgr search` and `rgr ask` sanitize unusually long agent prompts before embedding them, so accidental
+system/developer context is not treated as the retrieval query. Search results include line-aware
+citations such as `docs/policy.md:L4-L8#2` after a schema v2 rebuild.
+
 ## Retrieval Evaluation Gates
 
 `rgr evaluate` expects a JSON golden query file with queries and expected relative source paths.
+Use `expectedPaths` for file-level `recall@k`, and add `expectedCitations` when the benchmark must
+verify exact `relative/path:Lx-Ly#chunkIndex` citations. Older indexes without line metadata fall back
+to `relative/path#chunkIndex` until they are rebuilt. When citations are present, a query only counts
+as a hit if the expected citation is retrieved.
+
 Use the default strict behavior for synthetic examples and release checks:
 
 ```bash
@@ -174,6 +184,8 @@ rgr --project-root /path/to/workspace evaluate --golden .ragmir/evaluations/gold
 ```
 
 The JSON output includes `embeddingProvider` and `embeddingModel`. Use those fields when comparing a
-default local-hash run with a private Transformers semantic run.
+default local-hash run with a private Transformers semantic run. It also includes
+`meanReciprocalRank` and `ndcg` so benchmark regressions can distinguish late-but-present hits from
+top-ranked evidence.
 
 Fresh setup and docs use a single `.ragmir/` project folder.

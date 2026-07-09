@@ -2,6 +2,7 @@ import path from "node:path"
 import { recordAccess } from "./access-log.js"
 import { chunkDocument } from "./chunking.js"
 import { loadConfig } from "./config.js"
+import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { embedTexts } from "./embeddings.js"
 import {
   countSkippedByReason,
@@ -124,6 +125,10 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
   const indexRows = [...reusableRows, ...rows]
   const writeResult = await writeRows(indexRows, config)
   if (indexRows.length > 0) {
+    const firstRow = indexRows[0]
+    if (!firstRow) {
+      throw new Error("Cannot write an index manifest without indexed rows.")
+    }
     await writeIndexManifest(
       {
         schemaVersion: INDEX_SCHEMA_VERSION,
@@ -131,6 +136,8 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
         ragmirVersion: VERSION,
         embeddingProvider: config.embeddingProvider,
         embeddingModel: config.embeddingModel,
+        vectorDimension: firstRow.vector.length,
+        vectorDistanceMetric: VECTOR_DISTANCE_METRIC,
         chunkSize: config.chunkSize,
         chunkOverlap: config.chunkOverlap,
         fileCount: new Set(indexRows.map((row) => row.relativePath)).size,
@@ -167,6 +174,7 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
     unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
     redactions: totalRedactions(redactionCounts),
     vectorIndexWarning: writeResult.vectorIndexWarning,
+    lexicalIndexWarning: writeResult.lexicalIndexWarning,
     errors,
   }
 }

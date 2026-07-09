@@ -1,0 +1,35 @@
+{
+  "topK": 3,
+  "queries": [
+    {
+      "id": "contract-data-export-residency",
+      "query": "MSA client data export residency renewal notice DOCBENCH-MSA-001",
+      "expectedPaths": ["raw/contracts/master-services-agreement.md"],
+      "expectedCitations": ["raw/contracts/master-services-agreement.md:L1-L11#0"]
+    },
+    {
+      "id": "rfp-no-hosted-account",
+      "query": "security questionnaire no hosted account no telemetry read focused MCP",
+      "expectedPaths": ["raw/rfp/security-questionnaire.md"],
+      "expectedCitations": ["raw/rfp/security-questionnaire.md:L1-L12#0"]
+    },
+    {
+      "id": "runbook-evidence-pack",
+      "query": "What runbook evidence must be collected after a payment incident?",
+      "expectedPaths": ["raw/runbooks/incident-response-runbook.md"],
+      "expectedCitations": ["raw/runbooks/incident-response-runbook.md:L1-L11#0"]
+    },
+    {
+      "id": "spec-complements-agent-memory",
+      "query": "agent integration spec complements agent memory conversation state",
+      "expectedPaths": ["raw/specs/agent-integration-spec.md"],
+      "expectedCitations": ["raw/specs/agent-integration-spec.md:L1-L11#0"]
+    },
+    {
+      "id": "legal-tax-professional-review",
+      "query": "legal tax residency review professional review filing positions",
+      "expectedPaths": ["raw/legal-tax/residency-review-note.md"],
+      "expectedCitations": ["raw/legal-tax/residency-review-note.md:L1-L10#0"]
+    }
+  ]
+}

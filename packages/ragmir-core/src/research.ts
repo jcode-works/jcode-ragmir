@@ -156,8 +156,11 @@ export function compactSearchResults(
     source: result.source,
     relativePath: result.relativePath,
     chunkIndex: result.chunkIndex,
+    citation: result.citation,
     snippet: compactText(result.text, maxLength),
     distance: result.distance,
+    lineStart: result.lineStart,
+    lineEnd: result.lineEnd,
   }))
 }
 
@@ -170,8 +173,11 @@ export function compactResearchReport(report: ResearchReport): Omit<ResearchRepo
       source: evidence.source,
       relativePath: evidence.relativePath,
       chunkIndex: evidence.chunkIndex,
+      citation: evidence.citation,
       snippet: compactText(evidence.text),
       distance: evidence.distance,
+      lineStart: evidence.lineStart,
+      lineEnd: evidence.lineEnd,
       queries: evidence.queries,
     })),
   }
@@ -205,8 +211,11 @@ function mergeEvidence(
         source: result.source,
         relativePath: result.relativePath,
         chunkIndex: result.chunkIndex,
+        citation: result.citation,
         text: result.text,
         distance: result.distance,
+        lineStart: result.lineStart,
+        lineEnd: result.lineEnd,
         queries: [searchResult.query],
       })
     }

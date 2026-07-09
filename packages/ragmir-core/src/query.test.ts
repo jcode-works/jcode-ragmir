@@ -44,6 +44,66 @@ describe("search", () => {
 
     expect(results).toHaveLength(1)
     expect(results[0]?.relativePath).toBe(".ragmir/raw/security-policy.md")
+    expect(results[0]?.citation).toContain(".ragmir/raw/security-policy.md:L1-")
+    expect(results[0]?.lineStart).toBe(1)
+  })
+
+  it("uses the full-text lexical index when the fallback scan limit is narrow", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fts-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ hybridTextScanLimit: 1, topK: 1 }),
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "alpha.md"),
+      "Routine planning notes with no target keyword.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "zeta.md"),
+      "The zanzibar-token policy is the authoritative retention proof.\n",
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const results = await search("zanzibar-token retention proof", { cwd: root, topK: 1 })
+
+    expect(results[0]?.relativePath).toBe(".ragmir/raw/zeta.md")
+  })
+
+  it("hydrates neighboring context chunks when requested", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-context-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 36, chunkOverlap: 0, topK: 1 }),
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "context.md"),
+      [
+        "Opening operational note.",
+        "",
+        "Rare needle evidence belongs here.",
+        "",
+        "Closing consequence line.",
+      ].join("\n"),
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const results = await search("rare needle evidence", { cwd: root, topK: 1, contextRadius: 1 })
+
+    expect(results[0]?.relativePath).toBe(".ragmir/raw/context.md")
+    expect(results[0]?.context.length).toBeGreaterThanOrEqual(2)
+    expect(results[0]?.context.some((chunk) => chunk.text.includes("Opening"))).toBe(true)
+    expect(results[0]?.context.some((chunk) => chunk.text.includes("Rare needle"))).toBe(true)
   })
 
   it("retrieves expected evidence from the sovereign RAG demo golden set", async () => {
@@ -100,7 +160,7 @@ describe("ask", () => {
     expect(result.sources).toHaveLength(1)
     expect(result.answer).toContain("retrieval context only")
     expect(result.answer).toContain("[1]")
-    expect(result.answer).toContain("policy.md#0")
+    expect(result.answer).toContain("policy.md:L1-")
     expect(result.staleWarning).toBeNull()
   })
 })
