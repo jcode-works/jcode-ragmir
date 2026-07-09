@@ -1,6 +1,15 @@
 const MAX_RETRIEVAL_QUERY_LENGTH = 250
 const TAIL_RETRIEVAL_QUERY_LENGTH = 200
 const MIN_RETRIEVAL_QUERY_LENGTH = 10
+const QUERY_LABELS = new Set([
+  "question",
+  "query",
+  "search",
+  "recherche",
+  "demande",
+  "user",
+  "utilisateur",
+])
 
 export interface SanitizedQuery {
   query: string
@@ -9,11 +18,8 @@ export interface SanitizedQuery {
   originalLength: number
 }
 
-const QUERY_LABEL_PATTERN =
-  /(?:^|\n)\s*(?:question|query|search|recherche|demande|user|utilisateur)\s*:\s*(.+)$/giu
-
 export function sanitizeRetrievalQuery(input: string): SanitizedQuery {
-  const normalized = stripLoneSurrogates(input).replace(/\s+/gu, " ").trim()
+  const normalized = compactWhitespace(stripLoneSurrogates(input))
   if (normalized.length <= MAX_RETRIEVAL_QUERY_LENGTH) {
     return {
       query: normalized,
@@ -42,7 +48,7 @@ export function sanitizeRetrievalQuery(input: string): SanitizedQuery {
 }
 
 function sanitized(input: string, query: string, method: SanitizedQuery["method"]): SanitizedQuery {
-  const cleaned = stripLoneSurrogates(query).replace(/\s+/gu, " ").trim()
+  const cleaned = compactWhitespace(stripLoneSurrogates(query))
   const bounded = cleaned.slice(0, MAX_RETRIEVAL_QUERY_LENGTH).trim()
   return {
     query: bounded,
@@ -53,9 +59,12 @@ function sanitized(input: string, query: string, method: SanitizedQuery["method"
 }
 
 function finalQuestion(text: string): string | null {
-  const matches = [...text.matchAll(/[^.?!\n]{10,}\?/gu)]
-  for (const match of matches.reverse()) {
-    const value = match[0]?.trim()
+  for (let end = text.length - 1; end >= 0; end -= 1) {
+    if (text[end] !== "?") {
+      continue
+    }
+    const start = previousSentenceBoundary(text, end - 1)
+    const value = text.slice(start + 1, end + 1).trim()
     if (isUsableRetrievalQuery(value)) {
       return value
     }
@@ -64,9 +73,21 @@ function finalQuestion(text: string): string | null {
 }
 
 function labeledTail(text: string): string | null {
-  const matches = [...text.matchAll(QUERY_LABEL_PATTERN)]
-  for (const match of matches.reverse()) {
-    const value = match[1]?.trim()
+  const lines = text.split("\n")
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim()
+    if (!line) {
+      continue
+    }
+    const separator = line.indexOf(":")
+    if (separator <= 0) {
+      continue
+    }
+    const label = line.slice(0, separator).trim().toLowerCase()
+    if (!QUERY_LABELS.has(label)) {
+      continue
+    }
+    const value = line.slice(separator + 1).trim()
     if (isUsableRetrievalQuery(value)) {
       return value
     }
@@ -75,12 +96,20 @@ function labeledTail(text: string): string | null {
 }
 
 function finalSentence(text: string): string | null {
-  const sentences = text.match(/[^.?!\n]{10,}[.?!]?/gu) ?? []
-  for (const sentence of sentences.reverse()) {
-    const value = sentence.trim()
+  let end = text.length
+  while (end > 0) {
+    while (end > 0 && isBoundaryOrWhitespace(text[end - 1] ?? "")) {
+      end -= 1
+    }
+    if (end <= 0) {
+      break
+    }
+    const start = previousSentenceBoundary(text, end - 1)
+    const value = text.slice(start + 1, end).trim()
     if (isUsableRetrievalQuery(value)) {
       return value
     }
+    end = start
   }
   return null
 }
@@ -92,13 +121,74 @@ function isUsableRetrievalQuery(value: string | undefined): value is string {
   return (
     value.length >= MIN_RETRIEVAL_QUERY_LENGTH &&
     value.length <= MAX_RETRIEVAL_QUERY_LENGTH &&
-    /[\p{L}\p{N}]/u.test(value)
+    hasLetterOrNumber(value)
   )
 }
 
 function stripLoneSurrogates(value: string): string {
-  return value.replace(
-    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/gu,
-    "",
-  )
+  let output = ""
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1)
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        output += value[index] ?? ""
+        output += value[index + 1] ?? ""
+        index += 1
+      }
+      continue
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      continue
+    }
+    output += value[index] ?? ""
+  }
+  return output
+}
+
+function compactWhitespace(value: string): string {
+  let output = ""
+  let previousWasWhitespace = false
+  for (const char of value) {
+    if (char.trim() === "") {
+      if (!previousWasWhitespace) {
+        output += " "
+      }
+      previousWasWhitespace = true
+      continue
+    }
+    output += char
+    previousWasWhitespace = false
+  }
+  return output.trim()
+}
+
+function previousSentenceBoundary(text: string, fromIndex: number): number {
+  for (let index = fromIndex; index >= 0; index -= 1) {
+    if (isSentenceBoundary(text[index] ?? "")) {
+      return index
+    }
+  }
+  return -1
+}
+
+function isBoundaryOrWhitespace(char: string): boolean {
+  return isSentenceBoundary(char) || char.trim() === ""
+}
+
+function isSentenceBoundary(char: string): boolean {
+  return char === "." || char === "?" || char === "!" || char === "\n" || char === "\r"
+}
+
+function hasLetterOrNumber(value: string): boolean {
+  for (const char of value) {
+    const codePoint = char.codePointAt(0)
+    if (codePoint !== undefined && codePoint >= 48 && codePoint <= 57) {
+      return true
+    }
+    if (char.toLocaleLowerCase() !== char.toLocaleUpperCase()) {
+      return true
+    }
+  }
+  return false
 }
