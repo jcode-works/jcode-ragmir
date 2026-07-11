@@ -297,6 +297,20 @@ describe("listSourceFiles", () => {
     ])
   })
 
+  it("applies exclusions to directory source roots", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-root-exclusion-"))
+    tempDirs.push(root)
+
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await mkdir(path.join(root, "docs", "private"), { recursive: true })
+    await writeFile(path.join(root, "docs", "public.md"), "public evidence\n", "utf8")
+    await writeFile(path.join(root, "docs", "private", "secret.md"), "private evidence\n", "utf8")
+
+    const files = await listSourceFiles(testConfig(root, { sources: ["docs", "!docs/private/**"] }))
+
+    expect(files.map((file) => file.relativePath)).toEqual(["docs/public.md"])
+  })
+
   it("merges inline config sources with the legacy sources file", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-sources-merge-"))
     tempDirs.push(root)

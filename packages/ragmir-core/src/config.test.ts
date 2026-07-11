@@ -34,7 +34,11 @@ describe("loadConfig", () => {
     expect(config.accessLogPath).toBe(path.join(root, ".ragmir/access.log"))
     expect(config.embeddingModelPath).toBe(path.join(root, ".ragmir/models"))
     expect(config.embeddingProvider).toBe("local-hash")
-    expect(config.embeddingModel).toBe("mixedbread-ai/mxbai-embed-xsmall-v1")
+    expect(config.privacyProfile).toBe("private")
+    expect(config.retrievalProfile).toBe("balanced")
+    expect(config.acceptedRisks).toEqual([])
+    expect(config.embeddingModel).toBe("intfloat/multilingual-e5-small")
+    expect(config.embeddingModelRevision).toBe("main")
     expect(config.transformersAllowRemoteModels).toBe(false)
     expect(config.redaction.enabled).toBe(true)
     expect(config.accessLog).toBe(true)
@@ -334,6 +338,62 @@ describe("loadConfig", () => {
     await expect(loadConfig(root)).rejects.toThrow(/topKk|Unrecognized key/i)
   })
 
+  it("enforces the strict privacy floor after environment overrides", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-strict-profile-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({
+        privacyProfile: "strict",
+        transformersAllowRemoteModels: true,
+        redaction: { enabled: false, builtIn: false },
+        mcpMaxTopK: 50,
+        pdfOcrCommand: ["ocr-wrapper"],
+      }),
+    )
+    const originalRemote = process.env.RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS
+    const originalRedaction = process.env.RAGMIR_REDACTION_ENABLED
+    process.env.RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS = "true"
+    process.env.RAGMIR_REDACTION_ENABLED = "false"
+    try {
+      const config = await loadConfig(root)
+      expect(config.transformersAllowRemoteModels).toBe(false)
+      expect(config.redaction.enabled).toBe(true)
+      expect(config.redaction.builtIn).toBe(true)
+      expect(config.mcpMaxTopK).toBe(5)
+      expect(config.pdfOcrCommand).toEqual([])
+    } finally {
+      restoreEnv("RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS", originalRemote)
+      restoreEnv("RAGMIR_REDACTION_ENABLED", originalRedaction)
+    }
+  })
+
+  it("applies retrieval profile defaults without overriding explicit values", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-retrieval-profile-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ retrievalProfile: "quality" }),
+    )
+    expect(await loadConfig(root)).toEqual(
+      expect.objectContaining({
+        retrievalProfile: "quality",
+        topK: 12,
+        hybridTextScanLimit: 10_000,
+      }),
+    )
+
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ retrievalProfile: "fast", topK: 7, hybridTextScanLimit: 3_000 }),
+    )
+    expect(await loadConfig(root)).toEqual(
+      expect.objectContaining({ retrievalProfile: "fast", topK: 7, hybridTextScanLimit: 3_000 }),
+    )
+  })
+
   it("rejects a config file that is not a JSON object", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-not-object-"))
     tempDirs.push(root)
@@ -343,3 +403,11 @@ describe("loadConfig", () => {
     await expect(loadConfig(root)).rejects.toThrow("JSON object")
   })
 })
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name]
+  } else {
+    process.env[name] = value
+  }
+}

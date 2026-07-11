@@ -6,6 +6,8 @@ import type { Config } from "./types.js"
 const LOCAL_HASH_DIMENSIONS = 384
 const LONG_TOKEN_MIN_LENGTH = 6
 const LONG_TOKEN_WEIGHT = 1.4
+const CHARACTER_NGRAM_LENGTH = 3
+const CHARACTER_NGRAM_WEIGHT = 0.35
 /**
  * Maximum number of Transformers.js pipelines kept live in the process. Each
  * pipeline pins ONNX runtime weights (often hundreds of MB), so a long-lived
@@ -15,18 +17,25 @@ const LONG_TOKEN_WEIGHT = 1.4
  */
 const MAX_TRANSFORMERS_PIPELINES = 3
 const transformersPipelines = new Map<string, TransformersExtractor>()
+let transformersEnvironmentQueue: Promise<void> = Promise.resolve()
 
 type TransformersExtractor = (
   texts: string[],
   options: { pooling: "mean"; normalize: true },
 ) => Promise<unknown>
 
+type EmbeddingInputType = "document" | "query"
+
 export interface PullEmbeddingModelResult {
   embeddingModel: string
   embeddingModelPath: string
 }
 
-export async function embedTexts(texts: string[], config: Config): Promise<number[][]> {
+export async function embedTexts(
+  texts: string[],
+  config: Config,
+  inputType: EmbeddingInputType = "document",
+): Promise<number[][]> {
   if (texts.length === 0) {
     return []
   }
@@ -35,7 +44,7 @@ export async function embedTexts(texts: string[], config: Config): Promise<numbe
     return texts.map(localHashEmbedding)
   }
 
-  return embedWithTransformers(texts, config)
+  return embedWithTransformers(texts, config, inputType)
 }
 
 export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingModelResult> {
@@ -56,16 +65,23 @@ export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingM
 }
 
 export async function embedText(text: string, config: Config): Promise<number[]> {
-  const [embedding] = await embedTexts([text], config)
+  const [embedding] = await embedTexts([text], config, "query")
   if (!embedding) {
     throw new Error("No embedding returned for query.")
   }
   return embedding
 }
 
-async function embedWithTransformers(texts: string[], config: Config): Promise<number[][]> {
+async function embedWithTransformers(
+  texts: string[],
+  config: Config,
+  inputType: EmbeddingInputType,
+): Promise<number[][]> {
   const extractor = await transformersExtractor(config)
-  const output = await extractor(texts, { pooling: "mean", normalize: true })
+  const preparedTexts = texts.map((text) =>
+    prepareEmbeddingText(text, config.embeddingModel, inputType),
+  )
+  const output = await extractor(preparedTexts, { pooling: "mean", normalize: true })
   const rows = tensorToEmbeddingRows(output)
 
   if (rows.length !== texts.length) {
@@ -75,9 +91,24 @@ async function embedWithTransformers(texts: string[], config: Config): Promise<n
   return rows
 }
 
+export function prepareEmbeddingText(
+  text: string,
+  model: string,
+  inputType: EmbeddingInputType,
+): string {
+  if (/(^|\/)(multilingual-)?e5-/iu.test(model)) {
+    return `${inputType === "query" ? "query" : "passage"}: ${text}`
+  }
+  if (inputType === "query" && /(^|\/)mxbai-embed/iu.test(model)) {
+    return `Represent this sentence for searching relevant passages: ${text}`
+  }
+  return text
+}
+
 async function transformersExtractor(config: Config): Promise<TransformersExtractor> {
   const key = [
     config.embeddingModel,
+    config.embeddingModelRevision,
     config.embeddingModelPath,
     String(config.transformersAllowRemoteModels),
   ].join("\n")
@@ -89,18 +120,38 @@ async function transformersExtractor(config: Config): Promise<TransformersExtrac
     return cached
   }
 
-  const transformers = await import("@huggingface/transformers")
-  transformers.env.localModelPath = config.embeddingModelPath
-  transformers.env.cacheDir = config.embeddingModelPath
-  transformers.env.allowRemoteModels = config.transformersAllowRemoteModels
-
-  const extractor = (await transformers.pipeline(
-    "feature-extraction",
-    config.embeddingModel,
-  )) as TransformersExtractor
+  const extractor = await createTransformersExtractor(config)
   evictTransformersPipeline()
   transformersPipelines.set(key, extractor)
   return extractor
+}
+
+async function createTransformersExtractor(config: Config): Promise<TransformersExtractor> {
+  const creation = transformersEnvironmentQueue.then(async () => {
+    const transformers = await import("@huggingface/transformers")
+    const previous = {
+      localModelPath: transformers.env.localModelPath,
+      cacheDir: transformers.env.cacheDir,
+      allowRemoteModels: transformers.env.allowRemoteModels,
+    }
+    transformers.env.localModelPath = config.embeddingModelPath
+    transformers.env.cacheDir = config.embeddingModelPath
+    transformers.env.allowRemoteModels = config.transformersAllowRemoteModels
+    try {
+      return (await transformers.pipeline("feature-extraction", config.embeddingModel, {
+        revision: config.embeddingModelRevision,
+      })) as TransformersExtractor
+    } finally {
+      transformers.env.localModelPath = previous.localModelPath
+      transformers.env.cacheDir = previous.cacheDir
+      transformers.env.allowRemoteModels = previous.allowRemoteModels
+    }
+  })
+  transformersEnvironmentQueue = creation.then(
+    () => undefined,
+    () => undefined,
+  )
+  return creation
 }
 
 function evictTransformersPipeline(): void {
@@ -129,10 +180,10 @@ function localHashEmbedding(text: string): number[] {
   const tokens = tokenize(text)
 
   for (const token of tokens) {
-    const hash = createHash("sha256").update(token).digest()
-    const index = hash.readUInt32BE(0) % LOCAL_HASH_DIMENSIONS
-    const sign = (hash.at(4) ?? 0) % 2 === 0 ? 1 : -1
-    vector[index] = (vector[index] ?? 0) + sign * tokenWeight(token)
+    addHashedFeature(vector, token, tokenWeight(token))
+    for (const ngram of characterNgrams(token)) {
+      addHashedFeature(vector, `ngram:${ngram}`, CHARACTER_NGRAM_WEIGHT)
+    }
   }
 
   const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0))
@@ -140,6 +191,23 @@ function localHashEmbedding(text: string): number[] {
     return vector
   }
   return vector.map((value) => value / magnitude)
+}
+
+function addHashedFeature(vector: number[], feature: string, weight: number): void {
+  const hash = createHash("sha256").update(feature).digest()
+  const index = hash.readUInt32BE(0) % LOCAL_HASH_DIMENSIONS
+  const sign = (hash.at(4) ?? 0) % 2 === 0 ? 1 : -1
+  vector[index] = (vector[index] ?? 0) + sign * weight
+}
+
+function characterNgrams(token: string): string[] {
+  const characters = [...token]
+  if (characters.length < CHARACTER_NGRAM_LENGTH) {
+    return []
+  }
+  return Array.from({ length: characters.length - CHARACTER_NGRAM_LENGTH + 1 }, (_value, index) =>
+    characters.slice(index, index + CHARACTER_NGRAM_LENGTH).join(""),
+  )
 }
 
 function tokenWeight(token: string): number {

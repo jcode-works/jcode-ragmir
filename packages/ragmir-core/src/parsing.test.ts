@@ -104,6 +104,9 @@ describe("parseFile", () => {
     const parsed = await parseFile(sourceFile(root, filePath, ".pdf"))
 
     expect(parsed.text).toContain("Synthetic confidential PDF")
+    expect(parsed.pages).toEqual([
+      expect.objectContaining({ pageNumber: 1, charStart: 0, charEnd: parsed.text.length }),
+    ])
   })
 
   it("uses an opt-in OCR command when PDF text extraction is empty", async () => {
@@ -125,6 +128,30 @@ describe("parseFile", () => {
 
     expect(parsed.text).toContain("OCR text for")
     expect(parsed.text).toContain("scan.pdf")
+  })
+
+  it("preserves embedded text and OCRs only blank pages in mixed PDFs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pdf-mixed-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "mixed.pdf")
+    const ocrScriptPath = path.join(root, "ocr-page-wrapper.mjs")
+    await writeFile(filePath, createMixedPdf())
+    await writeFile(
+      ocrScriptPath,
+      "process.stdout.write('Scanned evidence from page ' + process.env.RAGMIR_PDF_PAGE)\n",
+      "utf8",
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".pdf"), {
+      pdfOcrCommand: [process.execPath, ocrScriptPath, "{input}", "{page}"],
+      pdfOcrTimeoutMs: 5_000,
+    })
+
+    expect(parsed.text).toContain("Embedded evidence on page one")
+    expect(parsed.text).toContain("Scanned evidence from page 2")
+    expect(parsed.pages).toHaveLength(2)
+    expect(parsed.pages?.[0]?.pageNumber).toBe(1)
+    expect(parsed.pages?.[1]?.pageNumber).toBe(2)
   })
 
   it("uses an opt-in OCR command for image files", async () => {
@@ -395,4 +422,33 @@ trailer
 startxref
 190
 %%EOF`
+}
+
+function createMixedPdf(): string {
+  const content = "BT /F1 18 Tf 72 720 Td (Embedded evidence on page one) Tj ET"
+  return createPdf([
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`,
+  ])
+}
+
+function createPdf(objects: string[]): string {
+  let pdf = "%PDF-1.4\n"
+  const offsets = [0]
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(pdf))
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
+  }
+  const xrefOffset = Buffer.byteLength(pdf)
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+  pdf += offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`)
+    .join("")
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+  return pdf
 }

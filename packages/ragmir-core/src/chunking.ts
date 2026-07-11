@@ -3,7 +3,9 @@ import type { ParsedDocument, TextChunk } from "./types.js"
 
 const PARAGRAPH_BREAK_MIN_RATIO = 0.45
 const SENTENCE_BREAK_MIN_RATIO = 0.55
+const LINE_BREAK_MIN_RATIO = 0.65
 const WHITESPACE_BREAK_MIN_RATIO = 0.75
+const SENTENCE_BOUNDARIES = [". ", "? ", "! ", "。", "？", "！"]
 
 export function chunkDocument(
   document: ParsedDocument,
@@ -37,6 +39,7 @@ export function chunkDocument(
         charEnd: span.end,
         lineStart: lineNumberForOffset(lineStarts, span.start),
         lineEnd: lineNumberForOffset(lineStarts, Math.max(span.start, span.end - 1)),
+        ...pageRangeForSpan(document, span.start, span.end),
         checksum: document.file.checksum,
         bytes: document.file.bytes,
         mtimeMs: document.file.mtimeMs,
@@ -53,6 +56,20 @@ export function chunkDocument(
   return chunks
 }
 
+function pageRangeForSpan(
+  document: ParsedDocument,
+  start: number,
+  end: number,
+): { pageStart?: number; pageEnd?: number } {
+  if (!document.pages || document.pages.length === 0) {
+    return {}
+  }
+  const overlapping = document.pages.filter((page) => page.charStart < end && page.charEnd > start)
+  const first = overlapping[0]
+  const last = overlapping.at(-1)
+  return first && last ? { pageStart: first.pageNumber, pageEnd: last.pageNumber } : {}
+}
+
 function chooseChunkEnd(text: string, cursor: number, chunkSize: number): number {
   const hardEnd = Math.min(cursor + chunkSize, text.length)
   if (hardEnd === text.length) {
@@ -65,13 +82,14 @@ function chooseChunkEnd(text: string, cursor: number, chunkSize: number): number
     return cursor + paragraphBreak
   }
 
-  const sentenceBreak = Math.max(
-    window.lastIndexOf(". "),
-    window.lastIndexOf("? "),
-    window.lastIndexOf("! "),
-  )
-  if (sentenceBreak > chunkSize * SENTENCE_BREAK_MIN_RATIO) {
-    return cursor + sentenceBreak + 1
+  const sentenceBreakEnd = lastSentenceBreakEnd(window)
+  if (sentenceBreakEnd > chunkSize * SENTENCE_BREAK_MIN_RATIO) {
+    return cursor + sentenceBreakEnd
+  }
+
+  const lineBreak = window.lastIndexOf("\n")
+  if (lineBreak > chunkSize * LINE_BREAK_MIN_RATIO) {
+    return cursor + lineBreak
   }
 
   const whitespace = window.lastIndexOf(" ")
@@ -80,6 +98,17 @@ function chooseChunkEnd(text: string, cursor: number, chunkSize: number): number
   }
 
   return hardEnd
+}
+
+function lastSentenceBreakEnd(text: string): number {
+  let end = -1
+  for (const boundary of SENTENCE_BOUNDARIES) {
+    const index = text.lastIndexOf(boundary)
+    if (index >= 0) {
+      end = Math.max(end, index + (boundary.endsWith(" ") ? boundary.length - 1 : boundary.length))
+    }
+  }
+  return end
 }
 
 interface TextSpan {

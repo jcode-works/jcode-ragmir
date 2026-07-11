@@ -121,4 +121,26 @@ describe("research", () => {
       expect(evidence.snippet).not.toContain("sk-proj-0123456789abcdefghijklmnopqrstuvwxyz")
     }
   })
+
+  it("disables repository-wide code scanning in strict privacy mode", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-research-strict-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ privacyProfile: "strict" }),
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "policy.md"),
+      "Strict local policy evidence.\n",
+    )
+    await mkdir(path.join(root, "src"), { recursive: true })
+    await writeFile(path.join(root, "src", "outside.ts"), "export const strictLocalPolicy = true\n")
+    await ingest({ cwd: root })
+
+    const report = await research("strict local policy", { cwd: root, includeCode: true })
+
+    expect(report.evidence.length).toBeGreaterThan(0)
+    expect(report.codeEvidence).toEqual([])
+  })
 })

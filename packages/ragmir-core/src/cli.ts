@@ -26,6 +26,7 @@ import { countSkippedByReason } from "./files.js"
 import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
 import { rgrCommand } from "./package-manager.js"
 import { routePrompt } from "./prompt-routing.js"
@@ -290,7 +291,7 @@ program
 
     console.log(
       pc.green(
-        `Done. discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`,
+        `Done. discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`,
       ),
     )
     printUnsupportedSummary(result.unsupportedExtensions)
@@ -325,12 +326,31 @@ program
     "Include neighboring chunks around each matched passage.",
     parseNonNegativeInt,
   )
+  .option(
+    "--include-path <prefix>",
+    "Search only indexed source paths under this prefix. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option(
+    "--exclude-path <prefix>",
+    "Exclude indexed source paths under this prefix. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
       query: string,
-      options: { topK?: number; contextRadius?: number; compact?: boolean; json?: boolean },
+      options: {
+        topK?: number
+        contextRadius?: number
+        includePath: string[]
+        excludePath: string[]
+        compact?: boolean
+        json?: boolean
+      },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
@@ -375,11 +395,29 @@ program
     "Include neighboring chunks around each matched passage.",
     parseNonNegativeInt,
   )
+  .option(
+    "--include-path <prefix>",
+    "Use only indexed source paths under this prefix. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option(
+    "--exclude-path <prefix>",
+    "Exclude indexed source paths under this prefix. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
       query: string,
-      options: { topK?: number; contextRadius?: number; json?: boolean },
+      options: {
+        topK?: number
+        contextRadius?: number
+        includePath: string[]
+        excludePath: string[]
+        json?: boolean
+      },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
@@ -411,18 +449,38 @@ program
   .argument("<query>", "Research question or topic.")
   .option("-k, --top-k <number>", "Maximum number of evidence passages to keep.", parsePositiveInt)
   .option("--no-code", "Skip the lightweight repository code search.")
+  .option(
+    "--include-path <prefix>",
+    "Use only indexed source paths under this prefix. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option(
+    "--exclude-path <prefix>",
+    "Exclude indexed source paths under this prefix. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
   .option("--compact", "Return snippets instead of full retrieved passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
       query: string,
-      options: { topK?: number; code?: boolean; compact?: boolean; json?: boolean },
+      options: {
+        topK?: number
+        code?: boolean
+        includePath: string[]
+        excludePath: string[]
+        compact?: boolean
+        json?: boolean
+      },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
       const researchOptions: Parameters<typeof research>[1] = { cwd }
       addOption(researchOptions, "topK", options.topK)
       addOption(researchOptions, "includeCode", options.code)
+      addPathFilters(researchOptions, options)
       const report = await research(query, researchOptions)
       const output = options.compact ? compactResearchReport(report) : report
       if (options.json) {
@@ -501,11 +559,10 @@ program
       }
       addOption(evaluationOptions, "topK", options.topK)
       const result = await evaluateGoldenQueries(evaluationOptions)
-      const minimumRecall = options.failUnder ?? 1
-      const passed = result.recall >= minimumRecall
+      const minimumRecall = options.failUnder
+      const passed = minimumRecall === undefined || result.recall >= minimumRecall
       if (options.json) {
-        const payload =
-          options.failUnder === undefined ? result : { ...result, minimumRecall, passed }
+        const payload = minimumRecall === undefined ? result : { ...result, minimumRecall, passed }
         console.log(JSON.stringify(payload, null, 2))
         if (!passed) {
           process.exitCode = 1
@@ -514,18 +571,18 @@ program
       }
 
       const thresholdSummary =
-        options.failUnder === undefined
+        minimumRecall === undefined
           ? ""
           : ` minimumRecall=${minimumRecall.toFixed(3)} passed=${passed}`
       console.log(
-        `golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} recall=${result.recall.toFixed(3)} mrr=${result.meanReciprocalRank.toFixed(3)} ndcg=${result.ndcg.toFixed(3)}${thresholdSummary}`,
+        `golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} hitRate=${result.hitRate.toFixed(3)} recall=${result.recall.toFixed(3)} precision=${result.precision.toFixed(3)} mrr=${result.meanReciprocalRank.toFixed(3)} ndcg=${result.ndcg.toFixed(3)} p50Ms=${result.p50LatencyMs.toFixed(1)} p95Ms=${result.p95LatencyMs.toFixed(1)}${thresholdSummary}`,
       )
       for (const testCase of result.cases) {
         const label = testCase.id ? `${testCase.id}: ${testCase.query}` : testCase.query
         const status = testCase.hit ? pc.green("hit") : pc.red("miss")
         const rank = testCase.bestRank === null ? "n/a" : String(testCase.bestRank)
         console.log(
-          `${status} rank=${rank} rr=${testCase.reciprocalRank.toFixed(3)} ndcg=${testCase.ndcg.toFixed(3)} topK=${testCase.topK} ${label}`,
+          `${status} rank=${rank} recall=${testCase.recall.toFixed(3)} precision=${testCase.precision.toFixed(3)} rr=${testCase.reciprocalRank.toFixed(3)} ndcg=${testCase.ndcg.toFixed(3)} latencyMs=${testCase.latencyMs.toFixed(1)} topK=${testCase.topK} ${label}`,
         )
         if (!testCase.hit) {
           const expected =
@@ -558,11 +615,16 @@ program
       console.log(JSON.stringify(report, null, 2))
       return
     }
+    console.log(`discoveredFiles=${report.discoveredFiles}`)
     console.log(`supportedFiles=${report.supportedFiles.length}`)
+    console.log(`supportedBytes=${report.supportedBytes}`)
+    console.log(`largestFileBytes=${report.largestFileBytes}`)
     console.log(`skippedFiles=${report.skippedFiles.length}`)
     console.log(
       `unsupportedFiles=${countSkippedByReason(report.skippedFiles, "unsupported-extension")}`,
     )
+    console.log(`oversizedFiles=${countSkippedByReason(report.skippedFiles, "oversized")}`)
+    console.log(`sensitiveFiles=${countSkippedByReason(report.skippedFiles, "sensitive-name")}`)
     console.log(`indexedFiles=${report.indexedFiles.length}`)
     console.log(`totalChunks=${report.totalChunks}`)
     console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
@@ -634,6 +696,35 @@ program
     console.log(`lastEventAt=${report.lastEventAt ?? "n/a"}`)
     for (const [action, count] of Object.entries(report.eventsByAction)) {
       console.log(`events.${action}=${count}`)
+    }
+    for (const [action, average] of Object.entries(report.averageResultCountByAction)) {
+      console.log(`averageResults.${action}=${average ?? "n/a"}`)
+    }
+  })
+
+program
+  .command("limits")
+  .description("Show active ingestion limits and practical corpus scaling boundaries.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }, command: Command) => {
+    const cwd = projectRoot(command)
+    const report = ingestionLimits(await loadConfig(cwd))
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2))
+      return
+    }
+
+    console.log(`maxFileBytes=${report.maxFileBytes}`)
+    console.log(`maxFiles=${report.maxFiles ?? "unbounded"}`)
+    console.log(`maxCorpusBytes=${report.maxCorpusBytes ?? "unbounded"}`)
+    console.log(`maxPdfPages=${report.maxPdfPages}`)
+    console.log(`maxPdfTextCharacters=${report.maxPdfTextCharacters}`)
+    console.log(`maxOfficeTextEntries=${report.maxOfficeTextEntries}`)
+    console.log(`maxOfficeEntryBytes=${report.maxOfficeEntryBytes}`)
+    console.log(`maxOfficeTotalTextBytes=${report.maxOfficeTotalTextBytes}`)
+    console.log(`maxExternalTextOutputBytes=${report.maxExternalTextOutputBytes}`)
+    for (const note of report.notes) {
+      console.log(`note: ${note}`)
     }
   })
 
@@ -759,20 +850,24 @@ program
 
 program
   .command("chat")
-  .description("Answer with a local Transformers.js chat model grounded in Ragmir citations.")
+  .description("Answer with a verified local model grounded in Ragmir citations.")
   .argument("[input...]", "Question to answer, or `setup` / `doctor`.")
   .option("-k, --top-k <number>", "Number of passages to retrieve.", parsePositiveInt)
-  .option("--model <id>", "Transformers.js text-generation model ID.")
-  .option("--model-path <path>", "Local model/cache path.")
-  .option("--offline", "Disable remote model loading.")
-  .option("--allow-remote-models", "Explicitly allow remote model downloads while answering.")
+  .option("--profile <profile>", "Local chat profile: lite, fast, or quality.")
+  .option("--thinking <mode>", "Thinking mode: off, standard, or deep.")
+  .option("--model-path <path>", "Local Gemma model root.")
+  .option("--offline", "Require an already verified local model.")
+  .option(
+    "--allow-remote-models",
+    "Compatibility flag for explicit chat setup; normal answers stay local.",
+  )
+  .option("--verify", "Recompute the full model SHA256 during doctor.")
   .option("--max-new-tokens <number>", "Maximum generated tokens.", parsePositiveInt)
   .option(
     "--context-limit <number>",
     "Maximum context characters sent to the model.",
     parsePositiveInt,
   )
-  .option("--dtype <dtype>", "Transformers.js dtype. Default q4.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (input: string[] | undefined, options: ChatOptions, command: Command) => {
     const cwd = projectRoot(command)
@@ -781,7 +876,9 @@ program
 
     if (mode === "doctor") {
       const doctorOptions: ChatDoctorOptions = { cwd }
+      addOption(doctorOptions, "profile", options.profile)
       addOption(doctorOptions, "modelPath", options.modelPath)
+      addOption(doctorOptions, "verifyHash", options.verify)
       const report = await chat.doctor(doctorOptions)
       printMaybeJson(report, options.json)
       return
@@ -789,10 +886,13 @@ program
 
     if (mode === "setup") {
       const setupOptions: ChatSetupOptions = { cwd }
-      addOption(setupOptions, "model", options.model)
+      addOption(setupOptions, "profile", options.profile)
       addOption(setupOptions, "modelPath", options.modelPath)
-      addOption(setupOptions, "dtype", options.dtype)
-      addOption(setupOptions, "allowRemoteModels", options.offline ? false : undefined)
+      addOption(
+        setupOptions,
+        "allowRemoteModels",
+        options.offline ? false : options.allowRemoteModels,
+      )
       const result = await chat.setupChatModel(setupOptions)
       printMaybeJson(result, options.json)
       return
@@ -811,9 +911,9 @@ program
       question,
       sources: sources.map(toChatSource),
     }
-    addOption(chatOptions, "model", options.model)
+    addOption(chatOptions, "profile", options.profile)
+    addOption(chatOptions, "thinking", options.thinking)
     addOption(chatOptions, "modelPath", options.modelPath)
-    addOption(chatOptions, "dtype", options.dtype)
     addOption(chatOptions, "allowRemoteModels", chatAllowRemoteModels(options))
     addOption(chatOptions, "maxNewTokens", options.maxNewTokens)
     addOption(chatOptions, "contextCharLimit", options.contextLimit)
@@ -828,9 +928,16 @@ program
     }
 
     console.log(`\n${result.answer}\n`)
-    if (sources.length > 0) {
+    if (!result.emptyContext && result.citationStatus !== "valid") {
+      console.error(
+        pc.yellow(
+          `Citation status: ${result.citationStatus}. Review the answer against the retrieved passages.`,
+        ),
+      )
+    }
+    if (result.sources.length > 0) {
       console.log(pc.dim("Sources:"))
-      for (const [index, source] of sources.entries()) {
+      for (const [index, source] of result.sources.entries()) {
         console.log(`  [${index + 1}] ${source.relativePath} chunk=${source.chunkIndex}`)
       }
     } else {
@@ -1079,12 +1186,42 @@ function withTopK(cwd: string, topK: number | undefined): { cwd: string; topK?: 
 
 function withSearchOptions(
   cwd: string,
-  options: { topK?: number; contextRadius?: number },
-): { cwd: string; topK?: number; contextRadius?: number } {
-  const result: { cwd: string; topK?: number; contextRadius?: number } = { cwd }
+  options: {
+    topK?: number
+    contextRadius?: number
+    includePath?: string[]
+    excludePath?: string[]
+  },
+): {
+  cwd: string
+  topK?: number
+  contextRadius?: number
+  includePaths?: string[]
+  excludePaths?: string[]
+} {
+  const result: {
+    cwd: string
+    topK?: number
+    contextRadius?: number
+    includePaths?: string[]
+    excludePaths?: string[]
+  } = { cwd }
   addOption(result, "topK", options.topK)
   addOption(result, "contextRadius", options.contextRadius)
+  addPathFilters(result, options)
   return result
+}
+
+function addPathFilters(
+  target: { includePaths?: string[]; excludePaths?: string[] },
+  options: { includePath?: string[]; excludePath?: string[] },
+): void {
+  if (options.includePath && options.includePath.length > 0) {
+    target.includePaths = options.includePath
+  }
+  if (options.excludePath && options.excludePath.length > 0) {
+    target.excludePaths = options.excludePath
+  }
 }
 
 interface AudioOptions {
@@ -1105,17 +1242,20 @@ interface AudioOptions {
 
 interface ChatOptions {
   topK?: number
-  model?: string
+  profile?: ChatProfile
+  thinking?: ChatThinkingMode
   modelPath?: string
   offline?: boolean
   allowRemoteModels?: boolean
+  verify?: boolean
   maxNewTokens?: number
   contextLimit?: number
-  dtype?: string
   json?: boolean
 }
 
 type ChatMode = "ask" | "doctor" | "setup"
+type ChatProfile = "lite" | "fast" | "quality"
+type ChatThinkingMode = "off" | "standard" | "deep"
 
 interface ChatModule {
   doctor: (options?: ChatDoctorOptions) => Promise<unknown>
@@ -1125,32 +1265,35 @@ interface ChatModule {
 
 interface ChatDoctorOptions {
   cwd: string
+  profile?: ChatProfile
   modelPath?: string
+  verifyHash?: boolean
 }
 
 interface ChatSetupOptions {
   cwd: string
-  model?: string
+  profile?: ChatProfile
   modelPath?: string
   allowRemoteModels?: boolean
-  dtype?: string
 }
 
 interface ChatGenerateOptions {
   cwd: string
   question: string
   sources: ChatSource[]
-  model?: string
+  profile?: ChatProfile
+  thinking?: ChatThinkingMode
   modelPath?: string
   allowRemoteModels?: boolean
   maxNewTokens?: number
   contextCharLimit?: number
-  dtype?: string
 }
 
 interface ChatGenerateResult {
   answer: string
+  sources: ChatSource[]
   emptyContext: boolean
+  citationStatus: "none" | "missing" | "valid" | "partial" | "invalid"
 }
 
 interface TtsModule {
@@ -1269,8 +1412,14 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`redactionEnabled=${report.redactionEnabled}`)
   console.log(`accessLog=${report.accessLog}`)
   console.log(`supportedFiles=${report.supportedFiles}`)
+  console.log(`supportedBytes=${report.supportedBytes}`)
+  console.log(`largestFileBytes=${report.largestFileBytes}`)
+  console.log(`maxFileBytes=${report.maxFileBytes}`)
   console.log(`skippedFiles=${report.skippedFiles}`)
   console.log(`unsupportedFiles=${report.unsupportedFiles}`)
+  console.log(`oversizedFiles=${report.oversizedFiles}`)
+  console.log(`sensitiveFiles=${report.sensitiveFiles}`)
+  console.log(`emptyTextFiles=${report.emptyTextFiles}`)
   console.log(`indexedFiles=${report.indexedFiles}`)
   console.log(`chunksIndexed=${report.chunksIndexed}`)
   console.log(`missingFromIndex=${report.missingFromIndex}`)
@@ -1298,7 +1447,7 @@ function printResearchReport(
   console.log(`ready=${report.ready}`)
   console.log(`generatedQueries=${report.generatedQueries.length}`)
   console.log(
-    `audit.supportedFiles=${report.audit.supportedFiles} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`,
+    `audit.supportedFiles=${report.audit.supportedFiles} audit.supportedBytes=${report.audit.supportedBytes} audit.largestFileBytes=${report.audit.largestFileBytes} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.oversizedFiles=${report.audit.oversizedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`,
   )
   console.log(`securityWarnings=${report.securityWarnings.length}`)
   console.log(

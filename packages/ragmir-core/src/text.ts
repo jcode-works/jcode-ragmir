@@ -6,5 +6,19 @@ export function normalizeForMatch(text: string): string {
 }
 
 export function tokenize(text: string): string[] {
-  return normalizeForMatch(text).match(/[\p{L}\p{N}]{2,}/gu) ?? []
+  const normalized = normalizeForMatch(text)
+  const tokens: string[] = []
+  const segmenter = new Intl.Segmenter("und", { granularity: "word" })
+
+  for (const segment of segmenter.segment(normalized)) {
+    if (!segment.isWordLike) {
+      continue
+    }
+    const token = segment.segment
+    if (token.length >= 2 || /[^\p{Script=Latin}\p{N}]/u.test(token)) {
+      tokens.push(token)
+    }
+  }
+
+  return tokens
 }

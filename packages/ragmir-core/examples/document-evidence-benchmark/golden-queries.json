@@ -30,6 +30,12 @@
       "query": "legal tax residency review professional review filing positions",
       "expectedPaths": ["raw/legal-tax/residency-review-note.md"],
       "expectedCitations": ["raw/legal-tax/residency-review-note.md:L1-L10#0"]
+    },
+    {
+      "id": "pdf-embedded-text-page-citation",
+      "query": "Synthetic confidential PDF",
+      "expectedPaths": ["raw/contracts/pdf-control-evidence.pdf"],
+      "expectedCitations": ["raw/contracts/pdf-control-evidence.pdf:p1:L1-L1#0"]
     }
   ]
 }

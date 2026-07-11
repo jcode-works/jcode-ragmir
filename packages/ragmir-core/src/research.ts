@@ -88,27 +88,35 @@ export async function research(
     securityAudit(config.projectRoot),
   ])
   const generatedQueries = researchQueries(normalizedQuery)
+  const includeCode = config.privacyProfile === "strict" ? false : options.includeCode !== false
   const perQueryTopK = Math.max(2, Math.ceil(topK / 2))
   const searchResults = await Promise.all(
     generatedQueries.map(async (generatedQuery) => ({
       query: generatedQuery,
-      results: await search(generatedQuery, { cwd: config.projectRoot, topK: perQueryTopK }),
+      results: await search(generatedQuery, {
+        cwd: config.projectRoot,
+        topK: perQueryTopK,
+        ...(options.includePaths ? { includePaths: options.includePaths } : {}),
+        ...(options.excludePaths ? { excludePaths: options.excludePaths } : {}),
+      }),
     })),
   )
   const evidence = mergeEvidence(searchResults).slice(0, topK)
-  const codeEvidence =
-    options.includeCode === false
-      ? []
-      : await findCodeEvidence(config, normalizedQuery, DEFAULT_CODE_EVIDENCE_LIMIT)
+  const codeEvidence = !includeCode
+    ? []
+    : await findCodeEvidence(config, normalizedQuery, DEFAULT_CODE_EVIDENCE_LIMIT)
   const unsupportedFiles = countSkippedByReason(auditReport.skippedFiles, "unsupported-extension")
+  const oversizedFiles = countSkippedByReason(auditReport.skippedFiles, "oversized")
   const gaps = researchGaps({
     evidenceCount: evidence.length,
     codeEvidenceCount: codeEvidence.length,
-    includeCode: options.includeCode !== false,
+    includeCode,
     missingFromIndex: auditReport.missingFromIndex.length,
     staleInIndex: auditReport.staleInIndex.length,
+    emptyTextFiles: auditReport.emptyTextFiles.length,
     securityWarnings: securityReport.warnings.length,
     unsupportedFiles,
+    oversizedFiles,
     duplicateCandidates: auditReport.sourceDiagnostics.duplicateCandidates.length,
     archiveCandidates: auditReport.sourceDiagnostics.archiveCandidates.length,
     mirrorCandidates: auditReport.sourceDiagnostics.mirrorCandidates.length,
@@ -128,11 +136,16 @@ export async function research(
       evidence.length > 0 &&
       auditReport.missingFromIndex.length === 0 &&
       auditReport.staleInIndex.length === 0 &&
+      auditReport.emptyTextFiles.length === 0 &&
+      oversizedFiles === 0 &&
       securityReport.warnings.length === 0,
     audit: {
       supportedFiles: auditReport.supportedFiles.length,
+      supportedBytes: auditReport.supportedBytes,
+      largestFileBytes: auditReport.largestFileBytes,
       skippedFiles: auditReport.skippedFiles.length,
       unsupportedFiles,
+      oversizedFiles,
       indexedFiles: auditReport.indexedFiles.length,
       totalChunks: auditReport.totalChunks,
       missingFromIndex: auditReport.missingFromIndex.length,
@@ -161,6 +174,8 @@ export function compactSearchResults(
     distance: result.distance,
     lineStart: result.lineStart,
     lineEnd: result.lineEnd,
+    pageStart: result.pageStart,
+    pageEnd: result.pageEnd,
   }))
 }
 
@@ -178,6 +193,8 @@ export function compactResearchReport(report: ResearchReport): Omit<ResearchRepo
       distance: evidence.distance,
       lineStart: evidence.lineStart,
       lineEnd: evidence.lineEnd,
+      pageStart: evidence.pageStart,
+      pageEnd: evidence.pageEnd,
       queries: evidence.queries,
     })),
   }
@@ -216,6 +233,8 @@ function mergeEvidence(
         distance: result.distance,
         lineStart: result.lineStart,
         lineEnd: result.lineEnd,
+        pageStart: result.pageStart,
+        pageEnd: result.pageEnd,
         queries: [searchResult.query],
       })
     }
@@ -323,8 +342,10 @@ function researchGaps(input: {
   includeCode: boolean
   missingFromIndex: number
   staleInIndex: number
+  emptyTextFiles: number
   securityWarnings: number
   unsupportedFiles: number
+  oversizedFiles: number
   duplicateCandidates: number
   archiveCandidates: number
   mirrorCandidates: number
@@ -342,6 +363,9 @@ function researchGaps(input: {
   if (input.staleInIndex > 0) {
     gaps.push(`${input.staleInIndex} indexed source files are stale.`)
   }
+  if (input.emptyTextFiles > 0) {
+    gaps.push(`${input.emptyTextFiles} supported source files produced no indexable text.`)
+  }
   if (input.securityWarnings > 0) {
     gaps.push(`${input.securityWarnings} security warnings require review.`)
   }
@@ -349,6 +373,9 @@ function researchGaps(input: {
     gaps.push(
       `${input.unsupportedFiles} source files were skipped because their type is unsupported.`,
     )
+  }
+  if (input.oversizedFiles > 0) {
+    gaps.push(`${input.oversizedFiles} source files exceeded maxFileBytes and were skipped.`)
   }
   if (input.duplicateCandidates > 0) {
     gaps.push(
@@ -372,8 +399,11 @@ function researchNextSteps(gaps: string[]): string[] {
     if (gap.includes("missing") || gap.includes("stale")) {
       return "Run `rgr doctor --fix`, then rerun `rgr research`."
     }
-    if (gap.includes("unsupported")) {
+    if (gap.includes("unsupported") || gap.includes("maxFileBytes")) {
       return "Run `rgr audit --unsupported` and transcribe, OCR, convert, or explicitly configure unsupported formats."
+    }
+    if (gap.includes("indexable text")) {
+      return "Configure local OCR, convert the affected files, or add extracted text, then re-ingest."
     }
     if (gap.includes("duplicate") || gap.includes("archive") || gap.includes("mirror")) {
       return "Review source diagnostics and prefer the canonical source before presenting conclusions."

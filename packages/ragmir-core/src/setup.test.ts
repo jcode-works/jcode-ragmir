@@ -55,7 +55,7 @@ describe("setupProject", () => {
 
     expect(result.semantic).toMatchObject({
       model: {
-        embeddingModel: "mixedbread-ai/mxbai-embed-xsmall-v1",
+        embeddingModel: "intfloat/multilingual-e5-small",
         embeddingModelPath: path.join(root, ".ragmir/models"),
       },
       config: {

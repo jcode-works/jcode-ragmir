@@ -6,7 +6,8 @@
   "embeddingModelPath": ".ragmir/models",
   "tableName": "chunks",
   "embeddingProvider": "local-hash",
-  "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
+  "embeddingModel": "intfloat/multilingual-e5-small",
+  "embeddingModelRevision": "main",
   "transformersAllowRemoteModels": false,
   "redaction": {
     "enabled": true,
