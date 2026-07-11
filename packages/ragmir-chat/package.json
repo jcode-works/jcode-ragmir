@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir-chat",
   "version": "0.4.12",
-  "description": "Ragmir add-on for local offline cited chat with Transformers.js.",
+  "description": "Ragmir add-on for local offline cited chat with Gemma 4 and llama.cpp.",
   "type": "module",
   "license": "MIT",
   "author": {
@@ -14,8 +14,8 @@
     "local-chat",
     "offline-ai",
     "local-first",
-    "transformers",
-    "onnx",
+    "gemma",
+    "llama-cpp",
     "private-ai",
     "rag"
   ],
@@ -56,7 +56,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0"
+    "node-llama-cpp": "3.19.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
