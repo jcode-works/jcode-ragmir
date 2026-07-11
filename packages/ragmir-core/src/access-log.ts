@@ -1,8 +1,9 @@
-import { createHash } from "node:crypto"
+import { createHmac, randomBytes } from "node:crypto"
 import { existsSync } from "node:fs"
-import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises"
+import { appendFile, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { loadConfig } from "./config.js"
+import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import type {
   AccessLogAction,
   AccessLogUsageOptions,
@@ -25,6 +26,11 @@ interface AccessLogLine {
   resultCount?: number
 }
 
+interface ResultCountStats {
+  total: number
+  events: number
+}
+
 const ACCESS_LOG_ACTIONS: AccessLogAction[] = [
   "ingest",
   "search",
@@ -44,6 +50,7 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
 const MAX_ACCESS_LOG_BYTES = 10 * 1024 * 1024
 /** Number of most recent lines retained when the log exceeds the byte cap. */
 const TRIMMED_ACCESS_LOG_LINES = 50_000
+const ACCESS_LOG_SALT_FILE = ".ragmir-access-log.salt"
 
 export async function recordAccess(config: Config, event: AccessLogEvent): Promise<void> {
   if (!config.accessLog) {
@@ -51,9 +58,13 @@ export async function recordAccess(config: Config, event: AccessLogEvent): Promi
   }
 
   try {
-    await mkdir(path.dirname(config.accessLogPath), { recursive: true })
+    await ensurePrivateDirectory(path.dirname(config.accessLogPath))
     await trimAccessLogIfNeeded(config.accessLogPath)
-    await appendFile(config.accessLogPath, `${JSON.stringify(toLogLine(event))}\n`, "utf8")
+    await appendFile(config.accessLogPath, `${JSON.stringify(await toLogLine(config, event))}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    })
+    await hardenPrivateFile(config.accessLogPath)
   } catch {
     // Access logging is best-effort so read-only workspaces do not block local use.
   }
@@ -93,6 +104,7 @@ export async function accessLogUsageReport(
   const since = new Date(until.getTime() - days * MILLISECONDS_PER_DAY)
   const eventsByAction = emptyEventsByAction()
   const queryHashes = new Set<string>()
+  const resultCountsByAction = emptyResultCountsByAction()
   let totalEvents = 0
   let invalidLines = 0
   let resultCountTotal = 0
@@ -123,6 +135,8 @@ export async function accessLogUsageReport(
       if (typeof event.resultCount === "number") {
         resultCountTotal += event.resultCount
         resultCountEvents += 1
+        resultCountsByAction[event.action].total += event.resultCount
+        resultCountsByAction[event.action].events += 1
       }
       if (lastEventAt === null || event.timestamp > lastEventAt) {
         lastEventAt = event.timestamp
@@ -139,23 +153,76 @@ export async function accessLogUsageReport(
     eventsByAction,
     uniqueQueryHashes: queryHashes.size,
     averageResultCount: resultCountEvents === 0 ? null : resultCountTotal / resultCountEvents,
+    averageResultCountByAction: averageResultCounts(resultCountsByAction),
     lastEventAt,
   }
 }
 
-function toLogLine(event: AccessLogEvent): Record<string, unknown> {
+function emptyResultCountsByAction(): Record<AccessLogAction, ResultCountStats> {
+  return {
+    ingest: { total: 0, events: 0 },
+    search: { total: 0, events: 0 },
+    ask: { total: 0, events: 0 },
+    research: { total: 0, events: 0 },
+    evaluate: { total: 0, events: 0 },
+    "destroy-index": { total: 0, events: 0 },
+  }
+}
+
+function averageResultCounts(
+  stats: Record<AccessLogAction, ResultCountStats>,
+): Record<AccessLogAction, number | null> {
+  return {
+    ingest: averageResultCount(stats.ingest),
+    search: averageResultCount(stats.search),
+    ask: averageResultCount(stats.ask),
+    research: averageResultCount(stats.research),
+    evaluate: averageResultCount(stats.evaluate),
+    "destroy-index": averageResultCount(stats["destroy-index"]),
+  }
+}
+
+function averageResultCount(stats: ResultCountStats): number | null {
+  return stats.events === 0 ? null : stats.total / stats.events
+}
+
+async function toLogLine(config: Config, event: AccessLogEvent): Promise<Record<string, unknown>> {
   return {
     timestamp: new Date().toISOString(),
     action: event.action,
-    queryHash: event.query ? hashQuery(event.query) : undefined,
+    queryHash: event.query ? await hashQuery(config, event.query) : undefined,
     topK: event.topK,
     resultCount: event.resultCount,
     redactions: event.redactions,
   }
 }
 
-function hashQuery(query: string): string {
-  return createHash("sha256").update(query).digest("hex")
+async function hashQuery(config: Config, query: string): Promise<string> {
+  const salt = await accessLogSalt(config)
+  return createHmac("sha256", salt).update(query).digest("hex")
+}
+
+async function accessLogSalt(config: Config): Promise<Buffer> {
+  const saltPath = path.join(path.dirname(config.accessLogPath), ACCESS_LOG_SALT_FILE)
+  try {
+    return await readFile(saltPath)
+  } catch (error) {
+    if (!isNodeError(error) || error.code !== "ENOENT") {
+      throw error
+    }
+  }
+
+  const salt = randomBytes(32)
+  try {
+    await writeFile(saltPath, salt, { flag: "wx", mode: 0o600 })
+    await hardenPrivateFile(saltPath)
+    return salt
+  } catch (error) {
+    if (isNodeError(error) && error.code === "EEXIST") {
+      return readFile(saltPath)
+    }
+    throw error
+  }
 }
 
 function emptyEventsByAction(): Record<AccessLogAction, number> {

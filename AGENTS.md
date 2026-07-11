@@ -22,6 +22,8 @@
   Transformers.js embeddings with remote model loading disabled by default, redaction before
   indexing, metadata-only access logs, bounded MCP retrieval, configurable text-extension ingestion,
   and `security-audit` should work from default config.
+- Keep `privacyProfile` and `retrievalProfile` orthogonal. The `strict` privacy floor is applied
+  after environment overrides and must not be weakened by individual settings.
 - Keep public positioning focused on sovereign local RAG for confidential datasets and AI agents.
   Avoid claiming universal binary-file support; unsupported proprietary formats need extraction or
   dedicated parsers.
@@ -159,10 +161,25 @@
   warms `.ragmir/models/tts`, pass `--allow-remote-models` only for that preload, then use `--offline`
   for confidential narration. Remote TTS model loading must stay disabled by default. The
   operational guide lives in `docs/offline-tts-preload.md`.
-- Keep optional local chat separate from core retrieval. `@jcode.labs/ragmir-chat` owns local
-  Transformers.js text generation for `rgr chat`; `rgr chat setup` is the explicit one-command
-  preload path for `.ragmir/models/chat`, and normal answers must keep remote model loading disabled
-  unless the user opts into `--allow-remote-models`.
+- Keep optional local chat separate from core retrieval. `@jcode.labs/ragmir-chat` owns verified
+  GGUF generation through `node-llama-cpp`; `rgr chat setup` is the explicit one-command preload
+  path for `.ragmir/models/chat/<profile>`, with size/SHA256 verification and a local manifest.
+  Normal answers must never download model files and must not depend on Ollama, Python, or a hosted
+  inference API.
+- Keep the default Ragmir Chat profile on Gemma 4 E2B (`fast`) and the optional quality profile on
+  Gemma 4 E4B (`quality`). Keep Qwen2.5 0.5B Q4_K_M as the explicit `lite` profile for older or
+  low-memory computers: use a 4,096-token runtime context, cap generation at 512 tokens, and force
+  thinking off. Treat the official model weights and their Apache-2.0 notices as separate
+  from Ragmir's MIT source. Desktop and CLI are the supported local-chat surfaces in this tranche;
+  do not claim Android local chat until the native LiteRT-LM path is implemented and validated.
+- Keep each verified GGUF portable across desktop platforms. Let `node-llama-cpp` select its
+  packaged Metal, CUDA, Vulkan, or CPU backend with `gpu: "auto"`, while normal answers keep
+  `build: "never"` and `skipDownload: true`. Expose the actual selected backend through doctor and
+  app status. Do not add MLX as a Mac production backend without an isolated benchmark and full
+  model-integrity, streaming, cancellation, thought-filtering, and citation parity; MLX-LM must not
+  introduce Python into the maintained runtime.
+- Gemma 4 thinking may expose only a coarse `reasoning` status. Never display, persist, log, or add
+  raw thought segments to conversation history. Store and reuse visible final answers only.
 - In `packages/ragmir-app`, keep model preloads explicit in the Tauri sidecar: setup/prepare flows
   may pass `--allow-remote-models` only for one-time embedding/chat/TTS preload commands, while
   normal chat answers and audio rendering must use offline/local modes after preload.
@@ -170,6 +187,10 @@
   assistant bubble before invoking native chat, show visible thinking/streaming/error states, render
   assistant Markdown, keep recent thread context local and explicit, and run long native CLI work
   through async Tauri commands or `spawn_blocking` so the webview does not freeze.
+- In `packages/ragmir-app`, keep one persistent Ragmir Chat runtime per active model/profile so the
+  GGUF is not reloaded for every message. Retrieve only the latest user question, pass visible
+  structured history separately, stream response deltas over a Tauri channel, and support explicit
+  cancellation without routing chat through the blocking JSON command helper.
 - In `packages/ragmir-app`, distinguish Ragmir Chat from external coding agents. Local chat is the
   only fully private in-app conversation path. Codex, Claude, Kimi, OpenCode, Cline, or generic MCP
   modes should be presented as a handoff that generates/copies helper config and prompts for the
@@ -206,6 +227,15 @@
   legacy `.doc` extraction behind `legacyWordCommand` / `RAGMIR_LEGACY_WORD_COMMAND`; execute
   commands without a shell, require stdout text, and do not add heavy OCR/conversion dependencies or
   claim universal scan/image/binary support.
+- Keep PDF extraction page-aware and bounded. Preserve page citations, OCR only blank pages, pass
+  `RAGMIR_PDF_PAGE` and `{page}` to page-capable wrappers, and retain page/character safety limits.
+- Keep the index-policy fingerprint aligned with every content-transforming setting. Semantic or
+  stored-row schema changes require a schema bump; normal ingestion must remain file-incremental and
+  a no-op must not rewrite the LanceDB table.
+- Keep exact flat vector search as the default. Do not reintroduce automatic ANN indexes without a
+  corpus benchmark that proves both recall and latency improve.
+- Keep access-log query identifiers project-salted and local generated state on restrictive POSIX
+  permissions. Do not present the best-effort metadata log as a compliance audit trail.
 - Keep the repository as a simple pnpm workspace monorepo. Add Turbo only if multiple packages or
   apps start needing task caching/orchestration beyond `pnpm --filter`.
 - The Node.js and Rust versions are each pinned once, in `mise.toml` (via
@@ -342,9 +372,9 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 - `packages/ragmir-core/src/mcp.ts` exposes Ragmir as an MCP stdio server for agents.
 - `packages/ragmir-tts` is the standalone TTS package used by `rgr audio`; it uses `edge-tts` for
   high-quality MP3 when available and Transformers.js for offline WAV rendering.
-- `packages/ragmir-chat` is the optional local chat package used by `rgr chat`; it uses
-  Transformers.js text generation over cited Ragmir retrieval context and must not make Ragmir Core
-  depend on Ollama or any hosted model API.
+- `packages/ragmir-chat` is the optional local chat package used by `rgr chat`; it runs verified
+  Qwen2.5 or Gemma 4 GGUF models through `node-llama-cpp` over cited Ragmir retrieval context and must not make Ragmir Core
+  depend on Ollama, Python, or any hosted model API.
 - `packages/ragmir-ui` owns shared React UI primitives and Tailwind theme tokens used by Ragmir
   product surfaces.
 - `packages/ragmir-landing` owns the static Astro landing page.
@@ -396,25 +426,24 @@ General principles (KISS, DRY, YAGNI, SOLID) as applied in this codebase. Match 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **jcode-ragmir** (2311 symbols, 4841 relationships, 190 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **jcode-ragmir** (4498 symbols, 7727 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
-- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `impact` on it.
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
-- NEVER commit changes without running `detect_changes()` to check affected scope.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 
 ## Resources
 

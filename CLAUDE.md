@@ -79,7 +79,8 @@ commit `dist/`; a clean clone has none until `pnpm build` runs.
   `ragmir-tts` remains a deprecated compatibility bin. Commands: `doctor`, `render`.
 - Chat CLI binary: **`rgr-chat`** (`packages/ragmir-chat/bin.rgr-chat` ->
   `packages/ragmir-chat/dist/cli.js`). `ragmir-chat` remains a deprecated compatibility bin.
-  Commands: `doctor`, `setup`, `answer`.
+  Commands: `doctor`, `setup`, `answer`, `serve`. `serve` is the internal persistent NDJSON
+  transport for the desktop app, not the normal interactive workflow.
 - Project config/state in the target repo: **`.ragmir/`** (`config.json`, `raw/`, `storage/`,
   `access.log`, `skills/`, reports, audio, and model caches).
 - Environment overrides: **`RAGMIR_*`** (e.g. `RAGMIR_EMBEDDING_PROVIDER`, `RAGMIR_CHUNK_SIZE`).
@@ -114,9 +115,14 @@ synthesis in core).
 rendering without Python or ffmpeg, and uses `edge-tts` for high-quality MP3 only when explicitly
 requested. Core `rgr audio` imports it dynamically.
 
-`packages/ragmir-chat` is a separate ESM package. It owns local Transformers.js text generation for
-`rgr chat`; Ragmir Core retrieves cited passages and passes them in. Keep the core retrieval-only and
-do not introduce an Ollama or hosted-model dependency for chat.
+`packages/ragmir-chat` is a separate ESM package. It owns local Gemma 4 QAT GGUF generation through
+`node-llama-cpp` for `rgr chat`; Ragmir Core retrieves cited passages and passes them in. The default
+`fast` profile is E2B and `quality` is E4B. Keep the core retrieval-only and do not introduce Ollama,
+Python, or a hosted-model dependency for chat. Never expose or retain raw Gemma thought segments.
+The same GGUF runs through the packaged backend selected by `gpu: "auto"`: Metal on Apple Silicon,
+CUDA or Vulkan where supported on Linux/Windows, and CPU only when that packaged backend is actually
+available. Doctor and the app must report the selected backend. Keep MLX experimental until a
+Mac-only benchmark justifies its separate Swift bridge and Safetensors model supply chain.
 
 `packages/ragmir-ui` is the shared Tailwind 4 + React UI layer adapted from the WorkoutGen UI/landing
 foundation, but with Ragmir tokens and no WorkoutGen product copy, analytics, CDN paths, or secrets.
@@ -131,8 +137,10 @@ React loading state stuck. Validate by running `mise exec rust -- pnpm dev:app`,
 button, cancelling the native dialog, and confirming the UI leaves its loading state.
 
 Tauri model-preload trap: when editing `packages/ragmir-app/src-tauri/src/lib.rs`, keep setup
-commands explicit about the network boundary. One-time model preloads may pass
-`--allow-remote-models`; normal chat/audio commands must stay offline after preload.
+commands explicit about the network boundary. One-time chat setup may download and verify the
+selected Gemma profile; normal chat must stay offline after preload. Keep a persistent chat runtime
+for model reuse, stream deltas through a dedicated channel, and keep audio commands offline after
+their separate preload.
 For app `Prepare` flows, keep the bootstrap order from `AGENTS.md`: write direct-folder sources with
 `local-hash` first, preload semantic models second, then rebuild with Transformers.
 
@@ -172,25 +180,24 @@ lives in `AGENTS.md`. The workflow publishes `@jcode.labs/ragmir-tts` and
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **jcode-ragmir** (2311 symbols, 4841 relationships, 190 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **jcode-ragmir** (4498 symbols, 7727 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
-- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `impact` on it.
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
-- NEVER commit changes without running `detect_changes()` to check affected scope.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 
 ## Resources
 

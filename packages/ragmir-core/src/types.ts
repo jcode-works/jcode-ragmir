@@ -3,6 +3,9 @@ import type { PackageManager } from "./package-manager.js"
 
 export interface Config {
   projectRoot: string
+  privacyProfile: PrivacyProfile
+  retrievalProfile: RetrievalProfile
+  acceptedRisks: string[]
   rawDir: string
   storageDir: string
   sourcesFile: string
@@ -12,6 +15,7 @@ export interface Config {
   tableName: string
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
+  embeddingModelRevision: string
   transformersAllowRemoteModels: boolean
   redaction: RedactionConfig
   accessLog: boolean
@@ -31,6 +35,9 @@ export interface Config {
   legacyWordCommand: string[]
   legacyWordTimeoutMs: number
 }
+
+export type PrivacyProfile = "strict" | "private" | "trusted" | "custom"
+export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
 
 export type AccessLogAction =
   | "ingest"
@@ -54,7 +61,21 @@ export interface AccessLogUsageReport {
   eventsByAction: Record<AccessLogAction, number>
   uniqueQueryHashes: number
   averageResultCount: number | null
+  averageResultCountByAction: Record<AccessLogAction, number | null>
   lastEventAt: string | null
+}
+
+export interface IngestionLimitsReport {
+  maxFileBytes: number
+  maxFiles: null
+  maxCorpusBytes: null
+  maxPdfPages: number
+  maxPdfTextCharacters: number
+  maxOfficeTextEntries: number
+  maxOfficeEntryBytes: number
+  maxOfficeTotalTextBytes: number
+  maxExternalTextOutputBytes: number
+  notes: string[]
 }
 
 export type EmbeddingProvider = "local-hash" | "transformers"
@@ -71,12 +92,22 @@ export interface IndexManifest {
   ragmirVersion: string
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
+  indexPolicyFingerprint?: string
   vectorDimension?: number
   vectorDistanceMetric?: string
   chunkSize: number
   chunkOverlap: number
   fileCount: number
   chunkCount: number
+  indexedFiles?: IndexManifestFile[]
+}
+
+export interface IndexManifestFile {
+  relativePath: string
+  checksum: string
+  chunkCount: number
+  bytes?: number
+  mtimeMs?: number
 }
 
 export interface RedactionConfig {
@@ -129,6 +160,13 @@ export interface SourceInventory {
 export interface ParsedDocument {
   file: SourceFile
   text: string
+  pages?: ParsedPage[]
+}
+
+export interface ParsedPage {
+  pageNumber: number
+  charStart: number
+  charEnd: number
 }
 
 export interface TextChunk {
@@ -141,6 +179,8 @@ export interface TextChunk {
   charEnd: number
   lineStart: number
   lineEnd: number
+  pageStart?: number
+  pageEnd?: number
   checksum: string
   bytes: number
   mtimeMs: number
@@ -160,9 +200,12 @@ export interface IngestOptions {
 export interface IngestResult {
   discoveredFiles: number
   supportedFiles: number
+  supportedBytes: number
+  largestFileBytes: number
   indexedFiles: number
   rebuiltFiles: number
   reusedFiles: number
+  policyRebuild: boolean
   chunks: number
   skippedFiles: number
   unsupportedFiles: number
@@ -180,6 +223,8 @@ export interface SearchOptions {
   cwd?: PathLike
   topK?: number
   contextRadius?: number
+  includePaths?: string[]
+  excludePaths?: string[]
 }
 
 export interface SearchContextChunk {
@@ -189,6 +234,8 @@ export interface SearchContextChunk {
   charEnd: number | null
   lineStart: number | null
   lineEnd: number | null
+  pageStart: number | null
+  pageEnd: number | null
   citation: string
 }
 
@@ -203,6 +250,8 @@ export interface SearchResult {
   charEnd: number | null
   lineStart: number | null
   lineEnd: number | null
+  pageStart: number | null
+  pageEnd: number | null
   context: SearchContextChunk[]
 }
 
@@ -215,6 +264,8 @@ export interface CompactSearchResult {
   distance: number | null
   lineStart: number | null
   lineEnd: number | null
+  pageStart: number | null
+  pageEnd: number | null
 }
 
 export interface SourceDuplicateCandidate {
@@ -237,6 +288,8 @@ export interface ResearchOptions {
   cwd?: PathLike
   topK?: number
   includeCode?: boolean
+  includePaths?: string[]
+  excludePaths?: string[]
 }
 
 export interface ResearchEvidence {
@@ -248,6 +301,8 @@ export interface ResearchEvidence {
   distance: number | null
   lineStart: number | null
   lineEnd: number | null
+  pageStart: number | null
+  pageEnd: number | null
   queries: string[]
 }
 
@@ -264,8 +319,11 @@ export interface ResearchReport {
   ready: boolean
   audit: {
     supportedFiles: number
+    supportedBytes: number
+    largestFileBytes: number
     skippedFiles: number
     unsupportedFiles: number
+    oversizedFiles: number
     indexedFiles: number
     totalChunks: number
     missingFromIndex: number
@@ -285,6 +343,8 @@ export interface GoldenQuery {
   query: string
   expectedPaths: string[]
   expectedCitations?: string[]
+  includePaths?: string[]
+  excludePaths?: string[]
   topK?: number
 }
 
@@ -299,6 +359,8 @@ export interface EvaluationCaseResult {
   id?: string
   query: string
   expectedPaths: string[]
+  includePaths?: string[]
+  excludePaths?: string[]
   topK: number
   returnedPaths: string[]
   returnedCitations: string[]
@@ -308,7 +370,10 @@ export interface EvaluationCaseResult {
   hit: boolean
   bestRank: number | null
   reciprocalRank: number
+  recall: number
+  precision: number
   ndcg: number
+  latencyMs: number
 }
 
 export interface EvaluationResult {
@@ -319,9 +384,13 @@ export interface EvaluationResult {
   total: number
   hits: number
   misses: number
+  hitRate: number
   recall: number
+  precision: number
   meanReciprocalRank: number
   ndcg: number
+  p50LatencyMs: number
+  p95LatencyMs: number
   cases: EvaluationCaseResult[]
 }
 
@@ -332,6 +401,9 @@ export interface AskResult {
 }
 
 export interface AuditReport {
+  discoveredFiles: number
+  supportedBytes: number
+  largestFileBytes: number
   indexedFiles: Array<{ source: string; chunks: number }>
   supportedFiles: string[]
   skippedFiles: SkippedSourceFile[]
@@ -361,9 +433,17 @@ export interface DoctorReport {
   transformersAllowRemoteModels: boolean
   redactionEnabled: boolean
   accessLog: boolean
+  privacyProfile: PrivacyProfile
+  retrievalProfile: RetrievalProfile
   supportedFiles: number
+  supportedBytes: number
+  largestFileBytes: number
+  maxFileBytes: number
   skippedFiles: number
   unsupportedFiles: number
+  oversizedFiles: number
+  sensitiveFiles: number
+  emptyTextFiles: number
   indexedFiles: number
   chunksIndexed: number
   missingFromIndex: number
@@ -374,15 +454,26 @@ export interface DoctorReport {
     warning: string | null
   }
   ready: boolean
+  readiness: {
+    operationalReady: boolean
+    coverageComplete: boolean
+    indexPolicyCurrent: boolean
+    privacyCompliant: boolean
+    retrievalQualityVerified: boolean
+    acceptedRisks: string[]
+  }
   nextSteps: string[]
 }
 
 export interface SecurityAuditReport {
   projectRoot: string
   zeroTelemetry: true
+  privacyProfile: PrivacyProfile
+  retrievalProfile: RetrievalProfile
   providers: {
     embedding: EmbeddingProvider
     embeddingModel: string
+    embeddingModelRevision: string
     embeddingModelPath: string
     transformersAllowRemoteModels: boolean
     llmGeneration: false
@@ -401,6 +492,13 @@ export interface SecurityAuditReport {
     path: string
     gitIgnored: boolean
     encryptedAtRest: "external-required"
+  }
+  permissions: {
+    checked: boolean
+    configPrivate: boolean | null
+    rawDirPrivate: boolean | null
+    storageDirPrivate: boolean | null
+    accessLogPrivate: boolean | null
   }
   mcp: {
     maxTopK: number

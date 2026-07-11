@@ -61,6 +61,13 @@ try {
   if (status.chunksIndexed < 1) {
     throw new Error("MCP status reported an empty index.")
   }
+  if (
+    status.ingestionLimits?.maxFileBytes !== 50_000_000 ||
+    status.ingestionLimits?.maxFiles !== null ||
+    status.ingestionLimits?.maxCorpusBytes !== null
+  ) {
+    throw new Error(`MCP status reported unexpected ingestion limits: ${JSON.stringify(status)}`)
+  }
 
   const routeDecision = await callJsonTool(client, "ragmir_route_prompt", {
     prompt: "Audit this local repository release readiness from cited evidence.",
@@ -81,6 +88,21 @@ try {
   }
   if (!("snippet" in searchResults[0]) || "text" in searchResults[0]) {
     throw new Error("MCP compact search did not return snippet-only results.")
+  }
+
+  const filteredSearchResults = await callJsonTool(client, "ragmir_search", {
+    query: "offline retrieval approval",
+    topK: 5,
+    includePaths: ["raw/review-notes.evidence"],
+  })
+  if (
+    !Array.isArray(filteredSearchResults) ||
+    filteredSearchResults.length < 1 ||
+    !filteredSearchResults.every((result) => result.relativePath === "raw/review-notes.evidence")
+  ) {
+    throw new Error(
+      `MCP search path filter returned unexpected results: ${JSON.stringify(filteredSearchResults)}`,
+    )
   }
 
   const answer = await callJsonTool(client, "ragmir_ask", {
@@ -114,6 +136,9 @@ try {
   const usage = await callJsonTool(client, "ragmir_usage_report", { days: 7 })
   if (usage.totalEvents < 1 || typeof usage.eventsByAction !== "object") {
     throw new Error(`MCP usage report returned an unexpected report: ${JSON.stringify(usage)}`)
+  }
+  if (typeof usage.averageResultCountByAction?.search !== "number") {
+    throw new Error(`MCP usage report omitted per-action averages: ${JSON.stringify(usage)}`)
   }
   if (JSON.stringify(usage).includes(demoRoot)) {
     throw new Error("MCP usage report should not expose local project paths.")

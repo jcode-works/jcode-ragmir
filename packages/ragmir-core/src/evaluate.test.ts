@@ -31,7 +31,11 @@ describe("evaluateGoldenQueries", () => {
     expect(report.total).toBe(4)
     expect(report.embeddingProvider).toBe("local-hash")
     expect(report.misses).toBe(0)
-    expect(report.recall).toBe(1)
+    expect(report.hitRate).toBe(1)
+    expect(report.recall).toBeGreaterThan(0)
+    expect(report.recall).toBeLessThanOrEqual(1)
+    expect(report.precision).toBeGreaterThan(0)
+    expect(report.p95LatencyMs).toBeGreaterThanOrEqual(report.p50LatencyMs)
     expect(report.meanReciprocalRank).toBeGreaterThan(0)
     expect(report.ndcg).toBeGreaterThan(0)
     expect(report.cases.every((result) => result.hit)).toBe(true)
@@ -108,10 +112,77 @@ describe("evaluateGoldenQueries", () => {
 
     expect(report.hits).toBe(1)
     expect(report.recall).toBe(1)
+    expect(report.hitRate).toBe(1)
+    expect(report.precision).toBeGreaterThan(0)
     expect(report.meanReciprocalRank).toBe(1)
     expect(report.ndcg).toBe(1)
     expect(report.cases[0]?.matchedPaths).toContain("raw/dataset-inventory.csv")
     expect(report.cases[0]?.matchedCitations).toEqual(["raw/dataset-inventory.csv:L1-L5#0"])
+  })
+
+  it("keeps nDCG bounded when duplicate chunks match one relevant path", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-duplicates-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    await writeFile(
+      path.join(root, "duplicate-golden.json"),
+      JSON.stringify([
+        {
+          query: "confidential dataset rejected",
+          expectedPaths: ["raw/dataset-inventory.csv"],
+          topK: 8,
+        },
+      ]),
+    )
+
+    await ingest({ cwd: root })
+    const report = await evaluateGoldenQueries({ cwd: root, goldenPath: "duplicate-golden.json" })
+
+    expect(report.ndcg).toBeLessThanOrEqual(1)
+    expect(report.cases[0]?.ndcg).toBeLessThanOrEqual(1)
+  })
+
+  it("applies source filters declared by each golden query", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-filter-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    await writeFile(
+      path.join(root, "filtered-golden.json"),
+      `${JSON.stringify(
+        {
+          queries: [
+            {
+              id: "primary-source-only",
+              query: "Which dataset was rejected for confidential tests?",
+              expectedPaths: ["raw/dataset-inventory.csv"],
+              includePaths: ["raw"],
+              excludePaths: ["raw/security-policy.yaml"],
+              topK: 5,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const report = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "filtered-golden.json",
+    })
+
+    const result = report.cases[0]
+    expect(result?.hit).toBe(true)
+    expect(result?.includePaths).toEqual(["raw"])
+    expect(result?.excludePaths).toEqual(["raw/security-policy.yaml"])
+    expect(result?.returnedPaths.every((relativePath) => relativePath.startsWith("raw/"))).toBe(
+      true,
+    )
+    expect(result?.returnedPaths).not.toContain("raw/security-policy.yaml")
   })
 
   it("reports a miss when no expected path is retrieved", async () => {

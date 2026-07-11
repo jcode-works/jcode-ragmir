@@ -61,6 +61,14 @@ describe("doctor", () => {
     )
     expect(ready.indexFreshness.manifestFound).toBe(true)
     expect(ready.indexFreshness.warning).toBeNull()
+    expect(ready.readiness).toEqual(
+      expect.objectContaining({
+        operationalReady: true,
+        indexPolicyCurrent: true,
+        privacyCompliant: true,
+        retrievalQualityVerified: false,
+      }),
+    )
   })
 
   it("detects an installed agent kit from the files installSkill writes", async () => {
@@ -73,5 +81,21 @@ describe("doctor", () => {
     await installSkill({ cwd: root })
 
     expect((await doctor(root)).agentKitInstalled).toBe(true)
+  })
+
+  it("does not report complete coverage when a supported file yields no text", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-empty-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await writeFile(path.join(root, ".ragmir", "raw", "evidence.md"), "Indexed evidence.\n")
+    await writeFile(path.join(root, ".ragmir", "raw", "empty.md"), "   \n")
+    await ingest({ cwd: root })
+
+    const report = await doctor(root)
+
+    expect(report.emptyTextFiles).toBe(1)
+    expect(report.readiness.coverageComplete).toBe(false)
+    expect(report.ready).toBe(false)
+    expect(report.nextSteps.some((step) => step.includes("produced no indexable text"))).toBe(true)
   })
 })

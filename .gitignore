@@ -31,6 +31,7 @@ packages/ragmir-license-webhook/dist/
 !packages/ragmir-core/examples/**/.ragmir/sources.txt
 packages/ragmir-core/examples/**/.ragmir/storage/
 packages/ragmir-core/examples/**/.ragmir/access.log
+packages/ragmir-core/examples/**/.ragmir/.ragmir-access-log.salt
 packages/ragmir-core/examples/**/.ragmir/models/
 packages/ragmir-core/examples/**/.ragmir/reports/
 packages/ragmir-core/examples/**/.ragmir/audio/

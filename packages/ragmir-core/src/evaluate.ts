@@ -17,6 +17,8 @@ const goldenQuerySchema = z
     query: z.string().min(1),
     expectedPaths: z.array(z.string().min(1)).min(1),
     expectedCitations: z.array(z.string().min(1)).min(1).optional(),
+    includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+    excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     topK: z.number().int().positive().optional(),
   })
   .strict()
@@ -41,7 +43,14 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
 
   for (const goldenQuery of goldenFile.queries) {
     const topK = boundedTopK(goldenQuery.topK ?? defaultTopK, options.maxTopK)
-    const results = await search(goldenQuery.query, { cwd, topK })
+    const startedAt = performance.now()
+    const results = await search(goldenQuery.query, {
+      cwd,
+      topK,
+      ...(goldenQuery.includePaths === undefined ? {} : { includePaths: goldenQuery.includePaths }),
+      ...(goldenQuery.excludePaths === undefined ? {} : { excludePaths: goldenQuery.excludePaths }),
+    })
+    const latencyMs = performance.now() - startedAt
     const returnedPaths = results.map((result) => result.relativePath)
     const returnedCitations = results.map(citationForResult)
     const expectedCitations = goldenQuery.expectedCitations ?? []
@@ -57,11 +66,14 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
       ? returnedCitations.findIndex((citation) => expectedCitations.includes(citation)) + 1
       : returnedPaths.findIndex((resultPath) => goldenQuery.expectedPaths.includes(resultPath)) + 1
     const reciprocalRank = bestRank > 0 ? 1 / bestRank : 0
-    const ndcg = ndcgAtK(
-      requiresExactCitation ? returnedCitations : returnedPaths,
-      expectedValues,
-      topK,
-    )
+    const returnedValues = requiresExactCitation ? returnedCitations : returnedPaths
+    const uniqueReturnedValues = [...new Set(returnedValues.slice(0, topK))]
+    const expectedSet = new Set(expectedValues)
+    const matchedRelevant = uniqueReturnedValues.filter((value) => expectedSet.has(value))
+    const recall = expectedSet.size === 0 ? 0 : matchedRelevant.length / expectedSet.size
+    const precision =
+      uniqueReturnedValues.length === 0 ? 0 : matchedRelevant.length / uniqueReturnedValues.length
+    const ndcg = ndcgAtK(returnedValues, expectedValues, topK)
 
     const result: EvaluationCaseResult = {
       query: goldenQuery.query,
@@ -74,7 +86,10 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
       hit: requiresExactCitation ? matchedCitations.length > 0 : matchedPaths.length > 0,
       bestRank: bestRank > 0 ? bestRank : null,
       reciprocalRank,
+      recall,
+      precision,
       ndcg,
+      latencyMs,
     }
     if (goldenQuery.id !== undefined) {
       result.id = goldenQuery.id
@@ -82,10 +97,17 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
     if (goldenQuery.expectedCitations !== undefined) {
       result.expectedCitations = goldenQuery.expectedCitations
     }
+    if (goldenQuery.includePaths !== undefined) {
+      result.includePaths = goldenQuery.includePaths
+    }
+    if (goldenQuery.excludePaths !== undefined) {
+      result.excludePaths = goldenQuery.excludePaths
+    }
     cases.push(result)
   }
 
   const hits = cases.filter((result) => result.hit).length
+  const latencies = cases.map((result) => result.latencyMs).sort((a, b) => a - b)
   await recordAccess(config, {
     action: "evaluate",
     topK: defaultTopK,
@@ -99,9 +121,13 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
     total: cases.length,
     hits,
     misses: cases.length - hits,
-    recall: hits / cases.length,
+    hitRate: hits / cases.length,
+    recall: mean(cases.map((result) => result.recall)),
+    precision: mean(cases.map((result) => result.precision)),
     meanReciprocalRank: mean(cases.map((result) => result.reciprocalRank)),
     ndcg: mean(cases.map((result) => result.ndcg)),
+    p50LatencyMs: percentile(latencies, 0.5),
+    p95LatencyMs: percentile(latencies, 0.95),
     cases,
   }
 }
@@ -137,6 +163,12 @@ function normalizeGoldenQuery(value: z.infer<typeof goldenQuerySchema>): GoldenQ
   if (value.topK !== undefined) {
     result.topK = value.topK
   }
+  if (value.includePaths !== undefined) {
+    result.includePaths = value.includePaths
+  }
+  if (value.excludePaths !== undefined) {
+    result.excludePaths = value.excludePaths
+  }
   return result
 }
 
@@ -151,10 +183,12 @@ function citationForResult(result: { citation: string }): string {
 function ndcgAtK(returned: string[], expected: string[], topK: number): number {
   const expectedSet = new Set(expected)
   const returnedAtK = returned.slice(0, topK)
+  const seen = new Set<string>()
   const dcg = returnedAtK.reduce((score, value, index) => {
-    if (!expectedSet.has(value)) {
+    if (!expectedSet.has(value) || seen.has(value)) {
       return score
     }
+    seen.add(value)
     return score + 1 / Math.log2(index + 2)
   }, 0)
   const idealMatches = Math.min(expectedSet.size, topK)
@@ -163,6 +197,14 @@ function ndcgAtK(returned: string[], expected: string[], topK: number): number {
     (_value, index) => 1 / Math.log2(index + 2),
   ).reduce((score, gain) => score + gain, 0)
   return idealDcg === 0 ? 0 : dcg / idealDcg
+}
+
+function percentile(sortedValues: number[], quantile: number): number {
+  if (sortedValues.length === 0) {
+    return 0
+  }
+  const index = Math.ceil(quantile * sortedValues.length) - 1
+  return sortedValues[Math.max(0, index)] ?? 0
 }
 
 function mean(values: number[]): number {

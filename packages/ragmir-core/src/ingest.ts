@@ -1,4 +1,3 @@
-import path from "node:path"
 import { recordAccess } from "./access-log.js"
 import { chunkDocument } from "./chunking.js"
 import { loadConfig } from "./config.js"
@@ -10,19 +9,22 @@ import {
   summarizeUnsupportedExtensions,
 } from "./files.js"
 import { INDEX_SCHEMA_VERSION } from "./index-diagnostics.js"
+import { indexPolicyFingerprint } from "./index-policy.js"
 import { parseFile } from "./parsing.js"
 import { redactText, totalRedactions } from "./redaction.js"
 import {
   openRowsTable,
   readEmptyTextFiles,
-  readRows,
+  readIndexManifest,
+  updateRows,
   writeEmptyTextFiles,
   writeIndexManifest,
   writeRows,
 } from "./store.js"
-import { normalizeForMatch } from "./text.js"
 import type {
   AuditReport,
+  Config,
+  IndexManifestFile,
   IngestOptions,
   IngestResult,
   RedactionCount,
@@ -33,7 +35,6 @@ import type {
 } from "./types.js"
 import { VERSION } from "./version.js"
 
-const MAX_AUDIT_ROWS = 100_000
 const MAX_SOURCE_DIAGNOSTIC_ITEMS = 20
 const ARCHIVE_PATH_PATTERNS = [
   /(^|[/_-])archive(s)?([/_-]|$)/iu,
@@ -52,15 +53,44 @@ const MIRROR_PATH_PATTERNS = [
 
 export async function ingest(options: IngestOptions = {}): Promise<IngestResult> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  const inventory = await inventorySourceFiles(config)
+  const policyFingerprint = indexPolicyFingerprint(config)
+  const existingManifest = await readIndexManifest(config)
+  const manifestCompatible =
+    !options.rebuild &&
+    existingManifest?.schemaVersion === INDEX_SCHEMA_VERSION &&
+    existingManifest.indexPolicyFingerprint === policyFingerprint &&
+    existingManifest.indexedFiles !== undefined
+  const existingTable = manifestCompatible ? await openRowsTable(config) : null
+  const storedEmptyFiles = manifestCompatible ? await readEmptyTextFiles(config) : []
+  const knownFiles = new Map(
+    [...(existingManifest?.indexedFiles ?? []), ...storedEmptyFiles].map((file) => [
+      file.relativePath,
+      file,
+    ]),
+  )
+  const inventory = await inventorySourceFiles(config, { knownFiles })
   const files = inventory.supportedFiles
+  const inventoryMetrics = sourceInventoryMetrics(files)
   const currentFiles = new Map(files.map((file) => [file.relativePath, file]))
-  const existingRows = options.rebuild ? [] : await readRows(config)
-  const reusableRows = options.rebuild ? [] : reusableIndexRows(existingRows, currentFiles, config)
-  const reusableFiles = new Set(reusableRows.map((row) => row.relativePath))
-  const filesToIndex = options.rebuild
-    ? files
-    : files.filter((file) => !reusableFiles.has(file.relativePath))
+  const policyRebuild =
+    !options.rebuild &&
+    existingManifest !== null &&
+    (existingManifest.schemaVersion !== INDEX_SCHEMA_VERSION ||
+      existingManifest.indexPolicyFingerprint !== policyFingerprint)
+  const canReuse = manifestCompatible && existingTable !== null
+  const previousIndexedFiles = canReuse ? (existingManifest.indexedFiles ?? []) : []
+  const previousEmptyFiles = canReuse ? storedEmptyFiles : []
+  const reusableIndexedFiles = previousIndexedFiles.filter(
+    (file) => currentFiles.get(file.relativePath)?.checksum === file.checksum,
+  )
+  const reusableEmptyFiles = previousEmptyFiles.filter(
+    (file) => currentFiles.get(file.relativePath)?.checksum === file.checksum,
+  )
+  const reusableFiles = new Set([
+    ...reusableIndexedFiles.map((file) => file.relativePath),
+    ...reusableEmptyFiles.map((file) => file.relativePath),
+  ])
+  const filesToIndex = files.filter((file) => !reusableFiles.has(file.relativePath))
   const allChunks: TextChunk[] = []
   const errors: IngestResult["errors"] = []
   const redactionCounts: RedactionCount[] = []
@@ -122,10 +152,25 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
     }
   }
 
-  const indexRows = [...reusableRows, ...rows]
-  const writeResult = await writeRows(indexRows, config)
-  if (indexRows.length > 0) {
-    const firstRow = indexRows[0]
+  const rebuiltIndexedFiles = indexedFileRecords(rows)
+  const indexedFiles = [...reusableIndexedFiles, ...rebuiltIndexedFiles].sort((a, b) =>
+    a.relativePath.localeCompare(b.relativePath),
+  )
+  const chunkCount = indexedFiles.reduce((sum, file) => sum + file.chunkCount, 0)
+  const previousPaths = new Set(previousIndexedFiles.map((file) => file.relativePath))
+  const currentPaths = new Set(files.map((file) => file.relativePath))
+  const replacePaths = [
+    ...filesToIndex.map((file) => file.relativePath),
+    ...[...previousPaths].filter((relativePath) => !currentPaths.has(relativePath)),
+  ]
+  const writeResult =
+    !canReuse || chunkCount === 0
+      ? await writeRows(rows, config)
+      : replacePaths.length > 0
+        ? await updateRows(rows, replacePaths, config)
+        : { vectorIndexWarning: null, lexicalIndexWarning: null }
+  if (chunkCount > 0) {
+    const firstRow = rows[0] ?? (await firstStoredRow(config))
     if (!firstRow) {
       throw new Error("Cannot write an index manifest without indexed rows.")
     }
@@ -136,41 +181,61 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
         ragmirVersion: VERSION,
         embeddingProvider: config.embeddingProvider,
         embeddingModel: config.embeddingModel,
+        indexPolicyFingerprint: policyFingerprint,
         vectorDimension: firstRow.vector.length,
         vectorDistanceMetric: VECTOR_DISTANCE_METRIC,
         chunkSize: config.chunkSize,
         chunkOverlap: config.chunkOverlap,
-        fileCount: new Set(indexRows.map((row) => row.relativePath)).size,
-        chunkCount: indexRows.length,
+        fileCount: indexedFiles.length,
+        chunkCount,
+        indexedFiles,
       },
       config,
     )
   }
   await writeEmptyTextFiles(
-    emptyTextFiles.flatMap((relativePath) => {
-      const file = currentFiles.get(relativePath)
-      return file ? [{ relativePath, checksum: file.checksum }] : []
-    }),
+    [
+      ...reusableEmptyFiles,
+      ...emptyTextFiles.flatMap((relativePath) => {
+        const file = currentFiles.get(relativePath)
+        return file
+          ? [
+              {
+                relativePath,
+                checksum: file.checksum,
+                bytes: file.bytes,
+                mtimeMs: file.mtimeMs,
+              },
+            ]
+          : []
+      }),
+    ],
     config,
   )
   await recordAccess(config, {
     action: "ingest",
-    resultCount: indexRows.length,
+    resultCount: chunkCount,
     redactions: totalRedactions(redactionCounts),
   })
 
   return {
-    indexedFiles: new Set(indexRows.map((row) => row.relativePath)).size,
+    indexedFiles: indexedFiles.length,
     rebuiltFiles: new Set(rows.map((row) => row.relativePath)).size,
     reusedFiles: reusableFiles.size,
-    chunks: indexRows.length,
+    policyRebuild,
+    chunks: chunkCount,
     discoveredFiles: inventory.discoveredFiles,
     supportedFiles: files.length,
+    supportedBytes: inventoryMetrics.supportedBytes,
+    largestFileBytes: inventoryMetrics.largestFileBytes,
     skippedFiles: inventory.skippedFiles.length + emptyTextFiles.length,
     unsupportedFiles: countSkippedByReason(inventory.skippedFiles, "unsupported-extension"),
     oversizedFiles: countSkippedByReason(inventory.skippedFiles, "oversized"),
     sensitiveFiles: countSkippedByReason(inventory.skippedFiles, "sensitive-name"),
-    emptyTextFiles,
+    emptyTextFiles: [
+      ...reusableEmptyFiles.map((file) => file.relativePath),
+      ...emptyTextFiles,
+    ].sort(),
     unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
     redactions: totalRedactions(redactionCounts),
     vectorIndexWarning: writeResult.vectorIndexWarning,
@@ -179,48 +244,44 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
   }
 }
 
-function reusableIndexRows(
-  rows: VectorRow[],
-  currentFiles: Map<string, { checksum: string }>,
-  config: { embeddingProvider: string; embeddingModel: string },
-): VectorRow[] {
-  const rowsByFile = new Map<string, VectorRow[]>()
+function indexedFileRecords(rows: VectorRow[]): IndexManifestFile[] {
+  const records = new Map<string, IndexManifestFile>()
   for (const row of rows) {
-    const fileRows = rowsByFile.get(row.relativePath) ?? []
-    fileRows.push(row)
-    rowsByFile.set(row.relativePath, fileRows)
+    const current = records.get(row.relativePath)
+    records.set(row.relativePath, {
+      relativePath: row.relativePath,
+      checksum: row.checksum,
+      chunkCount: (current?.chunkCount ?? 0) + 1,
+      bytes: row.bytes,
+      mtimeMs: row.mtimeMs,
+    })
   }
+  return [...records.values()]
+}
 
-  const reusableRows: VectorRow[] = []
-  for (const [relativePath, fileRows] of rowsByFile) {
-    const file = currentFiles.get(relativePath)
-    if (!file) {
-      continue
-    }
-    if (
-      fileRows.every(
-        (row) =>
-          row.checksum === file.checksum &&
-          row.embeddingProvider === config.embeddingProvider &&
-          row.embeddingModel === config.embeddingModel,
-      )
-    ) {
-      reusableRows.push(...fileRows)
-    }
+async function firstStoredRow(config: Config): Promise<VectorRow | null> {
+  const table = await openRowsTable(config)
+  if (!table) {
+    return null
   }
-  return reusableRows
+  const [row] = (await table.query().limit(1).toArray()) as VectorRow[]
+  return row ?? null
 }
 
 export async function audit(cwd = process.cwd()): Promise<AuditReport> {
   const config = await loadConfig(cwd)
   const inventory = await inventorySourceFiles(config)
   const files = inventory.supportedFiles
+  const inventoryMetrics = sourceInventoryMetrics(files)
   const supportedFiles = files.map((file) => file.relativePath)
   const table = await openRowsTable(config)
   const emptyTextFiles = await currentEmptyTextFiles(config, files)
 
   if (!table) {
     return {
+      discoveredFiles: inventory.discoveredFiles,
+      supportedBytes: inventoryMetrics.supportedBytes,
+      largestFileBytes: inventoryMetrics.largestFileBytes,
       indexedFiles: [],
       supportedFiles,
       skippedFiles: inventory.skippedFiles,
@@ -233,7 +294,7 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
     }
   }
 
-  const rows = (await table.query().limit(MAX_AUDIT_ROWS).toArray()) as Array<{
+  const rows = (await table.query().select(["relativePath", "checksum"]).toArray()) as Array<{
     relativePath: string
     checksum?: string
   }>
@@ -253,6 +314,9 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
   const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]))
 
   return {
+    discoveredFiles: inventory.discoveredFiles,
+    supportedBytes: inventoryMetrics.supportedBytes,
+    largestFileBytes: inventoryMetrics.largestFileBytes,
     indexedFiles: [...counts.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([source, chunks]) => ({ source, chunks })),
@@ -278,6 +342,19 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
   }
 }
 
+function sourceInventoryMetrics(files: SourceFile[]): {
+  supportedBytes: number
+  largestFileBytes: number
+} {
+  let supportedBytes = 0
+  let largestFileBytes = 0
+  for (const file of files) {
+    supportedBytes += file.bytes
+    largestFileBytes = Math.max(largestFileBytes, file.bytes)
+  }
+  return { supportedBytes, largestFileBytes }
+}
+
 function sourceDiagnostics(
   supportedFiles: SourceFile[],
   skippedFiles: Array<{ relativePath: string }>,
@@ -295,24 +372,12 @@ function sourceDiagnostics(
 
 function duplicateCandidates(files: SourceFile[]): SourceDiagnostics["duplicateCandidates"] {
   const byChecksum = new Map<string, string[]>()
-  const byLogicalName = new Map<string, string[]>()
 
   for (const file of files) {
     appendGrouped(byChecksum, `sha256:${file.checksum.slice(0, 12)}`, file.relativePath)
-    const logicalName = normalizedLogicalName(file.relativePath)
-    if (logicalName.length >= 6) {
-      appendGrouped(byLogicalName, `name:${logicalName}`, file.relativePath)
-    }
   }
 
-  const exact = groupedDuplicates(byChecksum)
-  const logical = groupedDuplicates(byLogicalName).filter(
-    (candidate) =>
-      !exact.some((exactCandidate) =>
-        candidate.files.every((file) => exactCandidate.files.includes(file)),
-      ),
-  )
-  return [...exact, ...logical]
+  return groupedDuplicates(byChecksum)
     .sort((a, b) => b.files.length - a.files.length || a.key.localeCompare(b.key))
     .slice(0, MAX_SOURCE_DIAGNOSTIC_ITEMS)
 }
@@ -341,13 +406,6 @@ function groupedDuplicates(
   return [...groups.entries()]
     .filter(([, files]) => files.length > 1)
     .map(([key, files]) => ({ key, files: [...new Set(files)].sort() }))
-}
-
-function normalizedLogicalName(relativePath: string): string {
-  return normalizeForMatch(path.basename(relativePath, path.extname(relativePath))).replace(
-    /[^a-z0-9]+/gu,
-    "",
-  )
 }
 
 async function currentEmptyTextFiles(

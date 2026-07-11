@@ -32,6 +32,7 @@ import {
   ArrowUp,
   BookOpenCheck,
   CheckCircle2,
+  CircleStop,
   Cloud,
   Copy,
   Download,
@@ -80,10 +81,24 @@ import {
   upsertProject,
 } from "./lib/project-registry.js"
 import {
+  type ChatCitationStatus,
+  type ChatComputeBackend,
+  type ChatDoctorReport,
+  type ChatHistoryMessage,
+  type ChatProfile,
+  type ChatResult,
+  type ChatRuntimeEvent,
+  type ChatStopReason,
+  type ChatThinkingMode,
+  cancelRagmirChat,
+  doctorRagmirChat,
+  generateRagmirChat,
+  setupRagmirChat,
+  shutdownRagmirChat,
+} from "./lib/ragmir-chat-runtime.js"
+import {
   type AudioDoctorReport,
   type AudioRenderResult,
-  type ChatDoctorReport,
-  type ChatResult,
   type DoctorReport,
   type IngestResult,
   type RagmirConfigFile,
@@ -91,12 +106,10 @@ import {
   runAudioDoctor,
   runAudioPreload,
   runAudioSummary,
-  runChat,
-  runChatDoctor,
-  runChatSetup,
   runDoctor,
   runIngest,
   runModelsPull,
+  runSearch,
   runSecurityAudit,
   runStatus,
   type SecurityAuditReport,
@@ -108,7 +121,7 @@ type View = "chat" | "config" | "privacy" | "license"
 type SetupStepId = "initialize" | "semantic" | "chat" | "tts" | "index" | "verify"
 type SetupStepStatus = "idle" | "running" | "done" | "error"
 type ChatMessageRole = "user" | "assistant"
-type ChatMessageStatus = "done" | "thinking" | "streaming" | "error"
+type ChatMessageStatus = "done" | "loading" | "reasoning" | "streaming" | "cancelled" | "error"
 type ChatMessageAudioStatus = "rendering" | "ready" | "playing" | "paused" | "error"
 type ChatRuntime = "local" | "codex" | "claude" | "other-agent"
 type ChatSource = ChatResult["sources"][number]
@@ -121,15 +134,14 @@ const AUTO_INGEST_POLL_MS = 30_000
 const AUTO_INGEST_INTERVAL_MS = 5 * 60 * 1000
 const CHAT_TOP_K = 6
 const CHAT_HISTORY_MESSAGE_LIMIT = 8
-const CHAT_HISTORY_CHAR_LIMIT = 2400
 const CHAT_HISTORY_MESSAGE_CHAR_LIMIT = 420
 const CHAT_AUDIO_SOURCE_LIMIT = 3
-const ASSISTANT_STREAM_CHUNK_SIZE = 5
-const ASSISTANT_STREAM_DELAY_MS = 24
 const EMPTY_WORKSPACE_MESSAGE = "Add a project to create a private Ragmir workspace."
 const CHAT_THREADS_STORAGE_KEY = "ragmir.chatThreads.v1"
 const ACTIVE_CHAT_ID_STORAGE_KEY = "ragmir.activeChatId.v1"
 const CHAT_RUNTIME_STORAGE_KEY = "ragmir.chatRuntime.v1"
+const CHAT_PROFILE_STORAGE_KEY = "ragmir.chatProfile.v1"
+const CHAT_THINKING_STORAGE_KEY = "ragmir.chatThinking.v1"
 
 const Markdown = lazy(() => import("react-markdown"))
 
@@ -255,7 +267,7 @@ const SETUP_STEP_DEFINITIONS: Array<Omit<SetupStep, "status">> = [
   {
     id: "chat",
     label: "Prepare local chat",
-    detail: "Preload the Transformers chat model for offline answers.",
+    detail: "Download and verify the selected local GGUF profile once.",
   },
   {
     id: "tts",
@@ -270,7 +282,7 @@ const SETUP_STEP_DEFINITIONS: Array<Omit<SetupStep, "status">> = [
   {
     id: "verify",
     label: "Verify privacy and readiness",
-    detail: "Check config, index, chat, and local privacy posture.",
+    detail: "Check config, index, local chat runtime, and privacy posture.",
   },
 ]
 
@@ -317,11 +329,15 @@ export function App(): React.JSX.Element {
   const [chatThreads, setChatThreads] = useState<ChatThread[]>(() => loadChatThreads())
   const [activeChatId, setActiveChatId] = useState<string | null>(() => loadActiveChatId())
   const [chatRuntime, setChatRuntime] = useState<ChatRuntime>(() => loadChatRuntime())
+  const [chatProfile, setChatProfile] = useState<ChatProfile>(() => loadChatProfile())
+  const [chatThinking, setChatThinking] = useState<ChatThinkingMode>(() => loadChatThinking())
   const [projectRoot, setProjectRoot] = useState("")
   const [googleDriveRoot, setGoogleDriveRoot] = useState("")
   const [dropStatus, setDropStatus] = useState("Add a project folder or drop it here.")
   const [runtimeMessage, setRuntimeMessage] = useState(EMPTY_WORKSPACE_MESSAGE)
   const [isRunning, setIsRunning] = useState(false)
+  const [isChatGenerating, setIsChatGenerating] = useState(false)
+  const [isCancellingChat, setIsCancellingChat] = useState(false)
   const [isChoosingFolder, setIsChoosingFolder] = useState(false)
   const [setupSteps, setSetupSteps] = useState<SetupStep[]>(() => createSetupSteps())
   const [question, setQuestion] = useState("")
@@ -342,6 +358,11 @@ export function App(): React.JSX.Element {
   const isRunningRef = useRef(isRunning)
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null)
   const playingAudioTargetRef = useRef<{ chatId: string; messageId: string } | null>(null)
+  const activeChatRequestRef = useRef<string | null>(null)
+  const chatCancelRequestedRef = useRef(false)
+  const chatCancelSentRef = useRef(false)
+  const chatRuntimeAcknowledgedRef = useRef(false)
+  const chatRuntimeActiveRef = useRef(false)
   const autoIngestRunnerRef = useRef<(project: RagmirProject) => Promise<void>>(async () => {})
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
   const activeProjectChats = activeProject
@@ -379,6 +400,21 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     saveChatRuntime(chatRuntime)
   }, [chatRuntime])
+
+  useEffect(() => {
+    saveChatProfile(chatProfile)
+    setChatDoctorReport(null)
+  }, [chatProfile])
+
+  useEffect(() => {
+    if (chatProfile === "lite") {
+      setChatThinking("off")
+    }
+  }, [chatProfile])
+
+  useEffect(() => {
+    saveChatThinking(chatThinking)
+  }, [chatThinking])
 
   useEffect(() => {
     isRunningRef.current = isRunning
@@ -621,7 +657,7 @@ export function App(): React.JSX.Element {
       const [report, status, chatDoctor, audioDoctor] = await Promise.all([
         runDoctor(project.projectRoot),
         runStatus(project.projectRoot),
-        runChatDoctor(project.projectRoot),
+        doctorRagmirChat(project.projectRoot, chatProfile),
         runAudioDoctor(project.projectRoot),
       ])
       updateProjectFromDoctor(project, report)
@@ -652,10 +688,11 @@ export function App(): React.JSX.Element {
       })
 
       await runSetupStep("chat", async () => {
-        const setupResult = await runChatSetup(project.projectRoot)
-        const doctor = await runChatDoctor(project.projectRoot)
+        await shutdownRagmirChat()
+        const setupResult = await setupRagmirChat(project.projectRoot, chatProfile)
+        const doctor = await doctorRagmirChat(project.projectRoot, chatProfile)
         setChatDoctorReport(doctor)
-        setRuntimeMessage(`Local chat model ready: ${setupResult.model}.`)
+        setRuntimeMessage(`${chatProfileLabel(setupResult.profile)} ready: ${setupResult.model}.`)
       })
 
       await runSetupStep("tts", async () => {
@@ -674,7 +711,7 @@ export function App(): React.JSX.Element {
         const [report, status, chatDoctor, audioDoctor, security] = await Promise.all([
           runDoctor(project.projectRoot),
           runStatus(project.projectRoot),
-          runChatDoctor(project.projectRoot),
+          doctorRagmirChat(project.projectRoot, chatProfile),
           runAudioDoctor(project.projectRoot),
           runSecurityAudit(project.projectRoot),
         ])
@@ -765,10 +802,11 @@ export function App(): React.JSX.Element {
     }
 
     await runProjectCommand("Preparing local chat model", activeProject, async () => {
-      const setupResult = await runChatSetup(activeProject.projectRoot)
-      const doctor = await runChatDoctor(activeProject.projectRoot)
+      await shutdownRagmirChat()
+      const setupResult = await setupRagmirChat(activeProject.projectRoot, chatProfile)
+      const doctor = await doctorRagmirChat(activeProject.projectRoot, chatProfile)
       setChatDoctorReport(doctor)
-      setRuntimeMessage(`Local chat model ready: ${setupResult.model}.`)
+      setRuntimeMessage(`${chatProfileLabel(setupResult.profile)} ready: ${setupResult.model}.`)
     })
   }
 
@@ -916,7 +954,7 @@ export function App(): React.JSX.Element {
     const targetThread = activeChat ?? createChatThread(activeProject.id, trimmedQuestion)
     const userMessage = createChatMessage("user", trimmedQuestion, undefined, { status: "done" })
     const assistantMessage = createChatMessage("assistant", "", undefined, {
-      status: "thinking",
+      status: "loading",
       statusLabel: "Searching local context",
     })
     const initialThread: ChatThread = {
@@ -928,76 +966,156 @@ export function App(): React.JSX.Element {
       messages: [...targetThread.messages, userMessage, assistantMessage],
       updatedAt: assistantMessage.createdAt,
     }
-    const contextualQuestion = buildContextualChatQuestion(targetThread.messages, trimmedQuestion)
+    const requestId = createLocalId("generation")
 
     setActiveChatId(initialThread.id)
     setQuestion("")
     setChatThreads((currentThreads) => upsertChatThread(currentThreads, initialThread))
     setView("chat")
     setIsRunning(true)
+    setIsChatGenerating(true)
+    setIsCancellingChat(false)
+    activeChatRequestRef.current = requestId
+    chatCancelRequestedRef.current = false
+    chatCancelSentRef.current = false
+    chatRuntimeAcknowledgedRef.current = false
+    chatRuntimeActiveRef.current = false
     setRuntimeMessage("Searching local Ragmir context...")
 
+    let streamedContent = ""
     try {
-      const rawResult = await runChat(activeProject.projectRoot, contextualQuestion, CHAT_TOP_K)
-      const result = normalizeChatResultForDisplay(rawResult, trimmedQuestion)
-      setRuntimeMessage("Writing the answer...")
-      await streamAssistantMessage(initialThread.id, assistantMessage.id, result)
-      setChatResult(result)
-      setRuntimeMessage(
-        result.emptyContext
-          ? "No relevant local context found. Add or index documents, then ask again."
-          : `Answered from ${result.sources.length} cited source${result.sources.length === 1 ? "" : "s"} with recent chat context.`,
+      const search = await runSearch(activeProject.projectRoot, trimmedQuestion, CHAT_TOP_K)
+      if (chatCancelRequestedRef.current) {
+        setChatThreads((currentThreads) =>
+          updateChatMessage(currentThreads, initialThread.id, assistantMessage.id, {
+            content: "Local answer cancelled before generation started.",
+            status: "cancelled",
+            statusLabel: "Cancelled",
+          }),
+        )
+        setRuntimeMessage("Local answer cancelled.")
+        return
+      }
+
+      chatRuntimeActiveRef.current = true
+      const terminal = await generateRagmirChat(
+        {
+          projectRoot: activeProject.projectRoot,
+          id: requestId,
+          question: trimmedQuestion,
+          history: chatHistoryMessages(targetThread.messages),
+          sources: search.results,
+          profile: chatProfile,
+          thinking: chatThinking,
+        },
+        (runtimeEvent) => {
+          chatRuntimeAcknowledgedRef.current = true
+          if (
+            chatCancelRequestedRef.current &&
+            !chatCancelSentRef.current &&
+            runtimeEvent.event !== "completed" &&
+            runtimeEvent.event !== "cancelled" &&
+            runtimeEvent.event !== "error"
+          ) {
+            chatCancelSentRef.current = true
+            void cancelRagmirChat(requestId).catch((error: unknown) => {
+              chatCancelSentRef.current = false
+              setRuntimeMessage(
+                error instanceof Error ? error.message : "Unable to cancel local chat.",
+              )
+            })
+          }
+          streamedContent = applyChatRuntimeEvent(runtimeEvent, streamedContent, (patch) =>
+            setChatThreads((currentThreads) =>
+              updateChatMessage(currentThreads, initialThread.id, assistantMessage.id, patch),
+            ),
+          )
+        },
       )
+
+      if (chatCancelRequestedRef.current && terminal.event === "completed") {
+        setChatThreads((currentThreads) =>
+          updateChatMessage(currentThreads, initialThread.id, assistantMessage.id, {
+            content: streamedContent.trim() || "Local answer cancelled.",
+            status: "cancelled",
+            statusLabel: "Cancelled",
+          }),
+        )
+        setRuntimeMessage("Local answer cancelled.")
+        return
+      }
+      if (terminal.event === "cancelled") {
+        const partialAnswer = terminal.partialAnswer.trim() || streamedContent.trim()
+        setChatThreads((currentThreads) =>
+          updateChatMessage(currentThreads, initialThread.id, assistantMessage.id, {
+            content: partialAnswer || "Local answer cancelled.",
+            status: "cancelled",
+            statusLabel: "Cancelled",
+          }),
+        )
+        setRuntimeMessage("Local answer cancelled. Partial answer kept locally.")
+        return
+      }
+      if (terminal.event === "error") {
+        throw new Error(terminal.message)
+      }
+
+      const result = normalizeChatResultForDisplay(terminal.result, trimmedQuestion)
+      setChatThreads((currentThreads) =>
+        updateChatMessage(currentThreads, initialThread.id, assistantMessage.id, {
+          content: result.answer,
+          result,
+          status: "done",
+          statusLabel: null,
+        }),
+      )
+      setChatResult(result)
+      setRuntimeMessage(chatCompletionMessage(result))
     } catch (error) {
       const message = error instanceof Error ? error.message : "Local chat failed."
       setChatThreads((currentThreads) =>
         updateChatMessage(currentThreads, initialThread.id, assistantMessage.id, {
-          content: `I could not complete the local answer.\n\n${message}`,
+          content: streamedContent.trim()
+            ? `${streamedContent.trim()}\n\nLocal generation stopped: ${message}`
+            : `I could not complete the local answer.\n\n${message}`,
           status: "error",
           statusLabel: "Failed",
         }),
       )
       setRuntimeMessage(message)
     } finally {
+      if (activeChatRequestRef.current === requestId) {
+        activeChatRequestRef.current = null
+      }
+      chatCancelRequestedRef.current = false
+      chatCancelSentRef.current = false
+      chatRuntimeAcknowledgedRef.current = false
+      chatRuntimeActiveRef.current = false
+      setIsCancellingChat(false)
+      setIsChatGenerating(false)
       setIsRunning(false)
     }
   }
 
-  async function streamAssistantMessage(
-    chatId: string,
-    messageId: string,
-    result: ChatResult,
-  ): Promise<void> {
-    setChatThreads((currentThreads) =>
-      updateChatMessage(currentThreads, chatId, messageId, {
-        content: "",
-        status: "streaming",
-        statusLabel: "Writing answer",
-      }),
-    )
-
-    const chunks = chunkMarkdownForStream(result.answer)
-    let streamedContent = ""
-    for (const chunk of chunks) {
-      streamedContent += chunk
-      setChatThreads((currentThreads) =>
-        updateChatMessage(currentThreads, chatId, messageId, {
-          content: streamedContent,
-          status: "streaming",
-          statusLabel: "Writing answer",
-        }),
-      )
-      await sleep(ASSISTANT_STREAM_DELAY_MS)
+  async function handleCancelChat(): Promise<void> {
+    const requestId = activeChatRequestRef.current
+    if (!requestId || !isRunning) {
+      return
     }
-
-    setChatThreads((currentThreads) =>
-      updateChatMessage(currentThreads, chatId, messageId, {
-        content: result.answer,
-        result,
-        status: "done",
-        statusLabel: null,
-      }),
-    )
+    chatCancelRequestedRef.current = true
+    setIsCancellingChat(true)
+    setRuntimeMessage("Cancelling the local answer...")
+    if (!chatRuntimeActiveRef.current || !chatRuntimeAcknowledgedRef.current) {
+      return
+    }
+    chatCancelSentRef.current = true
+    try {
+      await cancelRagmirChat(requestId)
+    } catch (error) {
+      chatCancelSentRef.current = false
+      setIsCancellingChat(false)
+      setRuntimeMessage(error instanceof Error ? error.message : "Unable to cancel local chat.")
+    }
   }
 
   function handleExportMarkdown(): void {
@@ -1272,13 +1390,18 @@ export function App(): React.JSX.Element {
               activeProject={activeProject}
               audioRenderingMessageId={audioRenderingMessageId}
               audioDoctorReport={audioDoctorReport}
+              chatProfile={chatProfile}
               chatRuntime={chatRuntime}
               chatResult={activeChatResult}
               chatDoctorReport={chatDoctorReport}
+              chatThinking={chatThinking}
               dropStatus={dropStatus}
               googleDriveRoot={googleDriveRoot}
               isChoosingFolder={isChoosingFolder}
+              isCancellingChat={isCancellingChat}
+              isChatGenerating={isChatGenerating}
               isRunning={isRunning}
+              onCancelChat={handleCancelChat}
               onChooseFolder={() => void handleChooseFolder()}
               onChooseGoogleDriveFolder={() => void handleChooseFolder("google-drive")}
               onDrop={handleDrop}
@@ -1300,6 +1423,8 @@ export function App(): React.JSX.Element {
               onAskSubmit={handleAskSubmit}
               onQuestionChange={setQuestion}
               onChatRuntimeChange={setChatRuntime}
+              onChatProfileChange={setChatProfile}
+              onChatThinkingChange={setChatThinking}
               onViewChange={setView}
               playingAudioMessageId={playingAudioMessageId}
               projectRoot={projectRoot}
@@ -1712,13 +1837,18 @@ interface ProjectChatViewProps {
   activeProject: RagmirProject | null
   audioRenderingMessageId: string | null
   audioDoctorReport: AudioDoctorReport | null
+  chatProfile: ChatProfile
   chatRuntime: ChatRuntime
   chatResult: ChatResult | null
   chatDoctorReport: ChatDoctorReport | null
+  chatThinking: ChatThinkingMode
   dropStatus: string
   googleDriveRoot: string
   isChoosingFolder: boolean
+  isCancellingChat: boolean
+  isChatGenerating: boolean
   isRunning: boolean
+  onCancelChat: () => Promise<void>
   onChooseFolder: () => void
   onChooseGoogleDriveFolder: () => void
   onDrop: (event: DragEvent<HTMLElement>) => void
@@ -1739,7 +1869,9 @@ interface ProjectChatViewProps {
   onToggleMessageAudio: (chatId: string, messageId: string) => Promise<void>
   onAskSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>
   onQuestionChange: (question: string) => void
+  onChatProfileChange: (profile: ChatProfile) => void
   onChatRuntimeChange: (runtime: ChatRuntime) => void
+  onChatThinkingChange: (thinking: ChatThinkingMode) => void
   onViewChange: (view: View) => void
   playingAudioMessageId: string | null
   projectRoot: string
@@ -1754,13 +1886,18 @@ function ProjectChatView({
   activeProject,
   audioRenderingMessageId,
   audioDoctorReport,
+  chatProfile,
   chatRuntime,
   chatResult,
   chatDoctorReport,
+  chatThinking,
   dropStatus,
   googleDriveRoot,
   isChoosingFolder,
+  isCancellingChat,
+  isChatGenerating,
   isRunning,
+  onCancelChat,
   onChooseFolder,
   onChooseGoogleDriveFolder,
   onDrop,
@@ -1781,7 +1918,9 @@ function ProjectChatView({
   onToggleMessageAudio,
   onAskSubmit,
   onQuestionChange,
+  onChatProfileChange,
   onChatRuntimeChange,
+  onChatThinkingChange,
   onViewChange,
   playingAudioMessageId,
   projectRoot,
@@ -1958,8 +2097,17 @@ function ProjectChatView({
               <form className="mt-3" onSubmit={onAskSubmit}>
                 <ChatContextSummary
                   chatDoctorReport={chatDoctorReport}
-                  isRunning={isRunning}
+                  chatProfile={chatProfile}
+                  chatThinking={chatThinking}
+                  isRunning={isChatGenerating}
                   messages={messages}
+                />
+                <ChatGenerationControls
+                  disabled={isRunning}
+                  onProfileChange={onChatProfileChange}
+                  onThinkingChange={onChatThinkingChange}
+                  profile={chatProfile}
+                  thinking={chatThinking}
                 />
                 <Textarea
                   aria-label="Question for Ragmir"
@@ -1980,7 +2128,7 @@ function ProjectChatView({
                       onClick={onPrepareChat}
                     >
                       <Sparkles data-icon="inline-start" />
-                      Prepare chat
+                      Prepare local chat
                     </Button>
                     <Button
                       disabled={!chatResult || isRunning}
@@ -2003,14 +2151,31 @@ function ProjectChatView({
                       Prepare audio
                     </Button>
                   </div>
-                  <Button disabled={isRunning || !question.trim()} size="sm" type="submit">
-                    {isRunning ? (
-                      <LoaderCircle className="animate-spin" data-icon="inline-start" />
-                    ) : (
-                      <ArrowUp data-icon="inline-start" />
-                    )}
-                    {isRunning ? "Thinking" : "Send"}
-                  </Button>
+                  {isChatGenerating ? (
+                    <Button
+                      disabled={isCancellingChat}
+                      size="sm"
+                      type="button"
+                      variant="danger"
+                      onClick={() => void onCancelChat()}
+                    >
+                      {isCancellingChat ? (
+                        <LoaderCircle className="animate-spin" data-icon="inline-start" />
+                      ) : (
+                        <CircleStop data-icon="inline-start" />
+                      )}
+                      {isCancellingChat ? "Cancelling" : "Cancel"}
+                    </Button>
+                  ) : (
+                    <Button disabled={isRunning || !question.trim()} size="sm" type="submit">
+                      {isRunning ? (
+                        <LoaderCircle className="animate-spin" data-icon="inline-start" />
+                      ) : (
+                        <ArrowUp data-icon="inline-start" />
+                      )}
+                      {isRunning ? "Busy" : "Send"}
+                    </Button>
+                  )}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
                   {runtimeMessage}
@@ -2092,6 +2257,77 @@ function ChatRuntimeChooser({
           </SelectContent>
         </Select>
       </Field>
+    </div>
+  )
+}
+
+interface ChatGenerationControlsProps {
+  disabled: boolean
+  onProfileChange: (profile: ChatProfile) => void
+  onThinkingChange: (thinking: ChatThinkingMode) => void
+  profile: ChatProfile
+  thinking: ChatThinkingMode
+}
+
+function ChatGenerationControls({
+  disabled,
+  onProfileChange,
+  onThinkingChange,
+  profile,
+  thinking,
+}: ChatGenerationControlsProps): React.JSX.Element {
+  return (
+    <div className="mt-3 flex flex-wrap items-end gap-3">
+      <Field className="w-auto">
+        <FieldLabel htmlFor="chat-profile">Local model profile</FieldLabel>
+        <Select
+          disabled={disabled}
+          value={profile}
+          onValueChange={(value) => {
+            if (isChatProfile(value)) {
+              onProfileChange(value)
+            }
+          }}
+        >
+          <SelectTrigger id="chat-profile" className="w-52">
+            <SelectValue placeholder="Choose profile" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="lite">Lite, Qwen2.5 0.5B</SelectItem>
+              <SelectItem value="fast">Fast, Gemma 4 E2B</SelectItem>
+              <SelectItem value="quality">Quality, Gemma 4 E4B</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field className="w-auto">
+        <FieldLabel htmlFor="chat-thinking">Thinking</FieldLabel>
+        <Select
+          disabled={disabled || profile === "lite"}
+          value={profile === "lite" ? "off" : thinking}
+          onValueChange={(value) => {
+            if (isChatThinkingMode(value)) {
+              onThinkingChange(value)
+            }
+          }}
+        >
+          <SelectTrigger id="chat-thinking" className="w-44">
+            <SelectValue placeholder="Choose thinking" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="off">Off</SelectItem>
+              <SelectItem value="standard">Standard</SelectItem>
+              <SelectItem value="deep">Deep</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </Field>
+      <p className="max-w-md pb-2 text-xs text-muted-foreground">
+        Lite targets older computers with a 491 MB model, a smaller context, and thinking disabled.
+        Fast remains the default. Reasoning text is never shown or stored.
+      </p>
     </div>
   )
 }
@@ -2196,23 +2432,31 @@ interface ChatMessageBubbleProps {
 
 interface ChatContextSummaryProps {
   chatDoctorReport: ChatDoctorReport | null
+  chatProfile: ChatProfile
+  chatThinking: ChatThinkingMode
   isRunning: boolean
   messages: ChatMessage[]
 }
 
 function ChatContextSummary({
   chatDoctorReport,
+  chatProfile,
+  chatThinking,
   isRunning,
   messages,
 }: ChatContextSummaryProps): React.JSX.Element {
   const historyMessages = chatContextMessages(messages)
-  const chatModelReady = chatDoctorReport?.localModelPathExists ?? false
+  const chatModelReady =
+    chatDoctorReport?.profile === chatProfile && chatDoctorReport.ready === true
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       <Badge variant={chatModelReady ? "success" : "outline"}>
-        {chatModelReady ? "Local model ready" : "Local model explicit setup"}
+        {chatModelReady
+          ? `${chatProfileLabel(chatProfile)} / ${chatComputeBackendLabel(chatDoctorReport.selectedBackend)}`
+          : `${chatProfileLabel(chatProfile)} needs setup`}
       </Badge>
+      <Badge variant="outline">Thinking: {chatThinkingLabel(chatThinking)}</Badge>
       <Badge variant="outline">Project index + top {CHAT_TOP_K} passages</Badge>
       <Badge variant="outline">
         {historyMessages.length > 0
@@ -2240,7 +2484,8 @@ function ChatMessageBubble({
   project,
 }: ChatMessageBubbleProps): React.JSX.Element {
   const isUser = message.role === "user"
-  const isWorking = message.status === "thinking" || message.status === "streaming"
+  const isWorking =
+    message.status === "loading" || message.status === "reasoning" || message.status === "streaming"
   const isError = message.status === "error"
   const isAudioRendering =
     audioRenderingMessageId === message.id || message.audio?.status === "rendering"
@@ -2297,6 +2542,7 @@ function ChatMessageBubble({
             ))}
           </div>
         ) : null}
+        {message.result ? <ChatCitationNotice result={message.result} /> : null}
         {!isUser && message.content.trim() ? (
           <ChatAudioControls
             audio={message.audio}
@@ -2309,6 +2555,19 @@ function ChatMessageBubble({
         ) : null}
       </div>
     </article>
+  )
+}
+
+function ChatCitationNotice({ result }: { result: ChatResult }): React.JSX.Element | null {
+  const warning = chatCitationWarning(result)
+  if (!warning) {
+    return null
+  }
+  return (
+    <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-100">
+      <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      <span>{warning}</span>
+    </div>
   )
 }
 
@@ -2507,8 +2766,8 @@ function ProjectInspectorPanel({
             />
             <QuickActionRow
               icon={<Sparkles aria-hidden="true" />}
-              title="Prepare chat model"
-              detail="Local chat preload"
+              title="Prepare local chat"
+              detail="Download and verify the selected GGUF profile"
               action="Setup"
               disabled={isRunning}
               onClick={() => void onPrepareChat()}
@@ -2626,6 +2885,9 @@ function CommandCoveragePanel({ activeProject }: CommandCoveragePanelProps): Rea
   const commandPrefix = `rgr --project-root ${
     activeProject ? shellQuote(activeProject.projectRoot) : "<folder>"
   }`
+  const chatCommandPrefix = activeProject
+    ? `cd ${shellQuote(activeProject.projectRoot)} && rgr-chat`
+    : "rgr-chat"
   const groups: CommandCoverageGroup[] = [
     {
       title: "Core workspace",
@@ -2685,14 +2947,32 @@ function CommandCoveragePanel({ activeProject }: CommandCoveragePanelProps): Rea
       ],
     },
     {
-      title: "Chat and TTS",
-      description: "Preload local models once, then answer and render audio offline.",
+      title: "Local chat and TTS",
+      description: "Verify local models once, then stream answers and render audio offline.",
       entries: [
-        { label: "Chat setup", command: `${commandPrefix} chat setup`, status: "automated" },
-        { label: "Chat doctor", command: `${commandPrefix} chat doctor`, status: "app" },
         {
-          label: "Chat answer",
-          command: `${commandPrefix} chat "question" --offline`,
+          label: "Lite setup",
+          command: `${chatCommandPrefix} setup --profile lite`,
+          status: "app",
+        },
+        {
+          label: "Fast setup",
+          command: `${chatCommandPrefix} setup --profile fast`,
+          status: "automated",
+        },
+        {
+          label: "Quality setup",
+          command: `${chatCommandPrefix} setup --profile quality`,
+          status: "app",
+        },
+        {
+          label: "Chat doctor",
+          command: `${chatCommandPrefix} doctor --profile fast`,
+          status: "app",
+        },
+        {
+          label: "Persistent chat",
+          command: `${chatCommandPrefix} serve --profile fast --offline`,
           status: "app",
         },
         { label: "TTS doctor", command: `${commandPrefix} audio --doctor`, status: "app" },
@@ -3207,8 +3487,12 @@ function PrivacyView({
             />
             <ControlTile
               icon={<Sparkles aria-hidden="true" />}
-              title="Chat model"
-              value={chatDoctorReport?.localModelPathExists ? "Prepared locally" : "Explicit setup"}
+              title="Local chat"
+              value={
+                chatDoctorReport?.ready
+                  ? `${chatProfileLabel(chatDoctorReport.profile)} / ${chatComputeBackendLabel(chatDoctorReport.selectedBackend)}`
+                  : "Explicit setup"
+              }
             />
             <ControlTile
               icon={<RefreshCw aria-hidden="true" />}
@@ -3491,7 +3775,8 @@ function chatRuntimeMeta(runtime: ChatRuntime): {
     case "local":
       return {
         badge: "Private",
-        description: "Answers run through Ragmir Chat with local retrieval and offline generation.",
+        description:
+          "Ragmir retrieval plus persistent offline generation with a lite or Gemma profile.",
         isLocal: true,
         title: "Local private chat",
       }
@@ -3517,6 +3802,78 @@ function chatRuntimeMeta(runtime: ChatRuntime): {
         title: "Other agent",
       }
   }
+}
+
+function chatProfileLabel(profile: ChatProfile): string {
+  switch (profile) {
+    case "lite":
+      return "Qwen2.5 0.5B lite"
+    case "fast":
+      return "Gemma 4 E2B fast"
+    case "quality":
+      return "Gemma 4 E4B quality"
+  }
+}
+
+function chatComputeBackendLabel(backend: ChatComputeBackend | null): string {
+  switch (backend) {
+    case "metal":
+      return "Metal"
+    case "cuda":
+      return "CUDA"
+    case "vulkan":
+      return "Vulkan"
+    case "cpu":
+      return "CPU"
+    case null:
+      return "Runtime unavailable"
+  }
+}
+
+function chatThinkingLabel(thinking: ChatThinkingMode): string {
+  switch (thinking) {
+    case "off":
+      return "Off"
+    case "standard":
+      return "Standard"
+    case "deep":
+      return "Deep"
+  }
+}
+
+function chatCompletionMessage(result: ChatResult): string {
+  if (result.emptyContext) {
+    return "No relevant local context found. Add or index documents, then ask again."
+  }
+  const profile = chatProfileLabel(result.profile)
+  if (result.citationStatus === "valid") {
+    return `Answered locally with ${profile} and ${result.citations.length} valid citation${result.citations.length === 1 ? "" : "s"}.`
+  }
+  if (result.citationStatus === "partial") {
+    return `Answered locally with ${profile}. ${result.citations.length} citation${result.citations.length === 1 ? "" : "s"} validated, others need review.`
+  }
+  return `Answered locally with ${profile}, but no complete valid citation set was produced. Review the retrieved sources.`
+}
+
+function chatCitationWarning(result: ChatResult): string | null {
+  if (result.emptyContext || result.citationStatus === "valid") {
+    return null
+  }
+  if (result.citationStatus === "partial") {
+    return "Some source citations could not be validated. Review the retrieved passages before relying on this answer."
+  }
+  if (result.citationStatus === "invalid") {
+    return "The generated citations are invalid. Treat the answer as unverified and review the retrieved passages."
+  }
+  return "The answer contains no valid source citation. Review the retrieved passages before relying on it."
+}
+
+function isChatProfile(value: unknown): value is ChatProfile {
+  return value === "lite" || value === "fast" || value === "quality"
+}
+
+function isChatThinkingMode(value: unknown): value is ChatThinkingMode {
+  return value === "off" || value === "standard" || value === "deep"
 }
 
 function externalAgentHandoff(
@@ -3799,9 +4156,11 @@ function modelStatusRows(
         detail: ".ragmir/config.json",
       },
       {
-        label: "Chat model",
-        value: chatReport?.localModelPathExists ? "Prepared" : "Not prepared",
-        detail: chatReport?.defaultModel ?? "Run Prepare local chat when needed.",
+        label: "Local chat",
+        value: chatReport?.ready ? "Verified" : "Not prepared",
+        detail: chatReport
+          ? `${chatProfileLabel(chatReport.profile)} / ${chatComputeBackendLabel(chatReport.selectedBackend)}`
+          : "Run Prepare local chat when needed.",
       },
       {
         label: "Audio model",
@@ -3821,9 +4180,11 @@ function modelStatusRows(
     },
     { label: "Embedding model", value: report.embeddingModel, detail: "Configured model ID" },
     {
-      label: "Chat model",
-      value: chatReport?.localModelPathExists ? "Prepared" : "Not prepared",
-      detail: chatReport?.defaultModel ?? "Optional local generator",
+      label: "Local chat",
+      value: chatReport?.ready ? "Verified" : "Not prepared",
+      detail: chatReport
+        ? `${chatProfileLabel(chatReport.profile)} / ${chatComputeBackendLabel(chatReport.selectedBackend)}`
+        : "Optional local generator",
     },
     {
       label: "Audio model",
@@ -3869,8 +4230,11 @@ function retrievalReportMarkdown(project: RagmirProject, result: ChatResult): st
     "",
     `Workspace: ${project.name}`,
     `Workspace root: ${project.projectRoot}`,
-    `Question: ${result.query}`,
+    `Question: ${result.question}`,
+    `Profile: ${chatProfileLabel(result.profile)}`,
+    `Thinking: ${chatThinkingLabel(result.thinking)}`,
     `Model: ${result.model}`,
+    `Citation status: ${result.citationStatus}`,
     "",
     "## Answer",
     "",
@@ -3905,14 +4269,16 @@ function chatMessageTtsText(project: RagmirProject, message: ChatMessage): strin
     result?.sources.slice(0, CHAT_AUDIO_SOURCE_LIMIT).map((source, index) => {
       return `Source ${index + 1}: ${source.relativePath}.`
     }) ?? []
+  const sourceSummary =
+    sourceLines.length === 0
+      ? ""
+      : result?.citationStatus === "valid"
+        ? `Validated local citations. ${sourceLines.join(" ")}`
+        : result?.citationStatus === "partial"
+          ? `Some local citations were validated. Review these sources: ${sourceLines.join(" ")}`
+          : `Retrieved local sources for manual review. ${sourceLines.join(" ")}`
 
-  return [
-    `Ragmir answer for ${project.name}.`,
-    answer,
-    sourceLines.length > 0 ? `Cited local sources. ${sourceLines.join(" ")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n")
+  return [`Ragmir answer for ${project.name}.`, answer, sourceSummary].filter(Boolean).join("\n\n")
 }
 
 function stripMarkdownForSpeech(markdown: string): string {
@@ -4079,6 +4445,34 @@ function saveChatRuntime(runtime: ChatRuntime): void {
   window.localStorage.setItem(CHAT_RUNTIME_STORAGE_KEY, runtime)
 }
 
+function loadChatProfile(): ChatProfile {
+  if (typeof window === "undefined") {
+    return "fast"
+  }
+  const value = window.localStorage.getItem(CHAT_PROFILE_STORAGE_KEY)
+  return isChatProfile(value) ? value : "fast"
+}
+
+function saveChatProfile(profile: ChatProfile): void {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(CHAT_PROFILE_STORAGE_KEY, profile)
+  }
+}
+
+function loadChatThinking(): ChatThinkingMode {
+  if (typeof window === "undefined") {
+    return "standard"
+  }
+  const value = window.localStorage.getItem(CHAT_THINKING_STORAGE_KEY)
+  return isChatThinkingMode(value) ? value : "standard"
+}
+
+function saveChatThinking(thinking: ChatThinkingMode): void {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(CHAT_THINKING_STORAGE_KEY, thinking)
+  }
+}
+
 function createChatThread(projectId: string, seedTitle = "New chat"): ChatThread {
   const now = new Date().toISOString()
   return {
@@ -4240,37 +4634,21 @@ function sortChatsByUpdatedAt(first: ChatThread, second: ChatThread): number {
   return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime()
 }
 
-function buildContextualChatQuestion(previousMessages: ChatMessage[], question: string): string {
-  const history = chatContextMessages(previousMessages)
-  if (history.length === 0) {
-    return question
-  }
-
-  const formattedHistory = history
-    .map(
-      (message) =>
-        `${message.role === "user" ? "User" : "Ragmir"}: ${compactChatContent(message.content)}`,
-    )
-    .join("\n\n")
-    .slice(0, CHAT_HISTORY_CHAR_LIMIT)
-
-  return [
-    "Use this recent local chat history only for continuity. The cited Ragmir passages remain the source of truth.",
-    "",
-    "Recent chat history:",
-    formattedHistory,
-    "",
-    "Latest user question:",
-    question,
-  ].join("\n")
+function chatHistoryMessages(messages: ChatMessage[]): ChatHistoryMessage[] {
+  return chatContextMessages(messages).map((message) => ({
+    role: message.role,
+    content: compactChatContent(message.content),
+  }))
 }
 
 function chatContextMessages(messages: ChatMessage[]): ChatMessage[] {
   return messages
     .filter(
       (message) =>
-        message.status !== "thinking" &&
+        message.status !== "loading" &&
+        message.status !== "reasoning" &&
         message.status !== "streaming" &&
+        message.status !== "cancelled" &&
         message.status !== "error" &&
         message.content.trim().length > 0,
     )
@@ -4287,22 +4665,45 @@ function compactChatContent(content: string): string {
 function normalizeChatResultForDisplay(result: ChatResult, question: string): ChatResult {
   return {
     ...result,
-    query: question,
     question,
   }
 }
 
-function chunkMarkdownForStream(markdown: string): string[] {
-  const tokens = markdown.match(/\S+\s*/gu) ?? [markdown]
-  const chunks: string[] = []
-  for (let index = 0; index < tokens.length; index += ASSISTANT_STREAM_CHUNK_SIZE) {
-    chunks.push(tokens.slice(index, index + ASSISTANT_STREAM_CHUNK_SIZE).join(""))
+function applyChatRuntimeEvent(
+  event: ChatRuntimeEvent,
+  streamedContent: string,
+  updateMessage: (patch: ChatMessagePatch) => void,
+): string {
+  if (event.event === "loading") {
+    updateMessage({
+      status: "loading",
+      statusLabel: event.active
+        ? `Loading ${chatProfileLabel(event.profile)}`
+        : "Local model ready",
+    })
+    return streamedContent
   }
-  return chunks.length > 0 ? chunks : [markdown]
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
+  if (event.event === "reasoning") {
+    updateMessage({
+      status: event.active ? "reasoning" : streamedContent ? "streaming" : "loading",
+      statusLabel: event.active
+        ? "Reasoning locally"
+        : streamedContent
+          ? "Writing answer"
+          : "Preparing grounded answer",
+    })
+    return streamedContent
+  }
+  if (event.event === "delta") {
+    const nextContent = `${streamedContent}${event.text}`
+    updateMessage({
+      content: nextContent,
+      status: "streaming",
+      statusLabel: "Writing answer",
+    })
+    return nextContent
+  }
+  return streamedContent
 }
 
 function readChatThread(value: unknown): ChatThread | null {
@@ -4357,7 +4758,15 @@ function readChatMessageRole(value: unknown): ChatMessageRole | null {
 }
 
 function readChatMessageStatus(value: unknown): ChatMessageStatus | null {
-  return value === "done" || value === "thinking" || value === "streaming" || value === "error"
+  if (value === "thinking") {
+    return "loading"
+  }
+  return value === "done" ||
+    value === "loading" ||
+    value === "reasoning" ||
+    value === "streaming" ||
+    value === "cancelled" ||
+    value === "error"
     ? value
     : null
 }
@@ -4419,24 +4828,66 @@ function readChatResult(value: unknown): ChatResult | undefined {
   if (!isPlainRecord(value)) {
     return undefined
   }
-  const query = readRequiredString(value.query)
+  const question = readRequiredString(value.question)
   const answer = readRequiredString(value.answer)
   const model = readRequiredString(value.model)
-  if (!query || !answer || !model) {
+  const profile = isChatProfile(value.profile) ? value.profile : null
+  const thinking = isChatThinkingMode(value.thinking) ? value.thinking : null
+  const citationStatus = readChatCitationStatus(value.citationStatus)
+  const stopReason = value.stopReason === null ? null : readChatStopReason(value.stopReason)
+  if (
+    !question ||
+    !answer ||
+    !model ||
+    value.provider !== "node-llama-cpp" ||
+    !profile ||
+    !thinking ||
+    !citationStatus ||
+    (value.stopReason !== null && !stopReason) ||
+    value.allowRemoteModels !== false
+  ) {
     return undefined
   }
   return {
-    query,
-    question: readString(value.question, query),
+    question,
     answer,
     sources: readChatSources(value.sources),
+    provider: "node-llama-cpp",
+    profile,
+    thinking,
     model,
     modelPath: readString(value.modelPath, ""),
-    allowRemoteModels: readBoolean(value.allowRemoteModels, false),
+    allowRemoteModels: false,
     maxNewTokens: readNumber(value.maxNewTokens, 0),
     contextCharLimit: readNumber(value.contextCharLimit, 0),
     emptyContext: readBoolean(value.emptyContext, false),
+    citationStatus,
+    citations: readNumberArray(value.citations),
+    invalidCitations: readNumberArray(value.invalidCitations),
+    stopReason,
+    thoughtTokens: readNumber(value.thoughtTokens, 0),
   }
+}
+
+function readChatCitationStatus(value: unknown): ChatCitationStatus | null {
+  return value === "none" ||
+    value === "missing" ||
+    value === "valid" ||
+    value === "partial" ||
+    value === "invalid"
+    ? value
+    : null
+}
+
+function readChatStopReason(value: unknown): ChatStopReason | null {
+  return value === "abort" ||
+    value === "customStopTrigger" ||
+    value === "eogToken" ||
+    value === "functionCalls" ||
+    value === "maxTokens" ||
+    value === "stopGenerationTrigger"
+    ? value
+    : null
 }
 
 function readChatSources(value: unknown): ChatSource[] {
@@ -4535,6 +4986,12 @@ function readOptionalString(value: unknown): string | null {
 function readStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === "string")
+    : []
+}
+
+function readNumberArray(value: unknown): number[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is number => typeof entry === "number" && Number.isFinite(entry))
     : []
 }
 
