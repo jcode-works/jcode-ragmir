@@ -8,6 +8,7 @@ import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { audit } from "./ingest.js"
+import { ingestionLimits } from "./limits.js"
 import { routePrompt } from "./prompt-routing.js"
 import { ask, search } from "./query.js"
 import { compactResearchReport, compactSearchResults, research } from "./research.js"
@@ -19,6 +20,8 @@ const queryToolInputSchema = z.object({
   query: z.string().min(1),
   topK: z.number().int().positive().optional(),
   contextRadius: z.number().int().min(0).optional(),
+  includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+  excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
 })
 
 const researchToolInputSchema = z.object({
@@ -26,6 +29,8 @@ const researchToolInputSchema = z.object({
   topK: z.number().int().positive().optional(),
   includeCode: z.boolean().optional(),
   compact: z.boolean().optional(),
+  includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+  excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
 })
 
 const searchToolInputSchema = queryToolInputSchema.extend({
@@ -62,14 +67,24 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
     async () => {
       const config = await loadConfig(cwd)
       const chunksIndexed = await countRows(config)
+      const strict = config.privacyProfile === "strict"
       const output = {
-        projectRoot: config.projectRoot,
-        rawDir: config.rawDir,
-        storageDir: config.storageDir,
-        sourcesFile: config.sourcesFile,
+        projectRoot: strict ? "." : config.projectRoot,
+        rawDir: strict ? path.relative(config.projectRoot, config.rawDir) : config.rawDir,
+        storageDir: strict
+          ? path.relative(config.projectRoot, config.storageDir)
+          : config.storageDir,
+        sourcesFile: strict
+          ? path.relative(config.projectRoot, config.sourcesFile)
+          : config.sourcesFile,
+        privacyProfile: config.privacyProfile,
+        retrievalProfile: config.retrievalProfile,
         embeddingProvider: config.embeddingProvider,
         embeddingModel: config.embeddingModel,
-        embeddingModelPath: config.embeddingModelPath,
+        embeddingModelRevision: config.embeddingModelRevision,
+        embeddingModelPath: strict
+          ? path.relative(config.projectRoot, config.embeddingModelPath)
+          : config.embeddingModelPath,
         transformersAllowRemoteModels: config.transformersAllowRemoteModels,
         llmGeneration: false,
         redactionEnabled: config.redaction.enabled,
@@ -84,6 +99,7 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
         imageOcrTimeoutMs: config.imageOcrTimeoutMs,
         legacyWordCommand: config.legacyWordCommand,
         legacyWordTimeoutMs: config.legacyWordTimeoutMs,
+        ingestionLimits: ingestionLimits(config),
         chunksIndexed,
       }
 
@@ -109,9 +125,14 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Retrieve relevant passages from the local Ragmir knowledge base.",
       inputSchema: searchToolInputSchema,
     },
-    async ({ query, topK, contextRadius, compact }) => {
-      const results = await search(query, await searchOptions(cwd, topK, contextRadius))
-      return textResult(compact ? compactSearchResults(results) : results)
+    async ({ query, topK, contextRadius, compact, includePaths, excludePaths }) => {
+      const config = await loadConfig(cwd)
+      const results = await search(
+        query,
+        await searchOptions(cwd, topK, contextRadius, includePaths, excludePaths),
+      )
+      const compactOutput = compact ?? config.privacyProfile === "strict"
+      return textResult(compactOutput ? compactSearchResults(results) : results)
     },
   )
 
@@ -122,8 +143,18 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Return cited retrieval context for a question without calling an LLM.",
       inputSchema: queryToolInputSchema,
     },
-    async ({ query, topK, contextRadius }) =>
-      textResult(await ask(query, await searchOptions(cwd, topK, contextRadius))),
+    async ({ query, topK, contextRadius, includePaths, excludePaths }) => {
+      const config = await loadConfig(cwd)
+      const options = await searchOptions(cwd, topK, contextRadius, includePaths, excludePaths)
+      if (config.privacyProfile === "strict") {
+        const results = await search(query, options)
+        return textResult({
+          answer: "Strict privacy profile returns compact cited retrieval only.",
+          sources: compactSearchResults(results),
+        })
+      }
+      return textResult(await ask(query, options))
+    },
   )
 
   server.registerTool(
@@ -134,13 +165,17 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
         "Run an audit-backed multi-query research pass with cited evidence and optional code matches.",
       inputSchema: researchToolInputSchema,
     },
-    async ({ query, topK, includeCode, compact }) => {
-      const options = await searchOptions(cwd, topK)
+    async ({ query, topK, includeCode, compact, includePaths, excludePaths }) => {
+      const config = await loadConfig(cwd)
+      const options = await searchOptions(cwd, topK, undefined, includePaths, excludePaths)
       const researchOptions: Parameters<typeof research>[1] = { cwd }
       addOption(researchOptions, "topK", options.topK)
       addOption(researchOptions, "includeCode", includeCode)
+      addOption(researchOptions, "includePaths", options.includePaths)
+      addOption(researchOptions, "excludePaths", options.excludePaths)
       const result = await research(query, researchOptions)
-      return textResult(compact ? compactResearchReport(result) : result)
+      const compactOutput = compact ?? config.privacyProfile === "strict"
+      return textResult(compactOutput ? compactResearchReport(result) : result)
     },
   )
 
@@ -182,7 +217,32 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Show local privacy, provider, redaction, MCP, and gitignore posture.",
       inputSchema: z.object({}),
     },
-    async () => textResult(await securityAudit(cwd)),
+    async () => {
+      const config = await loadConfig(cwd)
+      const report = await securityAudit(cwd)
+      if (config.privacyProfile !== "strict") {
+        return textResult(report)
+      }
+      return textResult({
+        ...report,
+        projectRoot: ".",
+        providers: {
+          ...report.providers,
+          embeddingModelPath: path.relative(
+            config.projectRoot,
+            report.providers.embeddingModelPath,
+          ),
+        },
+        accessLog: {
+          ...report.accessLog,
+          path: path.relative(config.projectRoot, report.accessLog.path),
+        },
+        storage: {
+          ...report.storage,
+          path: path.relative(config.projectRoot, report.storage.path),
+        },
+      })
+    },
   )
 
   server.registerTool(
@@ -236,16 +296,32 @@ export async function searchOptions(
   cwd: string,
   topK: number | undefined,
   contextRadius?: number | undefined,
-): Promise<{ cwd: string; topK?: number; contextRadius?: number }> {
+  includePaths?: string[] | undefined,
+  excludePaths?: string[] | undefined,
+): Promise<{
+  cwd: string
+  topK?: number
+  contextRadius?: number
+  includePaths?: string[]
+  excludePaths?: string[]
+}> {
   const config = await loadConfig(cwd)
   const boundedTopK = Math.min(topK ?? config.topK, config.mcpMaxTopK)
   const boundedContextRadius =
     contextRadius === undefined ? undefined : Math.min(Math.max(0, contextRadius), 3)
-  const result: { cwd: string; topK?: number; contextRadius?: number } = {
+  const result: {
+    cwd: string
+    topK?: number
+    contextRadius?: number
+    includePaths?: string[]
+    excludePaths?: string[]
+  } = {
     cwd,
     topK: boundedTopK,
   }
   addOption(result, "contextRadius", boundedContextRadius)
+  addOption(result, "includePaths", includePaths)
+  addOption(result, "excludePaths", excludePaths)
   return result
 }
 

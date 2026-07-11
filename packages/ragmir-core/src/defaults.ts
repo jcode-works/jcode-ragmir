@@ -7,6 +7,7 @@ export const RAGMIR_RAW_DIR = `${RAGMIR_DIR}/raw`
 export const CONFIG_PATH = `${RAGMIR_DIR}/config.json`
 export const LEGACY_CONFIG_PATH = `${LEGACY_KB_DIR}/config.json`
 export const DEFAULT_SKILL_TARGET_DIR = `${RAGMIR_DIR}/skills`
+export const INDEX_MANIFEST_FILENAME = "index-manifest.json"
 
 export const RAGMIR_PROJECT_ROOT_ENV = "RAGMIR_PROJECT_ROOT"
 export const VECTOR_DISTANCE_METRIC = "l2"
@@ -17,6 +18,9 @@ export const LEGACY_PRIVATE_GITIGNORE_ENTRY = `${LEGACY_PRIVATE_DIR}/`
 export const LEGACY_PRIVATE_GITIGNORE_FALLBACK_ENTRY = `${LEGACY_PRIVATE_DIR}/**`
 
 export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
+  privacyProfile: "private",
+  retrievalProfile: "balanced",
+  acceptedRisks: [],
   rawDir: RAGMIR_RAW_DIR,
   storageDir: `${RAGMIR_DIR}/storage`,
   sourcesFile: `${RAGMIR_DIR}/sources.txt`,
@@ -25,7 +29,8 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   embeddingModelPath: `${RAGMIR_DIR}/models`,
   tableName: "chunks",
   embeddingProvider: "local-hash",
-  embeddingModel: "mixedbread-ai/mxbai-embed-xsmall-v1",
+  embeddingModel: "intfloat/multilingual-e5-small",
+  embeddingModelRevision: "main",
   transformersAllowRemoteModels: false,
   redaction: {
     enabled: true,

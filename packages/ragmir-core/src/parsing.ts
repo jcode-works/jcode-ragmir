@@ -6,15 +6,20 @@ import readExcelFile from "read-excel-file/node"
 
 import mammoth = require("mammoth")
 
-import { extractText, getDocumentProxy } from "unpdf"
+import { getDocumentProxy } from "unpdf"
 import YAML from "yaml"
 import { OCR_IMAGE_EXTENSIONS } from "./files.js"
-import type { ParsedDocument, SourceFile } from "./types.js"
+import {
+  MAX_EXTERNAL_TEXT_STDIO_BYTES,
+  MAX_OFFICE_TEXT_ENTRY_COUNT,
+  MAX_OFFICE_XML_ENTRY_BYTES,
+  MAX_OFFICE_XML_TOTAL_BYTES,
+  MAX_PDF_PAGES,
+  MAX_PDF_TEXT_CHARACTERS,
+} from "./limits.js"
+import type { ParsedDocument, ParsedPage, SourceFile } from "./types.js"
 
-const MAX_OFFICE_XML_ENTRY_BYTES = 25_000_000
-const MAX_OFFICE_TEXT_ENTRY_COUNT = 512
-const MAX_OFFICE_XML_TOTAL_BYTES = 50_000_000
-const MAX_EXTERNAL_TEXT_STDIO_BYTES = 25_000_000
+const EXTERNAL_COMMAND_KILL_GRACE_MS = 2_000
 const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu
 const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm)$/iu
 const HTML_TO_TEXT_OPTIONS = {
@@ -40,10 +45,11 @@ export async function parseFile(
   options: ParseFileOptions = {},
 ): Promise<ParsedDocument> {
   let text: string
+  let pages: ParsedPage[] | undefined
 
   switch (file.extension) {
     case ".pdf":
-      text = await parsePdf(file.absolutePath, options)
+      ;({ text, pages } = await parsePdf(file.absolutePath, options))
       break
     case ".doc":
       text = await parseLegacyWord(file.absolutePath, options)
@@ -97,7 +103,11 @@ export async function parseFile(
       text = await readFile(file.absolutePath, "utf8")
   }
 
-  return { file, text: normalizeText(text) }
+  const document: ParsedDocument = { file, text: normalizeText(text) }
+  if (pages) {
+    document.pages = pages
+  }
+  return document
 }
 
 async function parseDocx(filePath: string): Promise<string> {
@@ -285,23 +295,93 @@ function decodeXmlEntities(input: string): string {
     .replace(/&amp;/gu, "&")
 }
 
-async function parsePdf(filePath: string, options: ParseFileOptions): Promise<string> {
+async function parsePdf(
+  filePath: string,
+  options: ParseFileOptions,
+): Promise<{ text: string; pages: ParsedPage[] }> {
   const buffer = await readFile(filePath)
-  const pdf = await getDocumentProxy(new Uint8Array(buffer))
-  const result = await extractText(pdf, { mergePages: true })
-  if (normalizeText(result.text)) {
-    return result.text
+  let pdf: Awaited<ReturnType<typeof getDocumentProxy>>
+  try {
+    pdf = await getDocumentProxy(new Uint8Array(buffer))
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    if (/password|encrypted/iu.test(detail)) {
+      throw new Error(
+        "PDF is encrypted or password-protected. Decrypt an authorized local copy before ingesting it.",
+      )
+    }
+    throw error
   }
-  if (!options.pdfOcrCommand || options.pdfOcrCommand.length === 0) {
-    return result.text
+
+  try {
+    if (pdf.numPages > MAX_PDF_PAGES) {
+      throw new Error(`PDF has ${pdf.numPages} pages; the safety limit is ${MAX_PDF_PAGES}.`)
+    }
+
+    const pageTexts: string[] = []
+    let totalCharacters = 0
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber)
+      let pageText = ""
+      try {
+        const content = await page.getTextContent()
+        const items: unknown = content.items
+        pageText = (Array.isArray(items) ? items : [])
+          .filter(isPdfTextItem)
+          .map((item) => `${item.str}${item.hasEOL ? "\n" : ""}`)
+          .join("")
+      } finally {
+        page.cleanup()
+      }
+
+      pageText = normalizePdfPageText(pageText)
+      if (!pageText && options.pdfOcrCommand && options.pdfOcrCommand.length > 0) {
+        pageText = normalizePdfPageText(
+          await runExternalTextCommand(filePath, {
+            command: options.pdfOcrCommand,
+            cwd: options.projectRoot,
+            label: `OCR command for PDF page ${pageNumber}`,
+            timeoutMs: options.pdfOcrTimeoutMs ?? 120_000,
+            pathEnvName: "RAGMIR_PDF_PATH",
+            pageNumber,
+          }),
+        )
+      }
+      totalCharacters += pageText.length
+      if (totalCharacters > MAX_PDF_TEXT_CHARACTERS) {
+        throw new Error(`PDF text exceeds the ${MAX_PDF_TEXT_CHARACTERS} character safety limit.`)
+      }
+      pageTexts.push(pageText)
+    }
+
+    return joinPdfPages(pageTexts)
+  } finally {
+    await pdf.destroy()
   }
-  return runExternalTextCommand(filePath, {
-    command: options.pdfOcrCommand,
-    cwd: options.projectRoot,
-    label: "OCR command",
-    timeoutMs: options.pdfOcrTimeoutMs ?? 120_000,
-    pathEnvName: "RAGMIR_PDF_PATH",
-  })
+}
+
+function isPdfTextItem(value: unknown): value is { str: string; hasEOL?: boolean } {
+  return (
+    typeof value === "object" && value !== null && "str" in value && typeof value.str === "string"
+  )
+}
+
+function normalizePdfPageText(text: string): string {
+  return normalizeText(text).replace(/([\p{L}\p{N}])-\n([\p{Ll}])/gu, "$1$2")
+}
+
+function joinPdfPages(pageTexts: string[]): { text: string; pages: ParsedPage[] } {
+  let text = ""
+  const pages: ParsedPage[] = []
+  for (const [index, pageText] of pageTexts.entries()) {
+    if (index > 0) {
+      text += "\n\n"
+    }
+    const charStart = text.length
+    text += pageText
+    pages.push({ pageNumber: index + 1, charStart, charEnd: text.length })
+  }
+  return { text, pages }
 }
 
 interface ExternalTextCommandOptions {
@@ -310,6 +390,7 @@ interface ExternalTextCommandOptions {
   label: string
   timeoutMs: number
   pathEnvName: "RAGMIR_IMAGE_PATH" | "RAGMIR_LEGACY_WORD_PATH" | "RAGMIR_PDF_PATH"
+  pageNumber?: number
 }
 
 async function runExternalTextCommand(
@@ -324,6 +405,10 @@ async function runExternalTextCommand(
 
   const hasInputPlaceholder = command.some((part) => part.includes("{input}"))
   const args = configuredArgs.map((part) => part.replaceAll("{input}", filePath))
+  const pageNumber = options.pageNumber === undefined ? "" : String(options.pageNumber)
+  for (const [index, arg] of args.entries()) {
+    args[index] = arg.replaceAll("{page}", pageNumber)
+  }
   if (!hasInputPlaceholder) {
     args.push(filePath)
   }
@@ -331,16 +416,29 @@ async function runExternalTextCommand(
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
       cwd: options.cwd,
-      env: { ...process.env, [options.pathEnvName]: filePath },
+      detached: process.platform !== "win32",
+      env: {
+        ...externalCommandEnvironment(),
+        [options.pathEnvName]: filePath,
+        ...(options.pageNumber === undefined ? {} : { RAGMIR_PDF_PAGE: pageNumber }),
+      },
       stdio: ["ignore", "pipe", "pipe"],
     })
     let stdout = ""
     let stderr = ""
     let didTimeout = false
     let outputTooLarge = false
+    let forceKillTimeout: ReturnType<typeof setTimeout> | undefined
+    const terminateWithEscalation = (): void => {
+      terminateChild(child, "SIGTERM")
+      forceKillTimeout = setTimeout(
+        () => terminateChild(child, "SIGKILL"),
+        EXTERNAL_COMMAND_KILL_GRACE_MS,
+      )
+    }
     const timeout = setTimeout(() => {
       didTimeout = true
-      child.kill("SIGTERM")
+      terminateWithEscalation()
     }, options.timeoutMs)
 
     child.stdout.setEncoding("utf8")
@@ -349,22 +447,28 @@ async function runExternalTextCommand(
       stdout += chunk
       if (Buffer.byteLength(stdout, "utf8") > MAX_EXTERNAL_TEXT_STDIO_BYTES) {
         outputTooLarge = true
-        child.kill("SIGTERM")
+        terminateWithEscalation()
       }
     })
     child.stderr.on("data", (chunk: string) => {
       stderr += chunk
       if (Buffer.byteLength(stderr, "utf8") > MAX_EXTERNAL_TEXT_STDIO_BYTES) {
         outputTooLarge = true
-        child.kill("SIGTERM")
+        terminateWithEscalation()
       }
     })
     child.on("error", (error) => {
       clearTimeout(timeout)
+      if (forceKillTimeout) {
+        clearTimeout(forceKillTimeout)
+      }
       reject(new Error(`${options.label} failed to start: ${error.message}`))
     })
     child.on("close", (code) => {
       clearTimeout(timeout)
+      if (forceKillTimeout) {
+        clearTimeout(forceKillTimeout)
+      }
       if (didTimeout) {
         reject(new Error(`${options.label} timed out.`))
         return
@@ -383,6 +487,28 @@ async function runExternalTextCommand(
       resolve(stdout)
     })
   })
+}
+
+function terminateChild(child: ReturnType<typeof spawn>, signal: NodeJS.Signals): void {
+  if (process.platform !== "win32" && child.pid) {
+    try {
+      process.kill(-child.pid, signal)
+      return
+    } catch {
+      // The child may have exited between the timer and the signal.
+    }
+  }
+  child.kill(signal)
+}
+
+function externalCommandEnvironment(): NodeJS.ProcessEnv {
+  const allowed = ["HOME", "LANG", "LC_ALL", "PATH", "TEMP", "TMP", "TMPDIR"]
+  return Object.fromEntries(
+    allowed.flatMap((name) => {
+      const value = process.env[name]
+      return value === undefined ? [] : [[name, value]]
+    }),
+  )
 }
 
 function normalizeText(input: string): string {

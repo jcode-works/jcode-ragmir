@@ -26,7 +26,7 @@ describe("enableSemanticEmbeddings", () => {
     }
 
     expect(config.embeddingProvider).toBe("transformers")
-    expect(config.embeddingModel).toBe("mixedbread-ai/mxbai-embed-xsmall-v1")
+    expect(config.embeddingModel).toBe("intfloat/multilingual-e5-small")
     expect(config.embeddingModelPath).toBe(".ragmir/models")
     expect(config.transformersAllowRemoteModels).toBe(false)
     expect(result.transformersAllowRemoteModels).toBe(false)

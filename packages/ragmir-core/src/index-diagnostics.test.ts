@@ -7,6 +7,7 @@ import {
   getLexicalScanWarning,
   INDEX_SCHEMA_VERSION,
 } from "./index-diagnostics.js"
+import { indexPolicyFingerprint } from "./index-policy.js"
 import { writeIndexManifest } from "./store.js"
 import { testConfig } from "./test-support/config.js"
 import type { IndexManifest } from "./types.js"
@@ -20,12 +21,14 @@ afterEach(async () => {
 })
 
 function baseManifest(overrides: Partial<IndexManifest> = {}): IndexManifest {
+  const config = testConfig()
   return {
     schemaVersion: INDEX_SCHEMA_VERSION,
     createdAt: "2026-01-01T00:00:00.000Z",
     ragmirVersion: "0.4.12",
     embeddingProvider: "local-hash",
-    embeddingModel: "mixedbread-ai/mxbai-embed-xsmall-v1",
+    embeddingModel: "intfloat/multilingual-e5-small",
+    indexPolicyFingerprint: indexPolicyFingerprint(config),
     vectorDimension: 384,
     vectorDistanceMetric: "l2",
     chunkSize: 1200,
@@ -71,7 +74,7 @@ describe("getIndexFreshnessWarning", () => {
     tempDirs.push(root)
     const config = testConfig(root, { embeddingModel: "Xenova/all-MiniLM-L6-v2" })
     await writeIndexManifest(
-      baseManifest({ embeddingModel: "mixedbread-ai/mxbai-embed-xsmall-v1" }),
+      baseManifest({ embeddingModel: "intfloat/multilingual-e5-small" }),
       config,
     )
 
@@ -88,7 +91,16 @@ describe("getIndexFreshnessWarning", () => {
 
     const warning = await getIndexFreshnessWarning(config)
     expect(warning).not.toBeNull()
-    expect(warning).toContain("schema is outdated")
+    expect(warning).toContain("schema is incompatible")
+  })
+
+  it("warns when the redaction policy differs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-freshness-redaction-"))
+    tempDirs.push(root)
+    const config = testConfig(root, { redaction: { enabled: false, builtIn: true, patterns: [] } })
+    await writeIndexManifest(baseManifest(), config)
+
+    expect(await getIndexFreshnessWarning(config)).toContain("content policy differs")
   })
 
   it("warns when the chunk size differs", async () => {

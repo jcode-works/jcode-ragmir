@@ -6,7 +6,13 @@ import { getIndexFreshnessWarning } from "./index-diagnostics.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 import { openRowsTable, readIndexManifest } from "./store.js"
 import { tokenize } from "./text.js"
-import type { AskResult, SearchContextChunk, SearchOptions, SearchResult } from "./types.js"
+import type {
+  AskResult,
+  RetrievalProfile,
+  SearchContextChunk,
+  SearchOptions,
+  SearchResult,
+} from "./types.js"
 
 type RowsTable = NonNullable<Awaited<ReturnType<typeof openRowsTable>>>
 
@@ -19,7 +25,10 @@ interface SearchRow {
   charEnd?: number
   lineStart?: number
   lineEnd?: number
+  pageStart?: number
+  pageEnd?: number
   _distance?: number
+  _score?: number
 }
 
 interface RankedRow {
@@ -29,8 +38,15 @@ interface RankedRow {
   combinedScore: number
 }
 
-const MIN_VECTOR_CANDIDATES = 80
-const VECTOR_CANDIDATE_MULTIPLIER = 4
+const VECTOR_CANDIDATE_POLICY: Record<
+  RetrievalProfile,
+  { minimum: number; multiplier: number; maxChunksPerSource: number }
+> = {
+  fast: { minimum: 40, multiplier: 3, maxChunksPerSource: 1 },
+  balanced: { minimum: 80, multiplier: 4, maxChunksPerSource: 2 },
+  quality: { minimum: 200, multiplier: 8, maxChunksPerSource: 4 },
+  custom: { minimum: 80, multiplier: 4, maxChunksPerSource: 2 },
+}
 /**
  * Reciprocal Rank Fusion (Cormack et al. 2009). Each candidate scores
  * `weight / (RRF_K + rank)` per retriever it appears in, summed across
@@ -38,18 +54,29 @@ const VECTOR_CANDIDATE_MULTIPLIER = 4
  * weighted-sum fusion: the BM25 and vector score distributions never need to
  * be normalized against each other.
  *
- * The retriever weights follow the weighted-RRF variant (as in Azure AI
- * Search). The vector retriever is weighted higher because, with the default
- * `local-hash` embeddings, vector proximity is the more discriminant signal
- * on small corpora; the lexical weight still lets exact-keyword evidence pull
- * in candidates the vector retriever missed.
+ * Equal weights let exact lexical evidence rescue a relevant document that is
+ * absent from the bounded vector candidate pool.
  */
 const RRF_K = 60
-const RRF_VECTOR_WEIGHT = 0.7
-const RRF_LEXICAL_WEIGHT = 0.3
+const RRF_VECTOR_WEIGHT = 1
+const RRF_LEXICAL_WEIGHT = 1
 const BM25_K1 = 1.2
 const BM25_B = 0.75
 const MAX_CONTEXT_RADIUS = 3
+const SEARCH_COLUMNS = [
+  "source",
+  "relativePath",
+  "chunkIndex",
+  "text",
+  "charStart",
+  "charEnd",
+  "lineStart",
+  "lineEnd",
+  "pageStart",
+  "pageEnd",
+]
+const VECTOR_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_distance"]
+const FTS_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_score"]
 
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
@@ -59,20 +86,34 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   }
 
   const sanitized = sanitizeRetrievalQuery(query)
-  if (!sanitized.query) {
+  const queryTokens = tokenize(sanitized.query)
+  if (!sanitized.query || queryTokens.length === 0) {
     return []
   }
 
   const topK = options.topK ?? config.topK
-  const vector = await embedText(sanitized.query, config)
+  const pathPredicate = sourcePathPredicate(options.includePaths, options.excludePaths)
+  const [vector, textRows] = await Promise.all([
+    embedText(sanitized.query, config),
+    lexicalCandidateRows(table, sanitized.query, config.hybridTextScanLimit, pathPredicate),
+  ])
   await assertVectorIndexCompatibility(config, vector.length)
-  const vectorRows = (await table
-    .vectorSearch(vector)
-    .limit(vectorCandidateLimit(topK))
+  const vectorQuery = table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS)
+  const vectorRows = (await (pathPredicate ? vectorQuery.where(pathPredicate) : vectorQuery)
+    .limit(vectorCandidateLimit(topK, config.retrievalProfile))
     .toArray()) as SearchRow[]
-  const textRows = await lexicalCandidateRows(table, sanitized.query, config.hybridTextScanLimit)
-  const rows = rankHybridRows(sanitized.query, vectorRows, textRows).slice(0, topK)
-  const contextByRow = await contextChunksByRow(table, rows, options.contextRadius ?? 0)
+  const rankedRows = rankHybridRows(sanitized.query, vectorRows, textRows)
+  const relevantRows =
+    config.embeddingProvider === "local-hash"
+      ? rankedRows.filter((ranked) => hasLexicalOverlap(queryTokens, ranked.row.text))
+      : rankedRows
+  const rows = diversifyRows(relevantRows, topK, config.retrievalProfile)
+  const defaultContextRadius = config.retrievalProfile === "quality" ? 1 : 0
+  const contextByRow = await contextChunksByRow(
+    table,
+    rows,
+    options.contextRadius ?? defaultContextRadius,
+  )
 
   const results = rows.map((row) => ({
     source: row.row.source,
@@ -85,6 +126,8 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     charEnd: nullableNumber(row.row.charEnd),
     lineStart: nullableNumber(row.row.lineStart),
     lineEnd: nullableNumber(row.row.lineEnd),
+    pageStart: nullablePageNumber(row.row.pageStart),
+    pageEnd: nullablePageNumber(row.row.pageEnd),
     context: contextByRow.get(rowKey(row.row)) ?? [],
   }))
   await recordAccess(config, {
@@ -96,8 +139,95 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   return results
 }
 
-export function vectorCandidateLimit(topK: number): number {
-  return Math.max(MIN_VECTOR_CANDIDATES, topK * VECTOR_CANDIDATE_MULTIPLIER)
+function diversifyRows(rows: RankedRow[], topK: number, profile: RetrievalProfile): RankedRow[] {
+  const uniqueRows: RankedRow[] = []
+  const textIndexes = new Map<string, number>()
+
+  for (const row of rows) {
+    const textKey = row.row.text.replace(/\s+/gu, " ").trim().toLowerCase()
+    const existingIndex = textIndexes.get(textKey)
+    if (existingIndex === undefined) {
+      textIndexes.set(textKey, uniqueRows.length)
+      uniqueRows.push(row)
+      continue
+    }
+    const existing = uniqueRows[existingIndex]
+    if (existing && preferCanonicalPath(row.row.relativePath, existing.row.relativePath)) {
+      uniqueRows[existingIndex] = row
+    }
+  }
+
+  const selected: RankedRow[] = []
+  const perSource = new Map<string, number>()
+  const maxChunksPerSource = VECTOR_CANDIDATE_POLICY[profile].maxChunksPerSource
+
+  for (const row of uniqueRows) {
+    if (selected.some((candidate) => overlapsSourceSpan(candidate.row, row.row))) {
+      continue
+    }
+    const sourceCount = perSource.get(row.row.relativePath) ?? 0
+    if (sourceCount >= maxChunksPerSource) {
+      continue
+    }
+    selected.push(row)
+    perSource.set(row.row.relativePath, sourceCount + 1)
+    if (selected.length >= topK) {
+      break
+    }
+  }
+
+  return selected
+}
+
+function overlapsSourceSpan(left: SearchRow, right: SearchRow): boolean {
+  if (left.relativePath !== right.relativePath) {
+    return false
+  }
+  if (
+    typeof left.charStart !== "number" ||
+    typeof left.charEnd !== "number" ||
+    typeof right.charStart !== "number" ||
+    typeof right.charEnd !== "number"
+  ) {
+    return false
+  }
+  return left.charStart < right.charEnd && right.charStart < left.charEnd
+}
+
+function preferCanonicalPath(candidate: string, current: string): boolean {
+  const candidateDepth = candidate.split("/").length
+  const currentDepth = current.split("/").length
+  return (
+    candidateDepth < currentDepth ||
+    (candidateDepth === currentDepth && candidate.length < current.length)
+  )
+}
+
+function hasLexicalOverlap(queryTokens: string[], text: string): boolean {
+  const textTokens = tokenize(text)
+  return queryTokens.some((queryToken) =>
+    textTokens.some(
+      (textToken) =>
+        queryToken === textToken ||
+        (queryToken.length >= 4 &&
+          textToken.length >= 4 &&
+          sharedPrefixLength(queryToken, textToken) >= 4),
+    ),
+  )
+}
+
+function sharedPrefixLength(left: string, right: string): number {
+  const limit = Math.min(left.length, right.length)
+  let index = 0
+  while (index < limit && left[index] === right[index]) {
+    index += 1
+  }
+  return index
+}
+
+export function vectorCandidateLimit(topK: number, profile: RetrievalProfile = "balanced"): number {
+  const policy = VECTOR_CANDIDATE_POLICY[profile]
+  return Math.max(policy.minimum, topK * policy.multiplier)
 }
 
 export async function ask(query: string, options: SearchOptions = {}): Promise<AskResult> {
@@ -146,17 +276,56 @@ async function lexicalCandidateRows(
   table: RowsTable,
   query: string,
   limit: number,
+  pathPredicate: string | null,
 ): Promise<SearchRow[]> {
   const ftsQuery = lexicalQuery(query)
   if (ftsQuery) {
     try {
-      return (await table.search(ftsQuery, "fts", "text").limit(limit).toArray()) as SearchRow[]
+      const searchQuery = table.search(ftsQuery, "fts", "text").select(FTS_SEARCH_COLUMNS)
+      return (await (pathPredicate ? searchQuery.where(pathPredicate) : searchQuery)
+        .limit(limit)
+        .toArray()) as SearchRow[]
     } catch {
       // Older indexes may not have the FTS index yet. Keep retrieval usable and
       // let doctor/index freshness tell the operator to rebuild.
     }
   }
-  return (await table.query().limit(limit).toArray()) as SearchRow[]
+  const fallbackQuery = table.query().select(SEARCH_COLUMNS)
+  return (await (pathPredicate ? fallbackQuery.where(pathPredicate) : fallbackQuery)
+    .limit(limit)
+    .toArray()) as SearchRow[]
+}
+
+function sourcePathPredicate(
+  includePaths: string[] | undefined,
+  excludePaths: string[] | undefined,
+): string | null {
+  const includes = normalizePathPrefixes(includePaths)
+  const excludes = normalizePathPrefixes(excludePaths)
+  const clauses: string[] = []
+
+  if (includes.length > 0) {
+    clauses.push(`(${includes.map(pathPrefixPredicate).join(" OR ")})`)
+  }
+  if (excludes.length > 0) {
+    clauses.push(`NOT (${excludes.map(pathPrefixPredicate).join(" OR ")})`)
+  }
+  return clauses.length === 0 ? null : clauses.join(" AND ")
+}
+
+function normalizePathPrefixes(prefixes: string[] | undefined): string[] {
+  return [
+    ...new Set(
+      (prefixes ?? [])
+        .map((prefix) => prefix.trim().replaceAll("\\", "/").replace(/^\.\//u, ""))
+        .map((prefix) => prefix.replace(/\/+$/u, ""))
+        .filter(Boolean),
+    ),
+  ]
+}
+
+function pathPrefixPredicate(prefix: string): string {
+  return `(relativePath = ${sqlString(prefix)} OR starts_with(relativePath, ${sqlString(`${prefix}/`)}))`
 }
 
 async function contextChunksByRow(
@@ -169,18 +338,26 @@ async function contextChunksByRow(
     return new Map()
   }
 
-  const contexts = new Map<string, SearchContextChunk[]>()
-  for (const ranked of rows) {
-    const row = ranked.row
+  const predicates = rows.map(({ row }) => {
     const minChunk = Math.max(0, row.chunkIndex - radius)
     const maxChunk = row.chunkIndex + radius
-    const contextRows = (await table
-      .query()
-      .where(
-        `relativePath = ${sqlString(row.relativePath)} AND chunkIndex >= ${minChunk} AND chunkIndex <= ${maxChunk}`,
-      )
-      .limit(radius * 2 + 1)
-      .toArray()) as SearchRow[]
+    return `(relativePath = ${sqlString(row.relativePath)} AND chunkIndex >= ${minChunk} AND chunkIndex <= ${maxChunk})`
+  })
+  const allContextRows = (await table
+    .query()
+    .select(SEARCH_COLUMNS)
+    .where(predicates.join(" OR "))
+    .toArray()) as SearchRow[]
+  const contexts = new Map<string, SearchContextChunk[]>()
+  for (const { row } of rows) {
+    const minChunk = Math.max(0, row.chunkIndex - radius)
+    const maxChunk = row.chunkIndex + radius
+    const contextRows = allContextRows.filter(
+      (candidate) =>
+        candidate.relativePath === row.relativePath &&
+        candidate.chunkIndex >= minChunk &&
+        candidate.chunkIndex <= maxChunk,
+    )
     contexts.set(rowKey(row), contextRows.sort(compareChunkRows).map(contextChunkForRow))
   }
   return contexts
@@ -192,7 +369,13 @@ async function assertVectorIndexCompatibility(
 ): Promise<void> {
   const manifest = await readIndexManifest(config)
   if (!manifest) {
-    return
+    throw new Error(
+      "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before searching.",
+    )
+  }
+  const freshnessWarning = await getIndexFreshnessWarning(config)
+  if (freshnessWarning) {
+    throw new Error(freshnessWarning)
   }
   if (manifest.vectorDimension !== undefined && manifest.vectorDimension !== vectorDimension) {
     throw new Error(
@@ -224,6 +407,8 @@ function contextChunkForRow(row: SearchRow): SearchContextChunk {
     charEnd: nullableNumber(row.charEnd),
     lineStart: nullableNumber(row.lineStart),
     lineEnd: nullableNumber(row.lineEnd),
+    pageStart: nullablePageNumber(row.pageStart),
+    pageEnd: nullablePageNumber(row.pageEnd),
     citation: citationForRow(row),
   }
 }
@@ -255,13 +440,19 @@ function rankHybridRows(
     vectorRanks.set(rowKey(row), index)
   })
 
-  // Lexical ranks: higher BM25 score is better, so sort descending.
-  const lexicalScores = bm25Scores(queryTokens, rows)
-  const lexicalRanked = [...lexicalScores.entries()]
-    .filter(([, score]) => score > 0)
-    .sort((a, b) => b[1] - a[1])
+  // LanceDB FTS already returns BM25-ranked rows. The fallback scan computes
+  // BM25 locally when an older index has no text index.
+  const ftsRows = textRows.filter((row) => typeof row._score === "number")
+  const lexicalRanked: Array<[string, number]> =
+    ftsRows.length > 0
+      ? ftsRows
+          .sort((a, b) => (b._score ?? 0) - (a._score ?? 0))
+          .map((row) => [rowKey(row), row._score ?? 0])
+      : [...bm25Scores(queryTokens, rows).entries()]
+          .filter(([, score]) => score > 0)
+          .sort((a, b) => b[1] - a[1])
   const lexicalRanks = new Map<string, number>()
-  lexicalRanked.forEach(([key, index]) => {
+  lexicalRanked.forEach(([key], index) => {
     lexicalRanks.set(key, index)
   })
 
@@ -305,7 +496,16 @@ function mergeRows(vectorRows: SearchRow[], textRows: SearchRow[]): SearchRow[] 
     rows.set(rowKey(row), row)
   }
   for (const row of vectorRows) {
-    rows.set(rowKey(row), row)
+    const existing = rows.get(rowKey(row))
+    if (!existing) {
+      rows.set(rowKey(row), row)
+      continue
+    }
+    const merged: SearchRow = { ...existing, ...row }
+    if (existing._score !== undefined) {
+      merged._score = existing._score
+    }
+    rows.set(rowKey(row), merged)
   }
   return [...rows.values()]
 }
@@ -372,10 +572,16 @@ function rowKey(row: SearchRow): string {
 function citationForRow(row: SearchRow): string {
   const lineStart = nullableNumber(row.lineStart)
   const lineEnd = nullableNumber(row.lineEnd)
+  const pageStart = nullablePageNumber(row.pageStart)
+  const pageEnd = nullablePageNumber(row.pageEnd)
+  const pageSegment =
+    pageStart === null
+      ? ""
+      : `:p${pageStart}${pageEnd !== null && pageEnd !== pageStart ? `-p${pageEnd}` : ""}`
   if (lineStart === null || lineEnd === null) {
-    return `${row.relativePath}#${row.chunkIndex}`
+    return `${row.relativePath}${pageSegment}#${row.chunkIndex}`
   }
-  return `${row.relativePath}:L${lineStart}-L${lineEnd}#${row.chunkIndex}`
+  return `${row.relativePath}${pageSegment}:L${lineStart}-L${lineEnd}#${row.chunkIndex}`
 }
 
 function lexicalQuery(query: string): string {
@@ -388,6 +594,10 @@ function compareChunkRows(a: SearchRow, b: SearchRow): number {
 
 function nullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function nullablePageNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null
 }
 
 function sqlString(value: string): string {
