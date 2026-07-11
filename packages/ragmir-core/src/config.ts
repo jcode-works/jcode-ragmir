@@ -12,9 +12,14 @@ import { isRecord } from "./guards.js"
 import type { Config } from "./types.js"
 
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
+const privacyProfileSchema = z.enum(["strict", "private", "trusted", "custom"])
+const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
 
 const rawConfigSchema = z
   .object({
+    privacyProfile: privacyProfileSchema.default(DEFAULT_CONFIG.privacyProfile),
+    retrievalProfile: retrievalProfileSchema.default(DEFAULT_CONFIG.retrievalProfile),
+    acceptedRisks: z.array(z.string().min(1)).default(DEFAULT_CONFIG.acceptedRisks),
     rawDir: z.string().default(DEFAULT_CONFIG.rawDir),
     storageDir: z.string().default(DEFAULT_CONFIG.storageDir),
     sourcesFile: z.string().default(DEFAULT_CONFIG.sourcesFile),
@@ -24,6 +29,7 @@ const rawConfigSchema = z
     tableName: z.string().default(DEFAULT_CONFIG.tableName),
     embeddingProvider: embeddingProviderSchema.default(DEFAULT_CONFIG.embeddingProvider),
     embeddingModel: z.string().default(DEFAULT_CONFIG.embeddingModel),
+    embeddingModelRevision: z.string().min(1).default(DEFAULT_CONFIG.embeddingModelRevision),
     transformersAllowRemoteModels: z
       .boolean()
       .default(DEFAULT_CONFIG.transformersAllowRemoteModels),
@@ -120,41 +126,82 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
   const defaults = projectConfig.legacy ? LEGACY_DEFAULT_CONFIG : DEFAULT_CONFIG
 
   const parsed = rawConfigSchema.parse({ ...defaults, ...raw })
-  const withEnv = applyEnv(parsed)
+  const withProfile = applyRetrievalProfile(parsed, raw)
+  const withEnv = applyEnv(withProfile)
+  const effective = applyPrivacyFloor(withEnv)
 
-  if (withEnv.chunkOverlap >= withEnv.chunkSize) {
+  if (effective.chunkOverlap >= effective.chunkSize) {
     throw new Error("chunkOverlap must be lower than chunkSize.")
   }
 
   return {
     projectRoot: projectConfig.projectRoot,
-    rawDir: resolveFromRoot(projectConfig.projectRoot, withEnv.rawDir),
-    storageDir: resolveFromRoot(projectConfig.projectRoot, withEnv.storageDir),
-    sourcesFile: resolveFromRoot(projectConfig.projectRoot, withEnv.sourcesFile),
-    sources: withEnv.sources,
-    accessLogPath: resolveFromRoot(projectConfig.projectRoot, withEnv.accessLogPath),
-    embeddingModelPath: resolveFromRoot(projectConfig.projectRoot, withEnv.embeddingModelPath),
-    tableName: withEnv.tableName,
-    embeddingProvider: withEnv.embeddingProvider,
-    embeddingModel: withEnv.embeddingModel,
-    transformersAllowRemoteModels: withEnv.transformersAllowRemoteModels,
-    redaction: withEnv.redaction,
-    accessLog: withEnv.accessLog,
-    mcpMaxTopK: withEnv.mcpMaxTopK,
-    topK: withEnv.topK,
-    chunkSize: withEnv.chunkSize,
-    chunkOverlap: withEnv.chunkOverlap,
-    maxFileBytes: withEnv.maxFileBytes,
-    ingestConcurrency: withEnv.ingestConcurrency,
-    embeddingBatchSize: withEnv.embeddingBatchSize,
-    hybridTextScanLimit: withEnv.hybridTextScanLimit,
-    includeExtensions: normalizeExtensions(withEnv.includeExtensions),
-    pdfOcrCommand: withEnv.pdfOcrCommand,
-    pdfOcrTimeoutMs: withEnv.pdfOcrTimeoutMs,
-    imageOcrCommand: withEnv.imageOcrCommand,
-    imageOcrTimeoutMs: withEnv.imageOcrTimeoutMs,
-    legacyWordCommand: withEnv.legacyWordCommand,
-    legacyWordTimeoutMs: withEnv.legacyWordTimeoutMs,
+    privacyProfile: effective.privacyProfile,
+    retrievalProfile: effective.retrievalProfile,
+    acceptedRisks: effective.acceptedRisks,
+    rawDir: resolveFromRoot(projectConfig.projectRoot, effective.rawDir),
+    storageDir: resolveFromRoot(projectConfig.projectRoot, effective.storageDir),
+    sourcesFile: resolveFromRoot(projectConfig.projectRoot, effective.sourcesFile),
+    sources: effective.sources,
+    accessLogPath: resolveFromRoot(projectConfig.projectRoot, effective.accessLogPath),
+    embeddingModelPath: resolveFromRoot(projectConfig.projectRoot, effective.embeddingModelPath),
+    tableName: effective.tableName,
+    embeddingProvider: effective.embeddingProvider,
+    embeddingModel: effective.embeddingModel,
+    embeddingModelRevision: effective.embeddingModelRevision,
+    transformersAllowRemoteModels: effective.transformersAllowRemoteModels,
+    redaction: effective.redaction,
+    accessLog: effective.accessLog,
+    mcpMaxTopK: effective.mcpMaxTopK,
+    topK: effective.topK,
+    chunkSize: effective.chunkSize,
+    chunkOverlap: effective.chunkOverlap,
+    maxFileBytes: effective.maxFileBytes,
+    ingestConcurrency: effective.ingestConcurrency,
+    embeddingBatchSize: effective.embeddingBatchSize,
+    hybridTextScanLimit: effective.hybridTextScanLimit,
+    includeExtensions: normalizeExtensions(effective.includeExtensions),
+    pdfOcrCommand: effective.pdfOcrCommand,
+    pdfOcrTimeoutMs: effective.pdfOcrTimeoutMs,
+    imageOcrCommand: effective.imageOcrCommand,
+    imageOcrTimeoutMs: effective.imageOcrTimeoutMs,
+    legacyWordCommand: effective.legacyWordCommand,
+    legacyWordTimeoutMs: effective.legacyWordTimeoutMs,
+  }
+}
+
+function applyRetrievalProfile(config: RawConfig, raw: Record<string, unknown>): RawConfig {
+  if (config.retrievalProfile === "fast") {
+    return {
+      ...config,
+      topK: raw.topK === undefined ? 5 : config.topK,
+      hybridTextScanLimit:
+        raw.hybridTextScanLimit === undefined ? 2_000 : config.hybridTextScanLimit,
+    }
+  }
+  if (config.retrievalProfile === "quality") {
+    return {
+      ...config,
+      topK: raw.topK === undefined ? 12 : config.topK,
+      hybridTextScanLimit:
+        raw.hybridTextScanLimit === undefined ? 10_000 : config.hybridTextScanLimit,
+    }
+  }
+  return config
+}
+
+function applyPrivacyFloor(config: RawConfig): RawConfig {
+  if (config.privacyProfile !== "strict") {
+    return config
+  }
+  return {
+    ...config,
+    transformersAllowRemoteModels: false,
+    redaction: { ...config.redaction, enabled: true, builtIn: true },
+    mcpMaxTopK: Math.min(config.mcpMaxTopK, 5),
+    pdfOcrCommand: [],
+    imageOcrCommand: [],
+    legacyWordCommand: [],
   }
 }
 
@@ -182,6 +229,11 @@ function applyEnv(config: RawConfig): RawConfig {
       "RAGMIR_EMBEDDING_MODEL",
       "KB_EMBEDDING_MODEL",
       config.embeddingModel,
+    ),
+    embeddingModelRevision: readStringEnv(
+      "RAGMIR_EMBEDDING_MODEL_REVISION",
+      "KB_EMBEDDING_MODEL_REVISION",
+      config.embeddingModelRevision,
     ),
     embeddingModelPath: readStringEnv(
       "RAGMIR_EMBEDDING_MODEL_PATH",

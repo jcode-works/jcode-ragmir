@@ -36,15 +36,30 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     manifestFound: manifest !== null,
     warning: freshnessWarning,
   }
+  const oversizedFiles = countSkippedByReason(auditReport.skippedFiles, "oversized")
+  const sensitiveFiles = countSkippedByReason(auditReport.skippedFiles, "sensitive-name")
+  const coverageComplete =
+    auditReport.missingFromIndex.length === 0 &&
+    auditReport.staleInIndex.length === 0 &&
+    auditReport.emptyTextFiles.length === 0 &&
+    oversizedFiles === 0
+  const operationalReady = initialized && chunksIndexed > 0 && coverageComplete
+  const indexPolicyCurrent = freshnessWarning === null
+  const privacyCompliant = securityReport.warnings.length === 0
 
   const nextSteps = nextActions({
     initialized,
     supportedFiles: auditReport.supportedFiles.length,
+    supportedBytes: auditReport.supportedBytes,
+    largestFileBytes: auditReport.largestFileBytes,
     skippedFiles: auditReport.skippedFiles.length,
     unsupportedFiles: countSkippedByReason(auditReport.skippedFiles, "unsupported-extension"),
     chunksIndexed,
     missingFromIndex: auditReport.missingFromIndex.length,
     staleInIndex: auditReport.staleInIndex.length,
+    emptyTextFiles: auditReport.emptyTextFiles.length,
+    oversizedFiles,
+    sensitiveFiles,
     warnings: securityReport.warnings.length,
     embeddingProvider: config.embeddingProvider,
     agentKitInstalled,
@@ -65,22 +80,32 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     transformersAllowRemoteModels: config.transformersAllowRemoteModels,
     redactionEnabled: config.redaction.enabled,
     accessLog: config.accessLog,
+    privacyProfile: config.privacyProfile,
+    retrievalProfile: config.retrievalProfile,
     supportedFiles: auditReport.supportedFiles.length,
+    supportedBytes: auditReport.supportedBytes,
+    largestFileBytes: auditReport.largestFileBytes,
+    maxFileBytes: config.maxFileBytes,
     skippedFiles: auditReport.skippedFiles.length,
     unsupportedFiles: countSkippedByReason(auditReport.skippedFiles, "unsupported-extension"),
+    oversizedFiles,
+    sensitiveFiles,
+    emptyTextFiles: auditReport.emptyTextFiles.length,
     indexedFiles: auditReport.indexedFiles.length,
     chunksIndexed,
     missingFromIndex: auditReport.missingFromIndex.length,
     staleInIndex: auditReport.staleInIndex.length,
     securityWarnings: securityReport.warnings,
     indexFreshness,
-    ready:
-      initialized &&
-      chunksIndexed > 0 &&
-      auditReport.missingFromIndex.length === 0 &&
-      auditReport.staleInIndex.length === 0 &&
-      securityReport.warnings.length === 0 &&
-      freshnessWarning === null,
+    ready: operationalReady && indexPolicyCurrent && privacyCompliant,
+    readiness: {
+      operationalReady,
+      coverageComplete,
+      indexPolicyCurrent,
+      privacyCompliant,
+      retrievalQualityVerified: false,
+      acceptedRisks: config.acceptedRisks,
+    },
     nextSteps,
   }
 }
@@ -88,11 +113,16 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
 interface NextActionInput {
   initialized: boolean
   supportedFiles: number
+  supportedBytes: number
+  largestFileBytes: number
   skippedFiles: number
   unsupportedFiles: number
+  oversizedFiles: number
+  sensitiveFiles: number
   chunksIndexed: number
   missingFromIndex: number
   staleInIndex: number
+  emptyTextFiles: number
   warnings: number
   embeddingProvider: string
   agentKitInstalled: boolean
@@ -140,6 +170,22 @@ function nextActions(input: NextActionInput): string[] {
     steps.push(input.lexicalScanWarning)
   }
 
+  if (input.emptyTextFiles > 0) {
+    steps.push(
+      `${input.emptyTextFiles} supported source file(s) produced no indexable text. Configure local OCR for scans/images, convert the files, or add extracted text, then re-ingest.`,
+    )
+  }
+
+  if (input.oversizedFiles > 0) {
+    steps.push(
+      `${input.oversizedFiles} source file(s) exceed maxFileBytes. Run \`rgr audit --unsupported\`, then split the files or raise the limit only after reviewing the memory and parsing risk.`,
+    )
+  }
+
+  if (input.unsupportedFiles > 0 || input.sensitiveFiles > 0) {
+    steps.push("Run `rgr audit --unsupported` to review every intentionally skipped source file.")
+  }
+
   if (input.warnings > 0) {
     steps.push(
       `Run \`${input.run(["security-audit", "--strict"])}\` and fix the reported warnings.`,
@@ -147,11 +193,6 @@ function nextActions(input: NextActionInput): string[] {
   }
 
   if (steps.length === 0) {
-    if (input.unsupportedFiles > 0) {
-      steps.push(
-        "Run `rgr audit --unsupported` to inspect files skipped because their type is not supported.",
-      )
-    }
     if (input.embeddingProvider === "local-hash") {
       steps.push(
         `For natural-language Q&A, run \`${input.run(["models", "pull", "--enable"])}\`, then run \`${input.run(["ingest", "--rebuild"])}\`.`,

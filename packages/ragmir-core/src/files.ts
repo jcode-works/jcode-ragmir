@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { existsSync } from "node:fs"
+import { createReadStream, existsSync } from "node:fs"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import fg from "fast-glob"
@@ -105,6 +105,10 @@ interface SourceEntryStats {
   mtimeMs: number
 }
 
+export interface SourceInventoryOptions {
+  knownFiles?: ReadonlyMap<string, { checksum: string; bytes?: number; mtimeMs?: number }>
+}
+
 export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".atom",
   ".adoc",
@@ -189,8 +193,23 @@ export async function listSourceFiles(config: Config): Promise<SourceFile[]> {
   return (await inventorySourceFiles(config)).supportedFiles
 }
 
-export async function inventorySourceFiles(config: Config): Promise<SourceInventory> {
+export async function inventorySourceFiles(
+  config: Config,
+  options: SourceInventoryOptions = {},
+): Promise<SourceInventory> {
   const inputs = await sourceInputs(config)
+  const excludedPaths = new Set(
+    inputs.ignorePatterns.length === 0
+      ? []
+      : await fg(inputs.ignorePatterns, {
+          cwd: config.projectRoot,
+          absolute: true,
+          onlyFiles: true,
+          dot: true,
+          followSymbolicLinks: false,
+          unique: true,
+        }),
+  )
   const files = new Map<string, SourceFile>()
   const skippedFiles = new Map<string, SkippedSourceFile>()
   let discoveredFiles = 0
@@ -200,6 +219,9 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
     info: SourceEntryStats,
     source: string,
   ): Promise<void> => {
+    if (excludedPaths.has(absolutePath)) {
+      return
+    }
     const relativePath = path.relative(config.projectRoot, absolutePath)
     if (GENERATED_SOURCE_READMES.has(relativePath)) {
       return
@@ -240,7 +262,11 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
       return
     }
 
-    const buffer = await readFile(absolutePath)
+    const knownFile = options.knownFiles?.get(relativePath)
+    const checksum =
+      knownFile?.bytes === info.size && knownFile.mtimeMs === info.mtimeMs
+        ? knownFile.checksum
+        : await checksumFile(absolutePath)
     files.set(absolutePath, {
       absolutePath,
       relativePath,
@@ -248,7 +274,7 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
       extension,
       bytes: info.size,
       mtimeMs: info.mtimeMs,
-      checksum: createHash("sha256").update(buffer).digest("hex"),
+      checksum,
     })
   }
 
@@ -272,7 +298,7 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
         })) as Array<{ path: string; stats?: { size: number; mtimeMs: number } }>)
       : [{ path: root, stats: { size: rootInfo.size, mtimeMs: rootInfo.mtimeMs } }]
 
-    for (const entry of entries) {
+    await mapLimit(entries, config.ingestConcurrency, async (entry) => {
       const absolutePath = path.isAbsolute(entry.path) ? entry.path : path.resolve(root, entry.path)
       const info = entry.stats ?? (await stat(absolutePath))
       const relativePath = path.relative(config.projectRoot, absolutePath)
@@ -280,7 +306,7 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
         ? path.relative(root, absolutePath) || path.basename(absolutePath)
         : relativePath || path.basename(absolutePath)
       await recordSourceFile(absolutePath, info, source)
-    }
+    })
   }
 
   if (inputs.patterns.length > 0) {
@@ -296,14 +322,14 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
       unique: true,
     })) as Array<{ path: string; stats?: { size: number; mtimeMs: number } }>
 
-    for (const entry of entries) {
+    await mapLimit(entries, config.ingestConcurrency, async (entry) => {
       const absolutePath = path.isAbsolute(entry.path)
         ? entry.path
         : path.resolve(config.projectRoot, entry.path)
       const info = entry.stats ?? (await stat(absolutePath))
       const relativePath = path.relative(config.projectRoot, absolutePath)
       await recordSourceFile(absolutePath, info, relativePath || path.basename(absolutePath))
-    }
+    })
   }
 
   return {
@@ -315,6 +341,32 @@ export async function inventorySourceFiles(config: Config): Promise<SourceInvent
       a.relativePath.localeCompare(b.relativePath),
     ),
   }
+}
+
+async function checksumFile(filePath: string): Promise<string> {
+  const hash = createHash("sha256")
+  for await (const chunk of createReadStream(filePath)) {
+    hash.update(chunk)
+  }
+  return hash.digest("hex")
+}
+
+async function mapLimit<T>(
+  values: T[],
+  limit: number,
+  worker: (value: T) => Promise<void>,
+): Promise<void> {
+  let index = 0
+  const workers = Array.from({ length: Math.min(limit, values.length) }, async () => {
+    while (index < values.length) {
+      const current = values[index]
+      index += 1
+      if (current !== undefined) {
+        await worker(current)
+      }
+    }
+  })
+  await Promise.all(workers)
 }
 
 export function supportedExtensions(config: Config): Set<string> {

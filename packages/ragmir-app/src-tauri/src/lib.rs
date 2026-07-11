@@ -1,3 +1,5 @@
+mod chat_runtime;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -385,8 +387,14 @@ fn push_top_k(args: &mut Vec<String>, top_k: Option<u16>) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(chat_runtime::RagmirChatRuntimeState::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            chat_runtime::generate_ragmir_chat,
+            chat_runtime::cancel_ragmir_chat,
+            chat_runtime::shutdown_ragmir_chat,
+            chat_runtime::setup_ragmir_chat,
+            chat_runtime::doctor_ragmir_chat,
             run_ragmir_command,
             read_ragmir_config,
             write_ragmir_config

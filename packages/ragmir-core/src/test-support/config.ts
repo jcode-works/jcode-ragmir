@@ -15,6 +15,9 @@ export function testConfig(
 
   const config: Config = {
     projectRoot,
+    privacyProfile: DEFAULT_CONFIG.privacyProfile,
+    retrievalProfile: DEFAULT_CONFIG.retrievalProfile,
+    acceptedRisks: [...DEFAULT_CONFIG.acceptedRisks],
     rawDir: path.join(projectRoot, DEFAULT_CONFIG.rawDir),
     storageDir: path.join(projectRoot, DEFAULT_CONFIG.storageDir),
     sourcesFile: path.join(projectRoot, DEFAULT_CONFIG.sourcesFile),
@@ -24,6 +27,7 @@ export function testConfig(
     tableName: DEFAULT_CONFIG.tableName,
     embeddingProvider: DEFAULT_CONFIG.embeddingProvider,
     embeddingModel: DEFAULT_CONFIG.embeddingModel,
+    embeddingModelRevision: DEFAULT_CONFIG.embeddingModelRevision,
     transformersAllowRemoteModels: DEFAULT_CONFIG.transformersAllowRemoteModels,
     redaction: {
       ...DEFAULT_CONFIG.redaction,

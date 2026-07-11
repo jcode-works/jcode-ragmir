@@ -20,7 +20,7 @@ describe("destroyIndex", () => {
     tempDirs.push(root)
     const config = testConfig(root)
     await mkdir(config.storageDir, { recursive: true })
-    await writeFile(path.join(config.storageDir, "marker"), "present", "utf8")
+    await writeFile(path.join(config.storageDir, "index-manifest.json"), "{}", "utf8")
 
     const result = await destroyIndex(root)
 
@@ -48,5 +48,26 @@ describe("destroyIndex", () => {
     await destroyIndex(root)
 
     expect(existsSync(config.accessLogPath)).toBe(true)
+  })
+
+  it("refuses to remove the project root when storageDir points to it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-root-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "config.json"), JSON.stringify({ storageDir: "." }))
+
+    await expect(destroyIndex(root)).rejects.toThrow("unsafe storageDir")
+    expect(existsSync(root)).toBe(true)
+  })
+
+  it("refuses to remove an unmarked directory", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-unmarked-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await mkdir(config.storageDir, { recursive: true })
+    await writeFile(path.join(config.storageDir, "unrelated.txt"), "keep", "utf8")
+
+    await expect(destroyIndex(root)).rejects.toThrow("does not contain index-manifest.json")
+    expect(existsSync(config.storageDir)).toBe(true)
   })
 })

@@ -3,6 +3,7 @@
 !.ragmir/config.json
 .ragmir/storage/
 .ragmir/access.log
+.ragmir/.ragmir-access-log.salt
 .ragmir/models/
 .ragmir/reports/
 .ragmir/audio/

@@ -1,6 +1,16 @@
 import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
-import { cp, lstat, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -168,6 +178,18 @@ try {
     throw new Error(`status --json should expose chunksIndexed, got ${statusJson.chunksIndexed}`)
   }
 
+  const limitsJson = parseJson((await runKb(["limits", "--json"], tempRoot)).stdout, "limits JSON")
+  if (
+    limitsJson.maxFileBytes !== 50_000_000 ||
+    limitsJson.maxFiles !== null ||
+    limitsJson.maxCorpusBytes !== null ||
+    limitsJson.maxPdfPages !== 1_000
+  ) {
+    throw new Error(
+      `limits --json should expose active safety limits, got ${JSON.stringify(limitsJson)}`,
+    )
+  }
+
   const explicitRootStatusJson = parseJson(
     (await runKb(["--project-root", tempRoot, "status", "--json"], repoRoot)).stdout,
     "explicit project root status JSON",
@@ -200,6 +222,42 @@ try {
   if (!searchJson.results?.[0]?.citation?.includes(".ragmir/raw/tax.md:L")) {
     throw new Error(
       `search --json should expose line-aware citations, got ${JSON.stringify(searchJson)}`,
+    )
+  }
+
+  const includedSearchJson = parseJson(
+    (
+      await runKb(
+        ["search", "situation", "--top-k", "5", "--include-path", ".ragmir/raw/tax.md", "--json"],
+        tempRoot,
+      )
+    ).stdout,
+    "included search JSON",
+  )
+  if (
+    includedSearchJson.results.length < 1 ||
+    !includedSearchJson.results.every((result) => result.relativePath === ".ragmir/raw/tax.md")
+  ) {
+    throw new Error(
+      `search --include-path should constrain source paths, got ${JSON.stringify(includedSearchJson)}`,
+    )
+  }
+
+  const excludedSearchJson = parseJson(
+    (
+      await runKb(
+        ["search", "situation", "--top-k", "5", "--exclude-path", ".ragmir/raw/tax.md", "--json"],
+        tempRoot,
+      )
+    ).stdout,
+    "excluded search JSON",
+  )
+  if (
+    excludedSearchJson.results.length < 1 ||
+    excludedSearchJson.results.some((result) => result.relativePath === ".ragmir/raw/tax.md")
+  ) {
+    throw new Error(
+      `search --exclude-path should remove source paths, got ${JSON.stringify(excludedSearchJson)}`,
     )
   }
 
@@ -249,6 +307,11 @@ try {
   )
   if (usageJson.totalEvents < 1 || usageJson.uniqueQueryHashes < 1) {
     throw new Error(`usage-report should summarize local usage, got ${JSON.stringify(usageJson)}`)
+  }
+  if (typeof usageJson.averageResultCountByAction?.search !== "number") {
+    throw new Error(
+      `usage-report should expose per-action result averages, got ${JSON.stringify(usageJson)}`,
+    )
   }
   assertNotIncludes(
     JSON.stringify(usageJson),
@@ -321,8 +384,8 @@ try {
   const chatDoctor = await runKb(["chat", "doctor", "--json"], tempRoot)
   assertIncludes(
     chatDoctor.stdout,
-    '"provider": "transformers"',
-    "chat doctor should report the Transformers.js local provider",
+    '"provider": "node-llama-cpp"',
+    "chat doctor should report the local llama.cpp provider",
   )
   assertIncludes(
     chatDoctor.stdout,
@@ -406,6 +469,15 @@ async function smokeExampleWorkspace() {
   try {
     await cp(exampleSource, exampleTemp, { recursive: true })
     await configureProject(exampleTemp)
+    const initialized = await runKb(["init"], exampleTemp)
+    assertIncludes(
+      initialized.stdout,
+      "Already initialized.",
+      "init should harden an existing copied example before strict security checks",
+    )
+    if (process.platform !== "win32") {
+      await chmod(path.join(exampleTemp, "raw"), 0o700)
+    }
 
     const security = await runKb(["security-audit", "--strict"], exampleTemp)
     assertIncludes(
@@ -562,9 +634,9 @@ async function smokeDocumentBenchmark() {
       "document benchmark evaluation JSON",
     )
     if (
-      evaluation.total !== 5 ||
+      evaluation.total !== 6 ||
       evaluation.embeddingProvider !== "local-hash" ||
-      evaluation.hits !== 5 ||
+      evaluation.hits !== 6 ||
       evaluation.misses !== 0 ||
       evaluation.recall !== 1 ||
       typeof evaluation.meanReciprocalRank !== "number" ||
@@ -588,6 +660,14 @@ async function smokeDocumentBenchmark() {
           `document benchmark should match exact citations, got ${JSON.stringify(testCase)}`,
         )
       }
+    }
+    const pdfCase = evaluation.cases?.find(
+      (testCase) => testCase.id === "pdf-embedded-text-page-citation",
+    )
+    if (!pdfCase?.matchedCitations?.includes("raw/contracts/pdf-control-evidence.pdf:p1:L1-L1#0")) {
+      throw new Error(
+        `document benchmark should extract embedded PDF text with a page citation, got ${JSON.stringify(pdfCase)}`,
+      )
     }
   } finally {
     await rm(benchmarkTemp, { recursive: true, force: true })

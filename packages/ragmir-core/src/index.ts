@@ -11,6 +11,7 @@ export {
 } from "./index-diagnostics.js"
 export { audit, ingest } from "./ingest.js"
 export { initProject } from "./init.js"
+export { ingestionLimits } from "./limits.js"
 export { serveMcp } from "./mcp.js"
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
@@ -63,10 +64,15 @@ export type {
   EvaluationResult,
   GoldenQuery,
   IndexManifest,
+  IndexManifestFile,
+  IngestionLimitsReport,
   IngestResult,
+  ParsedPage,
+  PrivacyProfile,
   ResearchEvidence,
   ResearchOptions,
   ResearchReport,
+  RetrievalProfile,
   SearchContextChunk,
   SearchResult,
   SecurityAuditReport,

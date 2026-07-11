@@ -21,6 +21,8 @@ describe("search", () => {
     expect(vectorCandidateLimit(1)).toBe(80)
     expect(vectorCandidateLimit(5)).toBe(80)
     expect(vectorCandidateLimit(25)).toBe(100)
+    expect(vectorCandidateLimit(1, "fast")).toBe(40)
+    expect(vectorCandidateLimit(1, "quality")).toBe(200)
   })
 
   it("uses lexical evidence in addition to vector candidates", async () => {
@@ -48,6 +50,39 @@ describe("search", () => {
     expect(results[0]?.lineStart).toBe(1)
   })
 
+  it("filters retrieval by included and excluded source path prefixes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-path-filter-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw", "primary"), { recursive: true })
+    await mkdir(path.join(root, ".ragmir", "raw", "research"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "primary", "report.md"),
+      "The primary report records the verified evidence.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "research", "review.md"),
+      "The literature review discusses the verified evidence.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const primary = await search("verified evidence", {
+      cwd: root,
+      includePaths: [".ragmir/raw/primary"],
+    })
+    const withoutResearch = await search("verified evidence", {
+      cwd: root,
+      excludePaths: [".ragmir/raw/research"],
+    })
+
+    expect(primary.map((result) => result.relativePath)).toEqual([".ragmir/raw/primary/report.md"])
+    expect(withoutResearch.every((result) => !result.relativePath.includes("/research/"))).toBe(
+      true,
+    )
+  })
+
   it("uses the full-text lexical index when the fallback scan limit is narrow", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fts-"))
     tempDirs.push(root)
@@ -73,6 +108,78 @@ describe("search", () => {
     const results = await search("zanzibar-token retention proof", { cwd: root, topK: 1 })
 
     expect(results[0]?.relativePath).toBe(".ragmir/raw/zeta.md")
+  })
+
+  it("matches accent-folded lexical queries", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-accent-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "policy.md"),
+      "La confidentialité exige une révision régulière.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const results = await search("confidentialite revision", { cwd: root, topK: 1 })
+
+    expect(results[0]?.relativePath).toBe(".ragmir/raw/policy.md")
+  })
+
+  it("blocks search when the active index policy differs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-policy-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "policy.md"), "Policy evidence.\n")
+    await ingest({ cwd: root })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 900, chunkOverlap: 100 }),
+    )
+
+    await expect(search("policy", { cwd: root })).rejects.toThrow("Rebuild")
+  })
+
+  it("abstains when local-hash retrieval has no lexical evidence", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-abstain-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "policy.md"), "Retention policy evidence.\n")
+    await ingest({ cwd: root })
+
+    await expect(search("quantum banana volcano", { cwd: root })).resolves.toEqual([])
+    await expect(search("x", { cwd: root })).resolves.toEqual([])
+  })
+
+  it("retrieves distinct French, English, Thai, and Chinese evidence", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-multilingual-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    const documents = [
+      ["fr.md", "La politique de confidentialité impose un stockage local chiffré.\n"],
+      ["en.md", "The deployment checklist requires signed release checksums.\n"],
+      ["th.md", "เอกสารลับต้องจัดเก็บไว้ในเครื่องที่เข้ารหัสเท่านั้น\n"],
+      ["zh.md", "机密文档必须存储在加密的本地设备上。\n"],
+    ]
+    for (const [filename, content] of documents) {
+      await writeFile(path.join(root, ".ragmir", "raw", filename ?? ""), content ?? "")
+    }
+    await ingest({ cwd: root })
+
+    const queries = [
+      ["stockage local chiffré", "fr.md"],
+      ["signed release checksums", "en.md"],
+      ["เอกสารลับจัดเก็บในเครื่องเข้ารหัส", "th.md"],
+      ["机密文档存储加密本地设备", "zh.md"],
+    ]
+    for (const [query, expected] of queries) {
+      const results = await search(query ?? "", { cwd: root, topK: 1 })
+      expect(results[0]?.relativePath).toBe(`.ragmir/raw/${expected}`)
+    }
   })
 
   it("hydrates neighboring context chunks when requested", async () => {
@@ -123,11 +230,36 @@ describe("search", () => {
       "raw/incident-timeline.jsonl",
       "raw/review-notes.evidence",
     ])
+    const ttsEvidence = await search("What proves offline text-to-speech is required?", {
+      cwd: root,
+      topK: 3,
+    })
+    expect(
+      ttsEvidence.filter((result) => result.relativePath === "raw/review-notes.evidence"),
+    ).toHaveLength(1)
+    expect(
+      ttsEvidence.some((result) => result.relativePath === "raw/incident-timeline.jsonl"),
+    ).toBe(true)
     await expectAnyResult(root, "Who owns the usage review?", [
       "raw/operations-brief.md",
       "raw/security-policy.yaml",
       "raw/review-notes.evidence",
     ])
+  })
+
+  it("returns page-aware citations for PDF evidence", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-pdf-page-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "brief.pdf"), createSearchPdf())
+    await ingest({ cwd: root })
+
+    const results = await search("page aware confidential evidence", { cwd: root, topK: 1 })
+
+    expect(results[0]?.pageStart).toBe(1)
+    expect(results[0]?.pageEnd).toBe(1)
+    expect(results[0]?.citation).toContain("brief.pdf:p1:L")
   })
 })
 
@@ -173,4 +305,28 @@ async function expectTopResult(cwd: string, query: string, expectedPaths: string
 async function expectAnyResult(cwd: string, query: string, expectedPaths: string[]): Promise<void> {
   const results = await search(query, { cwd, topK: 3 })
   expect(results.some((result) => expectedPaths.includes(result.relativePath))).toBe(true)
+}
+
+function createSearchPdf(): string {
+  const content = "BT /F1 18 Tf 72 720 Td (Page aware confidential evidence) Tj ET"
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`,
+  ]
+  let pdf = "%PDF-1.4\n"
+  const offsets = [0]
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(pdf))
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
+  }
+  const xrefOffset = Buffer.byteLength(pdf)
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+  pdf += offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`)
+    .join("")
+  return `${pdf}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
 }

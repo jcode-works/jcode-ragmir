@@ -1,4 +1,4 @@
-import { appendFile, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
+import { appendFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -58,6 +58,25 @@ describe("accessLogUsageReport", () => {
       "usage-report days must be a positive integer.",
     )
   })
+
+  it("separates query result averages from ingestion chunk counts", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-log-actions-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const config = await loadConfig(root)
+    await recordAccess(config, { action: "ingest", resultCount: 1_000 })
+    await recordAccess(config, { action: "search", query: "first", resultCount: 8 })
+    await recordAccess(config, { action: "search", query: "second", resultCount: 4 })
+    await recordAccess(config, { action: "ask", query: "third", resultCount: 2 })
+
+    const report = await accessLogUsageReport({ cwd: root, days: 7 })
+
+    expect(report.averageResultCount).toBe(253.5)
+    expect(report.averageResultCountByAction.ingest).toBe(1_000)
+    expect(report.averageResultCountByAction.search).toBe(6)
+    expect(report.averageResultCountByAction.ask).toBe(2)
+    expect(report.averageResultCountByAction.evaluate).toBeNull()
+  })
 })
 
 describe("recordAccess retention", () => {
@@ -82,6 +101,31 @@ describe("recordAccess retention", () => {
     const sizeAfter = (await stat(config.accessLogPath)).size
     expect(sizeAfter).toBeLessThan(sizeBefore)
     expect(sizeAfter).toBeLessThan(10 * 1024 * 1024)
+  })
+
+  it("salts query hashes per project and hardens local files", async () => {
+    const firstRoot = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-salt-a-"))
+    const secondRoot = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-salt-b-"))
+    tempDirs.push(firstRoot, secondRoot)
+    await initProject(firstRoot)
+    await initProject(secondRoot)
+    const firstConfig = await loadConfig(firstRoot)
+    const secondConfig = await loadConfig(secondRoot)
+
+    await recordAccess(firstConfig, { action: "search", query: "same private query" })
+    await recordAccess(secondConfig, { action: "search", query: "same private query" })
+    const firstLine = JSON.parse(await readFile(firstConfig.accessLogPath, "utf8")) as {
+      queryHash: string
+    }
+    const secondLine = JSON.parse(await readFile(secondConfig.accessLogPath, "utf8")) as {
+      queryHash: string
+    }
+
+    expect(firstLine.queryHash).not.toBe(secondLine.queryHash)
+    if (process.platform !== "win32") {
+      expect((await stat(firstConfig.accessLogPath)).mode & 0o777).toBe(0o600)
+      expect((await stat(path.dirname(firstConfig.accessLogPath))).mode & 0o777).toBe(0o700)
+    }
   })
 
   it("does not write a log entry when access logging is disabled", async () => {

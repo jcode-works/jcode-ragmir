@@ -13,9 +13,6 @@ export type RagmirCommandKind =
   | "audio-doctor"
   | "audio-preload"
   | "audio-summary"
-  | "chat"
-  | "chat-setup"
-  | "chat-doctor"
 
 export interface RagmirCommandRequest {
   projectRoot: string
@@ -81,23 +78,15 @@ export interface SearchResult {
   distance: number | null
 }
 
+export interface SearchReport {
+  query: string
+  results: SearchResult[]
+}
+
 export interface AskResult {
   query: string
   answer: string
   sources: SearchResult[]
-}
-
-export interface ChatResult {
-  query: string
-  question: string
-  answer: string
-  sources: SearchResult[]
-  model: string
-  modelPath: string
-  allowRemoteModels: boolean
-  maxNewTokens: number
-  contextCharLimit: number
-  emptyContext: boolean
 }
 
 export interface StatusReport {
@@ -198,31 +187,6 @@ export interface AudioDoctorReport {
   outputFormat: "mp3-or-wav"
 }
 
-export interface ChatSetupResult {
-  model: string
-  modelPath: string
-  allowRemoteModels: boolean
-  dtype: string
-  ready: true
-}
-
-export interface ChatDoctorReport {
-  node: string
-  provider: "transformers"
-  defaultModel: string
-  defaultModelPath: string
-  defaultAllowRemoteModels: boolean
-  defaultSetupAllowsRemoteModels: boolean
-  defaultMaxNewTokens: number
-  defaultContextCharLimit: number
-  defaultDtype: string
-  transformersAvailable: boolean
-  localModelPathExists: boolean
-  ollamaRequired: false
-  pythonRequired: false
-  storesRawPrompts: false
-}
-
 interface SetupResult {
   doctor: DoctorReport
 }
@@ -248,6 +212,18 @@ export async function runIngest(projectRoot: string, rebuild = false): Promise<I
   )
 }
 
+export async function runSearch(
+  projectRoot: string,
+  query: string,
+  topK?: number,
+): Promise<SearchReport> {
+  const request: RagmirCommandRequest = { projectRoot, command: "search", query }
+  if (topK !== undefined) {
+    request.topK = topK
+  }
+  return runJsonCommand(request, isSearchReport, "search result", { allowNonZero: true })
+}
+
 export async function runAsk(
   projectRoot: string,
   query: string,
@@ -260,18 +236,6 @@ export async function runAsk(
   return runJsonCommand(request, isAskResult, "ask result", { allowNonZero: true })
 }
 
-export async function runChat(
-  projectRoot: string,
-  query: string,
-  topK?: number,
-): Promise<ChatResult> {
-  const request: RagmirCommandRequest = { projectRoot, command: "chat", query }
-  if (topK !== undefined) {
-    request.topK = topK
-  }
-  return runJsonCommand(request, isChatResult, "chat result", { allowNonZero: true })
-}
-
 export async function runStatus(projectRoot: string): Promise<StatusReport> {
   return runJsonCommand({ projectRoot, command: "status" }, isStatusReport, "status report")
 }
@@ -281,22 +245,6 @@ export async function runModelsPull(projectRoot: string): Promise<ModelsPullResu
     { projectRoot, command: "models-pull" },
     isModelsPullResult,
     "models pull result",
-  )
-}
-
-export async function runChatSetup(projectRoot: string): Promise<ChatSetupResult> {
-  return runJsonCommand(
-    { projectRoot, command: "chat-setup" },
-    isChatSetupResult,
-    "chat setup result",
-  )
-}
-
-export async function runChatDoctor(projectRoot: string): Promise<ChatDoctorReport> {
-  return runJsonCommand(
-    { projectRoot, command: "chat-doctor" },
-    isChatDoctorReport,
-    "chat doctor report",
   )
 }
 
@@ -471,20 +419,12 @@ function isAskResult(value: unknown): value is AskResult {
   )
 }
 
-function isChatResult(value: unknown): value is ChatResult {
+function isSearchReport(value: unknown): value is SearchReport {
   return (
     isRecord(value) &&
     typeof value.query === "string" &&
-    typeof value.question === "string" &&
-    typeof value.answer === "string" &&
-    Array.isArray(value.sources) &&
-    value.sources.every(isSearchResult) &&
-    typeof value.model === "string" &&
-    typeof value.modelPath === "string" &&
-    typeof value.allowRemoteModels === "boolean" &&
-    typeof value.maxNewTokens === "number" &&
-    typeof value.contextCharLimit === "number" &&
-    typeof value.emptyContext === "boolean"
+    Array.isArray(value.results) &&
+    value.results.every(isSearchResult)
   )
 }
 
@@ -560,37 +500,6 @@ function isAudioDoctorReport(value: unknown): value is AudioDoctorReport {
     value.pythonRequired === false &&
     value.ffmpegRequired === false &&
     value.outputFormat === "mp3-or-wav"
-  )
-}
-
-function isChatSetupResult(value: unknown): value is ChatSetupResult {
-  return (
-    isRecord(value) &&
-    typeof value.model === "string" &&
-    typeof value.modelPath === "string" &&
-    typeof value.allowRemoteModels === "boolean" &&
-    typeof value.dtype === "string" &&
-    value.ready === true
-  )
-}
-
-function isChatDoctorReport(value: unknown): value is ChatDoctorReport {
-  return (
-    isRecord(value) &&
-    typeof value.node === "string" &&
-    value.provider === "transformers" &&
-    typeof value.defaultModel === "string" &&
-    typeof value.defaultModelPath === "string" &&
-    typeof value.defaultAllowRemoteModels === "boolean" &&
-    typeof value.defaultSetupAllowsRemoteModels === "boolean" &&
-    typeof value.defaultMaxNewTokens === "number" &&
-    typeof value.defaultContextCharLimit === "number" &&
-    typeof value.defaultDtype === "string" &&
-    typeof value.transformersAvailable === "boolean" &&
-    typeof value.localModelPathExists === "boolean" &&
-    value.ollamaRequired === false &&
-    value.pythonRequired === false &&
-    value.storesRawPrompts === false
   )
 }
 

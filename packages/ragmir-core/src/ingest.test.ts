@@ -3,9 +3,10 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { loadConfig } from "./config.js"
+import { indexPolicyFingerprint } from "./index-policy.js"
 import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
-import { readIndexManifest } from "./store.js"
+import { openRowsTable, readIndexManifest } from "./store.js"
 
 const tempDirs: string[] = []
 
@@ -27,6 +28,8 @@ describe("ingest", () => {
     const result = await ingest({ cwd: root })
     expect(result.discoveredFiles).toBe(2)
     expect(result.supportedFiles).toBe(1)
+    expect(result.supportedBytes).toBeGreaterThan(0)
+    expect(result.largestFileBytes).toBeGreaterThan(0)
     expect(result.rebuiltFiles).toBe(1)
     expect(result.reusedFiles).toBe(0)
     expect(result.unsupportedFiles).toBe(1)
@@ -37,6 +40,9 @@ describe("ingest", () => {
     const report = await audit(root)
 
     expect(report.missingFromIndex).toEqual([])
+    expect(report.discoveredFiles).toBe(2)
+    expect(report.supportedBytes).toBeGreaterThan(0)
+    expect(report.largestFileBytes).toBeGreaterThan(0)
     expect(report.staleInIndex).toEqual([".ragmir/raw/evidence.md"])
     expect(report.skippedFiles).toEqual([
       expect.objectContaining({
@@ -82,10 +88,49 @@ describe("ingest", () => {
     const manifest = await readIndexManifest(await loadConfig(root))
     expect(manifest).not.toBeNull()
     expect(manifest?.embeddingProvider).toBe("local-hash")
-    expect(manifest?.schemaVersion).toBe(2)
+    expect(manifest?.schemaVersion).toBe(6)
+    expect(manifest?.indexPolicyFingerprint).toBe(indexPolicyFingerprint(await loadConfig(root)))
     expect(manifest?.vectorDimension).toBeGreaterThan(0)
     expect(manifest?.vectorDistanceMetric).toBe("l2")
     expect(manifest?.chunkCount).toBe(result.chunks)
+  })
+
+  it("does not create a LanceDB version for a no-op ingest", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-noop-ingest-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "alpha.md"), "Alpha evidence.\n")
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const table = await openRowsTable(config)
+    const versionBefore = await table?.version()
+
+    const result = await ingest({ cwd: root })
+    const versionAfter = await (await openRowsTable(config))?.version()
+
+    expect(result.rebuiltFiles).toBe(0)
+    expect(result.reusedFiles).toBe(1)
+    expect(versionAfter).toBe(versionBefore)
+  })
+
+  it("rebuilds every file when the content policy changes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-policy-rebuild-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "alpha.md"), "Contact user@example.test.\n")
+    await ingest({ cwd: root })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ redaction: { enabled: false } }),
+    )
+
+    const result = await ingest({ cwd: root })
+
+    expect(result.policyRebuild).toBe(true)
+    expect(result.rebuiltFiles).toBe(1)
+    expect(result.reusedFiles).toBe(0)
   })
 
   it("forces a full re-index of every file when rebuild is requested", async () => {
@@ -156,6 +201,24 @@ describe("ingest", () => {
         relativePath: ".ragmir/raw/raw_files/decision-copy.md",
       }),
     ])
+  })
+
+  it("does not report files with the same basename and different content as duplicates", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-diagnostics-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw", "nested"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "README.md"), "First source.\n", "utf8")
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "nested", "README.md"),
+      "Second source with different evidence.\n",
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const report = await audit(root)
+
+    expect(report.sourceDiagnostics.duplicateCandidates).toEqual([])
   })
 })
 

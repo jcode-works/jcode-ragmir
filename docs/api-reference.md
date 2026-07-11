@@ -130,15 +130,32 @@ import { ingest } from "@jcode.labs/ragmir"
 const result = await ingest({ cwd: "/path/to/workspace" })
 ```
 
-Use `rebuild: true` after changing the embedding provider or model:
+Use `rebuild: true` to intentionally discard and recreate an otherwise compatible index:
 
 ```ts
 await ingest({ cwd: "/path/to/workspace", rebuild: true })
 ```
 
-`IngestResult` includes discovered/supported/skipped file counts, rebuilt/reused file counts,
+Ragmir fingerprints embedding, model revision, chunking, redaction, parsing, and extractor policy.
+An incompatible policy triggers a safe full rebuild automatically. Otherwise ingestion updates only
+changed or removed source paths; a no-op does not create a new LanceDB table version.
+
+`IngestResult` includes discovered/supported/skipped file counts, `supportedBytes`,
+`largestFileBytes`, rebuilt/reused file counts,
 unsupported-extension summaries, redaction counts, chunk count, `emptyTextFiles` for supported files
-that produced no indexable text, and per-file parsing errors.
+that produced no indexable text, per-file parsing errors, and `policyRebuild`.
+
+### `ingestionLimits(config)`
+
+Returns the effective per-file limit and the hard PDF, Office/archive, and external-extractor safety
+bounds. `maxFiles` and `maxCorpusBytes` are `null` because Ragmir has no fixed ceiling for either.
+
+```ts
+import { ingestionLimits, loadConfig } from "@jcode.labs/ragmir"
+
+const limits = ingestionLimits(await loadConfig("/path/to/workspace"))
+console.log(limits.maxFileBytes, limits.maxFiles)
+```
 
 ### `audit(cwd?)`
 
@@ -151,8 +168,10 @@ const report = await audit("/path/to/workspace")
 ```
 
 Use `missingFromIndex` and `staleInIndex` to decide whether to run `ingest` or `ingest({ rebuild:
-true })`. `emptyTextFiles` lists supported files that were processed but produced no indexable text;
-they are not treated as missing while their checksum remains unchanged.
+true })`. The report also exposes `discoveredFiles`, `supportedBytes`, and `largestFileBytes`.
+`emptyTextFiles` lists supported files that were processed but produced no indexable text; they are
+not treated as missing while their checksum remains unchanged, but doctor still marks coverage
+incomplete.
 
 ### `search(query, options?)`
 
@@ -166,8 +185,14 @@ const passages = await search("Who approved offline operation?", {
   cwd: "/path/to/workspace",
   topK: 8,
   contextRadius: 1,
+  includePaths: ["primary"],
+  excludePaths: ["research/archive"],
 })
 ```
+
+`includePaths` and `excludePaths` accept exact project-relative paths or directory prefixes. Filters
+are applied inside LanceDB before candidate limits and ranking, so excluded mirror or research
+folders do not consume top-K candidate capacity.
 
 Each `SearchResult` includes:
 
@@ -176,14 +201,20 @@ Each `SearchResult` includes:
 | `relativePath` | Source path relative to the Ragmir project root. |
 | `source` | Source category used by discovery. |
 | `chunkIndex` | Chunk number inside that source file. |
-| `citation` | Stable citation including line span when available, for example `docs/policy.md:L4-L8#2`. |
+| `citation` | Stable citation including PDF page and line span when available, for example `brief.pdf:p2:L4-L8#3`. |
 | `text` | Retrieved redacted chunk text. |
 | `distance` | Vector distance when available; `null` for lexical-only rows. |
 | `lineStart` / `lineEnd` | 1-based line span for the matched chunk, or `null` for legacy indexes. |
+| `pageStart` / `pageEnd` | 1-based PDF page span, or `null` for non-PDF and legacy indexes. |
 | `context` | Neighboring chunks when `contextRadius` is set. The matched chunk remains the cited result. |
 
 Use `compactSearchResults(passages)` when an agent or MCP client needs short snippets instead of
 full retrieved chunks.
+
+Retrieval uses equal-weight reciprocal-rank fusion over vector and LanceDB FTS candidates, then
+deduplicates identical content and diversifies sources. `retrievalProfile` controls candidate breadth
+and source density. Ragmir uses exact flat vector search by default and abstains from weak
+`local-hash` matches that have no lexical evidence.
 
 ### `routePrompt(prompt)`
 
@@ -294,6 +325,10 @@ first-run CLI shortcut is `rgr setup --semantic`.
 Returns a readiness report combining setup state, index freshness, security warnings, and next
 steps.
 
+`readiness` separates `operationalReady`, `indexPolicyCurrent`, `privacyCompliant`, and
+`retrievalQualityVerified`. Retrieval quality remains unverified until callers run an evaluation
+gate; it is not inferred from index freshness.
+
 ```ts
 import { doctor } from "@jcode.labs/ragmir"
 
@@ -308,14 +343,20 @@ if (!report.ready) {
 Returns local privacy posture: provider settings, redaction status, access-log behavior, generated
 state Git ignore coverage, MCP bounds, and warnings.
 
+The report includes `privacyProfile`, `retrievalProfile`, model revision, and `acceptedRisks`.
+Accepted risks are informational and do not suppress warnings.
+On POSIX, `permissions` reports whether the config, raw directory, storage directory, and access log
+exclude group/other access. `rgr doctor --fix` repairs Ragmir-owned default config and directory
+modes; custom external paths remain under the operator's permission policy.
+
 ```ts
 import { securityAudit } from "@jcode.labs/ragmir"
 
 const report = await securityAudit("/path/to/workspace")
 ```
 
-`accessLog.storesRawQueries` is always `false`. Ragmir's access log stores query hashes and metadata,
-not raw query strings.
+`accessLog.storesRawQueries` is always `false`. Ragmir's access log stores project-salted HMAC query
+hashes and metadata, not raw query strings.
 
 ### `accessLogUsageReport(options?)`
 
@@ -344,8 +385,9 @@ Returns `{ text, counts }`.
 
 ### `destroyIndex(cwd?)`
 
-Deletes generated `.ragmir/storage` index files, or the configured storage directory when a project
-uses custom paths.
+Deletes generated `.ragmir/storage` index files, or a safe configured storage directory. Ragmir
+rejects filesystem roots, the project root, home-directory ancestors, and paths without a valid
+index manifest.
 
 ```ts
 import { destroyIndex } from "@jcode.labs/ragmir"
@@ -427,9 +469,9 @@ MCP tools exposed by the server:
 | --- | --- |
 | `ragmir_status` | `{}` |
 | `ragmir_route_prompt` | `{ prompt: string }` |
-| `ragmir_search` | `{ query: string, topK?: number, contextRadius?: number, compact?: boolean }` |
-| `ragmir_ask` | `{ query: string, topK?: number, contextRadius?: number }` |
-| `ragmir_research` | `{ query: string, topK?: number, includeCode?: boolean, compact?: boolean }` |
+| `ragmir_search` | `{ query: string, topK?: number, contextRadius?: number, compact?: boolean, includePaths?: string[], excludePaths?: string[] }` |
+| `ragmir_ask` | `{ query: string, topK?: number, contextRadius?: number, includePaths?: string[], excludePaths?: string[] }` |
+| `ragmir_research` | `{ query: string, topK?: number, includeCode?: boolean, compact?: boolean, includePaths?: string[], excludePaths?: string[] }` |
 | `ragmir_audit` | `{}` |
 | `ragmir_evaluate` | `{ goldenPath: string, topK?: number, failUnder?: number }` |
 | `ragmir_usage_report` | `{ days?: number }` |
@@ -438,9 +480,17 @@ MCP tools exposed by the server:
 `topK` is bounded by `mcpMaxTopK` from config, and `contextRadius` is capped at 3 chunks on each
 side. `ragmir_evaluate` also requires `goldenPath` to stay inside the MCP project root. Evaluation
 golden files support `expectedPaths` for file-level recall and `expectedCitations` for exact
-`relative/path:Lx-Ly#chunkIndex` checks. Older indexes without line metadata fall back to
-`relative/path#chunkIndex` until they are rebuilt. Evaluation output includes hit-rate recall, MRR,
-and nDCG.
+`relative/path:Lx-Ly#chunkIndex` checks. PDF citations may also include `:pN`. Older indexes without
+line metadata fall back to `relative/path#chunkIndex` until they are rebuilt. Evaluation output
+separates hit rate, Recall@K, Precision@K, MRR, bounded nDCG, and p50/p95 latency. Individual golden
+queries may define `includePaths` and `excludePaths` using the same source-filter semantics.
+
+`ragmir_status` includes `ingestionLimits`. This lets clients disclose the current safety bounds
+without inferring them from configuration defaults.
+
+With `privacyProfile: "strict"`, MCP returns compact search/research output by default, compact cited
+retrieval for `ragmir_ask`, project-relative paths for status and security reports, and never enables
+repository-wide code scanning.
 
 ## Package Manager Helpers
 

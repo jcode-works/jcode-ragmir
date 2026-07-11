@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { clearTransformersCache, embedText, embedTexts } from "./embeddings.js"
+import {
+  clearTransformersCache,
+  embedText,
+  embedTexts,
+  prepareEmbeddingText,
+} from "./embeddings.js"
 import { testConfig } from "./test-support/config.js"
 
 describe("local hash embeddings", () => {
@@ -30,6 +35,30 @@ describe("local hash embeddings", () => {
     const embedding = await embedText("solo query", config)
     expect(embedding).toHaveLength(384)
   })
+
+  it("keeps inflected terms closer than unrelated text", async () => {
+    const config = testConfig()
+    const query = await embedText("token rotation", config)
+    const related = await embedTexts(["tokens must be rotated"], config)
+    const unrelated = await embedTexts(["facility maintenance calendar"], config)
+
+    expect(dotProduct(query, related[0] ?? [])).toBeGreaterThan(
+      dotProduct(query, unrelated[0] ?? []),
+    )
+  })
+})
+
+describe("embedding model adapters", () => {
+  it("adds the asymmetric E5 retrieval prefixes", () => {
+    const model = "intfloat/multilingual-e5-small"
+
+    expect(prepareEmbeddingText("where is the policy", model, "query")).toBe(
+      "query: where is the policy",
+    )
+    expect(prepareEmbeddingText("policy evidence", model, "document")).toBe(
+      "passage: policy evidence",
+    )
+  })
 })
 
 describe("clearTransformersCache", () => {
@@ -40,4 +69,8 @@ describe("clearTransformersCache", () => {
 
 function vectorMagnitude(vector: number[]): number {
   return Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0))
+}
+
+function dotProduct(left: number[], right: number[]): number {
+  return left.reduce((sum, value, index) => sum + value * (right[index] ?? 0), 0)
 }

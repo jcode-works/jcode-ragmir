@@ -1,4 +1,5 @@
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
+import { indexPolicyFingerprint } from "./index-policy.js"
 import { readIndexManifest } from "./store.js"
 import type { Config } from "./types.js"
 
@@ -8,7 +9,7 @@ import type { Config } from "./types.js"
  * required metadata). A stored manifest with a lower schemaVersion means the
  * index predates the current code and should be rebuilt.
  */
-export const INDEX_SCHEMA_VERSION = 2
+export const INDEX_SCHEMA_VERSION = 6
 
 /**
  * Detect a stale or incompatible index without re-scanning every source file.
@@ -27,8 +28,8 @@ export async function getIndexFreshnessWarning(config: Config): Promise<string |
     return null
   }
 
-  if (manifest.schemaVersion < INDEX_SCHEMA_VERSION) {
-    return `Index schema is outdated (stored v${manifest.schemaVersion}, current v${INDEX_SCHEMA_VERSION}). Rebuild with \`rgr ingest --rebuild\` to use the latest index format.`
+  if (manifest.schemaVersion !== INDEX_SCHEMA_VERSION) {
+    return `Index schema is incompatible (stored v${manifest.schemaVersion}, current v${INDEX_SCHEMA_VERSION}). Rebuild with \`rgr ingest --rebuild\` to use the latest index format.`
   }
 
   if (manifest.embeddingProvider !== config.embeddingProvider) {
@@ -48,6 +49,11 @@ export async function getIndexFreshnessWarning(config: Config): Promise<string |
 
   if (manifest.chunkSize !== config.chunkSize || manifest.chunkOverlap !== config.chunkOverlap) {
     return `Index was built with chunkSize=${manifest.chunkSize}/chunkOverlap=${manifest.chunkOverlap} but the active config uses chunkSize=${config.chunkSize}/chunkOverlap=${config.chunkOverlap}. Rebuild with \`rgr ingest --rebuild\`.`
+  }
+
+  const activeFingerprint = indexPolicyFingerprint(config)
+  if (manifest.indexPolicyFingerprint !== activeFingerprint) {
+    return "Index content policy differs from the active parsing, redaction, chunking, or embedding policy. Rebuild with `rgr ingest --rebuild`."
   }
 
   return null

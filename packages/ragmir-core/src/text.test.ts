@@ -41,8 +41,18 @@ describe("tokenize", () => {
   })
 
   it("keeps CJK characters as tokens", () => {
-    // CJK ideographs are \p{L}; each run becomes one token.
-    expect(tokenize("文档 检索")).toEqual(["文档", "检索"])
+    const tokens = tokenize("文档 检索")
+    expect(tokens.join("")).toBe("文档检索")
+    expect(tokens.length).toBeGreaterThan(1)
+  })
+
+  it("segments Thai words instead of collapsing a sentence into one token", () => {
+    const first = tokenize("เอกสารลับต้องเก็บไว้ในเครื่อง")
+    const second = tokenize("นโยบายสาธารณะสำหรับทีม")
+
+    expect(first.length).toBeGreaterThan(1)
+    expect(second.length).toBeGreaterThan(1)
+    expect(first).not.toEqual(second)
   })
 
   it("keeps numeric runs", () => {
