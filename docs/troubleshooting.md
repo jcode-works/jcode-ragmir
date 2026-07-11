@@ -56,7 +56,7 @@ OCR/transcribe them, or add a safe custom UTF-8 text extension with `includeExte
 
 ## Scanned PDFs Or Images Produce No Text
 
-Ragmir extracts embedded PDF text by default. For scanned/image-only PDFs, configure an explicit local
+Ragmir extracts embedded PDF text page by page. For blank scanned pages, configure an explicit local
 OCR wrapper that prints UTF-8 text to stdout:
 
 ```json
@@ -66,9 +66,10 @@ OCR wrapper that prints UTF-8 text to stdout:
 }
 ```
 
-The command runs only when normal PDF extraction returns no text. It is executed without a shell,
-receives `RAGMIR_PDF_PATH`, and may use `{input}` in its arguments for the PDF path. Keep OCR tooling
-local for confidential documents.
+The command runs only for pages where embedded extraction returns no text. It is executed without a
+shell and with a minimal environment, receives `RAGMIR_PDF_PATH` and `RAGMIR_PDF_PAGE`, and may use
+`{input}` and `{page}` in its arguments. The `strict` privacy profile disables external extractors.
+Keep OCR tooling local for confidential documents.
 
 Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` are skipped by default. To index
 them directly, configure an explicit local image OCR wrapper:
@@ -116,7 +117,8 @@ usually better than the default lexical/hash mode.
 ```json
 {
   "embeddingProvider": "transformers",
-  "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
+  "embeddingModel": "intfloat/multilingual-e5-small",
+  "embeddingModelRevision": "main",
   "embeddingModelPath": ".ragmir/models",
   "transformersAllowRemoteModels": false
 }
@@ -156,9 +158,32 @@ Or let doctor perform the safe incremental update:
 npx rgr doctor --fix
 ```
 
-Ragmir incrementally reuses unchanged indexed rows on normal `rgr ingest`. Use `rgr ingest --rebuild`
-after switching embedding provider/model, after changing chunking settings, or when you want to
-discard and recreate the whole local index.
+Ragmir incrementally reuses unchanged files and mutates only removed or replaced paths on normal
+`rgr ingest`. A no-op does not create a new LanceDB table version. Index-policy changes trigger a
+safe full rebuild automatically. Use `rgr ingest --rebuild` when you intentionally want to discard
+and recreate an otherwise compatible index.
+
+## Doctor Reports Incomplete Coverage
+
+Doctor keeps `ready=false` when supported sources are missing, stale, oversized, or produced no
+indexable text. Start with:
+
+```bash
+npx rgr limits
+npx rgr audit --unsupported
+npx rgr ingest --json
+```
+
+Split or convert oversized files, configure an approved local OCR/extractor for empty scans, and
+re-ingest. Ragmir has no hard file-count or total-corpus-byte ceiling, but that does not guarantee
+acceptable performance: benchmark ingestion and retrieval on the target corpus and machine.
+
+If research notes or duplicate mirrors dominate results, constrain the evidence tier before ranking:
+
+```bash
+npx rgr search "primary finding" --include-path ".ragmir/raw/primary"
+npx rgr research "remaining gaps" --exclude-path ".ragmir/raw/research" --exclude-path ".ragmir/raw/archive"
+```
 
 ## `security-audit --strict` Fails
 
@@ -168,8 +193,9 @@ Read the warning lines. Common causes:
 - generated local state is not ignored by Git.
 - Redaction was disabled.
 - Transformers.js remote model loading was enabled.
+- An existing config, raw directory, index directory, or access log exposes group/other POSIX bits.
 
-Run the safe repair command if Git ignore entries are missing:
+Run the safe repair command if Git ignore entries or local modes need repair:
 
 ```bash
 npx rgr doctor --fix
@@ -233,23 +259,83 @@ npx rgr-tts render /tmp/ragmir-tts-preload.txt \
 
 The full workflow is documented in [`offline-tts-preload.md`](./offline-tts-preload.md).
 
+## `rgr chat doctor` Reports The Model Is Not Ready
+
+Run doctor for the profile you intend to use:
+
+```bash
+npx rgr chat doctor --profile lite
+npx rgr chat doctor --profile fast
+npx rgr chat doctor --profile quality --verify --json
+```
+
+The `lite` profile requires the 491 MB Qwen2.5 0.5B GGUF. The default `fast` profile requires the
+3.35 GB Gemma 4 E2B GGUF, and `quality` requires the 5.15 GB Gemma 4 E4B GGUF. Normal doctor verifies all of the following before reporting the profile
+ready:
+
+- the `node-llama-cpp` 3.19 runtime is available;
+- `.ragmir/models/chat/<profile>/manifest.json` exists and selects the requested profile;
+- the manifest refers to a relative GGUF path, not an absolute project path;
+- the GGUF exists and has the exact recorded byte size.
+
+Normal doctor intentionally avoids hashing the selected model on every readiness refresh. Add
+`--verify` to recompute the full SHA-256. JSON output exposes the result as `modelHashValid`.
+
+If the manifest or GGUF is missing, run explicit setup:
+
+```bash
+npx rgr chat setup --profile lite
+npx rgr chat setup --profile fast
+```
+
+Use `--profile lite` on an older or low-memory computer and `--profile quality` only when you
+intentionally want the larger model. The lite profile forces thinking off and produces shorter,
+lower-quality synthesis. If size validation or a
+full `--verify` SHA-256 check fails, the file is incomplete or does not match the expected artifact.
+Run setup again on a trusted network rather than editing the manifest or bypassing verification.
+
 ## `rgr chat --offline` Cannot Answer
 
-Offline chat requires model files to already exist under `.ragmir/models/chat` or the path passed
-with `--model-path`.
-
-For a first online setup, run:
+Normal chat answers never download a model. They require a profile that already passes doctor:
 
 ```bash
-npx rgr chat setup
+npx rgr chat doctor --profile fast
+npx rgr chat "Which evidence supports offline operation?" --profile fast --thinking standard --offline
 ```
 
-Then reuse the cached files with:
+If `rgr chat` returns no context, the model is not the first problem to solve. Run
+`npx rgr doctor --fix`, then inspect retrieval directly:
 
 ```bash
-npx rgr chat "Which evidence supports offline operation?" --offline
+npx rgr search "Which evidence supports offline operation?"
 ```
 
-If `rgr chat` returns no context, run `npx rgr doctor --fix` and try `npx rgr search "<query>"` to
-confirm that the relevant passages are indexed. The full chat preload workflow is documented in
+If the `quality` profile cannot start because the computer lacks local resources, prepare and use the
+default `fast` profile. Runtime speed and memory use vary with hardware, context size, and thinking
+mode; the documented 3.35 GB and 5.15 GB values are model-file download sizes.
+
+Ragmir Chat currently supports desktop and CLI workflows only. Android chat is future work; do not
+try to fix an Android failure by installing Ollama, Python, or a hosted model API.
+
+## Chat Does Not Show Raw Thinking
+
+This is intentional. `--thinking off`, `standard`, and `deep` control bounded local reasoning, but
+raw thought text is never displayed, returned, persisted, or written to logs. Only the user-visible
+question and final answer may be retained in local chat history.
+
+`rgr-chat serve` is the persistent internal stdio JSONL transport for desktop integration. Do not
+launch it as the user chat interface; use `rgr chat ...` and `rgr chat doctor`. Core `rgr chat` uses
+the package API directly for one-shot answers.
+
+## A Cited Chat Answer Is Still Wrong
+
+Ragmir validates generated citation markers against the passages retrieved for that answer. This
+prevents references to nonexistent entries in the supplied source list, but it does not guarantee
+that Gemma interpreted a real passage correctly or that the source itself is true.
+
+Open the cited files, compare the claim with the cited lines or chunks, and use `rgr search` with a
+more specific query when the evidence is ambiguous. Important legal, financial, medical, security,
+or operational claims still require appropriate human or professional review.
+
+The full setup and air-gapped transfer workflow is documented in
 [`offline-chat-preload.md`](./offline-chat-preload.md).

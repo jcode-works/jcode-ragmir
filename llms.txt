@@ -10,8 +10,11 @@ secrets and PII before anything is embedded, and serves cited passages through a
 an MCP server (`rgr serve-mcp`), a TypeScript library, and portable skills for Claude Code, Codex,
 Kimi Code CLI, OpenCode, and Cline. It does not perform LLM answer synthesis itself; `rgr ask`
 returns cited passages only, and synthesis stays with the calling agent or model. Ragmir Chat
-(`@jcode.labs/ragmir-chat`, npm) is the optional local Transformers.js cited-chat add-on, and Ragmir
-TTS (`@jcode.labs/ragmir-tts`, npm) renders offline audio summaries.
+(`@jcode.labs/ragmir-chat`, npm) is the optional desktop/CLI cited-chat add-on: it runs verified
+Gemma 4 QAT GGUF profiles through `node-llama-cpp` 3.19, with E2B `fast` by default, opt-in E4B
+`quality`, explicit setup, offline normal answers, and raw thought hidden and unpersisted. It requires no
+Ollama, Python, or hosted LLM API. Ragmir TTS (`@jcode.labs/ragmir-tts`, npm) renders offline audio
+summaries.
 
 ## Docs
 

@@ -27,6 +27,9 @@ Then run the CLI from this folder:
 
 ```bash
 cd packages/ragmir-core/examples/sovereign-rag-demo
+node ../../dist/cli.js init
+# POSIX only: this example deliberately uses a custom tracked rawDir.
+chmod 700 raw
 node ../../dist/cli.js security-audit
 node ../../dist/cli.js ingest
 node ../../dist/cli.js search "offline retrieval approval"
@@ -38,6 +41,10 @@ node ../../dist/cli.js audit
 node ../../dist/cli.js audit --unsupported
 node ../../dist/cli.js status
 ```
+
+`init` is idempotent here and applies owner-only permissions to the copied `.ragmir` config. The
+example deliberately keeps documents under the custom tracked `raw/` path, so secure that directory
+explicitly on POSIX before a strict audit. Git and package archives cannot encode its `0700` mode.
 
 This example uses `embeddingProvider: "local-hash"`, so it does not require a model runtime.
 Retrieval is lexical/hash-based rather than model-semantic.
@@ -68,7 +75,8 @@ To compare no-model retrieval with semantic local retrieval, change `.ragmir/con
 ```json
 {
   "embeddingProvider": "transformers",
-  "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
+  "embeddingModel": "intfloat/multilingual-e5-small",
+  "embeddingModelRevision": "main",
   "embeddingModelPath": ".ragmir/models",
   "transformersAllowRemoteModels": false
 }

@@ -111,7 +111,8 @@ Optional semantic embedding mode:
 ```json
 {
   "embeddingProvider": "transformers",
-  "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
+  "embeddingModel": "intfloat/multilingual-e5-small",
+  "embeddingModelRevision": "main",
   "embeddingModelPath": ".ragmir/models",
   "transformersAllowRemoteModels": false
 }
@@ -149,8 +150,11 @@ pnpm exec rgr status
 has no warnings. Normal `rgr ingest` reuses unchanged rows; use `rgr ingest --rebuild` after changing
 embedding provider/model or chunking settings. `rgr ingest --json` reports `emptyTextFiles` when
 supported files, typically scanned PDFs, produce no indexable text. `rgr doctor` should show
-`ready=true` before relying on the index. The audit must show no missing or stale supported files, and
-the security audit should not show warnings before relying on Ragmir for sensitive work.
+`ready=true` before relying on the index. Empty-text, oversized, missing, or stale coverage keeps it
+false. Run `rgr limits` to inspect the active per-file and parser bounds. There is no fixed file-count
+or total-corpus-byte ceiling, so benchmark large corpora on their target machine. The audit must show
+no missing or stale supported files, and the security audit should not show warnings before relying
+on Ragmir for sensitive work.
 
 Default retrieval is tuned for broader recall (`topK: 8`, `chunkOverlap: 200`). Keep MCP retrieval
 bounded by `mcpMaxTopK`, and raise `--top-k` only when the first results are too narrow.
@@ -180,6 +184,10 @@ Use search when you need exact source passages:
 ```bash
 pnpm exec rgr search "your query"
 ```
+
+Use repeatable `--include-path` and `--exclude-path` filters when primary evidence, research notes,
+or mirror/archive directories must be evaluated separately. The same `includePaths` and
+`excludePaths` arrays are available through MCP and per query in golden evaluation files.
 
 Use research when the user asks for broad context, implementation planning, review preparation, or a
 cross-document audit:
