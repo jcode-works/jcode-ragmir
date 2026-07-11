@@ -46,9 +46,38 @@ surface. In local native runs, set `RAGMIR_CLI_BIN` when the `rgr` binary is not
 [`../../docs/app-sidecar-architecture.md`](../../docs/app-sidecar-architecture.md).
 
 The current shell consumes JSON from `rgr doctor`, `rgr status`, `rgr ingest`,
-`rgr ask`, `rgr security-audit`, `rgr models pull --enable`, and offline `rgr audio` for
+`rgr search`, `rgr security-audit`, `rgr models pull --enable`, and offline `rgr audio` for
 project status, cited retrieval, privacy posture, explicit semantic model setup, Markdown reports,
 and local audio report rendering.
+
+## Local Chat Runtime
+
+The desktop chat path retrieves citations with `rgr search` using only the latest user question,
+then sends those sources plus recent visible user/assistant messages to a persistent local
+`rgr-chat serve --profile <lite|fast|quality> --offline` process. The default UX is the `fast` Gemma 4
+E2B profile with `standard` thinking. The `quality` Gemma 4 E4B profile and `deep` thinking are
+explicit opt-ins. The `lite` Qwen2.5 0.5B profile is a 491 MB option for older computers; it uses a
+smaller context and always disables thinking.
+
+The Tauri bridge uses newline-delimited JSON over the child process stdin/stdout and a Tauri
+`Channel` for real frontend streaming. The server contract is:
+
+- requests: `generate`, `cancel`, and `shutdown`;
+- events: `loading`, `reasoning`, `delta`, `completed`, `cancelled`, and `error`;
+- every event carries the target generation `id` so the native bridge can route it to the correct
+  channel;
+- `reasoning` exposes only active state and a token count. Thought text must never cross the bridge,
+  appear in the UI, or be written to local chat storage.
+
+The native bridge resolves the chat CLI from `RAGMIR_CHAT_CLI_BIN`, then a local workspace
+`packages/ragmir-chat/dist/cli.js`, then `rgr-chat` on `PATH`. Model setup and diagnosis use the
+dedicated `rgr-chat setup --profile ... --json` and `rgr-chat doctor --profile ... --json` paths so
+the selected model manifest, file size, and hash readiness remain explicit.
+
+The doctor contract exposes the operating system, architecture, locally supported compute backends,
+selected backend, and hardware-acceleration state. The app surfaces that selection in model status,
+so a Mac can prove Metal is active and Linux/Windows users can distinguish CUDA, Vulkan, or CPU
+without reading native logs.
 
 Registered projects can opt into watched-folder mode from the Projects view. This is a local polling
 layer over incremental `rgr ingest`: it re-indexes the selected project every 5 minutes, stores the

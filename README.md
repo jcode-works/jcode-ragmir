@@ -69,7 +69,7 @@ flowchart TD
   end
 
   subgraph Addons["Optional local add-ons"]
-    Chat["rgr chat<br/>Transformers.js cited answer"]
+    Chat["rgr chat<br/>local cited answer"]
     TTS["rgr audio / rgr-tts<br/>offline narration"]
   end
 
@@ -138,7 +138,7 @@ This root README is the canonical product documentation for the public npm packa
 | --- | --- |
 | `@jcode.labs/ragmir` | Ragmir Core: CLI, library, MCP server, bundled agent skills, and synthetic examples. |
 | `@jcode.labs/ragmir-tts` | Ragmir add-on for Edge-quality MP3 and offline Transformers.js WAV rendering through `rgr audio`. |
-| `@jcode.labs/ragmir-chat` | Optional local cited chat add-on for `rgr chat`, backed by Transformers.js and preloaded model files. |
+| `@jcode.labs/ragmir-chat` | Optional local cited chat add-on for `rgr chat`, backed by verified Qwen2.5 or Gemma 4 GGUF models and llama.cpp. |
 | `@jcode.labs/ragmir-ui` | Unpublished workspace UI package adapted from the WorkoutGen design foundation for Ragmir surfaces. |
 | `@jcode.labs/ragmir-landing` | Unpublished Astro static landing package. Product-facing titles stay `Ragmir`. |
 | `@jcode.labs/ragmir-app` | Unpublished Tauri desktop/mobile shell package. Native builds are explicit app commands. Core integration uses a bounded native command around the `rgr` CLI, with packaged sidecar distribution still planned. |
@@ -167,7 +167,7 @@ agent wiring, API shapes, security details, or app packaging rules:
 | [`docs/agent-integration.md`](./docs/agent-integration.md) | Claude Code, Codex, Kimi Code CLI, OpenCode, and Cline setup. |
 | [`docs/troubleshooting.md`](./docs/troubleshooting.md) | Empty indexes, weak search, strict security audit warnings, and audio preload fixes. |
 | [`SECURITY-HARDENING.md`](./SECURITY-HARDENING.md) | Threat model, offline operation, release verification, and higher-assurance deployment notes. |
-| [`docs/offline-chat-preload.md`](./docs/offline-chat-preload.md) | Preload and verify the optional local Transformers.js chat model cache. |
+| [`docs/offline-chat-preload.md`](./docs/offline-chat-preload.md) | Preload, verify, and run the optional local chat models offline. |
 | [`docs/offline-tts-preload.md`](./docs/offline-tts-preload.md) | Preload and verify the offline Transformers.js TTS cache. |
 | [`docs/fr-eu-sovereign-positioning.md`](./docs/fr-eu-sovereign-positioning.md) | Bounded FR/EU sovereignty, GDPR, AI Act, and legal-vertical positioning. |
 | [`docs/source-boundary.md`](./docs/source-boundary.md) | What the public MIT repository contains and what must stay outside Git. |
@@ -258,8 +258,9 @@ release verification, and an external security review.
   use the Transformers.js WAV path with `--engine transformers --offline`; it does not require
   Python, ffmpeg, Piper, XTTS, or a local server.
 - Optional local chat uses `@jcode.labs/ragmir-chat` through `rgr chat`. Run `rgr chat setup` once to
-  preload a small Transformers.js text-generation model under `.ragmir/models/chat`, then answer with
-  `rgr chat "question" --offline`.
+  download and verify the default Gemma 4 E2B QAT model under `.ragmir/models/chat/fast`, then answer
+  locally with `rgr chat "question"`. Use `--profile lite` for the 491 MB Qwen2.5 option on older
+  computers, or `--profile quality` to opt into the larger E4B model.
 - Optional Markdown reports use the bundled `ragmir-markdown-report` skill and should stay under
   ignored `.ragmir/reports/` unless explicitly sanitized for sharing.
 
@@ -490,6 +491,17 @@ Retrieve exact passages:
 npx rgr search "approval for offline operation"
 ```
 
+Constrain retrieval to a source family, or remove literature and mirror folders from the candidate
+set, before ranking:
+
+```bash
+npx rgr search "current patient findings" --include-path ".ragmir/raw/primary"
+npx rgr research "evidence gaps" --exclude-path ".ragmir/raw/research" --exclude-path ".ragmir/raw/archive"
+```
+
+Path filters accept exact project-relative files or directory prefixes and can be repeated. They
+also apply to `ask`, MCP search/ask/research, and individual golden evaluation queries.
+
 Return cited retrieval context for an agent or model:
 
 ```bash
@@ -502,7 +514,7 @@ Run an audit-backed multi-query research pass before a broad synthesis or implem
 npx rgr research "release readiness and risks" --compact
 ```
 
-Measure recall@k against a golden query file:
+Measure retrieval quality and latency against a golden query file:
 
 ```bash
 npx rgr evaluate --golden golden-queries.json
@@ -510,9 +522,11 @@ npx rgr evaluate --golden golden-queries.json
 
 Golden queries can require file-level hits with `expectedPaths` and exact citation hits with
 `expectedCitations` in `relative/path:Lx-Ly#chunkIndex` format. Use exact citations when the benchmark
-needs to prove that Ragmir retrieved the right passage, not only the right file. Older indexes without
-line metadata fall back to `relative/path#chunkIndex` until they are rebuilt. Evaluation reports
-hit-rate recall, MRR, and nDCG.
+needs to prove that Ragmir retrieved the right passage, not only the right file. PDF citations also
+include a page, for example `brief.pdf:p2:L4-L8#3`. Older indexes without line or page metadata fall
+back to `relative/path#chunkIndex` until they are rebuilt. Evaluation reports hit rate, true
+Recall@K, Precision@K, MRR, bounded nDCG, and p50/p95 retrieval latency. Each query may also define
+`includePaths` and `excludePaths`, which is useful for separate primary-source and literature gates.
 
 For private dogfooding, keep the real corpus and golden query file outside Git or under an ignored
 local path, then use a threshold that matches the evaluation phase:
@@ -564,21 +578,47 @@ npx rgr ask "What evidence supports offline operation?"
 `rgr ask` always returns cited retrieved passages instead of a generated synthesis. You can pass those
 passages to any LLM or agent you trust.
 
-### Optional Local Chat With Transformers.js
+### Optional Local Chat
 
 Use this when you want a local model to answer from Ragmir citations without adding Ollama or another
-model server. The core stays retrieval-only; `@jcode.labs/ragmir-chat` is the optional generator.
+model server. The core stays retrieval-only; `@jcode.labs/ragmir-chat` runs verified Qwen2.5 or Gemma 4 GGUF models through
+`node-llama-cpp`, with no Python or hosted inference API.
 
 ```bash
 npx rgr chat setup
-npx rgr chat "Which evidence supports offline operation?" --offline
+npx rgr chat "Which evidence supports offline operation?" --thinking standard
+
+# Ultra-light profile for older computers.
+npx rgr chat setup --profile lite
+npx rgr chat "Summarize the cited evidence." --profile lite --thinking off
+
+# Optional quality profile for machines with more memory.
+npx rgr chat setup --profile quality
+npx rgr chat "Summarize the strongest evidence." --profile quality --thinking deep
 ```
 
-`rgr chat setup` downloads the configured Transformers.js text-generation model into
-`.ragmir/models/chat`. Normal `rgr chat` runs with remote model loading disabled by default and cites
-the retrieved Ragmir passages as `[1]`, `[2]`, and so on. See
-[`docs/offline-chat-preload.md`](./docs/offline-chat-preload.md) for air-gapped setup and model
-override details.
+The `lite` profile downloads Qwen2.5 0.5B Instruct Q4_K_M, about 491 MB, uses a 4,096-token context,
+caps generation at 512 tokens, and always disables thinking. The default `fast` profile downloads
+Google's Gemma 4 E2B QAT Q4_0 GGUF, about 3.35 GB. The optional `quality` profile uses E4B, about 5.15
+GB. Setup verifies the exact file size and SHA256 before
+writing a local manifest. Normal answers never download a model. Thinking can be disabled or given
+standard/deep budgets, but raw thought text is discarded and never added to the visible chat
+history. Citations are validated against the retrieved source list, and important answers still need
+review against those passages. See [`docs/offline-chat-preload.md`](./docs/offline-chat-preload.md)
+for air-gapped setup, profiles, and model verification.
+
+Each GGUF is portable across desktop systems. Ragmir automatically selects Metal on Apple
+Silicon and CUDA or Vulkan on supported Linux/Windows machines, using CPU only when that is the
+available packaged backend. Run `npx rgr chat doctor --json` to see the actual platform,
+architecture, supported backends, selected backend, and hardware-acceleration status. MLX is not a
+second default: MLX-LM requires Python, while MLX Swift would require a separate Mac-only runtime and
+model format that still needs an A/B benchmark against the existing Metal path.
+
+The model files come from the official
+[Qwen2.5 0.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF),
+[Gemma 4 E2B](https://huggingface.co/google/gemma-4-E2B-it-qat-q4_0-gguf) and
+[Gemma 4 E4B](https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf) repositories. Ragmir source
+remains MIT-licensed; downloaded model weights and notices remain separate Apache-2.0 assets.
 
 ### Optional Semantic Embeddings With Transformers.js
 
@@ -589,7 +629,8 @@ Use this when you want better semantic retrieval while keeping Ragmir core free 
 ```json
 {
   "embeddingProvider": "transformers",
-  "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
+  "embeddingModel": "intfloat/multilingual-e5-small",
+  "embeddingModelRevision": "main",
   "embeddingModelPath": ".ragmir/models",
   "transformersAllowRemoteModels": false
 }
@@ -608,9 +649,14 @@ npx rgr ask "Which passages support offline operation?"
 `rgr setup --semantic` is the first-run shortcut. It intentionally allows a one-time download from
 Hugging Face into `embeddingModelPath`, switches `.ragmir/config.json` to `embeddingProvider:
 "transformers"`, and leaves `transformersAllowRemoteModels` false for normal confidential indexing.
-Use `rgr models pull --enable` when you want to make the same choice later. Re-run
-`rgr ingest --rebuild` after changing embedding provider or model so stored vectors match the
-active configuration.
+Use `rgr models pull --enable` when you want to make the same choice later. Pin
+`embeddingModelRevision` to an immutable model revision for reproducible deployments. Ragmir
+fingerprints the complete index policy and automatically performs a safe full rebuild when the
+embedding, chunking, redaction, parser, or extractor policy changes.
+
+Chunking stays character-bounded while preferring paragraphs, Latin or CJK sentence endings, and
+structured line boundaries before whitespace. Audit duplicate candidates require identical SHA-256
+content, so common filenames such as `README.md` do not create false duplicate warnings.
 
 ## Agent Skills And MCP
 
@@ -739,19 +785,29 @@ the target repository.
 
 Ragmir is designed for private repositories and sensitive local evidence.
 
+`privacyProfile` and `retrievalProfile` are independent. The default `private` plus `balanced`
+combination is low-friction. `strict` applies a non-bypassable privacy floor after environment
+overrides, while `fast`, `balanced`, and `quality` tune latency and retrieval breadth. A strict
+profile limits disclosure, but it cannot make a cloud MCP client, an unencrypted disk, or a
+networked external tool confidential.
+
 - Zero telemetry: no analytics or document content is sent to JCode Labs.
 - No LLM generation in core: Ragmir returns cited context for the agent/runtime you choose.
 - Local-hash by default: no model runtime is required for the default retrieval path.
-- Transformers.js remote model loading is disabled by default.
-- Optional Transformers.js model downloads require an explicit preload command or
-  `--allow-remote-models`; confidential runs should use already cached local model files.
+- Transformers.js remote model loading is disabled by default for embeddings and offline TTS.
+- Optional model downloads require an explicit preload command. Ragmir Chat verifies every selected GGUF
+  during setup and never downloads them during a normal answer.
+- Ragmir Chat discards Gemma 4 thought segments, and the `lite` profile disables thinking. Only visible final answers may enter local history.
 - Redaction before indexing: common secrets and identifiers are redacted before chunks are embedded
   and stored.
-- Metadata-only access logs: query hashes and action metadata are logged, not raw queries.
+- Metadata-only access logs: project-salted HMAC query hashes and action metadata are logged, not
+  raw queries. Local Ragmir directories and generated sensitive files use restrictive POSIX modes.
 - Metadata-only usage reports: `rgr usage-report --days 7` summarizes recent local activity
   without exposing query text or local paths.
 - MCP is read-focused, non-destructive, and bounded by `mcpMaxTopK`.
-- Generated local state is ignored by Git.
+- Strict MCP output is compact by default and exposes project-relative paths.
+- Generated local state is ignored by Git. The security audit uses Git itself when available, so
+  glob rules, ancestor rules, negations, and tracked-file behavior are evaluated consistently.
 
 Run:
 
@@ -780,6 +836,13 @@ privacy tuning, or local extractors.
 The full configuration reference, supported-file matrix, environment overrides, and OCR/extractor
 rules live in [`docs/configuration.md`](./docs/configuration.md).
 
+Inspect the active safety boundaries with `npx rgr limits`. The default per-file limit is 50 MB.
+There is no hard file-count or total-corpus-byte ceiling; disk, parsing and embedding throughput,
+memory, and exact-search latency are the practical constraints. PDFs are capped at 1000 pages and
+25 million extracted characters, and Office/archive plus external-extractor outputs have additional
+hard parsing limits. Oversized files, supported files with no extracted text, missing files, and
+stale files make doctor coverage incomplete, so `ready=true` cannot hide partial ingestion.
+
 ## Command And API Reference
 
 Ragmir ships three CLIs:
@@ -793,7 +856,8 @@ Most users start with `rgr setup`, `rgr doctor`, `rgr ingest`, `rgr route-prompt
 
 Use `rgr setup --semantic` during first setup, or `rgr models pull --enable` later, when a
 one-time Transformers.js model download is acceptable and you want higher-quality semantic retrieval.
-Run `rgr ingest --rebuild` after switching embedding provider or model.
+Ragmir automatically rebuilds when its index-policy fingerprint changes. Use `rgr ingest --rebuild`
+when you intentionally want to discard and recreate an otherwise compatible index.
 
 Full command table: [`docs/cli-reference.md`](./docs/cli-reference.md).
 
@@ -837,7 +901,8 @@ core features:
 
 | Dependency | Why it remains |
 | --- | --- |
-| `@huggingface/transformers` | Optional local semantic embeddings, offline chat, and offline TTS; remote model loading is disabled unless explicitly enabled for preload. |
+| `@huggingface/transformers` | Optional local semantic embeddings and offline TTS; remote model loading is disabled unless explicitly enabled for preload. |
+| `node-llama-cpp` | Local Qwen2.5 and Gemma 4 GGUF inference for Ragmir Chat, including native token streaming and cancellable generation without Ollama or Python. |
 | LanceDB | Local vector storage and nearest-neighbor retrieval. |
 | MCP SDK | MCP server for compatible agents. |
 | fast-glob | Safe source-file discovery. |

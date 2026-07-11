@@ -17,14 +17,18 @@ built to minimize data movement, but it is not a certified high-assurance system
   filenames/extensions are not indexed even when they appear under a source directory.
 - Ingestion has a default per-file size cap through `maxFileBytes` and reports unsupported,
   oversized, and secret-like skipped files.
-- Metadata-only access logs: access logs contain action metadata and query hashes, not raw
-  queries or retrieved text.
+- Metadata-only access logs: access logs contain action metadata and project-salted HMAC query
+  hashes, not raw queries or retrieved text.
+- Private local modes: Ragmir-created directories use `0700` and generated sensitive files use
+  `0600` on POSIX systems. `security-audit` reports permissive legacy modes and `doctor --fix`
+  repairs Ragmir-owned default config and directory modes. Custom external paths remain under the
+  operator's permission policy.
 - Generated local state is ignored by Git: `.ragmir/` is ignored by default.
 - MCP is read-focused: destructive tools are not exposed over MCP, and MCP retrieval is capped by
   `mcpMaxTopK`.
-- Optional local chat uses `rgr chat` / `@jcode.labs/ragmir-chat`. Ragmir Core still stays
-  retrieval-only; the add-on runs a local Transformers.js text-generation model over retrieved
-  passages, with remote model loading disabled by default after explicit setup.
+- Optional local chat uses `rgr chat` / `@jcode.labs/ragmir-chat`. Ragmir Core stays retrieval-only;
+  the add-on runs verified Gemma 4 QAT GGUF weights through `node-llama-cpp` 3.19, with explicit setup
+  as the only normal download path and normal answers offline.
 - Optional audio summaries use `rgr audio` / `@jcode.labs/ragmir-tts`. Transformers.js WAV is the
   default offline/confidential path and does not require Python, ffmpeg, Piper, XTTS, or a local TTS
   server. Remote TTS model downloads are disabled by default and must be explicitly allowed for a
@@ -44,6 +48,10 @@ traceability.
 Ragmir does not protect against a compromised local machine, malicious dependencies already present
 in the runtime, a user with filesystem access to the same checkout, or forensic recovery from an
 unencrypted disk.
+
+Ragmir also does not make generated answers true. Chat citation markers are validated against the
+retrieved source list, but a real citation can still be misunderstood by the model or contain
+incorrect source material. Review important conclusions against the cited passages.
 
 ## At-Rest Encryption
 
@@ -77,10 +85,22 @@ pnpm exec rgr audit --unsupported
 ```
 
 For semantic embeddings, preload the Transformers.js-compatible embedding model files inside the
-offline environment under the configured `embeddingModelPath`. For chat, preload the local LLM files
-under `.ragmir/models/chat` and answer with `pnpm exec rgr chat "Question" --offline`. For audio,
-preload the TTS model files under `.ragmir/models/tts` and render with
+offline environment under the configured `embeddingModelPath`. For audio, preload the TTS model
+files under `.ragmir/models/tts` and render with
 `pnpm exec rgr audio <text-file> --engine transformers --offline`.
+
+For chat, run explicit setup on a connected preparation machine, then transfer the complete selected
+profile directory, including its GGUF and manifest, into the same ignored path on the offline
+machine:
+
+```bash
+pnpm exec rgr chat setup --profile fast
+pnpm exec rgr chat doctor --profile fast --verify
+pnpm exec rgr chat "Question" --profile fast --thinking standard --offline
+```
+
+Do not transfer an incomplete GGUF or recreate the manifest by hand. Normal doctor checks the exact
+byte size; use `--verify` after transfer to recompute the full SHA-256.
 
 ## Zero Network Posture
 
@@ -97,7 +117,8 @@ Optional semantic config:
 ```json
 {
   "embeddingProvider": "transformers",
-  "embeddingModel": "mixedbread-ai/mxbai-embed-xsmall-v1",
+  "embeddingModel": "intfloat/multilingual-e5-small",
+  "embeddingModelRevision": "main",
   "embeddingModelPath": ".ragmir/models",
   "transformersAllowRemoteModels": false
 }
@@ -109,6 +130,19 @@ equivalent to model semantic retrieval.
 
 Keep `transformersAllowRemoteModels` false for confidential or air-gapped work. If it is true,
 Transformers.js may download model files from Hugging Face during model loading.
+
+For reproducible or reviewed deployments, pin `embeddingModelRevision` to an immutable revision.
+Ragmir includes the revision and the complete content-transformation policy in its index fingerprint;
+search rejects an incompatible index and ingestion rebuilds it safely.
+
+`privacyProfile` and `retrievalProfile` are orthogonal. The `strict` privacy floor is applied after
+environment overrides, so remote model loading, disabled built-in redaction, high MCP disclosure,
+and external extractors cannot weaken it silently. It still does not replace disk encryption, local
+account isolation, or a trusted MCP client.
+
+This Transformers setting controls semantic embeddings, not Gemma chat. Chat downloads are isolated
+behind `rgr chat setup [--profile fast|quality]`. Normal answers require an existing verified local
+GGUF and do not resolve a remote model.
 
 Run:
 
@@ -161,13 +195,21 @@ transcribed first.
 Default ingestion guardrails:
 
 - `maxFileBytes`: 50 MB per file by default;
+- no hard file-count or total-corpus-byte ceiling, with disk, memory, embedding throughput, and
+  exact-search latency as practical constraints;
 - `ingestConcurrency`: four parse/chunk workers by default;
 - `embeddingBatchSize`: 32 chunks per embedding batch by default;
 - checksum-based stale detection for supported files;
+- manifest-driven file-level updates and automatic rebuild on index-policy change;
+- page-aware PDF extraction, blank-page-only OCR, a 1000-page limit, and a 25-million-character
+  extracted-text limit;
 - unsupported/skipped file reporting through `rgr ingest`, `rgr audit`, and
   `rgr audit --unsupported`.
 
-These are configurable, but raising limits increases local memory and parsing risk.
+Run `rgr limits` for the effective values. The per-file limit is configurable, but PDF,
+Office/archive, and external-extractor output bounds are hard safety blocks. Raising configurable
+limits increases local memory and parsing risk. Missing, stale, empty-text, or oversized coverage
+keeps `doctor.ready` false.
 
 ## Optional Audio Summaries
 
@@ -193,18 +235,49 @@ document.
 
 ## Optional Local Chat
 
-`rgr chat` uses `@jcode.labs/ragmir-chat` to run a local Transformers.js text-generation model over
-retrieved Ragmir passages. It does not change the core security audit: Ragmir Core itself still
-reports `llmGeneration=false`.
+`rgr chat` uses `@jcode.labs/ragmir-chat` to run official Google Gemma 4 QAT GGUF weights over
+retrieved Ragmir passages through `node-llama-cpp` 3.19. This does not change the core security audit:
+Ragmir Core itself still reports `llmGeneration=false`.
+
+The current runtime supports desktop and CLI workflows. Android chat is deferred until its native
+runtime and packaging have been implemented and verified. The desktop/CLI path does not require
+Ollama, Python, or a hosted LLM API.
+
+Profiles:
+
+| Profile | Model | Download size | Manifest |
+| --- | --- | ---: | --- |
+| `fast` (default) | Gemma 4 E2B QAT GGUF | 3.35 GB | `.ragmir/models/chat/fast/manifest.json` |
+| `quality` (opt-in) | Gemma 4 E4B QAT GGUF | 5.15 GB | `.ragmir/models/chat/quality/manifest.json` |
+
+The built-in model URIs and download URLs pin immutable Hugging Face revisions rather than `main`.
+The manifest preserves that revision together with `schemaVersion`, provider, runtime version,
+profile, model ID, official source and license URLs, `Apache-2.0` license identifier, relative
+filename, exact byte size, SHA-256, and verification time. It stores no absolute project path.
 
 Confidentiality defaults:
 
-- chat model files are stored under `.ragmir/models/chat/`;
+- `rgr chat setup [--profile fast|quality]` is the only normal chat path that downloads a model;
+- setup verifies the exact expected size and SHA-256 before writing the profile manifest;
+- chat model files and manifests stay under ignored `.ragmir/models/chat/<profile>/` directories;
 - `.ragmir/` is ignored by Git;
-- remote model loading is disabled for normal answers;
-- `rgr chat setup` is the explicit one-time preload path that may download model files;
-- answers must cite retrieved context, but local LLM output still needs review against the cited
-  passages.
+- normal doctor checks the runtime, expected manifest, file, and exact size without rehashing the
+  multi-gigabyte GGUF; `rgr chat doctor --verify` performs the full SHA-256 check and reports
+  `modelHashValid`;
+- normal answers load only a ready local profile and keep network resolution off;
+- `--thinking off`, `standard`, and `deep` control bounded local reasoning, but raw thought is never
+  displayed, returned, stored, or logged;
+- only the user-visible question and final answer may enter local chat history;
+- generated citation markers are checked against the retrieved source list, but cited output still
+  needs review against the actual passages.
+
+`rgr-chat serve` is the persistent strict internal stdio JSONL transport for desktop integration.
+Requests enter on stdin and protocol events leave on stdout. It is not a user chat interface, must
+not mix operational logs into stdout, and never exposes raw thought text. Core `rgr chat` imports the
+package API directly for one-shot answers and does not require the server.
+
+Ragmir's tracked source remains MIT-licensed. Downloaded Gemma 4 weights are separate Apache-2.0
+assets and must not be committed to this repository.
 
 ## Optional Markdown Reports
 
@@ -224,6 +297,11 @@ Ragmir MCP defaults:
 - no index deletion tool exposed over MCP;
 - bounded retrieval through `mcpMaxTopK`;
 - metadata-only access logging.
+
+Under `privacyProfile: "strict"`, search and research are compact by default, `ask` returns compact
+cited retrieval instead of full passages, status/security paths are project-relative, MCP `topK` is
+capped at 5, and repository-wide code scanning is disabled. Any MCP client that receives retrieved
+content remains inside the confidentiality threat boundary.
 
 For team use, prefer one checkout per user or per role. Ragmir does not implement RBAC.
 
