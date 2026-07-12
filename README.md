@@ -155,6 +155,22 @@ The public source and commercial distribution boundary is tracked in
 [`docs/commercial-distribution.md`](./docs/commercial-distribution.md). No checkout URL, production
 download URL, customer data, or license secret is committed to this repository.
 
+## Technology Stack And Upstream Credits
+
+Ragmir source code is MIT-licensed. The libraries, system tools, and optional model weights used
+around it keep their own upstream licenses and notices; Ragmir does not relicense those projects.
+
+| Area | Technology | How Ragmir uses it | Upstream terms |
+| --- | --- | --- | --- |
+| Local vector storage | [LanceDB](https://github.com/lancedb/lancedb) | Embedded local vector table, exact nearest-neighbor search, and full-text candidates. | [Apache-2.0](https://github.com/lancedb/lancedb/blob/main/LICENSE) |
+| Local embeddings and TTS | [Transformers.js](https://github.com/huggingface/transformers.js) | Optional semantic embeddings and offline WAV synthesis with remote model loading disabled by default. | [Apache-2.0](https://github.com/huggingface/transformers.js/blob/main/LICENSE) |
+| Agent protocol | [Model Context Protocol TypeScript SDK v1](https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x) | Local stdio MCP server for cited retrieval, audit, and readiness tools. | [MIT](https://github.com/modelcontextprotocol/typescript-sdk/blob/v1.x/LICENSE) |
+| Local model runtime | [node-llama-cpp](https://github.com/withcatai/node-llama-cpp) and [llama.cpp](https://github.com/ggml-org/llama.cpp) | Verified GGUF inference, native acceleration, streaming, and cancellation for Ragmir Chat. | [MIT](https://github.com/withcatai/node-llama-cpp/blob/master/LICENSE) |
+| Optional chat models | [Gemma 4 E2B/E4B](https://huggingface.co/collections/google/gemma-4) and [Qwen2.5 0.5B](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF) | Downloaded only through explicit chat setup, verified by size and SHA-256, and stored under ignored local state. | Separate [Apache-2.0 model terms](https://ai.google.dev/gemma/apache_2) and upstream notices |
+| Desktop shell | [Tauri](https://github.com/tauri-apps/tauri) | Cross-platform local desktop/mobile shell around the bounded `rgr` command surface. | [Apache-2.0 or MIT](https://github.com/tauri-apps/tauri#license) |
+| Web and UI | [Astro](https://github.com/withastro/astro), [React](https://github.com/facebook/react), [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss), and [shadcn/ui](https://github.com/shadcn-ui/ui) | Static landing, shared components, and the desktop webview interface. | MIT upstream licenses |
+| Optional local PDF OCR | [OCRmyPDF](https://github.com/ocrmypdf/OCRmyPDF), [Tesseract](https://github.com/tesseract-ocr/tesseract), and [Poppler](https://poppler.freedesktop.org/) | User-installed system tools detected by `rgr ocr setup`; none are bundled or downloaded automatically. | Separate upstream licenses and notices |
+
 ## Documentation
 
 Use this README as the entrypoint, then jump into the focused docs when you need command tables,
@@ -833,6 +849,19 @@ Most users should start with `rgr setup` and let `rgr doctor` explain what is mi
 `.ragmir/config.json` only when you need extra source paths, semantic embeddings, larger files,
 privacy tuning, or local extractors.
 
+For scanned PDFs, detect an installed local OCR engine and configure page-aware extraction without
+editing JSON manually:
+
+```bash
+npx rgr ocr doctor
+npx rgr ocr setup
+npx rgr ingest
+```
+
+`rgr ocr setup` prefers OCRmyPDF 12.6 or newer, then falls back to Tesseract plus Poppler. It does
+not install tools, download language packs, call a cloud OCR API, or OCR pages that already expose
+embedded text. The `strict` privacy profile continues to disable all external extractors.
+
 The full configuration reference, supported-file matrix, environment overrides, and OCR/extractor
 rules live in [`docs/configuration.md`](./docs/configuration.md).
 
@@ -851,7 +880,7 @@ Ragmir ships three CLIs:
 - `rgr-chat`: the standalone optional local chat add-on used by `rgr chat`.
 - `rgr-tts`: the standalone text-to-speech renderer used by `rgr audio`.
 
-Most users start with `rgr setup`, `rgr doctor`, `rgr ingest`, `rgr route-prompt`,
+Most users start with `rgr setup`, `rgr doctor`, `rgr ocr doctor`, `rgr ingest`, `rgr route-prompt`,
 `rgr search`, `rgr ask`, `rgr research`, and `rgr security-audit`.
 
 Use `rgr setup --semantic` during first setup, or `rgr models pull --enable` later, when a
