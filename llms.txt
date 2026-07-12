@@ -1,7 +1,8 @@
 # Ragmir
 
-Ragmir is a local-first RAG library, CLI, and MCP server for cited retrieval over files selected by
-the user. It keeps indexes under ignored local `.ragmir/` state and does not provide a hosted document
+Ragmir is an open-source local-first retrieval toolkit for Node.js. It indexes files selected by the
+project, keeps generated state under ignored local `.ragmir/` folders, and returns source-backed
+passages through CLI, TypeScript, or a read-focused MCP server. It does not provide a hosted document
 store.
 
 ## Core facts
@@ -13,6 +14,12 @@ store.
   agent or optional local chat add-on.
 - Default retrieval: local-hash, with no model download. Semantic embeddings and local GGUF chat are
   explicit opt-ins.
+- Optional packages: `@jcode.labs/ragmir-chat` for local cited GGUF synthesis and
+  `@jcode.labs/ragmir-tts` for local audio or explicitly selected online speech.
+- Privacy boundary: the corpus and index stay local. A cloud agent receives retrieved passages only
+  when the user chooses that workflow, under that provider's data policy.
+- OCR boundary: embedded PDF text comes first; a configured local executable runs only for blank
+  pages. Ragmir has no cloud OCR integration.
 
 ## Documentation
 
