@@ -3,25 +3,46 @@ import path from "node:path"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
-import { accessLogUsageReport } from "./access-log.js"
+import { accessLogUsageReport, recordMcpOutput } from "./access-log.js"
 import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { audit } from "./ingest.js"
 import { ingestionLimits } from "./limits.js"
+import type {
+  BudgetedMcpResult,
+  McpAskPayload,
+  McpResearchPayload,
+  McpSearchPayload,
+} from "./mcp-output.js"
+import {
+  budgetMcpJson,
+  fitAskPayload,
+  fitExpandedCitation,
+  fitResearchPayload,
+  fitSearchPayload,
+  MIN_MCP_OUTPUT_BYTES,
+  resolveMcpOutputBudget,
+} from "./mcp-output.js"
 import { routePrompt } from "./prompt-routing.js"
-import { ask, search } from "./query.js"
+import { ask, expandCitation, search } from "./query.js"
 import { compactResearchReport, compactSearchResults, research } from "./research.js"
 import { securityAudit } from "./security.js"
 import { countRows } from "./store.js"
+import type { AskResult } from "./types.js"
 import { VERSION } from "./version.js"
 
 const queryToolInputSchema = z.object({
   query: z.string().min(1),
   topK: z.number().int().positive().optional(),
   contextRadius: z.number().int().min(0).optional(),
+  maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).optional(),
   includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
   excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+})
+
+const askToolInputSchema = queryToolInputSchema.extend({
+  compact: z.boolean().optional(),
 })
 
 const researchToolInputSchema = z.object({
@@ -29,6 +50,7 @@ const researchToolInputSchema = z.object({
   topK: z.number().int().positive().optional(),
   includeCode: z.boolean().optional(),
   compact: z.boolean().optional(),
+  maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).optional(),
   includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
   excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
 })
@@ -49,6 +71,12 @@ const usageReportInputSchema = z.object({
 
 const promptRouteInputSchema = z.object({
   prompt: z.string().min(1),
+})
+
+const expandToolInputSchema = z.object({
+  citation: z.string().min(1).max(2_000),
+  contextRadius: z.number().int().min(0).max(3).optional(),
+  maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).optional(),
 })
 
 export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
@@ -89,6 +117,7 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
         llmGeneration: false,
         redactionEnabled: config.redaction.enabled,
         mcpMaxTopK: config.mcpMaxTopK,
+        mcpMaxOutputBytes: config.mcpMaxOutputBytes,
         maxFileBytes: config.maxFileBytes,
         ingestConcurrency: config.ingestConcurrency,
         embeddingBatchSize: config.embeddingBatchSize,
@@ -125,14 +154,26 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Retrieve relevant passages from the local Ragmir knowledge base.",
       inputSchema: searchToolInputSchema,
     },
-    async ({ query, topK, contextRadius, compact, includePaths, excludePaths }) => {
+    async ({ query, topK, contextRadius, compact, maxBytes, includePaths, excludePaths }) => {
       const config = await loadConfig(cwd)
       const results = await search(
         query,
         await searchOptions(cwd, topK, contextRadius, includePaths, excludePaths),
       )
-      const compactOutput = compact ?? config.privacyProfile === "strict"
-      return textResult(compactOutput ? compactSearchResults(results) : results)
+      const compactResults = compactSearchResults(results)
+      const compactOutput = config.privacyProfile === "strict" || compact === true
+      const preferred: McpSearchPayload = compactOutput ? compactResults : results
+      const bounded = budgetMcpJson({
+        tool: "ragmir_search",
+        maxBytes: resolveMcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
+        fullValue: results,
+        preferredValue: preferred,
+        compactValue: compactResults,
+        compacted: compactOutput,
+        reduce: fitSearchPayload,
+      })
+      await recordBudgetedOutput(config, bounded)
+      return bounded.result
     },
   )
 
@@ -141,19 +182,39 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
     {
       title: "Ragmir Ask",
       description: "Return cited retrieval context for a question without calling an LLM.",
-      inputSchema: queryToolInputSchema,
+      inputSchema: askToolInputSchema,
     },
-    async ({ query, topK, contextRadius, includePaths, excludePaths }) => {
+    async ({ query, topK, contextRadius, compact, maxBytes, includePaths, excludePaths }) => {
       const config = await loadConfig(cwd)
       const options = await searchOptions(cwd, topK, contextRadius, includePaths, excludePaths)
+      let fullPayload: AskResult
       if (config.privacyProfile === "strict") {
         const results = await search(query, options)
-        return textResult({
+        fullPayload = {
           answer: "Strict privacy profile returns compact cited retrieval only.",
-          sources: compactSearchResults(results),
-        })
+          sources: results,
+          staleWarning: null,
+        }
+      } else {
+        fullPayload = await ask(query, options)
       }
-      return textResult(await ask(query, options))
+      const compactPayload: McpAskPayload = {
+        answer: "Ragmir returns compact cited retrieval only. Expand a citation when needed.",
+        sources: compactSearchResults(fullPayload.sources),
+        staleWarning: fullPayload.staleWarning,
+      }
+      const compactOutput = config.privacyProfile === "strict" || compact === true
+      const bounded = budgetMcpJson({
+        tool: "ragmir_ask",
+        maxBytes: resolveMcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
+        fullValue: fullPayload,
+        preferredValue: compactOutput ? compactPayload : fullPayload,
+        compactValue: compactPayload,
+        compacted: compactOutput,
+        reduce: fitAskPayload,
+      })
+      await recordBudgetedOutput(config, bounded)
+      return bounded.result
     },
   )
 
@@ -165,7 +226,7 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
         "Run an audit-backed multi-query research pass with cited evidence and optional code matches.",
       inputSchema: researchToolInputSchema,
     },
-    async ({ query, topK, includeCode, compact, includePaths, excludePaths }) => {
+    async ({ query, topK, includeCode, compact, maxBytes, includePaths, excludePaths }) => {
       const config = await loadConfig(cwd)
       const options = await searchOptions(cwd, topK, undefined, includePaths, excludePaths)
       const researchOptions: Parameters<typeof research>[1] = { cwd }
@@ -174,8 +235,46 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       addOption(researchOptions, "includePaths", options.includePaths)
       addOption(researchOptions, "excludePaths", options.excludePaths)
       const result = await research(query, researchOptions)
-      const compactOutput = compact ?? config.privacyProfile === "strict"
-      return textResult(compactOutput ? compactResearchReport(result) : result)
+      const compactResult = compactResearchReport(result)
+      const compactOutput = config.privacyProfile === "strict" || compact === true
+      const preferred: McpResearchPayload = compactOutput ? compactResult : result
+      const bounded = budgetMcpJson({
+        tool: "ragmir_research",
+        maxBytes: resolveMcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
+        fullValue: result,
+        preferredValue: preferred,
+        compactValue: compactResult,
+        compacted: compactOutput,
+        reduce: fitResearchPayload,
+      })
+      await recordBudgetedOutput(config, bounded)
+      return bounded.result
+    },
+  )
+
+  server.registerTool(
+    "ragmir_expand",
+    {
+      title: "Ragmir Expand",
+      description: "Expand one Ragmir citation into a bounded exact passage window.",
+      inputSchema: expandToolInputSchema,
+    },
+    async ({ citation, contextRadius, maxBytes }) => {
+      const config = await loadConfig(cwd)
+      const expanded = await expandCitation(citation, {
+        cwd,
+        ...(contextRadius === undefined ? {} : { contextRadius }),
+      })
+      const bounded = budgetMcpJson({
+        tool: "ragmir_expand",
+        maxBytes: resolveMcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
+        fullValue: expanded,
+        preferredValue: expanded,
+        compacted: false,
+        reduce: fitExpandedCitation,
+      })
+      await recordBudgetedOutput(config, bounded)
+      return bounded.result
     },
   )
 
@@ -290,6 +389,19 @@ function textResult(value: unknown): { content: Array<{ type: "text"; text: stri
       },
     ],
   }
+}
+
+async function recordBudgetedOutput(
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  bounded: BudgetedMcpResult,
+): Promise<void> {
+  await recordMcpOutput(config, {
+    tool: bounded.metadata.tool,
+    retrievedBytes: bounded.metadata.retrievedBytes,
+    returnedBytes: bounded.metadata.returnedBytes,
+    compacted: bounded.metadata.compacted,
+    truncated: bounded.metadata.truncated,
+  })
 }
 
 export async function searchOptions(

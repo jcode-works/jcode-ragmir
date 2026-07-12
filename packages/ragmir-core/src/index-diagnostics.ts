@@ -9,7 +9,7 @@ import type { Config } from "./types.js"
  * required metadata). A stored manifest with a lower schemaVersion means the
  * index predates the current code and should be rebuilt.
  */
-export const INDEX_SCHEMA_VERSION = 6
+export const INDEX_SCHEMA_VERSION = 7
 
 /**
  * Detect a stale or incompatible index without re-scanning every source file.

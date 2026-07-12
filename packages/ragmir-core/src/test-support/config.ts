@@ -35,6 +35,7 @@ export function testConfig(
     },
     accessLog: DEFAULT_CONFIG.accessLog,
     mcpMaxTopK: DEFAULT_CONFIG.mcpMaxTopK,
+    mcpMaxOutputBytes: DEFAULT_CONFIG.mcpMaxOutputBytes,
     topK: DEFAULT_CONFIG.topK,
     chunkSize: DEFAULT_CONFIG.chunkSize,
     chunkOverlap: DEFAULT_CONFIG.chunkOverlap,

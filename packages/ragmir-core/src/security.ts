@@ -122,6 +122,7 @@ export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditR
     permissions,
     mcp: {
       maxTopK: config.mcpMaxTopK,
+      maxOutputBytes: config.mcpMaxOutputBytes,
       destructiveToolsExposed: false,
     },
     gitignore: {

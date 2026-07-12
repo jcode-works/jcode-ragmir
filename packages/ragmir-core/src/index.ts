@@ -27,7 +27,7 @@ export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
 export type { PromptRouteDecision, PromptRouteTool } from "./prompt-routing.js"
 export { routePrompt } from "./prompt-routing.js"
-export { ask, search } from "./query.js"
+export { ask, expandCitation, search } from "./query.js"
 export { redactText } from "./redaction.js"
 export { compactResearchReport, compactSearchResults, research } from "./research.js"
 export { securityAudit } from "./security.js"
@@ -72,11 +72,15 @@ export type {
   EvaluationCaseResult,
   EvaluationOptions,
   EvaluationResult,
+  ExpandCitationOptions,
+  ExpandedCitation,
   GoldenQuery,
   IndexManifest,
   IndexManifestFile,
   IngestionLimitsReport,
   IngestResult,
+  McpOutputTool,
+  McpOutputUsageReport,
   ParsedPage,
   PrivacyProfile,
   ResearchEvidence,

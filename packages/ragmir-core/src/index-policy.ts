@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import type { Config } from "./types.js"
 
 const INDEX_CONTENT_POLICY_VERSION = 1
-const CHUNKING_ADAPTER_VERSION = 2
+const CHUNKING_ADAPTER_VERSION = 3
 
 export function indexPolicyFingerprint(config: Config): string {
   const policy = {

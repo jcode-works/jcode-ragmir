@@ -8,6 +8,8 @@ import { openRowsTable, readIndexManifest } from "./store.js"
 import { tokenize } from "./text.js"
 import type {
   AskResult,
+  ExpandCitationOptions,
+  ExpandedCitation,
   RetrievalProfile,
   SearchContextChunk,
   SearchOptions,
@@ -20,6 +22,8 @@ interface SearchRow {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
+  searchText: string
   text: string
   charStart?: number
   charEnd?: number
@@ -63,10 +67,14 @@ const RRF_LEXICAL_WEIGHT = 1
 const BM25_K1 = 1.2
 const BM25_B = 0.75
 const MAX_CONTEXT_RADIUS = 3
+const MIN_FUZZY_TOKEN_LENGTH = 7
+const MIN_TRIGRAM_DICE_SIMILARITY = 0.5
 const SEARCH_COLUMNS = [
   "source",
   "relativePath",
   "chunkIndex",
+  "contextPath",
+  "searchText",
   "text",
   "charStart",
   "charEnd",
@@ -84,6 +92,7 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   if (!table) {
     return []
   }
+  await assertIndexFreshness(config)
 
   const sanitized = sanitizeRetrievalQuery(query)
   const queryTokens = tokenize(sanitized.query)
@@ -105,7 +114,7 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   const rankedRows = rankHybridRows(sanitized.query, vectorRows, textRows)
   const relevantRows =
     config.embeddingProvider === "local-hash"
-      ? rankedRows.filter((ranked) => hasLexicalOverlap(queryTokens, ranked.row.text))
+      ? rankedRows.filter((ranked) => hasLexicalOverlap(queryTokens, ranked.row.searchText))
       : rankedRows
   const rows = diversifyRows(relevantRows, topK, config.retrievalProfile)
   const defaultContextRadius = config.retrievalProfile === "quality" ? 1 : 0
@@ -119,6 +128,7 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     source: row.row.source,
     relativePath: row.row.relativePath,
     chunkIndex: row.row.chunkIndex,
+    contextPath: row.row.contextPath,
     citation: citationForRow(row.row),
     text: row.row.text,
     distance: typeof row.row._distance === "number" ? row.row._distance : null,
@@ -144,7 +154,7 @@ function diversifyRows(rows: RankedRow[], topK: number, profile: RetrievalProfil
   const textIndexes = new Map<string, number>()
 
   for (const row of rows) {
-    const textKey = row.row.text.replace(/\s+/gu, " ").trim().toLowerCase()
+    const textKey = `${row.row.contextPath}\0${row.row.text.replace(/\s+/gu, " ").trim().toLowerCase()}`
     const existingIndex = textIndexes.get(textKey)
     if (existingIndex === undefined) {
       textIndexes.set(textKey, uniqueRows.length)
@@ -206,13 +216,48 @@ function preferCanonicalPath(candidate: string, current: string): boolean {
 function hasLexicalOverlap(queryTokens: string[], text: string): boolean {
   const textTokens = tokenize(text)
   return queryTokens.some((queryToken) =>
-    textTokens.some(
-      (textToken) =>
-        queryToken === textToken ||
-        (queryToken.length >= 4 &&
-          textToken.length >= 4 &&
-          sharedPrefixLength(queryToken, textToken) >= 4),
-    ),
+    textTokens.some((textToken) => tokensAreLexicallyRelated(queryToken, textToken)),
+  )
+}
+
+function tokensAreLexicallyRelated(queryToken: string, textToken: string): boolean {
+  if (queryToken === textToken) {
+    return true
+  }
+  if (
+    queryToken.length >= 4 &&
+    textToken.length >= 4 &&
+    sharedPrefixLength(queryToken, textToken) >= 4
+  ) {
+    return true
+  }
+  if (
+    queryToken.length < MIN_FUZZY_TOKEN_LENGTH ||
+    textToken.length < MIN_FUZZY_TOKEN_LENGTH ||
+    Math.abs(queryToken.length - textToken.length) > 1 ||
+    !/^[a-z0-9_-]+$/u.test(queryToken) ||
+    !/^[a-z0-9_-]+$/u.test(textToken)
+  ) {
+    return false
+  }
+  return trigramDiceSimilarity(queryToken, textToken) >= MIN_TRIGRAM_DICE_SIMILARITY
+}
+
+function trigramDiceSimilarity(left: string, right: string): number {
+  const leftTrigrams = tokenTrigrams(left)
+  const rightTrigrams = tokenTrigrams(right)
+  let shared = 0
+  for (const trigram of leftTrigrams) {
+    if (rightTrigrams.has(trigram)) {
+      shared += 1
+    }
+  }
+  return (2 * shared) / (leftTrigrams.size + rightTrigrams.size)
+}
+
+function tokenTrigrams(token: string): Set<string> {
+  return new Set(
+    Array.from({ length: token.length - 2 }, (_value, index) => token.slice(index, index + 3)),
   )
 }
 
@@ -257,6 +302,71 @@ export async function ask(query: string, options: SearchOptions = {}): Promise<A
   }
 }
 
+export async function expandCitation(
+  citation: string,
+  options: ExpandCitationOptions = {},
+): Promise<ExpandedCitation> {
+  const requestedCitation = citation.trim()
+  const target = parseCitationTarget(requestedCitation)
+  const contextRadius = normalizeContextRadius(options.contextRadius)
+  const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  const table = await openRowsTable(config)
+  if (!table) {
+    return {
+      requestedCitation,
+      found: false,
+      relativePath: target.relativePath,
+      chunkIndex: target.chunkIndex,
+      contextRadius,
+      passages: [],
+    }
+  }
+
+  const manifest = await readIndexManifest(config)
+  if (!manifest) {
+    throw new Error(
+      "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before expanding citations.",
+    )
+  }
+  const freshnessWarning = await getIndexFreshnessWarning(config)
+  if (freshnessWarning) {
+    throw new Error(freshnessWarning)
+  }
+
+  const minimumChunkIndex = Math.max(0, target.chunkIndex - contextRadius)
+  const maximumChunkIndex = target.chunkIndex + contextRadius
+  const rows = (await table
+    .query()
+    .select(SEARCH_COLUMNS)
+    .where(
+      `relativePath = ${sqlString(target.relativePath)} AND chunkIndex >= ${minimumChunkIndex} AND chunkIndex <= ${maximumChunkIndex}`,
+    )
+    .toArray()) as SearchRow[]
+  const targetRow = rows.find((row) => row.chunkIndex === target.chunkIndex)
+  if (!targetRow) {
+    return {
+      requestedCitation,
+      found: false,
+      relativePath: target.relativePath,
+      chunkIndex: target.chunkIndex,
+      contextRadius,
+      passages: [],
+    }
+  }
+  if (citationForRow(targetRow) !== requestedCitation) {
+    throw new Error("Citation coordinates do not match the indexed passage.")
+  }
+
+  return {
+    requestedCitation,
+    found: true,
+    relativePath: target.relativePath,
+    chunkIndex: target.chunkIndex,
+    contextRadius,
+    passages: rows.sort(compareChunkRows).map(contextChunkForRow),
+  }
+}
+
 function retrievalOnlyAnswer(sources: SearchResult[]): string {
   const snippets = sources
     .map((source, index) => {
@@ -281,7 +391,7 @@ async function lexicalCandidateRows(
   const ftsQuery = lexicalQuery(query)
   if (ftsQuery) {
     try {
-      const searchQuery = table.search(ftsQuery, "fts", "text").select(FTS_SEARCH_COLUMNS)
+      const searchQuery = table.search(ftsQuery, "fts", "searchText").select(FTS_SEARCH_COLUMNS)
       return (await (pathPredicate ? searchQuery.where(pathPredicate) : searchQuery)
         .limit(limit)
         .toArray()) as SearchRow[]
@@ -402,6 +512,7 @@ function answerText(source: SearchResult): string {
 function contextChunkForRow(row: SearchRow): SearchContextChunk {
   return {
     chunkIndex: row.chunkIndex,
+    contextPath: row.contextPath,
     text: row.text,
     charStart: nullableNumber(row.charStart),
     charEnd: nullableNumber(row.charEnd),
@@ -518,7 +629,7 @@ function bm25Scores(queryTokens: string[], rows: SearchRow[]): Map<string, numbe
 
   const uniqueQueryTokens = [...new Set(queryTokens)]
   const documents = rows.map((row) => {
-    const tokens = tokenize(row.text)
+    const tokens = tokenize(row.searchText)
     const frequencies = new Map<string, number>()
     for (const token of tokens) {
       frequencies.set(token, (frequencies.get(token) ?? 0) + 1)
@@ -565,8 +676,48 @@ function rowDistance(row: SearchRow): number {
     : Number.POSITIVE_INFINITY
 }
 
+async function assertIndexFreshness(config: Awaited<ReturnType<typeof loadConfig>>): Promise<void> {
+  const manifest = await readIndexManifest(config)
+  if (!manifest) {
+    throw new Error(
+      "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before searching.",
+    )
+  }
+  const freshnessWarning = await getIndexFreshnessWarning(config)
+  if (freshnessWarning) {
+    throw new Error(freshnessWarning)
+  }
+}
+
 function rowKey(row: SearchRow): string {
   return `${row.relativePath}\0${row.chunkIndex}`
+}
+
+function parseCitationTarget(citation: string): { relativePath: string; chunkIndex: number } {
+  const match = /#(\d+)$/u.exec(citation)
+  const chunkIndexText = match?.[1]
+  if (!match || chunkIndexText === undefined) {
+    throw new Error("Citation must end with a Ragmir chunk suffix such as `#3`.")
+  }
+
+  const chunkIndex = Number.parseInt(chunkIndexText, 10)
+  let relativePath = citation.slice(0, match.index)
+  relativePath = relativePath.replace(/:L\d+-L\d+$/u, "")
+  relativePath = relativePath.replace(/:p\d+(?:-p\d+)?$/u, "")
+  if (!relativePath) {
+    throw new Error("Citation must include a source path before its chunk suffix.")
+  }
+  return { relativePath, chunkIndex }
+}
+
+function normalizeContextRadius(contextRadius: number | undefined): number {
+  if (contextRadius === undefined) {
+    return 0
+  }
+  if (!Number.isInteger(contextRadius) || contextRadius < 0) {
+    throw new Error("contextRadius must be a non-negative integer.")
+  }
+  return Math.min(contextRadius, MAX_CONTEXT_RADIUS)
 }
 
 function citationForRow(row: SearchRow): string {

@@ -77,7 +77,8 @@ pnpm exec rgr doctor
 ```
 
 Setup writes local helper files for the selected agents. The MCP surface is intentionally bounded
-and read-focused.
+and read-focused. Agents can request compact evidence first, then expand one returned citation
+without opening a second index or reading arbitrary files.
 
 ### Audit a knowledge base
 

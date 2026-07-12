@@ -21,11 +21,14 @@ edit JSON only for a real need.
 | `retrievalProfile` | `balanced` | Use `fast`, `quality`, or `custom` for different search budgets. |
 | `embeddingProvider` | `local-hash` | Set `transformers` only after an explicit preload. |
 | `topK` | `8` | Change the default number of returned passages. |
+| `mcpMaxOutputBytes` | `32768` | Cap each retrieval tool's serialized MCP text output. |
 | `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. |
 | `maxFileBytes` | `50000000` | Raise only when the target corpus justifies it. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
 
 Changing an embedding provider, model, or chunking field requires `rgr ingest --rebuild`.
+Ragmir also preserves Markdown heading paths and JSON or JSONL structure as retrieval-only context.
+Rebuild indexes created by an older Ragmir version to populate that structural context.
 
 ## Privacy profiles
 
@@ -61,7 +64,8 @@ they run without a shell and must print text to stdout.
 Use `RAGMIR_*` variables for local experiments, for example:
 
 ```bash
-RAGMIR_TOP_K=5 RAGMIR_CHUNK_SIZE=1000 rgr search "migration"
+RAGMIR_TOP_K=5 rgr search "migration"
+RAGMIR_MCP_MAX_OUTPUT_BYTES=16384 rgr mcp
 ```
 
 Environment overrides cover selected runtime settings such as models, retrieval limits, access logs,
