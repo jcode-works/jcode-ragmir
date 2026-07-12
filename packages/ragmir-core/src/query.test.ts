@@ -110,6 +110,81 @@ describe("search", () => {
     expect(results[0]?.relativePath).toBe(".ragmir/raw/zeta.md")
   })
 
+  it("should retrieve later Markdown chunks through their heading context", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-markdown-context-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 90, chunkOverlap: 10, topK: 4 }),
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "guide.md"),
+      [
+        "# Operations",
+        "",
+        "## Zephyr authorization",
+        "The first paragraph describes the ordinary workflow with neutral wording repeated here.",
+        "",
+        "The second paragraph contains consequences but deliberately omits the section title.",
+      ].join("\n"),
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const results = await search("zephyr authorization", { cwd: root, topK: 4 })
+
+    expect(
+      results.some((result) => result.contextPath === "Operations > Zephyr authorization"),
+    ).toBe(true)
+    expect(
+      results.some(
+        (result) =>
+          !result.text.toLowerCase().includes("zephyr") &&
+          result.contextPath.includes("Zephyr authorization"),
+      ),
+    ).toBe(true)
+  })
+
+  it("should retrieve JSON values through their JSONPath without exposing it as text", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-json-context-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 55, chunkOverlap: 0, topK: 3 }),
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "controls.json"),
+      JSON.stringify(
+        {
+          compliance: {
+            owner: "alice",
+            description: "A neutral control description that is long enough to split the object.",
+          },
+          operations: { owner: "bob" },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const results = await search("compliance", { cwd: root, topK: 3 })
+    const nested = results.find(
+      (result) =>
+        result.contextPath.startsWith("$.compliance") && !result.text.includes("compliance"),
+    )
+
+    expect(nested?.relativePath).toBe(".ragmir/raw/controls.json")
+    expect(nested?.contextPath).toContain("$.compliance")
+  })
+
   it("matches accent-folded lexical queries", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-accent-"))
     tempDirs.push(root)
@@ -125,6 +200,25 @@ describe("search", () => {
     const results = await search("confidentialite revision", { cwd: root, topK: 1 })
 
     expect(results[0]?.relativePath).toBe(".ragmir/raw/policy.md")
+  })
+
+  it("should recover a single-token transposition without matching a nearby wrong word", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-typo-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "security.md"),
+      "Security controls require signed evidence.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const typo = await search("sceurity", { cwd: root, topK: 1 })
+    const wrongWord = await search("secretary", { cwd: root, topK: 1 })
+
+    expect(typo[0]?.relativePath).toBe(".ragmir/raw/security.md")
+    expect(wrongWord).toEqual([])
   })
 
   it("blocks search when the active index policy differs", async () => {

@@ -174,6 +174,7 @@ export interface TextChunk {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
   text: string
   charStart: number
   charEnd: number
@@ -187,6 +188,7 @@ export interface TextChunk {
 }
 
 export interface VectorRow extends TextChunk {
+  searchText: string
   vector: number[]
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
@@ -229,6 +231,7 @@ export interface SearchOptions {
 
 export interface SearchContextChunk {
   chunkIndex: number
+  contextPath: string
   text: string
   charStart: number | null
   charEnd: number | null
@@ -243,6 +246,7 @@ export interface SearchResult {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
   citation: string
   text: string
   distance: number | null
@@ -259,6 +263,7 @@ export interface CompactSearchResult {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
   citation: string
   snippet: string
   distance: number | null
@@ -296,6 +301,7 @@ export interface ResearchEvidence {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
   citation: string
   text: string
   distance: number | null
