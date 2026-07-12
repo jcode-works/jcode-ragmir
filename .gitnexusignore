@@ -17,7 +17,6 @@ packages/*/dist/
 packages/*/.astro/
 packages/*/.output/
 packages/*/target/
-packages/*/src-tauri/target/
 coverage/
 
 # Local release/download artifacts

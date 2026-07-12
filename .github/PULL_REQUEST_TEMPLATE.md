@@ -16,4 +16,4 @@
 ## Security
 
 - [ ] No secrets, private documents, `.env` files, or generated `.ragmir/` state are included.
-- [ ] Public documentation does not expose private project, customer, pricing, or validation details.
+- [ ] Public documentation does not expose private project, customer, or validation details.
