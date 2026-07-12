@@ -17,6 +17,10 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 | `initProject(cwd?)` | Create local Ragmir state and ignore rules. |
 | `setupProject(options?)` | Initialize sources, helpers, and optional semantic retrieval. |
 | `loadConfig(start?)` | Resolve and validate effective configuration. |
+| `knowledgeBaseIdentity(start?)` | Identify the nearest base relative to the outer configured workspace. |
+| `discoverKnowledgeBases(start?)` | List root and nested bases and mark the active one. |
+| `getKnowledgeBaseContext(cwd?)` | Return bounded identity, readiness, freshness, and capability context. |
+| `getKnowledgeBaseSourceCatalog(cwd?)` | Return bounded source coverage with complete totals. |
 | `listSourceEntries(cwd?)` | Read configured source entries. |
 | `addSourceEntries(options)` | Add source paths or exclusions. |
 
@@ -26,6 +30,7 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 | --- | --- |
 | `ingest(options?)` | Incrementally parse, redact, chunk, embed, and store files. |
 | `audit(cwd?)` | Compare files on disk with the current index. |
+| `previewChunks(options?)` | Return redacted structured chunks without writing an index. |
 | `search(query, options?)` | Return ranked cited passages. |
 | `ask(query, options?)` | Return cited retrieval context without calling an LLM. |
 | `research(query, options?)` | Run audit-backed multi-query retrieval. |
@@ -34,11 +39,18 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 | `compactResearchReport(report)` | Remove verbose evidence text from a research report. |
 | `evaluateGoldenQueries(options)` | Score retrieval against a local golden-query file. |
 
-`SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, and `excludePaths`.
+`SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
+`contextPaths`, and `explain`. When explanation is enabled, each result includes RRF contributions,
+one-based vector and lexical ranks, vector distance, lexical backend score, and matched query terms.
 `ExpandCitationOptions` accepts `cwd` and a `contextRadius` clamped to three chunks.
 Search results expose a `contextPath` derived from Markdown headings or JSON structure. This field
 improves retrieval, while `text`, offsets, and citations continue to reference the exact source
 passage.
+
+`PreviewReport` includes per-file redaction counts, citations, offsets, structural context, omitted
+counts, and chunk distributions. `AuditReport.chunkStats` provides corpus-wide character
+distributions and structural-context coverage. Golden-query cases may include `contextPaths` to
+evaluate one heading or structured-data branch.
 
 ## Operations and privacy
 
@@ -75,6 +87,10 @@ passage.
 
 `kbCommand` and `ragmirCommand` remain compatibility helpers. New integration code should use
 `rgrCommand` and the `rgr` CLI name.
+
+In a monorepo, all public operations still resolve the nearest configured ancestor from `cwd`.
+`KnowledgeBaseInventory` exposes deterministic relative IDs, while each base keeps its own source,
+storage, manifest, and access-log paths.
 
 The MCP retrieval tools accept an optional `maxBytes` below the configured `mcpMaxOutputBytes`
 ceiling. `ragmir_search` and `ragmir_research` also accept `compact`; `ragmir_ask` supports the same

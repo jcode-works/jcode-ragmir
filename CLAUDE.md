@@ -21,6 +21,9 @@ Use `pnpm --filter @jcode.labs/ragmir <script>` for Core-only work. The pinned N
 
 Generated `dist/`, `.astro/`, `release-artifacts/`, and `.ragmir/` directories are ignored. Do not
 commit them. The root README is the canonical documentation entrypoint; keep package READMEs short.
+When code changes public behavior, commands, configuration, supported formats, architecture, or
+product claims, update the relevant docs and landing in the same change. For internal-only changes,
+verify both surfaces and leave them unchanged when no update is needed.
 
 ## Boundaries
 

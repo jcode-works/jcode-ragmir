@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { lstat, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -24,12 +24,20 @@ describe("installSkill", () => {
     const reportSkill = await readFile(path.join(result.reportSkillPath, "SKILL.md"), "utf8")
     const legalSkill = await readFile(path.join(result.legalSkillPath, "SKILL.md"), "utf8")
     const mcpConfig = JSON.parse(await readFile(result.mcpConfigPath, "utf8")) as {
-      mcpServers: { ragmir: { command: string; args: string[]; cwd: string } }
+      mcpServers: {
+        ragmir: {
+          command: string
+          args: string[]
+          cwd: string
+          env: { RAGMIR_PROJECT_ROOT: string }
+        }
+      }
     }
     const claudeConfig = JSON.parse(await readFile(result.claudeConfigPath, "utf8")) as {
       type: string
       command: string
       args: string[]
+      env: { RAGMIR_PROJECT_ROOT: string }
     }
     const kimiConfig = JSON.parse(await readFile(result.kimiConfigPath, "utf8")) as {
       mcpServers: { ragmir: { env: { RAGMIR_PROJECT_ROOT: string } } }
@@ -57,10 +65,12 @@ describe("installSkill", () => {
     expect(mcpConfig.mcpServers.ragmir.command).toBe("pnpm")
     expect(mcpConfig.mcpServers.ragmir.args).toEqual(["exec", "rgr", "serve-mcp"])
     expect(mcpConfig.mcpServers.ragmir.cwd).toBe(root)
+    expect(mcpConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(claudeConfig).toEqual({
       type: "stdio",
       command: "pnpm",
       args: ["exec", "rgr", "serve-mcp"],
+      env: { RAGMIR_PROJECT_ROOT: root },
     })
     expect(codexConfig).toContain("[mcp_servers.ragmir]")
     expect(codexConfig).toContain('command = "pnpm"')
@@ -82,6 +92,34 @@ describe("installSkill", () => {
     expect(agentSetup).toContain("Kimi Code CLI")
     expect(agentSetup).toContain("OpenCode")
     expect(agentSetup).toContain("Cline")
+  })
+
+  it("should generate unique rooted MCP helpers for a nested monorepo base", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-skill-monorepo-"))
+    tempDirs.push(root)
+    const app = path.join(root, "apps", "web")
+    await writeRagmirConfig(root)
+    await writeRagmirConfig(app)
+
+    const result = await installSkill({ cwd: app, agents: ["claude", "codex"] })
+    const mcpConfig = JSON.parse(await readFile(result.mcpConfigPath, "utf8")) as {
+      mcpServers: Record<string, { cwd: string; env: { RAGMIR_PROJECT_ROOT: string } }>
+    }
+    const claudeConfig = JSON.parse(await readFile(result.claudeConfigPath, "utf8")) as {
+      env: { RAGMIR_PROJECT_ROOT: string }
+    }
+    const codexConfig = await readFile(result.codexConfigPath, "utf8")
+
+    expect(result.mcpServerName).toBe("ragmir-apps-web")
+    expect(mcpConfig.mcpServers["ragmir-apps-web"]).toEqual(
+      expect.objectContaining({
+        cwd: app,
+        env: { RAGMIR_PROJECT_ROOT: app },
+      }),
+    )
+    expect(claudeConfig.env.RAGMIR_PROJECT_ROOT).toBe(app)
+    expect(codexConfig).toContain("[mcp_servers.ragmir-apps-web]")
+    expect(codexConfig).toContain(`cwd = ${JSON.stringify(app)}`)
   })
 
   it("adds Ragmir runtime folders to gitignore without duplicating entries", async () => {
@@ -146,6 +184,7 @@ describe("installSkill", () => {
     const claudeConfig = JSON.parse(await readFile(result.claudeConfigPath, "utf8")) as {
       command: string
       args: string[]
+      env: { RAGMIR_PROJECT_ROOT: string }
     }
     const codexConfig = await readFile(result.codexConfigPath, "utf8")
     const readme = await readFile(result.readmePath, "utf8")
@@ -157,6 +196,7 @@ describe("installSkill", () => {
       type: "stdio",
       command: "./scripts/serve-mcp.sh",
       args: ["--stdio"],
+      env: { RAGMIR_PROJECT_ROOT: root },
     })
     expect(codexConfig).toContain("[mcp_servers.project-docs]")
     expect(codexConfig).toContain('command = "./scripts/serve-mcp.sh"')
@@ -175,6 +215,11 @@ describe("installSkill", () => {
     expect(readme).not.toContain("kimi --mcp-config-file")
   })
 })
+
+async function writeRagmirConfig(projectRoot: string): Promise<void> {
+  await mkdir(path.join(projectRoot, ".ragmir"), { recursive: true })
+  await writeFile(path.join(projectRoot, ".ragmir", "config.json"), "{}\n", "utf8")
+}
 
 describe("installAgentSkills", () => {
   it("links selected skills into native project-scope agent folders by default", async () => {

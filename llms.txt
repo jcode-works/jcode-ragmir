@@ -9,7 +9,8 @@ store.
 
 - Install: `pnpm add -D @jcode.labs/ragmir`
 - First use: `pnpm exec rgr setup && pnpm exec rgr ingest`
-- CLI: `rgr search "query"`, `rgr doctor`, `rgr audit`, and `rgr security-audit`
+- CLI: `rgr preview`, `rgr search "query" --explain`, `rgr bases`, `rgr doctor`, `rgr audit`, and
+  `rgr security-audit`
 - Core behavior: cited retrieval only. `ask` returns evidence, while synthesis belongs to the calling
   agent or optional local chat add-on.
 - Default retrieval: local-hash, with no model download. Semantic embeddings and local GGUF chat are
@@ -20,6 +21,12 @@ store.
   when the user chooses that workflow, under that provider's data policy.
 - OCR boundary: embedded PDF text comes first; a configured local executable runs only for blank
   pages. Ragmir has no cloud OCR integration.
+- Retrieval inspection: preview redacted chunks without writing storage; optionally expose RRF
+  contributions and filter by source or structural context.
+- Monorepos: the nearest configured base is active, nested indexes remain isolated, and generated MCP
+  helpers pin a distinct base root.
+- MCP resources: `ragmir://context` gives bounded readiness and capability context;
+  `ragmir://sources` gives capped source detail with complete totals.
 
 ## Documentation
 

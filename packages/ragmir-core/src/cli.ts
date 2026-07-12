@@ -26,10 +26,12 @@ import { countSkippedByReason } from "./files.js"
 import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
 import { configurePdfOcr, extractPdfPage, inspectPdfOcr, parsePdfOcrEngine } from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
+import { previewChunks } from "./preview.js"
 import { routePrompt } from "./prompt-routing.js"
 import { ask, search } from "./query.js"
 import { compactResearchReport, compactSearchResults, research } from "./research.js"
@@ -45,7 +47,7 @@ import {
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { countRows } from "./store.js"
-import type { ResearchReport } from "./types.js"
+import type { PreviewChunksOptions, ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
@@ -234,7 +236,10 @@ program
     `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`,
     "all",
   )
-  .option("--mcp-name <name>", "MCP server name used in generated config.", "ragmir")
+  .option(
+    "--mcp-name <name>",
+    "MCP server name. Nested monorepo bases get a unique name by default.",
+  )
   .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
   .option(
     "--mcp-arg <arg>",
@@ -253,7 +258,7 @@ program
       options: {
         targetDir: string
         agents: string
-        mcpName: string
+        mcpName?: string
         mcpCommand?: string
         mcpArg: string[]
         semantic?: boolean
@@ -267,8 +272,8 @@ program
         cwd,
         targetDir: options.targetDir,
         agents: parseAgentTargets(options.agents),
-        mcpServerName: options.mcpName,
       }
+      addOption(setupOptions, "mcpServerName", options.mcpName)
       addOption(setupOptions, "semantic", options.semantic)
       addOption(setupOptions, "ingest", options.ingest)
       addOption(setupOptions, "mcpCommand", options.mcpCommand)
@@ -406,6 +411,74 @@ program
   })
 
 program
+  .command("preview")
+  .description("Preview redacted chunks and structure without writing the index.")
+  .option(
+    "--path <prefix>",
+    "Preview only source paths under this prefix. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option("--max-files <number>", "Maximum number of matching files to parse.", parsePositiveInt)
+  .option("--max-chunks <number>", "Maximum number of chunks to show per file.", parsePositiveInt)
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (
+      options: { path: string[]; maxFiles?: number; maxChunks?: number; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      const previewOptions: PreviewChunksOptions = { cwd }
+      if (options.path.length > 0) {
+        previewOptions.paths = options.path
+      }
+      addOption(previewOptions, "maxFiles", options.maxFiles)
+      addOption(previewOptions, "maxChunksPerFile", options.maxChunks)
+      const report = await previewChunks(previewOptions)
+      if (options.json) {
+        console.log(JSON.stringify(report, null, 2))
+        if (
+          report.errors.length > 0 ||
+          (report.requestedPaths.length > 0 && report.matchedFiles === 0)
+        ) {
+          process.exitCode = 1
+        }
+        return
+      }
+
+      console.log(`chunkSize=${report.chunkSize}`)
+      console.log(`chunkOverlap=${report.chunkOverlap}`)
+      console.log(`matchedFiles=${report.matchedFiles}`)
+      console.log(`omittedFiles=${report.omittedFiles}`)
+      for (const unmatchedPath of report.unmatchedPaths) {
+        console.log(pc.yellow(`unmatched: ${unmatchedPath}`))
+      }
+      for (const file of report.files) {
+        console.log(
+          `\n${pc.cyan(file.relativePath)} chunks=${file.chunkStats.count} redactions=${file.redactions} minChars=${file.chunkStats.minChars} p50Chars=${file.chunkStats.p50Chars} p95Chars=${file.chunkStats.p95Chars} maxChars=${file.chunkStats.maxChars} contextualRatio=${file.chunkStats.contextualRatio.toFixed(3)}`,
+        )
+        for (const chunk of file.chunks) {
+          const context = chunk.contextPath ? ` context=${chunk.contextPath}` : ""
+          console.log(`\n${pc.dim(chunk.citation)}${context}`)
+          console.log(chunk.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH))
+        }
+        if (file.omittedChunks > 0) {
+          console.log(pc.dim(`omittedChunks=${file.omittedChunks}`))
+        }
+      }
+      for (const error of report.errors) {
+        console.error(pc.red(`${error.path}: ${error.message}`))
+      }
+      if (
+        report.errors.length > 0 ||
+        (report.requestedPaths.length > 0 && report.matchedFiles === 0)
+      ) {
+        process.exitCode = 1
+      }
+    },
+  )
+
+program
   .command("search")
   .description("Retrieve the most relevant passages without calling an LLM.")
   .argument("<query>", "Search query.")
@@ -427,6 +500,13 @@ program
     collectOptionValue,
     [],
   )
+  .option(
+    "--context-path <prefix>",
+    "Search only chunks under this structural context. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
@@ -437,6 +517,8 @@ program
         contextRadius?: number
         includePath: string[]
         excludePath: string[]
+        contextPath: string[]
+        explain?: boolean
         compact?: boolean
         json?: boolean
       },
@@ -470,6 +552,15 @@ program
         console.log(
           "snippet" in result ? result.snippet : result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH),
         )
+        if (result.score) {
+          const vectorRank = result.score.vectorRank ?? "n/a"
+          const lexicalRank = result.score.lexicalRank ?? "n/a"
+          console.log(
+            pc.dim(
+              `score=${result.score.combinedScore.toFixed(6)} fusion=${result.score.fusion} vector=${result.score.vectorContribution.toFixed(6)} lexical=${result.score.lexicalContribution.toFixed(6)} vectorRank=${vectorRank} lexicalRank=${lexicalRank} matchedTerms=${result.score.matchedTerms.join(",") || "n/a"}`,
+            ),
+          )
+        }
       }
     },
   )
@@ -496,6 +587,13 @@ program
     collectOptionValue,
     [],
   )
+  .option(
+    "--context-path <prefix>",
+    "Use only chunks under this structural context. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -505,6 +603,8 @@ program
         contextRadius?: number
         includePath: string[]
         excludePath: string[]
+        contextPath: string[]
+        explain?: boolean
         json?: boolean
       },
       command: Command,
@@ -526,7 +626,8 @@ program
       if (result.sources.length > 0) {
         console.log(pc.dim("Sources:"))
         for (const [index, source] of result.sources.entries()) {
-          console.log(`  [${index + 1}] ${source.citation} chunk=${source.chunkIndex}`)
+          const score = source.score ? ` score=${source.score.combinedScore.toFixed(6)}` : ""
+          console.log(`  [${index + 1}] ${source.citation} chunk=${source.chunkIndex}${score}`)
         }
       }
     },
@@ -550,6 +651,12 @@ program
     collectOptionValue,
     [],
   )
+  .option(
+    "--context-path <prefix>",
+    "Use only chunks under this structural context. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
   .option("--compact", "Return snippets instead of full retrieved passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
@@ -560,6 +667,7 @@ program
         code?: boolean
         includePath: string[]
         excludePath: string[]
+        contextPath: string[]
         compact?: boolean
         json?: boolean
       },
@@ -716,6 +824,13 @@ program
     console.log(`sensitiveFiles=${countSkippedByReason(report.skippedFiles, "sensitive-name")}`)
     console.log(`indexedFiles=${report.indexedFiles.length}`)
     console.log(`totalChunks=${report.totalChunks}`)
+    console.log(`chunkStats.minChars=${report.chunkStats.minChars}`)
+    console.log(`chunkStats.averageChars=${report.chunkStats.averageChars.toFixed(1)}`)
+    console.log(`chunkStats.p50Chars=${report.chunkStats.p50Chars}`)
+    console.log(`chunkStats.p95Chars=${report.chunkStats.p95Chars}`)
+    console.log(`chunkStats.maxChars=${report.chunkStats.maxChars}`)
+    console.log(`chunkStats.contextualChunks=${report.chunkStats.contextualChunks}`)
+    console.log(`chunkStats.contextualRatio=${report.chunkStats.contextualRatio.toFixed(3)}`)
     console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
     console.log(`missingFromIndex=${report.missingFromIndex.length}`)
     console.log(`staleInIndex=${report.staleInIndex.length}`)
@@ -818,14 +933,37 @@ program
   })
 
 program
+  .command("bases")
+  .description("List Ragmir knowledge bases in the active monorepo and mark the selected base.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }, command: Command) => {
+    const inventory = await discoverKnowledgeBases(projectRoot(command))
+    if (options.json) {
+      console.log(JSON.stringify(inventory, null, 2))
+      return
+    }
+
+    console.log(`workspaceRoot=${inventory.workspaceRoot}`)
+    console.log(`activeBase=${inventory.activeId ?? "none"}`)
+    console.log(`bases=${inventory.bases.length}`)
+    for (const base of inventory.bases) {
+      const marker = base.active ? "*" : "-"
+      const format = base.legacy ? "legacy" : "ragmir"
+      console.log(`${marker} ${base.id} format=${format} root=${base.projectRoot}`)
+    }
+  })
+
+program
   .command("status")
   .description("Show active configuration and index row count.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
     const config = await loadConfig(cwd)
+    const identity = knowledgeBaseIdentity(config.projectRoot)
     const rows = await countRows(config)
     const status = {
+      knowledgeBaseId: identity?.id ?? null,
       projectRoot: config.projectRoot,
       rawDir: config.rawDir,
       storageDir: config.storageDir,
@@ -859,6 +997,7 @@ program
       return
     }
 
+    console.log(`knowledgeBaseId=${identity?.id ?? "none"}`)
     console.log(`projectRoot=${config.projectRoot}`)
     console.log(`rawDir=${config.rawDir}`)
     console.log(`storageDir=${config.storageDir}`)
@@ -1121,7 +1260,10 @@ program
     `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`,
     "all",
   )
-  .option("--mcp-name <name>", "MCP server name used in generated config.", "ragmir")
+  .option(
+    "--mcp-name <name>",
+    "MCP server name. Nested monorepo bases get a unique name by default.",
+  )
   .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
   .option(
     "--mcp-arg <arg>",
@@ -1134,7 +1276,7 @@ program
       options: {
         targetDir: string
         agents: string
-        mcpName: string
+        mcpName?: string
         mcpCommand?: string
         mcpArg: string[]
       },
@@ -1145,8 +1287,8 @@ program
         cwd,
         targetDir: options.targetDir,
         agents: parseAgentTargets(options.agents),
-        mcpServerName: options.mcpName,
       }
+      addOption(installOptions, "mcpServerName", options.mcpName)
       addOption(installOptions, "mcpCommand", options.mcpCommand)
       if (options.mcpArg.length > 0) {
         installOptions.mcpArgs = options.mcpArg
@@ -1283,6 +1425,8 @@ function withSearchOptions(
     contextRadius?: number
     includePath?: string[]
     excludePath?: string[]
+    contextPath?: string[]
+    explain?: boolean
   },
 ): {
   cwd: string
@@ -1290,6 +1434,8 @@ function withSearchOptions(
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
+  explain?: boolean
 } {
   const result: {
     cwd: string
@@ -1297,22 +1443,28 @@ function withSearchOptions(
     contextRadius?: number
     includePaths?: string[]
     excludePaths?: string[]
+    contextPaths?: string[]
+    explain?: boolean
   } = { cwd }
   addOption(result, "topK", options.topK)
   addOption(result, "contextRadius", options.contextRadius)
   addPathFilters(result, options)
+  addOption(result, "explain", options.explain)
   return result
 }
 
 function addPathFilters(
-  target: { includePaths?: string[]; excludePaths?: string[] },
-  options: { includePath?: string[]; excludePath?: string[] },
+  target: { includePaths?: string[]; excludePaths?: string[]; contextPaths?: string[] },
+  options: { includePath?: string[]; excludePath?: string[]; contextPath?: string[] },
 ): void {
   if (options.includePath && options.includePath.length > 0) {
     target.includePaths = options.includePath
   }
   if (options.excludePath && options.excludePath.length > 0) {
     target.excludePaths = options.excludePath
+  }
+  if (options.contextPath && options.contextPath.length > 0) {
+    target.contextPaths = options.contextPath
   }
 }
 

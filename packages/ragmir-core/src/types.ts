@@ -201,6 +201,17 @@ export interface TextChunk {
   mtimeMs: number
 }
 
+export interface ChunkStats {
+  count: number
+  minChars: number
+  averageChars: number
+  p50Chars: number
+  p95Chars: number
+  maxChars: number
+  contextualChunks: number
+  contextualRatio: number
+}
+
 export interface VectorRow extends TextChunk {
   searchText: string
   vector: number[]
@@ -235,12 +246,128 @@ export interface IngestResult {
   errors: Array<{ path: string; message: string }>
 }
 
+export interface PreviewChunksOptions {
+  cwd?: PathLike
+  paths?: string[]
+  maxFiles?: number
+  maxChunksPerFile?: number
+}
+
+export interface PreviewChunk {
+  chunkIndex: number
+  contextPath: string
+  citation: string
+  text: string
+  charStart: number
+  charEnd: number
+  lineStart: number
+  lineEnd: number
+  pageStart: number | null
+  pageEnd: number | null
+}
+
+export interface PreviewFile {
+  source: string
+  relativePath: string
+  extension: string
+  bytes: number
+  parsedChars: number
+  redactions: number
+  chunkStats: ChunkStats
+  chunks: PreviewChunk[]
+  omittedChunks: number
+}
+
+export interface PreviewReport {
+  chunkSize: number
+  chunkOverlap: number
+  requestedPaths: string[]
+  unmatchedPaths: string[]
+  matchedFiles: number
+  omittedFiles: number
+  files: PreviewFile[]
+  errors: Array<{ path: string; message: string }>
+}
+
+export interface KnowledgeBaseIdentity {
+  id: string
+  projectRoot: string
+  workspaceRoot: string
+}
+
+export interface KnowledgeBaseInfo {
+  id: string
+  projectRoot: string
+  configPath: string
+  legacy: boolean
+  active: boolean
+}
+
+export interface KnowledgeBaseInventory {
+  start: string
+  workspaceRoot: string
+  activeProjectRoot: string | null
+  activeId: string | null
+  bases: KnowledgeBaseInfo[]
+}
+
+export interface KnowledgeBaseContextReport {
+  knowledgeBaseId: string | null
+  projectRoot: string
+  privacyProfile: PrivacyProfile
+  retrievalProfile: RetrievalProfile
+  embeddingProvider: EmbeddingProvider
+  ready: boolean
+  coverage: {
+    supportedFiles: number
+    indexedFiles: number
+    chunksIndexed: number
+    missingFromIndex: number
+    staleInIndex: number
+    emptyTextFiles: number
+  }
+  indexFreshness: DoctorReport["indexFreshness"]
+  securityWarningCount: number
+  nextSteps: string[]
+  routing: {
+    selection: "nearest-configured-ancestor"
+    discoverCommand: "rgr bases --json"
+  }
+  tools: string[]
+  resources: string[]
+}
+
+export interface KnowledgeBaseSourceCatalog {
+  knowledgeBaseId: string | null
+  totals: {
+    indexedFiles: number
+    chunks: number
+    missingFromIndex: number
+    staleInIndex: number
+    emptyTextFiles: number
+    skippedFiles: number
+  }
+  indexedFiles: Array<{ source: string; chunks: number }>
+  missingFromIndex: string[]
+  staleInIndex: string[]
+  emptyTextFiles: string[]
+  skippedByReason: Record<string, number>
+  omitted: {
+    indexedFiles: number
+    missingFromIndex: number
+    staleInIndex: number
+    emptyTextFiles: number
+  }
+}
+
 export interface SearchOptions {
   cwd?: PathLike
   topK?: number
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
+  explain?: boolean
 }
 
 export interface SearchContextChunk {
@@ -271,6 +398,19 @@ export interface SearchResult {
   pageStart: number | null
   pageEnd: number | null
   context: SearchContextChunk[]
+  score?: SearchScoreExplanation
+}
+
+export interface SearchScoreExplanation {
+  fusion: "rrf"
+  combinedScore: number
+  vectorContribution: number
+  lexicalContribution: number
+  vectorRank: number | null
+  lexicalRank: number | null
+  vectorDistance: number | null
+  lexicalBackendScore: number | null
+  matchedTerms: string[]
 }
 
 export interface ExpandCitationOptions {
@@ -299,6 +439,7 @@ export interface CompactSearchResult {
   lineEnd: number | null
   pageStart: number | null
   pageEnd: number | null
+  score?: SearchScoreExplanation
 }
 
 export interface SourceDuplicateCandidate {
@@ -323,6 +464,7 @@ export interface ResearchOptions {
   includeCode?: boolean
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
 }
 
 export interface ResearchEvidence {
@@ -379,6 +521,7 @@ export interface GoldenQuery {
   expectedCitations?: string[]
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
   topK?: number
 }
 
@@ -395,6 +538,7 @@ export interface EvaluationCaseResult {
   expectedPaths: string[]
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
   topK: number
   returnedPaths: string[]
   returnedCitations: string[]
@@ -447,6 +591,7 @@ export interface AuditReport {
   missingFromIndex: string[]
   staleInIndex: string[]
   totalChunks: number
+  chunkStats: ChunkStats
 }
 
 export interface DestroyIndexResult {

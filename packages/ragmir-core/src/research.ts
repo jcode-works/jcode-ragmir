@@ -98,6 +98,7 @@ export async function research(
         topK: perQueryTopK,
         ...(options.includePaths ? { includePaths: options.includePaths } : {}),
         ...(options.excludePaths ? { excludePaths: options.excludePaths } : {}),
+        ...(options.contextPaths ? { contextPaths: options.contextPaths } : {}),
       }),
     })),
   )
@@ -177,6 +178,7 @@ export function compactSearchResults(
     lineEnd: result.lineEnd,
     pageStart: result.pageStart,
     pageEnd: result.pageEnd,
+    ...(result.score === undefined ? {} : { score: result.score }),
   }))
 }
 

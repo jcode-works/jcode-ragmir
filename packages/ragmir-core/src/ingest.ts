@@ -1,4 +1,5 @@
 import { recordAccess } from "./access-log.js"
+import { summarizeChunkStats } from "./chunk-stats.js"
 import { chunkDocument, chunkSearchText } from "./chunking.js"
 import { loadConfig } from "./config.js"
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
@@ -289,12 +290,18 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
       missingFromIndex: supportedFiles.filter((file) => !emptyTextFiles.has(file)),
       staleInIndex: [],
       totalChunks: 0,
+      chunkStats: summarizeChunkStats([]),
     }
   }
 
-  const rows = (await table.query().select(["relativePath", "checksum"]).toArray()) as Array<{
+  const rows = (await table
+    .query()
+    .select(["relativePath", "checksum", "contextPath", "text"])
+    .toArray()) as Array<{
     relativePath: string
     checksum?: string
+    contextPath: string
+    text: string
   }>
   const counts = new Map<string, number>()
   const checksums = new Map<string, Set<string>>()
@@ -337,6 +344,7 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
       })
       .sort(),
     totalChunks: rows.length,
+    chunkStats: summarizeChunkStats(rows),
   }
 }
 

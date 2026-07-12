@@ -40,6 +40,10 @@ interface RankedRow {
   vectorScore: number
   lexicalScore: number
   combinedScore: number
+  vectorRank: number | null
+  lexicalRank: number | null
+  lexicalBackendScore: number | null
+  matchedTerms: string[]
 }
 
 const VECTOR_CANDIDATE_POLICY: Record<
@@ -101,14 +105,21 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   }
 
   const topK = options.topK ?? config.topK
-  const pathPredicate = sourcePathPredicate(options.includePaths, options.excludePaths)
+  const retrievalPredicate = searchPredicate(
+    options.includePaths,
+    options.excludePaths,
+    options.contextPaths,
+  )
   const [vector, textRows] = await Promise.all([
     embedText(sanitized.query, config),
-    lexicalCandidateRows(table, sanitized.query, config.hybridTextScanLimit, pathPredicate),
+    lexicalCandidateRows(table, sanitized.query, config.hybridTextScanLimit, retrievalPredicate),
   ])
   await assertVectorIndexCompatibility(config, vector.length)
   const vectorQuery = table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS)
-  const vectorRows = (await (pathPredicate ? vectorQuery.where(pathPredicate) : vectorQuery)
+  const vectorRows = (await (retrievalPredicate
+    ? vectorQuery.where(retrievalPredicate)
+    : vectorQuery
+  )
     .limit(vectorCandidateLimit(topK, config.retrievalProfile))
     .toArray()) as SearchRow[]
   const rankedRows = rankHybridRows(sanitized.query, vectorRows, textRows)
@@ -124,22 +135,40 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     options.contextRadius ?? defaultContextRadius,
   )
 
-  const results = rows.map((row) => ({
-    source: row.row.source,
-    relativePath: row.row.relativePath,
-    chunkIndex: row.row.chunkIndex,
-    contextPath: row.row.contextPath,
-    citation: citationForRow(row.row),
-    text: row.row.text,
-    distance: typeof row.row._distance === "number" ? row.row._distance : null,
-    charStart: nullableNumber(row.row.charStart),
-    charEnd: nullableNumber(row.row.charEnd),
-    lineStart: nullableNumber(row.row.lineStart),
-    lineEnd: nullableNumber(row.row.lineEnd),
-    pageStart: nullablePageNumber(row.row.pageStart),
-    pageEnd: nullablePageNumber(row.row.pageEnd),
-    context: contextByRow.get(rowKey(row.row)) ?? [],
-  }))
+  const results = rows.map((row) => {
+    const vectorDistance = typeof row.row._distance === "number" ? row.row._distance : null
+    return {
+      source: row.row.source,
+      relativePath: row.row.relativePath,
+      chunkIndex: row.row.chunkIndex,
+      contextPath: row.row.contextPath,
+      citation: citationForRow(row.row),
+      text: row.row.text,
+      distance: vectorDistance,
+      charStart: nullableNumber(row.row.charStart),
+      charEnd: nullableNumber(row.row.charEnd),
+      lineStart: nullableNumber(row.row.lineStart),
+      lineEnd: nullableNumber(row.row.lineEnd),
+      pageStart: nullablePageNumber(row.row.pageStart),
+      pageEnd: nullablePageNumber(row.row.pageEnd),
+      context: contextByRow.get(rowKey(row.row)) ?? [],
+      ...(options.explain
+        ? {
+            score: {
+              fusion: "rrf" as const,
+              combinedScore: row.combinedScore,
+              vectorContribution: row.vectorScore,
+              lexicalContribution: row.lexicalScore,
+              vectorRank: row.vectorRank,
+              lexicalRank: row.lexicalRank,
+              vectorDistance,
+              lexicalBackendScore: row.lexicalBackendScore,
+              matchedTerms: row.matchedTerms,
+            },
+          }
+        : {}),
+    }
+  })
   await recordAccess(config, {
     action: "search",
     query: sanitized.query,
@@ -406,12 +435,14 @@ async function lexicalCandidateRows(
     .toArray()) as SearchRow[]
 }
 
-function sourcePathPredicate(
+function searchPredicate(
   includePaths: string[] | undefined,
   excludePaths: string[] | undefined,
+  contextPaths: string[] | undefined,
 ): string | null {
   const includes = normalizePathPrefixes(includePaths)
   const excludes = normalizePathPrefixes(excludePaths)
+  const contexts = normalizeContextPaths(contextPaths)
   const clauses: string[] = []
 
   if (includes.length > 0) {
@@ -419,6 +450,9 @@ function sourcePathPredicate(
   }
   if (excludes.length > 0) {
     clauses.push(`NOT (${excludes.map(pathPrefixPredicate).join(" OR ")})`)
+  }
+  if (contexts.length > 0) {
+    clauses.push(`(${contexts.map(contextPathPredicate).join(" OR ")})`)
   }
   return clauses.length === 0 ? null : clauses.join(" AND ")
 }
@@ -436,6 +470,19 @@ function normalizePathPrefixes(prefixes: string[] | undefined): string[] {
 
 function pathPrefixPredicate(prefix: string): string {
   return `(relativePath = ${sqlString(prefix)} OR starts_with(relativePath, ${sqlString(`${prefix}/`)}))`
+}
+
+function normalizeContextPaths(contextPaths: string[] | undefined): string[] {
+  return [...new Set((contextPaths ?? []).map((value) => value.trim()).filter(Boolean))]
+}
+
+function contextPathPredicate(prefix: string): string {
+  return [
+    `contextPath = ${sqlString(prefix)}`,
+    `starts_with(contextPath, ${sqlString(`${prefix} > `)})`,
+    `starts_with(contextPath, ${sqlString(`${prefix}.`)})`,
+    `starts_with(contextPath, ${sqlString(`${prefix}[`)})`,
+  ].join(" OR ")
 }
 
 async function contextChunksByRow(
@@ -566,6 +613,7 @@ function rankHybridRows(
   lexicalRanked.forEach(([key], index) => {
     lexicalRanks.set(key, index)
   })
+  const lexicalScores = new Map(lexicalRanked)
 
   return rows
     .map((row) => {
@@ -583,7 +631,16 @@ function rankHybridRows(
         lexicalScore = RRF_LEXICAL_WEIGHT / (RRF_K + lexicalRank)
         combinedScore += lexicalScore
       }
-      return { row, vectorScore, lexicalScore, combinedScore }
+      return {
+        row,
+        vectorScore,
+        lexicalScore,
+        combinedScore,
+        vectorRank: vectorRank === undefined ? null : vectorRank + 1,
+        lexicalRank: lexicalRank === undefined ? null : lexicalRank + 1,
+        lexicalBackendScore: lexicalScores.get(key) ?? null,
+        matchedTerms: matchedQueryTerms(queryTokens, row.searchText),
+      }
     })
     .filter((ranked) => ranked.combinedScore > 0)
     .sort((a, b) => {
@@ -599,6 +656,13 @@ function rankHybridRows(
         a.row.relativePath.localeCompare(b.row.relativePath) || a.row.chunkIndex - b.row.chunkIndex
       )
     })
+}
+
+function matchedQueryTerms(queryTokens: string[], text: string): string[] {
+  const textTokens = tokenize(text)
+  return [...new Set(queryTokens)].filter((queryToken) =>
+    textTokens.some((textToken) => tokensAreLexicallyRelated(queryToken, textToken)),
+  )
 }
 
 function mergeRows(vectorRows: SearchRow[], textRows: SearchRow[]): SearchRow[] {
