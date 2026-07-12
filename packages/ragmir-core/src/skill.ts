@@ -3,6 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { DEFAULT_SKILL_TARGET_DIR, RAGMIR_DIR, RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { ensureRagmirGitignore } from "./gitignore.js"
+import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { type RagmirCommand, rgrCommand } from "./package-manager.js"
 
 export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
@@ -191,7 +192,7 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
   const targetDir = path.resolve(cwd, options.targetDir ?? DEFAULT_SKILL_TARGET_DIR)
   const agents = options.agents ? parseAgentTargets(options.agents) : [...SUPPORTED_AGENT_TARGETS]
   const agentSet = new Set<AgentTarget>(agents)
-  const mcpServerName = normalizeMcpServerName(options.mcpServerName)
+  const mcpServerName = normalizeMcpServerName(options.mcpServerName ?? suggestedMcpServerName(cwd))
   const skillPath = path.join(targetDir, PRIMARY_SKILL_NAME)
   const audioSkillPath = path.join(targetDir, AUDIO_SKILL_NAME)
   const reportSkillPath = path.join(targetDir, REPORT_SKILL_NAME)
@@ -222,7 +223,11 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
   const installAgentCommand = await rgrCommand(cwd, ["install-agent", "--agents", agents.join(",")])
   await writeFile(
     mcpConfigPath,
-    `${JSON.stringify(mcpConfig(cwd, serveCommand, undefined, mcpServerName), null, 2)}\n`,
+    `${JSON.stringify(
+      mcpConfig(cwd, serveCommand, { [RAGMIR_PROJECT_ROOT_ENV]: cwd }, mcpServerName),
+      null,
+      2,
+    )}\n`,
     "utf8",
   )
 
@@ -413,6 +418,46 @@ function normalizeMcpServerName(value: string | undefined): string {
   return name
 }
 
+function suggestedMcpServerName(cwd: string): string {
+  const identity = knowledgeBaseIdentity(cwd)
+  if (!identity || identity.id === ".") {
+    return DEFAULT_MCP_SERVER_NAME
+  }
+  const suffix = sanitizeMcpServerSuffix(identity.id)
+  return suffix ? `${DEFAULT_MCP_SERVER_NAME}-${suffix}` : DEFAULT_MCP_SERVER_NAME
+}
+
+function sanitizeMcpServerSuffix(value: string): string {
+  let suffix = ""
+  let replacingInvalidRun = false
+
+  for (const character of value.toLowerCase()) {
+    const code = character.charCodeAt(0)
+    const allowed =
+      (code >= 97 && code <= 122) ||
+      (code >= 48 && code <= 57) ||
+      character === "_" ||
+      character === "-"
+    if (allowed) {
+      suffix += character
+      replacingInvalidRun = false
+    } else if (!replacingInvalidRun) {
+      suffix += "-"
+      replacingInvalidRun = true
+    }
+  }
+
+  let start = 0
+  let end = suffix.length
+  while (start < end && suffix[start] === "-") {
+    start += 1
+  }
+  while (end > start && suffix[end - 1] === "-") {
+    end -= 1
+  }
+  return suffix.slice(start, end)
+}
+
 async function writeAgentMcpHelper(
   agent: AgentTarget,
   input: WriteAgentMcpHelperInput,
@@ -421,7 +466,7 @@ async function writeAgentMcpHelper(
     case "claude":
       await writeFile(
         input.claudeConfigPath,
-        `${JSON.stringify(claudeMcpServer(input.serveCommand), null, 2)}\n`,
+        `${JSON.stringify(claudeMcpServer(input.cwd, input.serveCommand), null, 2)}\n`,
         "utf8",
       )
       return
@@ -595,11 +640,12 @@ function mcpConfig(
   return config
 }
 
-function claudeMcpServer(serveCommand: McpCommand): unknown {
+function claudeMcpServer(cwd: string, serveCommand: McpCommand): unknown {
   return {
     type: "stdio",
     command: serveCommand.command,
     args: serveCommand.args,
+    env: { [RAGMIR_PROJECT_ROOT_ENV]: cwd },
   }
 }
 
@@ -697,6 +743,10 @@ ${input.serveCommand}
 
 Use \`ragmir_route_prompt\` when an agent hook or skill needs to decide whether the current user
 prompt should call Ragmir before answering. The router is local and does not store prompt text.`,
+    `This helper is pinned to one knowledge-base root. In a monorepo, keep the generated server name
+\`${input.mcpServerName}\` and generate a separate helper from each nested base. Call
+\`ragmir_status\` and verify \`knowledgeBaseId\` before retrieval when the active base is unclear.`,
+    "Read `ragmir://context` for bounded base identity, readiness, freshness, and capabilities. Read `ragmir://sources` only when source coverage or index drift matters.",
   ]
 
   if (hasAgentHelper(input, "claude")) {

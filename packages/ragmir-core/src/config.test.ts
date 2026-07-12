@@ -54,6 +54,26 @@ describe("loadConfig", () => {
     expect(config.legacyWordTimeoutMs).toBe(120_000)
   })
 
+  it("should select the nearest Ragmir config inside a monorepo", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-monorepo-"))
+    tempDirs.push(root)
+    const app = path.join(root, "apps", "web")
+    const appSource = path.join(app, "src", "features")
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await mkdir(path.join(app, ".ragmir"), { recursive: true })
+    await mkdir(appSource, { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "config.json"), "{}\n", "utf8")
+    await writeFile(
+      path.join(app, ".ragmir", "config.json"),
+      JSON.stringify({ rawDir: ".ragmir/app-raw" }),
+      "utf8",
+    )
+
+    expect(findProjectRoot(root)).toBe(root)
+    expect(findProjectRoot(appSource)).toBe(app)
+    expect((await loadConfig(appSource)).rawDir).toBe(path.join(app, ".ragmir", "app-raw"))
+  })
+
   it("keeps inline source paths and globs from config", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-"))
     tempDirs.push(root)

@@ -29,6 +29,7 @@
 - Keep `docs/` concise and task-oriented: CLI, API, configuration, agent integration, troubleshooting, local chat, and local TTS. Remove future plans and obsolete surfaces rather than documenting them.
 - Package READMEs are brief npm entrypoints that link to the root README.
 - Keep `llms.txt` and `context7.json` aligned with public documentation and generated-output exclusions.
+- When code changes public behavior, commands, configuration, supported formats, architecture, or product claims, update the relevant docs and landing in the same change. For internal-only changes, verify both surfaces and leave them unchanged when no update is needed.
 
 ## Validation
 

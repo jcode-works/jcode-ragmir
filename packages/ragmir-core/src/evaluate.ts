@@ -19,6 +19,7 @@ const goldenQuerySchema = z
     expectedCitations: z.array(z.string().min(1)).min(1).optional(),
     includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+    contextPaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     topK: z.number().int().positive().optional(),
   })
   .strict()
@@ -49,6 +50,7 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
       topK,
       ...(goldenQuery.includePaths === undefined ? {} : { includePaths: goldenQuery.includePaths }),
       ...(goldenQuery.excludePaths === undefined ? {} : { excludePaths: goldenQuery.excludePaths }),
+      ...(goldenQuery.contextPaths === undefined ? {} : { contextPaths: goldenQuery.contextPaths }),
     })
     const latencyMs = performance.now() - startedAt
     const returnedPaths = results.map((result) => result.relativePath)
@@ -102,6 +104,9 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
     }
     if (goldenQuery.excludePaths !== undefined) {
       result.excludePaths = goldenQuery.excludePaths
+    }
+    if (goldenQuery.contextPaths !== undefined) {
+      result.contextPaths = goldenQuery.contextPaths
     }
     cases.push(result)
   }
@@ -168,6 +173,9 @@ function normalizeGoldenQuery(value: z.infer<typeof goldenQuerySchema>): GoldenQ
   }
   if (value.excludePaths !== undefined) {
     result.excludePaths = value.excludePaths
+  }
+  if (value.contextPaths !== undefined) {
+    result.contextPaths = value.contextPaths
   }
   return result
 }

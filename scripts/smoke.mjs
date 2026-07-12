@@ -4,6 +4,7 @@ import {
   chmod,
   cp,
   lstat,
+  mkdir,
   mkdtemp,
   readFile,
   realpath,
@@ -146,6 +147,32 @@ try {
     throw new Error("setup should not create a private directory for new projects")
   }
 
+  const nestedApp = path.join(tempRoot, "apps", "catalog")
+  const nestedSource = path.join(nestedApp, "src")
+  await mkdir(nestedSource, { recursive: true })
+  const nestedSetup = parseJson(
+    (await runKb(["setup", "--no-ingest", "--agents", "claude", "--json"], nestedApp)).stdout,
+    "nested setup JSON",
+  )
+  if (nestedSetup.agentKit?.mcpServerName !== "ragmir-apps-catalog") {
+    throw new Error(
+      `nested setup should generate a unique MCP name, got ${JSON.stringify(nestedSetup)}`,
+    )
+  }
+  const basesJson = parseJson(
+    (await runKb(["bases", "--json"], nestedSource)).stdout,
+    "knowledge bases JSON",
+  )
+  if (
+    basesJson.activeId !== "apps/catalog" ||
+    !Array.isArray(basesJson.bases) ||
+    basesJson.bases.map((base) => base.id).join(",") !== ".,apps/catalog"
+  ) {
+    throw new Error(
+      `bases --json should identify nested monorepo knowledge bases, got ${JSON.stringify(basesJson)}`,
+    )
+  }
+
   const initialDoctor = await runKb(["doctor"], tempRoot)
   assertIncludes(initialDoctor.stdout, "supportedFiles=0", "doctor should ignore generated README")
   assertIncludes(initialDoctor.stdout, "nextSteps:", "doctor should print actionable next steps")
@@ -182,6 +209,28 @@ try {
   await configureProject(tempRoot)
   await writeFixtureDocuments(tempRoot)
 
+  const previewJson = parseJson(
+    (
+      await runKb(
+        ["preview", "--path", ".ragmir/raw/tax.md", "--max-chunks", "1", "--json"],
+        tempRoot,
+      )
+    ).stdout,
+    "preview JSON",
+  )
+  if (
+    previewJson.matchedFiles !== 1 ||
+    previewJson.files?.[0]?.chunks?.[0]?.contextPath !== "Tax situation" ||
+    previewJson.files?.[0]?.chunks?.[0]?.text?.includes("maintainer@example.com")
+  ) {
+    throw new Error(
+      `preview --json should expose redacted structured chunks, got ${JSON.stringify(previewJson)}`,
+    )
+  }
+  if (existsSync(path.join(tempRoot, ".ragmir", "storage", "chunks.lance"))) {
+    throw new Error("preview should not create an index table")
+  }
+
   const fixedDoctor = await runKb(["doctor", "--fix"], tempRoot)
   assertIncludes(fixedDoctor.stdout, "Ragmir repair complete.", "doctor --fix should repair setup")
   assertIncludes(
@@ -201,6 +250,11 @@ try {
   const statusJson = parseJson((await runKb(["status", "--json"], tempRoot)).stdout, "status JSON")
   if (typeof statusJson.chunksIndexed !== "number" || statusJson.chunksIndexed <= 0) {
     throw new Error(`status --json should expose chunksIndexed, got ${statusJson.chunksIndexed}`)
+  }
+  if (statusJson.knowledgeBaseId !== ".") {
+    throw new Error(
+      `status --json should identify the active root base, got ${statusJson.knowledgeBaseId}`,
+    )
   }
   if (statusJson.mcpMaxOutputBytes !== 32_768) {
     throw new Error(
@@ -243,7 +297,21 @@ try {
   }
 
   const searchJson = parseJson(
-    (await runKb(["search", "French tax residency", "--top-k", "1", "--json"], tempRoot)).stdout,
+    (
+      await runKb(
+        [
+          "search",
+          "French tax residency",
+          "--top-k",
+          "1",
+          "--context-path",
+          "Tax situation",
+          "--explain",
+          "--json",
+        ],
+        tempRoot,
+      )
+    ).stdout,
     "search JSON",
   )
   if (searchJson.results?.[0]?.relativePath !== ".ragmir/raw/tax.md") {
@@ -252,6 +320,15 @@ try {
   if (!searchJson.results?.[0]?.citation?.includes(".ragmir/raw/tax.md:L")) {
     throw new Error(
       `search --json should expose line-aware citations, got ${JSON.stringify(searchJson)}`,
+    )
+  }
+  if (
+    searchJson.results?.[0]?.contextPath !== "Tax situation" ||
+    searchJson.results?.[0]?.score?.fusion !== "rrf" ||
+    typeof searchJson.results?.[0]?.score?.combinedScore !== "number"
+  ) {
+    throw new Error(
+      `search --context-path --explain should expose filtered score evidence, got ${JSON.stringify(searchJson)}`,
     )
   }
 
@@ -357,6 +434,7 @@ try {
   const audit = await runKb(["audit"], tempRoot)
   assertIncludes(audit.stdout, "missingFromIndex=0", "audit should find no missing files")
   assertIncludes(audit.stdout, "staleInIndex=0", "audit should find no stale files")
+  assertIncludes(audit.stdout, "chunkStats.p95Chars=", "audit should expose chunk distributions")
   const unsupportedAudit = await runKb(["audit", "--unsupported"], tempRoot)
   assertIncludes(
     unsupportedAudit.stdout,
@@ -433,6 +511,16 @@ try {
     "utf8",
   )
   assertIncludes(skill, "name: ragmir", "install-skill should copy the bundled skill")
+  assertIncludes(
+    skill,
+    "rgr bases --json",
+    "installed skill should route agents to the nearest monorepo base",
+  )
+  assertIncludes(
+    skill,
+    "knowledgeBaseId",
+    "installed skill should verify the active MCP knowledge base",
+  )
   assertIncludes(
     audioSkill,
     "name: ragmir-audio-summary",

@@ -83,6 +83,102 @@ describe("search", () => {
     )
   })
 
+  it("should filter retrieval by structural context prefixes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-context-filter-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "runbook.md"),
+      [
+        "# Operations",
+        "",
+        "## Release",
+        "The verified control evidence belongs to the active release workflow.",
+        "",
+        "## Archive",
+        "The verified control evidence belongs to the archived workflow.",
+      ].join("\n"),
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const results = await search("verified control evidence", {
+      cwd: root,
+      contextPaths: ["Operations > Archive"],
+    })
+
+    expect(results.length).toBeGreaterThan(0)
+    expect(results.every((result) => result.contextPath === "Operations > Archive")).toBe(true)
+    expect(results.every((result) => result.text.includes("archived workflow"))).toBe(true)
+  })
+
+  it("should keep root and app indexes isolated in a monorepo", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-monorepo-"))
+    tempDirs.push(root)
+    const app = path.join(root, "apps", "checkout")
+    const appSource = path.join(app, "src")
+    await initProject(root)
+    await initProject(app)
+    await mkdir(appSource, { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "architecture.md"),
+      "Root atlasproof describes the shared monorepo architecture.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(app, ".ragmir", "raw", "payments.md"),
+      "Checkout vaultproof describes the isolated payment workflow.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+    await ingest({ cwd: app })
+
+    const rootResults = await search("atlasproof architecture", { cwd: root })
+    const appResults = await search("vaultproof payment", { cwd: appSource })
+    const rootLeak = await search("vaultproof", { cwd: root })
+    const appLeak = await search("atlasproof", { cwd: appSource })
+
+    expect(rootResults[0]?.text).toContain("atlasproof")
+    expect(appResults[0]?.text).toContain("vaultproof")
+    expect(rootLeak).toEqual([])
+    expect(appLeak).toEqual([])
+  })
+
+  it("should explain hybrid retrieval without changing the default result shape", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-explain-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "security.md"),
+      "Token rotation requires signed source-control evidence.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "facilities.md"),
+      "Facilities planning covers staffing and maintenance.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const plain = await search("token rotation evidence", { cwd: root, topK: 1 })
+    const explained = await search("token rotation evidence", { cwd: root, topK: 1, explain: true })
+    const score = explained[0]?.score
+
+    expect(plain[0]).not.toHaveProperty("score")
+    expect(explained[0]?.relativePath).toBe(plain[0]?.relativePath)
+    expect(score?.fusion).toBe("rrf")
+    expect(score?.combinedScore).toBeCloseTo(
+      (score?.vectorContribution ?? 0) + (score?.lexicalContribution ?? 0),
+    )
+    expect(score?.vectorRank).toBeGreaterThan(0)
+    expect(score?.lexicalRank).toBeGreaterThan(0)
+    expect(score?.vectorDistance).toBe(explained[0]?.distance)
+    expect(score?.lexicalBackendScore).toBeGreaterThan(0)
+    expect(score?.matchedTerms).toEqual(expect.arrayContaining(["token", "rotation", "evidence"]))
+  })
+
   it("uses the full-text lexical index when the fallback scan limit is narrow", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fts-"))
     tempDirs.push(root)
