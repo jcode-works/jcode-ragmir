@@ -26,6 +26,7 @@ import { countSkippedByReason } from "./files.js"
 import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
 import { configurePdfOcr, extractPdfPage, inspectPdfOcr, parsePdfOcrEngine } from "./ocr.js"
@@ -235,7 +236,10 @@ program
     `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`,
     "all",
   )
-  .option("--mcp-name <name>", "MCP server name used in generated config.", "ragmir")
+  .option(
+    "--mcp-name <name>",
+    "MCP server name. Nested monorepo bases get a unique name by default.",
+  )
   .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
   .option(
     "--mcp-arg <arg>",
@@ -254,7 +258,7 @@ program
       options: {
         targetDir: string
         agents: string
-        mcpName: string
+        mcpName?: string
         mcpCommand?: string
         mcpArg: string[]
         semantic?: boolean
@@ -268,8 +272,8 @@ program
         cwd,
         targetDir: options.targetDir,
         agents: parseAgentTargets(options.agents),
-        mcpServerName: options.mcpName,
       }
+      addOption(setupOptions, "mcpServerName", options.mcpName)
       addOption(setupOptions, "semantic", options.semantic)
       addOption(setupOptions, "ingest", options.ingest)
       addOption(setupOptions, "mcpCommand", options.mcpCommand)
@@ -929,14 +933,37 @@ program
   })
 
 program
+  .command("bases")
+  .description("List Ragmir knowledge bases in the active monorepo and mark the selected base.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }, command: Command) => {
+    const inventory = await discoverKnowledgeBases(projectRoot(command))
+    if (options.json) {
+      console.log(JSON.stringify(inventory, null, 2))
+      return
+    }
+
+    console.log(`workspaceRoot=${inventory.workspaceRoot}`)
+    console.log(`activeBase=${inventory.activeId ?? "none"}`)
+    console.log(`bases=${inventory.bases.length}`)
+    for (const base of inventory.bases) {
+      const marker = base.active ? "*" : "-"
+      const format = base.legacy ? "legacy" : "ragmir"
+      console.log(`${marker} ${base.id} format=${format} root=${base.projectRoot}`)
+    }
+  })
+
+program
   .command("status")
   .description("Show active configuration and index row count.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
     const config = await loadConfig(cwd)
+    const identity = knowledgeBaseIdentity(config.projectRoot)
     const rows = await countRows(config)
     const status = {
+      knowledgeBaseId: identity?.id ?? null,
       projectRoot: config.projectRoot,
       rawDir: config.rawDir,
       storageDir: config.storageDir,
@@ -970,6 +997,7 @@ program
       return
     }
 
+    console.log(`knowledgeBaseId=${identity?.id ?? "none"}`)
     console.log(`projectRoot=${config.projectRoot}`)
     console.log(`rawDir=${config.rawDir}`)
     console.log(`storageDir=${config.storageDir}`)
@@ -1232,7 +1260,10 @@ program
     `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`,
     "all",
   )
-  .option("--mcp-name <name>", "MCP server name used in generated config.", "ragmir")
+  .option(
+    "--mcp-name <name>",
+    "MCP server name. Nested monorepo bases get a unique name by default.",
+  )
   .option("--mcp-command <command>", "Custom MCP stdio command for generated helper files.")
   .option(
     "--mcp-arg <arg>",
@@ -1245,7 +1276,7 @@ program
       options: {
         targetDir: string
         agents: string
-        mcpName: string
+        mcpName?: string
         mcpCommand?: string
         mcpArg: string[]
       },
@@ -1256,8 +1287,8 @@ program
         cwd,
         targetDir: options.targetDir,
         agents: parseAgentTargets(options.agents),
-        mcpServerName: options.mcpName,
       }
+      addOption(installOptions, "mcpServerName", options.mcpName)
       addOption(installOptions, "mcpCommand", options.mcpCommand)
       if (options.mcpArg.length > 0) {
         installOptions.mcpArgs = options.mcpArg

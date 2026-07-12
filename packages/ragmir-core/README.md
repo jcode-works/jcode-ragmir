@@ -88,6 +88,7 @@ Frequently used exports:
 | Export | Purpose |
 | --- | --- |
 | `setupProject`, `addSourceEntries` | Initialize project state and select files |
+| `discoverKnowledgeBases`, `knowledgeBaseIdentity` | Route root and nested monorepo bases |
 | `ingest`, `audit` | Build the index and compare it with files on disk |
 | `search`, `ask`, `research`, `expandCitation` | Retrieve or expand cited passages |
 | `doctor`, `securityAudit` | Inspect readiness and local privacy posture |
@@ -108,6 +109,10 @@ Ragmir writes helper files for the selected clients and points them at the curre
 exposes status, search, ask, research, exact citation expansion, audit, evaluation, usage, and
 security tools. Retrieval responses have a global byte ceiling and expose metadata-only output
 metrics. The server does not expose index deletion.
+
+For a monorepo with root and app-specific bases, run `rgr bases --json` before retrieval when scope
+is unclear. The nearest configured base is active, nested MCP helpers get unique names, and every
+helper pins `RAGMIR_PROJECT_ROOT` so clients cannot drift to a sibling index.
 
 ## Retrieval modes
 

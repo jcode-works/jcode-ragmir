@@ -26,6 +26,22 @@ rgr install-agent --agents codex,claude
 
 Use `--scope user` only when you intentionally want a user-wide installation. Project scope is the default. `--mode copy` is a fallback for filesystems that cannot follow symlinks.
 
+## Monorepo bases
+
+A monorepo can run one root knowledge base plus isolated bases in individual apps. From the app or
+file currently in scope, run:
+
+```bash
+rgr bases --json
+```
+
+The nearest `.ragmir/config.json` is `activeId`. Use the root base for shared architecture and
+cross-app decisions; use the nearest app base for app-specific questions. Generated MCP helpers set
+`RAGMIR_PROJECT_ROOT` explicitly. Nested bases also receive deterministic names such as
+`ragmir-apps-web`, avoiding collisions with the root `ragmir` server. If an agent can see more than
+one Ragmir server, call `ragmir_status` and verify `knowledgeBaseId` before retrieval. Keep evidence
+from different bases labeled rather than silently merging citations.
+
 ## MCP tools
 
 The server exposes `ragmir_status`, `ragmir_route_prompt`, `ragmir_search`, `ragmir_ask`,
@@ -45,6 +61,7 @@ requirements.
 ```bash
 rgr doctor
 rgr status --json
+rgr bases --json
 rgr search "known phrase" --compact
 ```
 

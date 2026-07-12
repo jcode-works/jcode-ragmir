@@ -11,6 +11,7 @@ export {
 } from "./index-diagnostics.js"
 export { audit, ingest } from "./ingest.js"
 export { initProject } from "./init.js"
+export { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 export { ingestionLimits } from "./limits.js"
 export { serveMcp } from "./mcp.js"
 export type {
@@ -81,6 +82,9 @@ export type {
   IndexManifestFile,
   IngestionLimitsReport,
   IngestResult,
+  KnowledgeBaseIdentity,
+  KnowledgeBaseInfo,
+  KnowledgeBaseInventory,
   McpOutputTool,
   McpOutputUsageReport,
   ParsedPage,

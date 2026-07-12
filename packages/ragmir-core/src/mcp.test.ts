@@ -36,6 +36,21 @@ describe("resolveMcpProjectRoot", () => {
     )
     expect(resolveMcpProjectRoot({}, "/repo/cwd")).toBe("/repo/cwd")
   })
+
+  it("should resolve the nearest nested base before a monorepo root", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-mcp-monorepo-"))
+    tempDirs.push(root)
+    const app = path.join(root, "apps", "web")
+    const appSource = path.join(app, "src")
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await mkdir(path.join(app, ".ragmir"), { recursive: true })
+    await mkdir(appSource, { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "config.json"), "{}\n", "utf8")
+    await writeFile(path.join(app, ".ragmir", "config.json"), "{}\n", "utf8")
+
+    expect(resolveMcpProjectRoot({}, appSource)).toBe(app)
+    expect(resolveMcpProjectRoot({ RAGMIR_PROJECT_ROOT: root }, appSource)).toBe(root)
+  })
 })
 
 describe("searchOptions", () => {

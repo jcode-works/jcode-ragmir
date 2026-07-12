@@ -62,6 +62,9 @@ try {
   if (status.chunksIndexed < 1) {
     throw new Error("MCP status reported an empty index.")
   }
+  if (status.knowledgeBaseId !== ".") {
+    throw new Error(`MCP status reported an ambiguous knowledge base: ${JSON.stringify(status)}`)
+  }
   if (status.mcpMaxOutputBytes !== 32_768) {
     throw new Error(`MCP status reported an unexpected output budget: ${JSON.stringify(status)}`)
   }

@@ -17,6 +17,8 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 | `initProject(cwd?)` | Create local Ragmir state and ignore rules. |
 | `setupProject(options?)` | Initialize sources, helpers, and optional semantic retrieval. |
 | `loadConfig(start?)` | Resolve and validate effective configuration. |
+| `knowledgeBaseIdentity(start?)` | Identify the nearest base relative to the outer configured workspace. |
+| `discoverKnowledgeBases(start?)` | List root and nested bases and mark the active one. |
 | `listSourceEntries(cwd?)` | Read configured source entries. |
 | `addSourceEntries(options)` | Add source paths or exclusions. |
 
@@ -75,6 +77,10 @@ passage.
 
 `kbCommand` and `ragmirCommand` remain compatibility helpers. New integration code should use
 `rgrCommand` and the `rgr` CLI name.
+
+In a monorepo, all public operations still resolve the nearest configured ancestor from `cwd`.
+`KnowledgeBaseInventory` exposes deterministic relative IDs, while each base keeps its own source,
+storage, manifest, and access-log paths.
 
 The MCP retrieval tools accept an optional `maxBytes` below the configured `mcpMaxOutputBytes`
 ceiling. `ragmir_search` and `ragmir_research` also accept `compact`; `ragmir_ask` supports the same

@@ -113,6 +113,38 @@ describe("search", () => {
     expect(results.every((result) => result.text.includes("archived workflow"))).toBe(true)
   })
 
+  it("should keep root and app indexes isolated in a monorepo", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-monorepo-"))
+    tempDirs.push(root)
+    const app = path.join(root, "apps", "checkout")
+    const appSource = path.join(app, "src")
+    await initProject(root)
+    await initProject(app)
+    await mkdir(appSource, { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "architecture.md"),
+      "Root atlasproof describes the shared monorepo architecture.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(app, ".ragmir", "raw", "payments.md"),
+      "Checkout vaultproof describes the isolated payment workflow.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+    await ingest({ cwd: app })
+
+    const rootResults = await search("atlasproof architecture", { cwd: root })
+    const appResults = await search("vaultproof payment", { cwd: appSource })
+    const rootLeak = await search("vaultproof", { cwd: root })
+    const appLeak = await search("atlasproof", { cwd: appSource })
+
+    expect(rootResults[0]?.text).toContain("atlasproof")
+    expect(appResults[0]?.text).toContain("vaultproof")
+    expect(rootLeak).toEqual([])
+    expect(appLeak).toEqual([])
+  })
+
   it("should explain hybrid retrieval without changing the default result shape", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-explain-"))
     tempDirs.push(root)

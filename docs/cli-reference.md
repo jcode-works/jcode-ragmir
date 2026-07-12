@@ -21,6 +21,7 @@ rgr search "release decision"
 | `ask <query>` | Return cited context without model synthesis. |
 | `research <query>` | Run an audit-backed multi-query retrieval pass. |
 | `audit [--unsupported]` | Compare sources with the index and list skipped files. |
+| `bases` | List root and nested monorepo bases and mark the active one. |
 | `status` | Show configuration and indexed chunk count. |
 | `security-audit [--strict]` | Check local privacy and Git-ignore posture. |
 
@@ -36,6 +37,19 @@ rgr search "migration" --include-path docs --exclude-path docs/archive
 `sources add` accepts paths, globs, and `!` exclusions. Search, ask, and research accept `--top-k`,
 `--include-path`, and `--exclude-path`. Use `--compact` on search or research when agent context is
 limited.
+
+## Monorepos
+
+```bash
+cd apps/web/src
+rgr bases --json
+rgr search "app-specific contract"
+rgr --project-root /absolute/path/to/monorepo search "shared architecture"
+```
+
+Commands resolve the nearest configured ancestor. Use the root base for shared or cross-app
+knowledge and an app base for app-specific evidence. `--project-root` overrides the working
+directory deterministically. Root and nested bases use separate storage and never share index rows.
 
 ## Optional local features
 

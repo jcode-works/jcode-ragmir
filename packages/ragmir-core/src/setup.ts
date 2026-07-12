@@ -40,7 +40,7 @@ export interface SetupResult {
 
 const CONFIGURATION_PROMPT = `You are helping configure Ragmir for this repository.
 
-Work from the repository root where \`rgr setup\` was run. Your goal is to improve \`.ragmir/config.json\` so Ragmir indexes useful repository knowledge without indexing secrets, generated files, or noisy bulk data.
+Work from the knowledge-base root where \`rgr setup\` was run. Your goal is to improve \`.ragmir/config.json\` so Ragmir indexes useful repository knowledge without indexing secrets, generated files, or noisy bulk data. In a monorepo with nested Ragmir bases, keep an app base scoped to that app; only the root base should index shared or cross-app knowledge.
 
 Tasks:
 1. Inspect the repository structure and the current \`.ragmir/config.json\`.

@@ -80,6 +80,18 @@ Setup writes local helper files for the selected agents. The MCP surface is inte
 and read-focused. Agents can request compact evidence first, then expand one returned citation
 without opening a second index or reading arbitrary files.
 
+### Route knowledge in a monorepo
+
+```bash
+pnpm exec rgr bases
+pnpm exec rgr --project-root apps/web search "checkout contract"
+```
+
+Ragmir selects the nearest `.ragmir/config.json` from the working directory. A monorepo can keep a
+root base for shared knowledge and isolated bases in individual apps. `rgr bases` shows the active
+base, generated MCP helpers pin their project root, and nested bases receive distinct server names
+so agents do not silently query the wrong index.
+
 ### Audit a knowledge base
 
 ```bash

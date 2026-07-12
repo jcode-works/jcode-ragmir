@@ -57,6 +57,21 @@ Use `rgr route-prompt "..." --json` or `ragmir_route_prompt` only when it is unc
 current request needs the local corpus. The router is deterministic and does not retrieve or store
 the prompt.
 
+## Monorepo routing
+
+When a monorepo has a root Ragmir base and nested app bases, select the base before retrieval:
+
+1. Run `rgr bases --json` from the directory in scope. The nearest configured ancestor is
+   `activeId`.
+2. Use the root base for shared architecture or cross-app questions. Use the nested base for an
+   app-specific question.
+3. If the shell working directory is not inside the intended base, pass
+   `--project-root /absolute/path/to/base` before the command.
+4. For MCP, call `ragmir_status` when the active base is uncertain and verify `knowledgeBaseId`.
+   Generated helpers pin `RAGMIR_PROJECT_ROOT`; nested bases receive distinct server names.
+5. Never silently combine citations from different bases. Label each base when a task genuinely
+   requires evidence from more than one.
+
 ## Indexing
 
 Use `.ragmir/config.json` for sources, with paths, globs, and `!` exclusions:

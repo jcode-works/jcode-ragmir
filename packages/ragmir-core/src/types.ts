@@ -289,6 +289,28 @@ export interface PreviewReport {
   errors: Array<{ path: string; message: string }>
 }
 
+export interface KnowledgeBaseIdentity {
+  id: string
+  projectRoot: string
+  workspaceRoot: string
+}
+
+export interface KnowledgeBaseInfo {
+  id: string
+  projectRoot: string
+  configPath: string
+  legacy: boolean
+  active: boolean
+}
+
+export interface KnowledgeBaseInventory {
+  start: string
+  workspaceRoot: string
+  activeProjectRoot: string | null
+  activeId: string | null
+  bases: KnowledgeBaseInfo[]
+}
+
 export interface SearchOptions {
   cwd?: PathLike
   topK?: number

@@ -8,6 +8,7 @@ import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { audit } from "./ingest.js"
+import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import type {
   BudgetedMcpResult,
@@ -97,9 +98,11 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
     },
     async () => {
       const config = await loadConfig(cwd)
+      const identity = knowledgeBaseIdentity(config.projectRoot)
       const chunksIndexed = await countRows(config)
       const strict = config.privacyProfile === "strict"
       const output = {
+        knowledgeBaseId: identity?.id ?? null,
         projectRoot: strict ? "." : config.projectRoot,
         rawDir: strict ? path.relative(config.projectRoot, config.rawDir) : config.rawDir,
         storageDir: strict

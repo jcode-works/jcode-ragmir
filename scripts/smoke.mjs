@@ -4,6 +4,7 @@ import {
   chmod,
   cp,
   lstat,
+  mkdir,
   mkdtemp,
   readFile,
   realpath,
@@ -146,6 +147,32 @@ try {
     throw new Error("setup should not create a private directory for new projects")
   }
 
+  const nestedApp = path.join(tempRoot, "apps", "catalog")
+  const nestedSource = path.join(nestedApp, "src")
+  await mkdir(nestedSource, { recursive: true })
+  const nestedSetup = parseJson(
+    (await runKb(["setup", "--no-ingest", "--agents", "claude", "--json"], nestedApp)).stdout,
+    "nested setup JSON",
+  )
+  if (nestedSetup.agentKit?.mcpServerName !== "ragmir-apps-catalog") {
+    throw new Error(
+      `nested setup should generate a unique MCP name, got ${JSON.stringify(nestedSetup)}`,
+    )
+  }
+  const basesJson = parseJson(
+    (await runKb(["bases", "--json"], nestedSource)).stdout,
+    "knowledge bases JSON",
+  )
+  if (
+    basesJson.activeId !== "apps/catalog" ||
+    !Array.isArray(basesJson.bases) ||
+    basesJson.bases.map((base) => base.id).join(",") !== ".,apps/catalog"
+  ) {
+    throw new Error(
+      `bases --json should identify nested monorepo knowledge bases, got ${JSON.stringify(basesJson)}`,
+    )
+  }
+
   const initialDoctor = await runKb(["doctor"], tempRoot)
   assertIncludes(initialDoctor.stdout, "supportedFiles=0", "doctor should ignore generated README")
   assertIncludes(initialDoctor.stdout, "nextSteps:", "doctor should print actionable next steps")
@@ -223,6 +250,11 @@ try {
   const statusJson = parseJson((await runKb(["status", "--json"], tempRoot)).stdout, "status JSON")
   if (typeof statusJson.chunksIndexed !== "number" || statusJson.chunksIndexed <= 0) {
     throw new Error(`status --json should expose chunksIndexed, got ${statusJson.chunksIndexed}`)
+  }
+  if (statusJson.knowledgeBaseId !== ".") {
+    throw new Error(
+      `status --json should identify the active root base, got ${statusJson.knowledgeBaseId}`,
+    )
   }
   if (statusJson.mcpMaxOutputBytes !== 32_768) {
     throw new Error(
@@ -479,6 +511,16 @@ try {
     "utf8",
   )
   assertIncludes(skill, "name: ragmir", "install-skill should copy the bundled skill")
+  assertIncludes(
+    skill,
+    "rgr bases --json",
+    "installed skill should route agents to the nearest monorepo base",
+  )
+  assertIncludes(
+    skill,
+    "knowledgeBaseId",
+    "installed skill should verify the active MCP knowledge base",
+  )
   assertIncludes(
     audioSkill,
     "name: ragmir-audio-summary",
