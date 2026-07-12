@@ -1,4 +1,4 @@
-@import "@jcode.labs/ragmir-ui/globals.css";
+@import "./foundation.css";
 
 @font-face {
   font-display: swap;

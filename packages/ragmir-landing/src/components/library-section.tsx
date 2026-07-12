@@ -1,16 +1,7 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@jcode.labs/ragmir-ui"
 import { Code2 } from "lucide-react"
 import { CommandCopyBox } from "./command-copy"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
 interface PackageManager {
   id: string

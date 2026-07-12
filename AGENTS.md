@@ -13,8 +13,7 @@
 - `packages/ragmir-core` provides `@jcode.labs/ragmir`: the `rgr` CLI, TypeScript library, MCP server, and portable skills.
 - `packages/ragmir-chat` is the optional local GGUF synthesis add-on used by `rgr chat`.
 - `packages/ragmir-tts` is the optional local/offline audio add-on used by `rgr audio`.
-- `packages/ragmir-ui` provides shared React primitives for the static landing.
-- `packages/ragmir-landing` is a telemetry-free Astro site. Keep it static, open-source focused, and free of vendor deployment configuration.
+- `packages/ragmir-landing` is a self-contained, telemetry-free Astro site. Keep it static, open-source focused, and free of vendor deployment configuration.
 - Ragmir Core stays retrieval-first: `local-hash` supports offline retrieval, `transformers` is the explicit semantic option, and local chat remains a separate add-on.
 
 ## Privacy and ingestion
