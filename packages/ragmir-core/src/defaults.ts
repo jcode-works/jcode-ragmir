@@ -39,6 +39,7 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   },
   accessLog: true,
   mcpMaxTopK: 10,
+  mcpMaxOutputBytes: 32_768,
   topK: 8,
   chunkSize: 1200,
   chunkOverlap: 200,

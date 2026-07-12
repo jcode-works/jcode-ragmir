@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
-import { ask, search, vectorCandidateLimit } from "./query.js"
+import { ask, expandCitation, search, vectorCandidateLimit } from "./query.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -110,6 +110,81 @@ describe("search", () => {
     expect(results[0]?.relativePath).toBe(".ragmir/raw/zeta.md")
   })
 
+  it("should retrieve later Markdown chunks through their heading context", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-markdown-context-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 90, chunkOverlap: 10, topK: 4 }),
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "guide.md"),
+      [
+        "# Operations",
+        "",
+        "## Zephyr authorization",
+        "The first paragraph describes the ordinary workflow with neutral wording repeated here.",
+        "",
+        "The second paragraph contains consequences but deliberately omits the section title.",
+      ].join("\n"),
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const results = await search("zephyr authorization", { cwd: root, topK: 4 })
+
+    expect(
+      results.some((result) => result.contextPath === "Operations > Zephyr authorization"),
+    ).toBe(true)
+    expect(
+      results.some(
+        (result) =>
+          !result.text.toLowerCase().includes("zephyr") &&
+          result.contextPath.includes("Zephyr authorization"),
+      ),
+    ).toBe(true)
+  })
+
+  it("should retrieve JSON values through their JSONPath without exposing it as text", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-json-context-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 55, chunkOverlap: 0, topK: 3 }),
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "controls.json"),
+      JSON.stringify(
+        {
+          compliance: {
+            owner: "alice",
+            description: "A neutral control description that is long enough to split the object.",
+          },
+          operations: { owner: "bob" },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    )
+
+    await ingest({ cwd: root })
+    const results = await search("compliance", { cwd: root, topK: 3 })
+    const nested = results.find(
+      (result) =>
+        result.contextPath.startsWith("$.compliance") && !result.text.includes("compliance"),
+    )
+
+    expect(nested?.relativePath).toBe(".ragmir/raw/controls.json")
+    expect(nested?.contextPath).toContain("$.compliance")
+  })
+
   it("matches accent-folded lexical queries", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-accent-"))
     tempDirs.push(root)
@@ -127,6 +202,25 @@ describe("search", () => {
     expect(results[0]?.relativePath).toBe(".ragmir/raw/policy.md")
   })
 
+  it("should recover a single-token transposition without matching a nearby wrong word", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-typo-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "security.md"),
+      "Security controls require signed evidence.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const typo = await search("sceurity", { cwd: root, topK: 1 })
+    const wrongWord = await search("secretary", { cwd: root, topK: 1 })
+
+    expect(typo[0]?.relativePath).toBe(".ragmir/raw/security.md")
+    expect(wrongWord).toEqual([])
+  })
+
   it("blocks search when the active index policy differs", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-policy-"))
     tempDirs.push(root)
@@ -140,6 +234,9 @@ describe("search", () => {
     )
 
     await expect(search("policy", { cwd: root })).rejects.toThrow("Rebuild")
+    await expect(expandCitation(".ragmir/raw/policy.md:L1-L1#0", { cwd: root })).rejects.toThrow(
+      "Rebuild",
+    )
   })
 
   it("abstains when local-hash retrieval has no lexical evidence", async () => {
@@ -260,6 +357,67 @@ describe("search", () => {
     expect(results[0]?.pageStart).toBe(1)
     expect(results[0]?.pageEnd).toBe(1)
     expect(results[0]?.citation).toContain("brief.pdf:p1:L")
+
+    const expanded = await expandCitation(results[0]?.citation ?? "", { cwd: root })
+    expect(expanded.found).toBe(true)
+    expect(expanded.passages[0]?.pageStart).toBe(1)
+  })
+})
+
+describe("expandCitation", () => {
+  it("should return the exact indexed passage and bounded neighbors when a citation is valid", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-expand-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 36, chunkOverlap: 0, topK: 1 }),
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "policy's.md"),
+      [
+        "Opening operational note.",
+        "Rare expansion target evidence.",
+        "Closing consequence line.",
+      ].join("\n\n"),
+      "utf8",
+    )
+    await ingest({ cwd: root })
+    const [result] = await search("expansion target evidence", { cwd: root, topK: 1 })
+
+    const expanded = await expandCitation(result?.citation ?? "", { cwd: root, contextRadius: 20 })
+
+    expect(expanded.found).toBe(true)
+    expect(expanded.relativePath).toBe(".ragmir/raw/policy's.md")
+    expect(expanded.contextRadius).toBe(3)
+    expect(expanded.passages.some((passage) => passage.chunkIndex === result?.chunkIndex)).toBe(
+      true,
+    )
+
+    const forgedCitation = (result?.citation ?? "").replace(/:L\d+-L\d+#/u, ":L999-L1000#")
+    await expect(expandCitation(forgedCitation, { cwd: root })).rejects.toThrow(
+      "do not match the indexed passage",
+    )
+  })
+
+  it("should return no passages when the cited chunk does not exist", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-expand-missing-"))
+    tempDirs.push(root)
+    await initProject(root)
+
+    await expect(expandCitation(".ragmir/raw/missing.md:L1-L1#4", { cwd: root })).resolves.toEqual({
+      requestedCitation: ".ragmir/raw/missing.md:L1-L1#4",
+      found: false,
+      relativePath: ".ragmir/raw/missing.md",
+      chunkIndex: 4,
+      contextRadius: 0,
+      passages: [],
+    })
+  })
+
+  it("should reject malformed citation input", async () => {
+    await expect(expandCitation("raw/policy.md:L1-L2")).rejects.toThrow("chunk suffix")
   })
 })
 

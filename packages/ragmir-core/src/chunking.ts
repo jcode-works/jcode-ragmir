@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { markdownFenceSpans, structuralSpans } from "./document-structure.js"
 import type { ParsedDocument, TextChunk } from "./types.js"
 
 const PARAGRAPH_BREAK_MIN_RATIO = 0.45
@@ -18,42 +19,66 @@ export function chunkDocument(
 
   const chunks: TextChunk[] = []
   const lineStarts = lineStartOffsets(document.text)
-  let cursor = 0
+  const structured = structuralSpans(document.text, document.file.extension, chunkSize)
+  const regions =
+    structured.length > 0
+      ? structured
+      : [
+          {
+            charStart: 0,
+            charEnd: document.text.length,
+            contextPath: "",
+            kind: "markdown-section" as const,
+          },
+        ]
+  const fences = [".md", ".mdx", ".markdown"].includes(document.file.extension)
+    ? markdownFenceSpans(document.text)
+    : []
   let chunkIndex = 0
 
-  while (cursor < document.text.length) {
-    const end = chooseChunkEnd(document.text, cursor, chunkSize)
-    const span = trimmedSpan(document.text, cursor, end)
+  for (const region of regions) {
+    let cursor = region.charStart
+    while (cursor < region.charEnd) {
+      const end = chooseChunkEnd(document.text, cursor, chunkSize, region.charEnd, fences)
+      const span = trimmedSpan(document.text, cursor, end)
 
-    if (span.text) {
-      const id = createHash("sha256")
-        .update(`${document.file.relativePath}:${chunkIndex}:${span.text}`)
-        .digest("hex")
-      chunks.push({
-        id,
-        source: document.file.source,
-        relativePath: document.file.relativePath,
-        chunkIndex,
-        text: span.text,
-        charStart: span.start,
-        charEnd: span.end,
-        lineStart: lineNumberForOffset(lineStarts, span.start),
-        lineEnd: lineNumberForOffset(lineStarts, Math.max(span.start, span.end - 1)),
-        ...pageRangeForSpan(document, span.start, span.end),
-        checksum: document.file.checksum,
-        bytes: document.file.bytes,
-        mtimeMs: document.file.mtimeMs,
-      })
-      chunkIndex += 1
-    }
+      if (span.text) {
+        const id = createHash("sha256")
+          .update(`${document.file.relativePath}:${chunkIndex}:${region.contextPath}:${span.text}`)
+          .digest("hex")
+        chunks.push({
+          id,
+          source: document.file.source,
+          relativePath: document.file.relativePath,
+          chunkIndex,
+          contextPath: region.contextPath,
+          text: span.text,
+          charStart: span.start,
+          charEnd: span.end,
+          lineStart: lineNumberForOffset(lineStarts, span.start),
+          lineEnd: lineNumberForOffset(lineStarts, Math.max(span.start, span.end - 1)),
+          ...pageRangeForSpan(document, span.start, span.end),
+          checksum: document.file.checksum,
+          bytes: document.file.bytes,
+          mtimeMs: document.file.mtimeMs,
+        })
+        chunkIndex += 1
+      }
 
-    if (end >= document.text.length) {
-      break
+      if (end >= region.charEnd) {
+        break
+      }
+      cursor = fences.some((fence) => fence.start === end)
+        ? end
+        : Math.max(end - chunkOverlap, cursor + 1, region.charStart)
     }
-    cursor = Math.max(end - chunkOverlap, cursor + 1)
   }
 
   return chunks
+}
+
+export function chunkSearchText(chunk: Pick<TextChunk, "contextPath" | "text">): string {
+  return chunk.contextPath ? `${chunk.contextPath}\n${chunk.text}` : chunk.text
 }
 
 function pageRangeForSpan(
@@ -70,10 +95,23 @@ function pageRangeForSpan(
   return first && last ? { pageStart: first.pageNumber, pageEnd: last.pageNumber } : {}
 }
 
-function chooseChunkEnd(text: string, cursor: number, chunkSize: number): number {
-  const hardEnd = Math.min(cursor + chunkSize, text.length)
-  if (hardEnd === text.length) {
+function chooseChunkEnd(
+  text: string,
+  cursor: number,
+  chunkSize: number,
+  regionEnd: number,
+  fences: Array<{ start: number; end: number }>,
+): number {
+  const hardEnd = Math.min(cursor + chunkSize, regionEnd)
+  if (hardEnd === regionEnd) {
     return hardEnd
+  }
+
+  const intersectedFence = fences.find(
+    (fence) => fence.start < hardEnd && fence.end > hardEnd && fence.end <= regionEnd,
+  )
+  if (intersectedFence && intersectedFence.end - intersectedFence.start <= chunkSize) {
+    return intersectedFence.start > cursor ? intersectedFence.start : intersectedFence.end
   }
 
   const window = text.slice(cursor, hardEnd)

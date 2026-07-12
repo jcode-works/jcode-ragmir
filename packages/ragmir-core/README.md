@@ -89,7 +89,7 @@ Frequently used exports:
 | --- | --- |
 | `setupProject`, `addSourceEntries` | Initialize project state and select files |
 | `ingest`, `audit` | Build the index and compare it with files on disk |
-| `search`, `ask`, `research` | Retrieve cited passages at different levels of breadth |
+| `search`, `ask`, `research`, `expandCitation` | Retrieve or expand cited passages |
 | `doctor`, `securityAudit` | Inspect readiness and local privacy posture |
 | `serveMcp` | Start the read-focused local MCP server |
 | `configurePdfOcr`, `inspectPdfOcr` | Configure and inspect local PDF OCR |
@@ -105,8 +105,9 @@ npx rgr doctor
 ```
 
 Ragmir writes helper files for the selected clients and points them at the current project. MCP
-exposes status, search, ask, research, audit, evaluation, usage, and security tools. It does not
-expose index deletion.
+exposes status, search, ask, research, exact citation expansion, audit, evaluation, usage, and
+security tools. Retrieval responses have a global byte ceiling and expose metadata-only output
+metrics. The server does not expose index deletion.
 
 ## Retrieval modes
 
@@ -147,7 +148,8 @@ local executable, never a shell string or cloud OCR service.
 - Generated indexes, models, reports, audio, and access logs belong under ignored `.ragmir/` state.
 - Redaction runs before indexing when configured, but it is not a compliance certification.
 - External extractors and model downloads are opt-in system boundaries.
-- MCP retrieval is bounded and access logs contain metadata, not query text or retrieved passages.
+- MCP retrieval is bounded by `mcpMaxOutputBytes`; access logs contain byte metrics, not query text
+  or retrieved passages.
 
 Read [configuration and privacy](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 and [security hardening](https://github.com/jcode-works/jcode-ragmir/blob/main/SECURITY-HARDENING.md)

@@ -1,5 +1,5 @@
 import { recordAccess } from "./access-log.js"
-import { chunkDocument } from "./chunking.js"
+import { chunkDocument, chunkSearchText } from "./chunking.js"
 import { loadConfig } from "./config.js"
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { embedTexts } from "./embeddings.js"
@@ -134,10 +134,7 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
   const rows: VectorRow[] = []
   for (let i = 0; i < allChunks.length; i += config.embeddingBatchSize) {
     const batch = allChunks.slice(i, i + config.embeddingBatchSize)
-    const embeddings = await embedTexts(
-      batch.map((chunk) => chunk.text),
-      config,
-    )
+    const embeddings = await embedTexts(batch.map(chunkSearchText), config)
     for (const [index, chunk] of batch.entries()) {
       const vector = embeddings[index]
       if (!vector) {
@@ -145,6 +142,7 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
       }
       rows.push({
         ...chunk,
+        searchText: chunkSearchText(chunk),
         vector,
         embeddingProvider: config.embeddingProvider,
         embeddingModel: config.embeddingModel,

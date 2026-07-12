@@ -202,6 +202,11 @@ try {
   if (typeof statusJson.chunksIndexed !== "number" || statusJson.chunksIndexed <= 0) {
     throw new Error(`status --json should expose chunksIndexed, got ${statusJson.chunksIndexed}`)
   }
+  if (statusJson.mcpMaxOutputBytes !== 32_768) {
+    throw new Error(
+      `status --json should expose mcpMaxOutputBytes, got ${statusJson.mcpMaxOutputBytes}`,
+    )
+  }
 
   const limitsJson = parseJson((await runKb(["limits", "--json"], tempRoot)).stdout, "limits JSON")
   if (
@@ -821,6 +826,7 @@ async function smokeMcp(cwd) {
     assertIncludes(JSON.stringify(tools), "ragmir_search", "MCP should expose ragmir_search")
     assertIncludes(JSON.stringify(tools), "ragmir_ask", "MCP should expose ragmir_ask")
     assertIncludes(JSON.stringify(tools), "ragmir_research", "MCP should expose ragmir_research")
+    assertIncludes(JSON.stringify(tools), "ragmir_expand", "MCP should expose ragmir_expand")
     assertIncludes(JSON.stringify(tools), "ragmir_audit", "MCP should expose ragmir_audit")
     assertIncludes(JSON.stringify(tools), "ragmir_evaluate", "MCP should expose ragmir_evaluate")
     assertIncludes(
@@ -862,6 +868,39 @@ async function smokeMcp(cwd) {
       searchJson[0].context.length < 1
     ) {
       throw new Error(`MCP search should retrieve line-aware context chunks: ${mcpText(search)}`)
+    }
+
+    const boundedSearch = await client.request("tools/call", {
+      name: "ragmir_search",
+      arguments: {
+        query: "French tax residency",
+        topK: 3,
+        compact: true,
+        maxBytes: 1_024,
+      },
+    })
+    const boundedSearchJson = parseJson(mcpText(boundedSearch), "bounded MCP search JSON")
+    const outputMeta = boundedSearch.result?._meta?.["ragmir/output"]
+    if (
+      !Array.isArray(boundedSearchJson) ||
+      outputMeta?.budgetBytes !== 1_024 ||
+      typeof outputMeta.returnedBytes !== "number" ||
+      outputMeta.returnedBytes > 1_024
+    ) {
+      throw new Error(`MCP search should enforce its byte budget: ${JSON.stringify(boundedSearch)}`)
+    }
+
+    const expanded = await client.request("tools/call", {
+      name: "ragmir_expand",
+      arguments: { citation: searchJson[0].citation, contextRadius: 1, maxBytes: 1_024 },
+    })
+    const expandedJson = parseJson(mcpText(expanded), "MCP citation expansion JSON")
+    if (
+      expandedJson.found !== true ||
+      !Array.isArray(expandedJson.passages) ||
+      !expandedJson.passages.some((passage) => passage.citation === searchJson[0].citation)
+    ) {
+      throw new Error(`MCP should expand an exact returned citation: ${mcpText(expanded)}`)
     }
 
     const ask = await client.request("tools/call", {
@@ -932,6 +971,9 @@ async function smokeMcp(cwd) {
     const usageJson = parseJson(mcpText(usage), "MCP usage report JSON")
     if (usageJson.totalEvents < 1) {
       throw new Error(`MCP usage report should summarize local usage: ${mcpText(usage)}`)
+    }
+    if (usageJson.mcpOutput?.responses < 1 || usageJson.mcpOutput.returnedBytes < 1) {
+      throw new Error(`MCP usage report should include output metrics: ${mcpText(usage)}`)
     }
 
     const security = await client.request("tools/call", {

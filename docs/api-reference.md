@@ -29,11 +29,16 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 | `search(query, options?)` | Return ranked cited passages. |
 | `ask(query, options?)` | Return cited retrieval context without calling an LLM. |
 | `research(query, options?)` | Run audit-backed multi-query retrieval. |
+| `expandCitation(citation, options?)` | Read one exact indexed chunk and a bounded neighbor window. |
 | `compactSearchResults(results)` | Produce compact search output for limited contexts. |
 | `compactResearchReport(report)` | Remove verbose evidence text from a research report. |
 | `evaluateGoldenQueries(options)` | Score retrieval against a local golden-query file. |
 
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, and `excludePaths`.
+`ExpandCitationOptions` accepts `cwd` and a `contextRadius` clamped to three chunks.
+Search results expose a `contextPath` derived from Markdown headings or JSON structure. This field
+improves retrieval, while `text`, offsets, and citations continue to reference the exact source
+passage.
 
 ## Operations and privacy
 
@@ -70,3 +75,8 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 
 `kbCommand` and `ragmirCommand` remain compatibility helpers. New integration code should use
 `rgrCommand` and the `rgr` CLI name.
+
+The MCP retrieval tools accept an optional `maxBytes` below the configured `mcpMaxOutputBytes`
+ceiling. `ragmir_search` and `ragmir_research` also accept `compact`; `ragmir_ask` supports the same
+flag. Oversized full output is compacted and then reduced as valid JSON. Output metrics are available
+under `_meta["ragmir/output"]` and in the metadata-only usage report.

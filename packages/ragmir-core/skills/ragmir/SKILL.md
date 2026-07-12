@@ -48,6 +48,7 @@ acceptable. Normal confidential indexing keeps remote model loading disabled.
 | Check unindexed or unsupported files | `rgr audit --unsupported` |
 | Check privacy posture | `rgr security-audit` |
 | Retrieve exact passages | `rgr search "query" --compact` or `ragmir_search` |
+| Expand one returned citation | `ragmir_expand` |
 | Gather broad cited evidence | `rgr research "topic" --compact` or `ragmir_research` |
 | Return deterministic context | `rgr ask "question"` or `ragmir_ask` |
 | Measure retrieval recall | `rgr evaluate --golden <file>` or `ragmir_evaluate` |
@@ -98,6 +99,11 @@ Cline. A generic server configuration is:
 
 When a client cannot set `cwd`, set `RAGMIR_PROJECT_ROOT` for the server process. Prefer MCP tools
 when available. Use CLI commands when they are not.
+
+Prefer compact search, ask, or research output first. Call `ragmir_expand` with a returned citation
+only when the exact chunk or neighboring context is needed. Retrieval tools accept `maxBytes`, but
+the configured `mcpMaxOutputBytes` remains the hard ceiling. Inspect `_meta["ragmir/output"]` to see
+whether the response was compacted or truncated.
 
 MCP is read-focused. Only remove an index with the explicit shell command:
 
