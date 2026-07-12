@@ -30,6 +30,7 @@ import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
 import { configurePdfOcr, extractPdfPage, inspectPdfOcr, parsePdfOcrEngine } from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
+import { previewChunks } from "./preview.js"
 import { routePrompt } from "./prompt-routing.js"
 import { ask, search } from "./query.js"
 import { compactResearchReport, compactSearchResults, research } from "./research.js"
@@ -45,7 +46,7 @@ import {
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { countRows } from "./store.js"
-import type { ResearchReport } from "./types.js"
+import type { PreviewChunksOptions, ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
@@ -406,6 +407,74 @@ program
   })
 
 program
+  .command("preview")
+  .description("Preview redacted chunks and structure without writing the index.")
+  .option(
+    "--path <prefix>",
+    "Preview only source paths under this prefix. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option("--max-files <number>", "Maximum number of matching files to parse.", parsePositiveInt)
+  .option("--max-chunks <number>", "Maximum number of chunks to show per file.", parsePositiveInt)
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (
+      options: { path: string[]; maxFiles?: number; maxChunks?: number; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      const previewOptions: PreviewChunksOptions = { cwd }
+      if (options.path.length > 0) {
+        previewOptions.paths = options.path
+      }
+      addOption(previewOptions, "maxFiles", options.maxFiles)
+      addOption(previewOptions, "maxChunksPerFile", options.maxChunks)
+      const report = await previewChunks(previewOptions)
+      if (options.json) {
+        console.log(JSON.stringify(report, null, 2))
+        if (
+          report.errors.length > 0 ||
+          (report.requestedPaths.length > 0 && report.matchedFiles === 0)
+        ) {
+          process.exitCode = 1
+        }
+        return
+      }
+
+      console.log(`chunkSize=${report.chunkSize}`)
+      console.log(`chunkOverlap=${report.chunkOverlap}`)
+      console.log(`matchedFiles=${report.matchedFiles}`)
+      console.log(`omittedFiles=${report.omittedFiles}`)
+      for (const unmatchedPath of report.unmatchedPaths) {
+        console.log(pc.yellow(`unmatched: ${unmatchedPath}`))
+      }
+      for (const file of report.files) {
+        console.log(
+          `\n${pc.cyan(file.relativePath)} chunks=${file.chunkStats.count} redactions=${file.redactions} minChars=${file.chunkStats.minChars} p50Chars=${file.chunkStats.p50Chars} p95Chars=${file.chunkStats.p95Chars} maxChars=${file.chunkStats.maxChars} contextualRatio=${file.chunkStats.contextualRatio.toFixed(3)}`,
+        )
+        for (const chunk of file.chunks) {
+          const context = chunk.contextPath ? ` context=${chunk.contextPath}` : ""
+          console.log(`\n${pc.dim(chunk.citation)}${context}`)
+          console.log(chunk.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH))
+        }
+        if (file.omittedChunks > 0) {
+          console.log(pc.dim(`omittedChunks=${file.omittedChunks}`))
+        }
+      }
+      for (const error of report.errors) {
+        console.error(pc.red(`${error.path}: ${error.message}`))
+      }
+      if (
+        report.errors.length > 0 ||
+        (report.requestedPaths.length > 0 && report.matchedFiles === 0)
+      ) {
+        process.exitCode = 1
+      }
+    },
+  )
+
+program
   .command("search")
   .description("Retrieve the most relevant passages without calling an LLM.")
   .argument("<query>", "Search query.")
@@ -716,6 +785,13 @@ program
     console.log(`sensitiveFiles=${countSkippedByReason(report.skippedFiles, "sensitive-name")}`)
     console.log(`indexedFiles=${report.indexedFiles.length}`)
     console.log(`totalChunks=${report.totalChunks}`)
+    console.log(`chunkStats.minChars=${report.chunkStats.minChars}`)
+    console.log(`chunkStats.averageChars=${report.chunkStats.averageChars.toFixed(1)}`)
+    console.log(`chunkStats.p50Chars=${report.chunkStats.p50Chars}`)
+    console.log(`chunkStats.p95Chars=${report.chunkStats.p95Chars}`)
+    console.log(`chunkStats.maxChars=${report.chunkStats.maxChars}`)
+    console.log(`chunkStats.contextualChunks=${report.chunkStats.contextualChunks}`)
+    console.log(`chunkStats.contextualRatio=${report.chunkStats.contextualRatio.toFixed(3)}`)
     console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
     console.log(`missingFromIndex=${report.missingFromIndex.length}`)
     console.log(`staleInIndex=${report.staleInIndex.length}`)

@@ -201,6 +201,17 @@ export interface TextChunk {
   mtimeMs: number
 }
 
+export interface ChunkStats {
+  count: number
+  minChars: number
+  averageChars: number
+  p50Chars: number
+  p95Chars: number
+  maxChars: number
+  contextualChunks: number
+  contextualRatio: number
+}
+
 export interface VectorRow extends TextChunk {
   searchText: string
   vector: number[]
@@ -232,6 +243,49 @@ export interface IngestResult {
   redactions: number
   vectorIndexWarning: string | null
   lexicalIndexWarning: string | null
+  errors: Array<{ path: string; message: string }>
+}
+
+export interface PreviewChunksOptions {
+  cwd?: PathLike
+  paths?: string[]
+  maxFiles?: number
+  maxChunksPerFile?: number
+}
+
+export interface PreviewChunk {
+  chunkIndex: number
+  contextPath: string
+  citation: string
+  text: string
+  charStart: number
+  charEnd: number
+  lineStart: number
+  lineEnd: number
+  pageStart: number | null
+  pageEnd: number | null
+}
+
+export interface PreviewFile {
+  source: string
+  relativePath: string
+  extension: string
+  bytes: number
+  parsedChars: number
+  redactions: number
+  chunkStats: ChunkStats
+  chunks: PreviewChunk[]
+  omittedChunks: number
+}
+
+export interface PreviewReport {
+  chunkSize: number
+  chunkOverlap: number
+  requestedPaths: string[]
+  unmatchedPaths: string[]
+  matchedFiles: number
+  omittedFiles: number
+  files: PreviewFile[]
   errors: Array<{ path: string; message: string }>
 }
 
@@ -447,6 +501,7 @@ export interface AuditReport {
   missingFromIndex: string[]
   staleInIndex: string[]
   totalChunks: number
+  chunkStats: ChunkStats
 }
 
 export interface DestroyIndexResult {

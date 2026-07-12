@@ -25,6 +25,7 @@ export type {
 export { configurePdfOcr, extractPdfPage, inspectPdfOcr } from "./ocr.js"
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
+export { previewChunks } from "./preview.js"
 export type { PromptRouteDecision, PromptRouteTool } from "./prompt-routing.js"
 export { routePrompt } from "./prompt-routing.js"
 export { ask, expandCitation, search } from "./query.js"
@@ -64,6 +65,7 @@ export type {
   AccessLogUsageReport,
   AskResult,
   AuditReport,
+  ChunkStats,
   CodeEvidence,
   CompactSearchResult,
   Config,
@@ -82,6 +84,10 @@ export type {
   McpOutputTool,
   McpOutputUsageReport,
   ParsedPage,
+  PreviewChunk,
+  PreviewChunksOptions,
+  PreviewFile,
+  PreviewReport,
   PrivacyProfile,
   ResearchEvidence,
   ResearchOptions,

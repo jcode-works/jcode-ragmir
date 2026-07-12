@@ -44,6 +44,10 @@ describe("ingest", () => {
     expect(report.supportedBytes).toBeGreaterThan(0)
     expect(report.largestFileBytes).toBeGreaterThan(0)
     expect(report.staleInIndex).toEqual([".ragmir/raw/evidence.md"])
+    expect(report.chunkStats.count).toBe(1)
+    expect(report.chunkStats.minChars).toBeGreaterThan(0)
+    expect(report.chunkStats.p95Chars).toBe(report.chunkStats.maxChars)
+    expect(report.chunkStats.contextualRatio).toBe(0)
     expect(report.skippedFiles).toEqual([
       expect.objectContaining({
         relativePath: ".ragmir/raw/scan.heic",
