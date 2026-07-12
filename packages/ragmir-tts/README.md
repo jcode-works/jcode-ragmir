@@ -1,86 +1,129 @@
 # Ragmir TTS
 
-`@jcode.labs/ragmir-tts` turns text files into speech. Its default path uses Transformers.js to
-render local WAV audio, making it suitable for confidential summaries after the model has been
-prepared. An explicit Edge MP3 mode is also available when sending narration text to that online
-service is acceptable.
+[![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
+[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
+[![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
+[![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-tts)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-It can be used as a standalone Node.js package or as Ragmir Core's `rgr audio` add-on.
+**Turn project briefs and research notes into local audio.**
 
-## Choose this package when you need
+`@jcode.labs/ragmir-tts` renders text files through a typed Node.js API and the `rgr-tts` CLI. Its
+default Transformers.js path produces WAV audio locally after the model is prepared. An explicit
+Edge mode produces online neural-voice MP3 when sending narration text to that service is acceptable.
 
-| Need | What TTS provides |
-| --- | --- |
-| Narrate a confidential report locally | Offline Transformers.js WAV rendering. |
-| Preload a model before entering an air-gapped environment | An explicit one-time model download. |
-| Produce an MP3 with an online neural voice | Explicit Edge mode, with a clear data boundary. |
-| Add speech rendering to a Node.js workflow | The typed `renderSpeech()` API. |
+[Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
+[Offline TTS guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md) ·
+[Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
 
-For document retrieval, citations, and a project-oriented CLI, install
-[Ragmir Core](https://www.npmjs.com/package/@jcode.labs/ragmir). For local cited answers before
-narration, add [Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat).
+## Choose the rendering path deliberately
 
-## Quick start, offline WAV
+| Path | Output | Languages | Network boundary |
+| --- | --- | --- | --- |
+| Transformers.js, default | WAV | English, Spanish, French | Model preload is explicit; rendering can then stay offline |
+| Edge, explicit | MP3 | English, Spanish, French, Japanese, Thai, Chinese | Narration text is sent to the Edge service |
 
-Install the package and prepare the local model once with non-sensitive text:
+The package does not silently switch a normal Transformers.js render to Edge. Use the online path
+only when the text is suitable for an external service.
+
+## First offline WAV
+
+Requires Node.js 20 or later. Prepare the local model once with non-sensitive text:
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir-tts
 printf '%s\n' "Non-sensitive model preload text." > /tmp/ragmir-tts-preload.txt
-npx rgr-tts render /tmp/ragmir-tts-preload.txt --allow-remote-models --out .ragmir/audio/preload.wav
+npx rgr-tts render /tmp/ragmir-tts-preload.txt \
+  --allow-remote-models \
+  --out .ragmir/audio/preload.wav
 ```
 
 Render confidential content afterwards without downloading anything:
 
 ```bash
-npx rgr-tts render ./brief.md --offline --out .ragmir/audio/brief.wav
+npx rgr-tts render ./brief.md \
+  --offline \
+  --out .ragmir/audio/brief.wav
 ```
 
-The local model is stored under `.ragmir/models/tts`; generated audio defaults to `.ragmir/audio`.
-Both locations are local state and should remain ignored by Git.
+The model cache defaults to `.ragmir/models/tts` and generated audio to `.ragmir/audio`. Keep both
+locations ignored by Git.
 
 ## Use it through Ragmir Core
+
+Ragmir Core exposes the same local renderer as `rgr audio`:
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir @jcode.labs/ragmir-tts
 npx rgr audio ./brief.md --offline --out .ragmir/audio/brief.wav
 ```
 
-This is useful for turning an indexed project brief or a retrieved research note into a local audio
-summary.
-
-## Explicit online MP3 mode
-
-```bash
-npx rgr-tts render ./brief.md --engine edge --out .ragmir/audio/brief.mp3
-```
-
-This mode sends the narration text to Edge. Use it only when that external transfer is appropriate
-for the text. The default local WAV path does not use Edge.
+This path fits a retrieval workflow where a cited report or compact research note is written first,
+reviewed, and then rendered as audio.
 
 ## TypeScript API
 
 ```ts
-import { renderSpeech } from "@jcode.labs/ragmir-tts"
+import { doctor, renderSpeech } from "@jcode.labs/ragmir-tts"
+
+const runtime = await doctor()
+console.log(runtime.transformersAvailable)
 
 const result = await renderSpeech({
   textFile: "./brief.md",
   outputPath: ".ragmir/audio/brief.wav",
   engine: "transformers",
+  language: "en",
   allowRemoteModels: false,
 })
 
-console.log(result.outputPath)
+console.log(result.outputPath, result.samplingRate)
 ```
 
-Use `doctor()` to inspect the local runtime and available engines. Offline models support English,
-Spanish, and French; the explicit Edge path also supports Japanese, Thai, and Chinese.
+`renderSpeech` returns the output path, engine, language, format, model metadata, and sample details.
+`doctor` reports local engine availability, defaults, supported languages, and model-cache state.
+
+## Explicit online MP3
+
+Install the external Edge CLI, then select the engine explicitly:
+
+```bash
+pipx install edge-tts
+npx rgr-tts doctor
+npx rgr-tts render ./public-announcement.md \
+  --engine edge \
+  --lang en \
+  --out .ragmir/audio/public-announcement.mp3
+```
+
+Edge mode supports `--voice` and `--rate`. It creates a temporary working directory, invokes the
+local `edge-tts` executable, and removes temporary files after rendering.
+
+## CLI reference
+
+| Command or option | Purpose |
+| --- | --- |
+| `rgr-tts doctor --json` | Inspect engines, languages, model paths, and dependencies |
+| `rgr-tts render <file>` | Render with the default local Transformers.js engine |
+| `--offline` | Require the local Transformers.js path and cached model |
+| `--allow-remote-models` | Explicitly allow a model download for the current render |
+| `--engine edge` | Select the online Edge MP3 path |
+| `--lang <code>` | Select `en`, `es`, `fr`, `ja`, `th`, or `zh` where supported |
+| `--json` | Return machine-readable render metadata |
+
+## Privacy notes
+
+- Offline rendering reads the text file and model on the current machine.
+- Model downloads are disabled by default during normal rendering.
+- Edge mode is an explicit external transfer of narration text.
+- Generated audio may contain sensitive information even when the source text has been deleted.
+- Neither engine provides a compliance certification or a substitute for content review.
 
 ## Further reading
 
-- [Ragmir overview and package comparison](https://github.com/jcode-works/jcode-ragmir#readme)
 - [Offline TTS preparation](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md)
-- [Configuration and privacy](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
+- [Ragmir configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
+- [Ragmir Core on npm](https://www.npmjs.com/package/@jcode.labs/ragmir)
+- [Ragmir Chat on npm](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 
 Ragmir TTS is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
