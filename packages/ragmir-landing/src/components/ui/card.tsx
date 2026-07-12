@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react"
-import { cn } from "../lib/utils.js"
+import { cn } from "../../lib/utils.js"
 
 export function Card({ className, ...props }: ComponentProps<"div">): React.JSX.Element {
   return (

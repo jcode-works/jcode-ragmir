@@ -12,9 +12,9 @@
   },
   "aliases": {
     "components": "@/components",
-    "ui": "@jcode.labs/ragmir-ui/components",
+    "ui": "@/components/ui",
     "lib": "@/lib",
-    "utils": "@jcode.labs/ragmir-ui/utils",
+    "utils": "@/lib/utils",
     "hooks": "@/hooks"
   },
   "iconLibrary": "lucide"

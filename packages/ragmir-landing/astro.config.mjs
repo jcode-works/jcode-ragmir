@@ -57,8 +57,5 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     envPrefix: ["PUBLIC_"],
-    ssr: {
-      noExternal: ["@jcode.labs/ragmir-ui"],
-    },
   },
 })

@@ -1,4 +1,3 @@
-import { cn } from "@jcode.labs/ragmir-ui/utils"
 import {
   BookOpenText,
   Code2,
@@ -11,6 +10,7 @@ import {
   Wrench,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { cn } from "../lib/utils"
 import { CommandCopyButton } from "./command-copy"
 import {
   DEFAULT_HERO_DEMO_SCENARIO,
