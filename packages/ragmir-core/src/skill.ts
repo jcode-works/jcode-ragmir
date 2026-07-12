@@ -423,11 +423,39 @@ function suggestedMcpServerName(cwd: string): string {
   if (!identity || identity.id === ".") {
     return DEFAULT_MCP_SERVER_NAME
   }
-  const suffix = identity.id
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/gu, "-")
-    .replace(/^-+|-+$/gu, "")
+  const suffix = sanitizeMcpServerSuffix(identity.id)
   return suffix ? `${DEFAULT_MCP_SERVER_NAME}-${suffix}` : DEFAULT_MCP_SERVER_NAME
+}
+
+function sanitizeMcpServerSuffix(value: string): string {
+  let suffix = ""
+  let replacingInvalidRun = false
+
+  for (const character of value.toLowerCase()) {
+    const code = character.charCodeAt(0)
+    const allowed =
+      (code >= 97 && code <= 122) ||
+      (code >= 48 && code <= 57) ||
+      character === "_" ||
+      character === "-"
+    if (allowed) {
+      suffix += character
+      replacingInvalidRun = false
+    } else if (!replacingInvalidRun) {
+      suffix += "-"
+      replacingInvalidRun = true
+    }
+  }
+
+  let start = 0
+  let end = suffix.length
+  while (start < end && suffix[start] === "-") {
+    start += 1
+  }
+  while (end > start && suffix[end - 1] === "-") {
+    end -= 1
+  }
+  return suffix.slice(start, end)
 }
 
 async function writeAgentMcpHelper(
