@@ -1,23 +1,43 @@
 # Ragmir
 
-Ragmir is an open-source local-first RAG library, CLI, and MCP server. It indexes confidential
-documents locally and returns cited retrieval context to AI agents.
+Ragmir is an open-source local-first retrieval toolkit for Node.js. It indexes the files selected by
+the project, stores the index under ignored `.ragmir/` state, and returns source-backed passages
+through a CLI, TypeScript API, or local read-focused MCP server.
 
-## Core facts
+## Product boundary
 
-- Published as `@jcode.labs/ragmir` on npm.
-- Stores its local index with LanceDB and is offline by default.
-- Returns cited passages, not LLM-generated answers.
-- Supports text, code, Markdown, PDF, common Office/OpenDocument formats, EPUB, HTML, CSV, JSON,
-  and YAML. Scanned images need opt-in OCR.
+- `@jcode.labs/ragmir` is retrieval-first. Core does not call an LLM or write generated answers.
+- The default `local-hash` path works offline with no account, API key, or model download.
+- Semantic Transformers.js embeddings are an explicit opt-in and require a rebuilt index.
+- `@jcode.labs/ragmir-chat` adds optional cited synthesis with a local GGUF model.
+- `@jcode.labs/ragmir-tts` adds optional local audio or explicitly selected online speech.
+- Ragmir is not a hosted document store, cloud-sync service, agent-memory replacement, or universal
+  code-search replacement.
 
-## Use it when
+## Privacy boundary
 
-- A confidential corpus is too large for an agent context window.
-- Agents need source citations from PDFs, specifications, or technical records.
-- The index and documents must stay on the local machine.
+- The corpus, index, reports, model cache, and metadata-only access log stay on the local machine.
+- Ragmir never uploads the whole corpus to a hosted RAG service.
+- A local consumer can keep the full workflow offline.
+- A cloud agent receives retrieved passages only when the user chooses that workflow, under that
+  provider's data policy.
+- OCR is optional and local. Ragmir prefers embedded PDF text and invokes a configured executable
+  only for blank PDF pages.
 
-For code navigation or a tiny corpus, use native code search or pass the text directly instead.
+## Best fit
+
+- Confidential PDFs, specifications, contracts, runbooks, policies, and exported team documents.
+- Large or fragmented corpora where answers must remain traceable to exact sources.
+- AI agents that need bounded evidence over MCP instead of a full-corpus prompt.
+
+For structured code navigation, prefer a dedicated repository index. For a tiny text corpus, pass
+the text directly when that is simpler and safe.
+
+## Supported content
+
+Text, Markdown, source code, configuration, logs, CSV, JSON, JSONL, YAML, PDF, DOCX, PPTX, XLSX,
+OpenDocument, EPUB, HTML, RTF, email, notebooks, and configured text extensions. Run
+`rgr audit --unsupported` to see exactly what was skipped.
 
 ## Quick start
 
@@ -26,7 +46,14 @@ pnpm add -D @jcode.labs/ragmir
 pnpm exec rgr setup
 pnpm exec rgr sources add "docs/**/*.md"
 pnpm exec rgr ingest
+pnpm exec rgr search "Which decision changed the rollout?"
 ```
 
-Use the generated MCP helper with Claude Code, Codex, Kimi, OpenCode, or Cline. See the
-[repository README](https://github.com/jcode-works/jcode-ragmir#readme) for API and CLI examples.
+## Canonical documentation
+
+- [README](https://github.com/jcode-works/jcode-ragmir#readme)
+- [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
+- [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
+- [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
+- [Agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
+- [Security hardening](https://github.com/jcode-works/jcode-ragmir/blob/main/SECURITY-HARDENING.md)

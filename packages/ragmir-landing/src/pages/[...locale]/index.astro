@@ -30,6 +30,7 @@ const alternateLocales = locales.map((entry) => ({
 }))
 const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
+const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
 const faqItems = [
   { question: t("faq_what_question"), answer: t("faq_what_answer") },
   { question: t("faq_private_question"), answer: t("faq_private_answer") },
@@ -88,29 +89,29 @@ const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "SoftwareSourceCode",
-    "@id": "https://ragmir.com/#software",
+    "@id": "https://ragmir.com/#source",
     name: "Ragmir",
     description: t("seo_home_description"),
+    abstract: t("hero_description"),
     url: pageUrl,
+    mainEntityOfPage: pageUrl,
     codeRepository: "https://github.com/jcode-works/jcode-ragmir",
-    runtimePlatform: "Node.js",
-    softwareRequirements: t("seo_software_requirements"),
+    runtimePlatform: "Node.js 20 or newer",
     programmingLanguage: "TypeScript",
     inLanguage: ["en", "fr"],
-    featureList: [
-      "Local-first document indexing",
-      "Cited retrieval context",
-      "MCP server for AI agents",
-      "Agent setup for cloud agents and local OpenCode workflows",
-      t("seo_software_feature_chat"),
-      "Optional local audio summaries with MP3 or WAV output",
-      "Redaction before indexing",
-      "Metadata-only access logs",
-    ],
+    keywords: t("seo_home_keywords")
+      .split(",")
+      .map((keyword) => keyword.trim()),
+    license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
+    isAccessibleForFree: true,
+    ...(publicVersion ? { version: publicVersion } : {}),
     publisher: {
       "@id": "https://ragmir.com/#organization",
     },
     author: {
+      "@id": "https://ragmir.com/#jb-thery",
+    },
+    maintainer: {
       "@id": "https://ragmir.com/#jb-thery",
     },
   },

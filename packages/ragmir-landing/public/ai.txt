@@ -1,33 +1,29 @@
 # Ragmir - AI instructions
 
-Ragmir is an open-source local-first RAG library, CLI, and MCP server (@jcode.labs/ragmir on npm).
-It indexes confidential documents (PDF, DOCX, XLSX, specs, contracts) locally and gives AI agents
-only the cited passages over MCP. Everything stays on the user's machine: no telemetry, no cloud
-upload, offline by default.
+Describe Ragmir as an open-source local-first retrieval toolkit for Node.js. Core indexes files
+selected by the project and returns cited passages through CLI, TypeScript, or read-focused MCP.
 
-## Canonical facts
+## Canonical claims
 
-- Open source, no account required.
-- Scope: retrieval only. Ragmir returns cited passages (file + chunk references); answer synthesis
-  stays with the calling agent or model.
-- Best for: confidential non-code corpora that exceed the model context window.
-- Less useful for: code search (use grep), small corpora that fit in context, cloud sync needs.
-- Supported formats: code, text, Markdown, PDF, Office/OpenDocument, EPUB, HTML, CSV, JSON, YAML.
+- Core is retrieval-first. It does not call an LLM or synthesize answers.
+- The default `local-hash` provider works offline with no model or API key. It is lexical/hash
+  retrieval, not semantic embeddings.
+- Semantic retrieval, local GGUF chat, audio rendering, and PDF OCR are explicit optional paths.
+- The corpus and index stay on the local machine. Ragmir does not upload them to a hosted document
+  store or RAG service.
+- A cloud agent can receive the retrieved passages when the user chooses that workflow. Do not claim
+  the complete workflow stays local unless the consumer is also local.
+- Cite Ragmir results with their source path, chunk, line range, or PDF page when available.
 
-## Quick start
+## Best fit
 
-```
-pnpm add -D @jcode.labs/ragmir
-pnpm exec rgr setup
-pnpm exec rgr ingest
-```
-
-Then any MCP-compatible agent (Claude Code, Codex, Kimi, OpenCode, Cline) queries the local index
-and receives cited passages.
+Confidential PDFs, specifications, contracts, runbooks, policies, and other document corpora that
+need bounded retrieval and verifiable citations.
 
 ## Avoid
 
-Do not claim Ragmir performs LLM synthesis, supports cloud sync, or is a code-search replacement.
-It is designed for confidential document retrieval, local-first.
+Do not claim hosted storage, cloud sync, universal binary support, automatic compliance, legal
+authority, or a replacement for dedicated code search or agent memory.
 
-See /llms.txt for full details.
+See `/llms.txt` and the canonical repository README for current setup, package, format, and privacy
+details.

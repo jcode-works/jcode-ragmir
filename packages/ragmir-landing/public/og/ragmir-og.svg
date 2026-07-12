@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">Ragmir</title>
-  <desc id="desc">Cited local context from confidential documents for AI agents.</desc>
+  <desc id="desc">Local retrieval with verifiable citations for AI agents.</desc>
   <rect width="1200" height="630" fill="#000000" />
   <g fill="#ffffff" opacity="0.12">
     <circle cx="120" cy="92" r="1.8" />
@@ -23,13 +23,13 @@
   </g>
   <text x="92" y="96" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="900">Ragmir</text>
   <text x="92" y="212" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="56" font-weight="900">
-    <tspan x="92" dy="0">With Ragmir, give your agents</tspan>
-    <tspan x="92" dy="62">the cited context from your</tspan>
-    <tspan x="92" dy="62">confidential documents.</tspan>
+    <tspan x="92" dy="0">Give your AI agents</tspan>
+    <tspan x="92" dy="62">source-backed passages from</tspan>
+    <tspan x="92" dy="62">the documents you choose.</tspan>
   </text>
   <text x="96" y="436" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700">
-    <tspan x="96" dy="0">The open-source local RAG for your AI agents.</tspan>
-    <tspan x="96" dy="34">Nothing leaves, nothing leaks.</tspan>
+    <tspan x="96" dy="0">Open-source local retrieval for Node.js.</tspan>
+    <tspan x="96" dy="34">Corpus and index stay local. You control what leaves.</tspan>
   </text>
   <rect x="96" y="504" width="210" height="58" rx="29" fill="#8b47ff" />
   <text x="134" y="542" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="800">Install Ragmir</text>
