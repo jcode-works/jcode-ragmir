@@ -55,7 +55,10 @@ npx rgr audit --unsupported
 npx rgr security-audit
 
 # Retrieval
+npx rgr preview --path docs --max-chunks 3
 npx rgr search "deployment decision"
+npx rgr search "deployment decision" --explain
+npx rgr search "deployment decision" --context-path "Operations > Deployment"
 npx rgr ask "What evidence supports the deployment decision?"
 npx rgr research "deployment obligations" --compact
 
@@ -91,6 +94,7 @@ Frequently used exports:
 | `discoverKnowledgeBases`, `knowledgeBaseIdentity` | Route root and nested monorepo bases |
 | `getKnowledgeBaseContext`, `getKnowledgeBaseSourceCatalog` | Give agents bounded readiness and source context |
 | `ingest`, `audit` | Build the index and compare it with files on disk |
+| `previewChunks` | Inspect redacted chunks and distributions without writing storage |
 | `search`, `ask`, `research`, `expandCitation` | Retrieve or expand cited passages |
 | `doctor`, `securityAudit` | Inspect readiness and local privacy posture |
 | `serveMcp` | Start the read-focused local MCP server |

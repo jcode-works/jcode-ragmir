@@ -23,6 +23,9 @@
     "The `local-hash` embedding provider (default) is a lexical sha256 embedding, not semantic; use `transformers` for semantic retrieval.",
     "Switching `embeddingProvider` requires `rgr ingest --rebuild`, since the two providers produce incompatible vectors.",
     "Run `rgr doctor --fix` after upgrading or misconfiguration to repair scaffolding, `.gitignore` entries, and the agent skill install.",
-    "Config resolves from the caller's working directory (`.ragmir/config.json`), never from the package install path."
+    "Config resolves from the caller's working directory (`.ragmir/config.json`), never from the package install path.",
+    "In a monorepo, the nearest configured ancestor is active; use `rgr bases --json` or explicit `--project-root` to verify routing.",
+    "Use `rgr preview` to inspect redacted chunks without writing an index, and `search(..., { explain: true })` only when rank diagnostics are needed.",
+    "MCP resources `ragmir://context` and `ragmir://sources` are bounded agent-orientation surfaces; retrieval still happens through the read-focused tools."
   ]
 }

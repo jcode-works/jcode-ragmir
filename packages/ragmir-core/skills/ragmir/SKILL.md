@@ -48,8 +48,10 @@ acceptable. Normal confidential indexing keeps remote model loading disabled.
 | Readiness | `rgr doctor` or `ragmir_status` |
 | Repair setup or stale data | `rgr doctor --fix` |
 | Check unindexed or unsupported files | `rgr audit --unsupported` |
+| Preview redacted chunks before indexing | `rgr preview --path <prefix> --json` |
 | Check privacy posture | `rgr security-audit` |
 | Retrieve exact passages | `rgr search "query" --compact` or `ragmir_search` |
+| Explain hybrid ranking | `rgr search "query" --explain` or `ragmir_search` with `explain: true` |
 | Expand one returned citation | `ragmir_expand` |
 | Gather broad cited evidence | `rgr research "topic" --compact` or `ragmir_research` |
 | Return deterministic context | `rgr ask "question"` or `ragmir_ask` |
@@ -96,6 +98,11 @@ OCR stays opt-in and never calls a remote service by default.
 
 `local-hash` is the default retrieval provider. It supports cited local retrieval but is not
 semantic embeddings. Use the Transformers provider only after an explicit model preload.
+
+Before a costly ingest or after changing chunk settings, run `rgr preview --json`. Review redaction
+counts, citations, `contextPath`, omitted chunks, and p50/p95 sizes. Search, ask, research, MCP
+retrieval, and golden queries can restrict retrieval with source paths and structural context paths.
+Use explanations to inspect RRF ranks and contributions, not as an independent relevance score.
 
 ## MCP
 

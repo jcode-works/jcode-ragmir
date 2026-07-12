@@ -96,13 +96,26 @@ so agents do not silently query the wrong index.
 ### Audit a knowledge base
 
 ```bash
+pnpm exec rgr preview --path docs --max-chunks 3
 pnpm exec rgr audit --unsupported
 pnpm exec rgr security-audit
 pnpm exec rgr research "release obligations" --compact
 ```
 
 Use this path for policies, runbooks, specifications, contracts, and other corpora where the answer
-must remain traceable to evidence.
+must remain traceable to evidence. `preview` shows redacted chunks, structural context, citations,
+and size distributions without writing an index.
+
+### Explain retrieval decisions
+
+```bash
+pnpm exec rgr search "release approval" --explain
+pnpm exec rgr search "release approval" --context-path "Operations > Release"
+```
+
+Explanations expose reciprocal-rank-fusion contributions, vector and lexical ranks, backend scores,
+and matched terms without changing default ranking. Structural filters can target Markdown heading
+paths or JSON paths before candidate retrieval.
 
 ### Enable semantic retrieval
 
@@ -143,15 +156,19 @@ import { ingest, search } from "@jcode.labs/ragmir"
 
 await ingest({ cwd: process.cwd() })
 
-const results = await search("Which decision changed the rollout?", { topK: 5 })
+const results = await search("Which decision changed the rollout?", {
+  topK: 5,
+  explain: true,
+})
 
 for (const result of results) {
   console.log(result.citation, result.text)
 }
 ```
 
-Core also exports `ask`, `research`, `audit`, `doctor`, `securityAudit`, `serveMcp`, and setup
-helpers. See the [API reference](./docs/api-reference.md) for the public surface.
+Core also exports `previewChunks`, `ask`, `research`, `audit`, `doctor`, `securityAudit`,
+`discoverKnowledgeBases`, bounded context helpers, `serveMcp`, and setup helpers. See the
+[API reference](./docs/api-reference.md) for the public surface.
 
 ## Privacy boundaries
 

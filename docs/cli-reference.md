@@ -16,6 +16,7 @@ rgr search "release decision"
 | `setup [--semantic]` | Initialize `.ragmir/`, agent helpers, and optionally preload embeddings. |
 | `init` | Create basic local configuration only. |
 | `doctor [--fix]` | Check setup, index freshness, and safe repairs. |
+| `preview` | Parse, redact, and chunk selected sources without writing the index. |
 | `ingest [--rebuild]` | Index configured sources; rebuild after provider or chunking changes. |
 | `search <query>` | Return ranked cited passages. |
 | `ask <query>` | Return cited context without model synthesis. |
@@ -30,13 +31,20 @@ rgr search "release decision"
 ```bash
 rgr sources add "docs/**/*.md" "!docs/archive/**"
 rgr sources list
+rgr preview --path docs --max-files 5 --max-chunks 3
 rgr search "migration" --top-k 5 --context-radius 1
 rgr search "migration" --include-path docs --exclude-path docs/archive
+rgr search "migration" --context-path "Guide > Migration" --explain
 ```
 
 `sources add` accepts paths, globs, and `!` exclusions. Search, ask, and research accept `--top-k`,
-`--include-path`, and `--exclude-path`. Use `--compact` on search or research when agent context is
-limited.
+`--include-path`, `--exclude-path`, and repeatable `--context-path`. Search and ask accept
+`--explain`; the optional score object reports RRF contributions, retriever ranks, raw backend
+scores, and matched query terms without changing ranking. Use `--compact` on search or research when
+agent context is limited.
+
+`preview` uses the active redaction and chunking configuration but never writes storage. `audit`
+reports min, mean, p50, p95, and max chunk sizes plus structural-context coverage.
 
 ## Monorepos
 

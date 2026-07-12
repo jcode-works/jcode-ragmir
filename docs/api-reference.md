@@ -30,6 +30,7 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 | --- | --- |
 | `ingest(options?)` | Incrementally parse, redact, chunk, embed, and store files. |
 | `audit(cwd?)` | Compare files on disk with the current index. |
+| `previewChunks(options?)` | Return redacted structured chunks without writing an index. |
 | `search(query, options?)` | Return ranked cited passages. |
 | `ask(query, options?)` | Return cited retrieval context without calling an LLM. |
 | `research(query, options?)` | Run audit-backed multi-query retrieval. |
@@ -38,11 +39,18 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 | `compactResearchReport(report)` | Remove verbose evidence text from a research report. |
 | `evaluateGoldenQueries(options)` | Score retrieval against a local golden-query file. |
 
-`SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, and `excludePaths`.
+`SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
+`contextPaths`, and `explain`. When explanation is enabled, each result includes RRF contributions,
+one-based vector and lexical ranks, vector distance, lexical backend score, and matched query terms.
 `ExpandCitationOptions` accepts `cwd` and a `contextRadius` clamped to three chunks.
 Search results expose a `contextPath` derived from Markdown headings or JSON structure. This field
 improves retrieval, while `text`, offsets, and citations continue to reference the exact source
 passage.
+
+`PreviewReport` includes per-file redaction counts, citations, offsets, structural context, omitted
+counts, and chunk distributions. `AuditReport.chunkStats` provides corpus-wide character
+distributions and structural-context coverage. Golden-query cases may include `contextPaths` to
+evaluate one heading or structured-data branch.
 
 ## Operations and privacy
 
