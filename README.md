@@ -1,118 +1,200 @@
 # Ragmir
 
-[![npm](https://img.shields.io/npm/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![CI](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml)
+[![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![MIT](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
-Ragmir is a local-first RAG library, CLI, and MCP server for projects that need useful, cited context
-without a hosted document store. Choose the files to index on your machine, then search them from a
-terminal, TypeScript, or an AI agent. The default retrieval path needs no account, cloud service, or
-model download.
+**Local, cited retrieval for the documents and code your AI agents need.**
 
-## How it works
+Ragmir is an open-source retrieval-augmented generation (RAG) toolkit for Node.js. It indexes the
+files you choose, stores the index inside the project, and returns source-backed passages through a
+CLI, TypeScript API, or local MCP server. The default path needs no account, hosted document store,
+or model download.
 
-1. Choose repository files with `.ragmir/sources.txt` or `rgr sources add`.
-2. Ragmir extracts text, redacts configured sensitive values, splits it into chunks, and stores the
-   index locally under ignored `.ragmir/` state.
-3. `rgr search`, the TypeScript API, and the MCP server return ranked passages with their source path,
-   page when available, and chunk number.
-4. `local-hash` is the default offline retrieval mode. Semantic embeddings, local chat, local audio,
-   and OCR are explicit optional add-ons.
+[Website](https://ragmir.com) · [npm](https://www.npmjs.com/package/@jcode.labs/ragmir) ·
+[CLI reference](./docs/cli-reference.md) · [Examples](#runnable-examples)
 
-Scanned PDFs are supported through an opt-in local OCR command. OCR is used only for PDF pages without
-embedded text, never through a cloud service.
+## Your first cited search
 
-## Getting started
-
-Install Ragmir in the repository that owns the documents you want to search:
+Ragmir requires Node.js 20 or later. Install it in the repository that owns the files you want to
+search:
 
 ```bash
 pnpm add -D @jcode.labs/ragmir
 pnpm exec rgr setup
 pnpm exec rgr sources add "docs/**/*.md"
 pnpm exec rgr ingest
-pnpm exec rgr search "deployment decision"
+pnpm exec rgr search "Which decision changed the rollout?"
 ```
 
-`rgr setup` prepares ignored local state and agent helpers. `rgr ingest` is incremental. A search
-result includes the source file, excerpt, chunk number, and PDF page when one is known.
+`rgr setup` creates ignored local state under `.ragmir/`. `rgr ingest` is incremental. Search
+results include the source path, excerpt, chunk number, and PDF page when one is available.
 
-To give the same cited context to an agent, generate its local MCP helper:
+Using npm instead of pnpm? Replace `pnpm add -D` with `npm install --save-dev` and `pnpm exec` with
+`npx`.
+
+## What Ragmir gives you
+
+| Interface | Use it for | Result |
+| --- | --- | --- |
+| `rgr` CLI | Setup, ingest, search, audit, and maintenance | Human-readable or JSON output |
+| TypeScript API | Embed retrieval in a Node.js application | Typed results with citations |
+| Local MCP server | Give coding agents bounded project context | Read-focused retrieval tools |
+| Ragmir Chat | Generate an answer with a local GGUF model | Cited local synthesis |
+| Ragmir TTS | Turn a text brief into audio | Local WAV or explicit online MP3 |
+
+Ragmir Core stays retrieval-first. `ask()` returns cited context without calling an LLM. Local chat
+and audio are separate capabilities, so retrieval remains useful on machines that should not run a
+generative model.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Files selected by the project"] --> B["Extract and redact text"]
+    B --> C["Chunk and index locally"]
+    C --> D["Cited search results"]
+    D --> E["CLI"]
+    D --> F["TypeScript API"]
+    D --> G["MCP agents"]
+    D -. optional .-> H["Local GGUF chat"]
+    B -. blank PDF pages .-> I["Configured local OCR"]
+```
+
+The generated index, model cache, reports, and access log stay under ignored `.ragmir/` state.
+Project paths are resolved from the caller's working directory or explicit configuration, never
+from the installed npm package.
+
+## Common workflows
+
+### Give an agent cited project context
 
 ```bash
 pnpm exec rgr setup --agents claude,codex,kimi,opencode,cline
+pnpm exec rgr doctor
 ```
 
-## Use cases
+Setup writes local helper files for the selected agents. The MCP surface is intentionally bounded
+and read-focused.
 
-| Need | What Ragmir provides |
-| --- | --- |
-| Find a technical decision in project documentation | Local search with source citations. |
-| Give an AI agent trusted repository context | A read-focused MCP server with bounded retrieval. |
-| Audit policies, runbooks, or knowledge bases | Search, `research`, diagnostics, and explicit evidence. |
-| Index scanned operational PDFs | Page-aware text extraction with optional local OCR. |
-| Work offline on a confidential repository | Local index, local-hash retrieval, and optional local models. |
-| Prepare an audio or chat companion | Optional local GGUF chat and local/offline TTS add-ons. |
+### Audit a knowledge base
 
-## Interfaces
+```bash
+pnpm exec rgr audit --unsupported
+pnpm exec rgr security-audit
+pnpm exec rgr research "release obligations" --compact
+```
 
-| Need | Use |
-| --- | --- |
-| Search documents from a terminal | `rgr search "query"` |
-| Inspect setup, sources, and privacy posture | `rgr doctor`, `rgr audit`, `rgr security-audit` |
-| Retrieve from TypeScript | `ingest`, `search`, `ask`, or `research` |
-| Connect an agent | `rgr setup` and the generated MCP helper |
-| Use semantic retrieval | `rgr setup --semantic` |
-| Answer with a local GGUF model | `rgr chat setup`, then `rgr chat "question"` |
-| Render a local audio summary | `rgr audio <file> --offline` |
+Use this path for policies, runbooks, specifications, contracts, and other corpora where the answer
+must remain traceable to evidence.
+
+### Enable semantic retrieval
+
+```bash
+pnpm exec rgr setup --semantic
+pnpm exec rgr ingest --rebuild
+```
+
+The default `local-hash` provider is offline lexical/hash retrieval. Semantic mode uses
+Transformers.js and requires an explicit model download or a preloaded local model.
+
+### Search scanned PDFs
+
+```bash
+pnpm exec rgr ocr setup --engine auto
+pnpm exec rgr ingest --rebuild
+```
+
+Embedded PDF text is always preferred. OCR runs only for blank pages, through a configured local
+executable. Ragmir does not use a cloud OCR service.
+
+## Supported content
+
+Ragmir handles common project and knowledge-base material, including:
+
+- Markdown, plain text, source code, configuration, logs, CSV, JSON, JSONL, and YAML;
+- PDF with page-aware citations, plus optional local OCR for blank pages;
+- DOCX, PPTX, XLSX, OpenDocument files, EPUB, HTML, RTF, email, and notebooks;
+- additional text extensions configured by the project.
+
+Run `rgr audit --unsupported` to see what was skipped and why. Ragmir does not claim universal
+binary support.
 
 ## TypeScript API
 
 ```ts
 import { ingest, search } from "@jcode.labs/ragmir"
 
-await ingest()
+await ingest({ cwd: process.cwd() })
 
 const results = await search("Which decision changed the rollout?", { topK: 5 })
 
 for (const result of results) {
-  console.log(result.relativePath, result.chunkIndex, result.text)
+  console.log(result.citation, result.text)
 }
 ```
 
-Ragmir Core retrieves evidence. `ask()` returns cited context and does not call a hosted model or
-generate an ungrounded answer.
+Core also exports `ask`, `research`, `audit`, `doctor`, `securityAudit`, `serveMcp`, and setup
+helpers. See the [API reference](./docs/api-reference.md) for the public surface.
 
-## Technology
+## Privacy boundaries
 
-- **TypeScript, Node.js 22, and pnpm** for the portable CLI, library, MCP server, and workspace.
-- **LanceDB** for local vector storage and retrieval.
-- **Transformers.js** for explicit optional semantic embeddings and offline audio models.
-- **Model Context Protocol TypeScript SDK** for integrations with coding agents.
-- **node-llama-cpp** for the optional local GGUF chat add-on.
-- **Astro and React** for the static project site only, with no analytics or vendor deployment config.
+| Capability | Default behavior | Network boundary |
+| --- | --- | --- |
+| Core retrieval | Local files, local index, `local-hash` retrieval | No network service required |
+| Semantic embeddings | Disabled until explicitly enabled | Model download is explicit; inference can then stay local |
+| PDF and image OCR | Disabled until a local command is configured | No cloud OCR integration |
+| Ragmir Chat | Local inference from a verified GGUF file | Setup may download the selected model |
+| Ragmir TTS | Local Transformers.js WAV rendering | Edge MP3 mode sends narration text when explicitly selected |
+
+Redaction reduces accidental exposure but is not a compliance certification. Review the
+[security hardening guide](./SECURITY-HARDENING.md) before using sensitive corpora.
 
 ## Packages
 
-| Package | Purpose |
+| Package | Install when you need |
 | --- | --- |
-| `@jcode.labs/ragmir` | CLI, TypeScript library, MCP server, and portable skills. |
-| `@jcode.labs/ragmir-chat` | Optional cited local chat through verified GGUF models. |
-| `@jcode.labs/ragmir-tts` | Optional local/offline WAV and explicit online MP3 rendering. |
+| [`@jcode.labs/ragmir`](./packages/ragmir-core/README.md) | CLI, retrieval API, MCP server, OCR configuration, and agent helpers |
+| [`@jcode.labs/ragmir-chat`](./packages/ragmir-chat/README.md) | Optional cited generation with a local GGUF model |
+| [`@jcode.labs/ragmir-tts`](./packages/ragmir-tts/README.md) | Optional local audio or explicit online voice rendering |
+
+## Runnable examples
+
+| Example | What it proves |
+| --- | --- |
+| [Sovereign RAG demo](./packages/ragmir-core/examples/sovereign-rag-demo/README.md) | End-to-end CLI ingestion, retrieval, redaction, audit, and evaluation |
+| [Library API demo](./packages/ragmir-core/examples/library-api-demo/README.md) | The public TypeScript API against a synthetic local corpus |
+| [Document evidence benchmark](./packages/ragmir-core/examples/document-evidence-benchmark/README.md) | Deterministic recall and exact file, line, chunk, and PDF-page citations |
+
+Every committed example uses fictional data. Keep private evaluation corpora and generated reports
+outside Git or under ignored local state.
+
+## Technology
+
+- **TypeScript and Node.js** for the portable CLI, library, MCP server, and add-ons.
+- **LanceDB** for embedded local storage.
+- **Transformers.js** for optional semantic embeddings and offline audio models.
+- **Model Context Protocol TypeScript SDK** for agent integrations.
+- **node-llama-cpp** for optional local GGUF generation.
+- **Astro, React, and Tailwind CSS** for the static, telemetry-free project site.
 
 ## Documentation
 
-| Guide | When to read it |
+| Guide | Read it when you need |
 | --- | --- |
-| [CLI reference](./docs/cli-reference.md) | Commands, options, and output modes. |
-| [API reference](./docs/api-reference.md) | Public TypeScript exports and return shapes. |
-| [Configuration](./docs/configuration.md) | Sources, privacy, retrieval, limits, and extractors. |
-| [Agent integration](./docs/agent-integration.md) | Claude Code, Codex, Kimi, OpenCode, and Cline. |
-| [Troubleshooting](./docs/troubleshooting.md) | Empty indexes, OCR, weak retrieval, and local models. |
-| [Offline chat](./docs/offline-chat-preload.md) | Prepare and verify a local GGUF model. |
-| [Offline TTS](./docs/offline-tts-preload.md) | Prepare and render confidential narration. |
-| [Security hardening](./SECURITY-HARDENING.md) | Local data boundaries and operational safeguards. |
+| [CLI reference](./docs/cli-reference.md) | Commands, options, and JSON output |
+| [API reference](./docs/api-reference.md) | TypeScript exports and result shapes |
+| [Configuration](./docs/configuration.md) | Sources, privacy profiles, models, limits, and extractors |
+| [Agent integration](./docs/agent-integration.md) | Native helpers and MCP clients |
+| [Troubleshooting](./docs/troubleshooting.md) | Empty indexes, OCR, retrieval, or local-model problems |
+| [Offline chat](./docs/offline-chat-preload.md) | Prepare and verify a GGUF model |
+| [Offline TTS](./docs/offline-tts-preload.md) | Prepare and render confidential narration |
 
-## Develop
+## Contributing
+
+The repository is a pnpm workspace and uses the Node.js version pinned in `mise.toml`:
 
 ```bash
 pnpm bootstrap
@@ -120,9 +202,10 @@ pnpm validate
 pnpm example
 ```
 
-The project uses the Node version pinned in `mise.toml`. `pnpm validate` runs formatting, a dependency
-security audit, types, tests, builds, CLI and MCP smoke checks, and npm package checks.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. Report vulnerabilities
+through [SECURITY.md](./SECURITY.md), not a public issue. Release history is available in
+[CHANGELOG.md](./CHANGELOG.md).
 
-## MIT
+## License
 
-Ragmir source is available under the [MIT terms](./LICENSE).
+Ragmir is open source under the [MIT License](./LICENSE).

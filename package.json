@@ -36,7 +36,7 @@
     "check": "pnpm --filter @jcode.labs/ragmir-landing check && pnpm --filter @jcode.labs/ragmir-tts check && pnpm --filter @jcode.labs/ragmir-chat check && pnpm --filter @jcode.labs/ragmir check",
     "commitlint": "commitlint --from=HEAD~1 --to=HEAD --verbose",
     "dev:landing": "pnpm --filter @jcode.labs/ragmir-landing dev",
-    "example": "pnpm --filter @jcode.labs/ragmir build && node packages/ragmir-core/examples/library-api-demo/run.mjs",
+    "example": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm --filter @jcode.labs/ragmir build && node packages/ragmir-core/examples/library-api-demo/run.mjs",
     "format": "biome format --write .",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
