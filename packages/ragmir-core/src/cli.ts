@@ -838,6 +838,7 @@ program
       redactionEnabled: config.redaction.enabled,
       accessLog: config.accessLog,
       mcpMaxTopK: config.mcpMaxTopK,
+      mcpMaxOutputBytes: config.mcpMaxOutputBytes,
       topK: config.topK,
       chunkSize: config.chunkSize,
       chunkOverlap: config.chunkOverlap,
@@ -870,6 +871,7 @@ program
     console.log(`redactionEnabled=${config.redaction.enabled}`)
     console.log(`accessLog=${config.accessLog}`)
     console.log(`mcpMaxTopK=${config.mcpMaxTopK}`)
+    console.log(`mcpMaxOutputBytes=${config.mcpMaxOutputBytes}`)
     console.log(`topK=${config.topK}`)
     console.log(`chunkSize=${config.chunkSize}`)
     console.log(`chunkOverlap=${config.chunkOverlap}`)
@@ -909,6 +911,7 @@ program
       console.log(`accessLogStoresRawQueries=${report.accessLog.storesRawQueries}`)
       console.log(`storageGitIgnored=${report.storage.gitIgnored}`)
       console.log(`mcpMaxTopK=${report.mcp.maxTopK}`)
+      console.log(`mcpMaxOutputBytes=${report.mcp.maxOutputBytes}`)
       console.log(`mcpDestructiveToolsExposed=${report.mcp.destructiveToolsExposed}`)
       for (const warning of report.warnings) {
         console.log(pc.yellow(`warning: ${warning}`))

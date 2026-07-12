@@ -28,9 +28,17 @@ Use `--scope user` only when you intentionally want a user-wide installation. Pr
 
 ## MCP tools
 
-The server exposes `ragmir_status`, `ragmir_route_prompt`, `ragmir_search`, `ragmir_ask`, `ragmir_research`, `ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`, and `ragmir_security_audit`.
+The server exposes `ragmir_status`, `ragmir_route_prompt`, `ragmir_search`, `ragmir_ask`,
+`ragmir_research`, `ragmir_expand`, `ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`, and
+`ragmir_security_audit`.
 
-Use compact search output when context is limited. `ragmir_ask` returns cited evidence, not a model generated answer. A cloud agent can receive returned passages, so choose that handoff only when it matches the corpus’s confidentiality requirements.
+Use compact retrieval first, then pass a returned citation to `ragmir_expand` when the agent needs
+the exact chunk or a bounded neighbor window. Search, ask, research, and expansion accept `maxBytes`;
+the server also enforces the configured `mcpMaxOutputBytes` ceiling. Their single JSON text result
+stays parseable, while `_meta["ragmir/output"]` reports retrieved bytes, returned bytes, compacting,
+and truncation. `ragmir_ask` returns cited evidence, not a model generated answer. A cloud agent can
+receive returned passages, so choose that handoff only when it matches the corpus’s confidentiality
+requirements.
 
 ## Verify
 

@@ -8,6 +8,8 @@ import { openRowsTable, readIndexManifest } from "./store.js"
 import { tokenize } from "./text.js"
 import type {
   AskResult,
+  ExpandCitationOptions,
+  ExpandedCitation,
   RetrievalProfile,
   SearchContextChunk,
   SearchOptions,
@@ -297,6 +299,71 @@ export async function ask(query: string, options: SearchOptions = {}): Promise<A
     answer: retrievalOnlyAnswer(sources),
     sources,
     staleWarning,
+  }
+}
+
+export async function expandCitation(
+  citation: string,
+  options: ExpandCitationOptions = {},
+): Promise<ExpandedCitation> {
+  const requestedCitation = citation.trim()
+  const target = parseCitationTarget(requestedCitation)
+  const contextRadius = normalizeContextRadius(options.contextRadius)
+  const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  const table = await openRowsTable(config)
+  if (!table) {
+    return {
+      requestedCitation,
+      found: false,
+      relativePath: target.relativePath,
+      chunkIndex: target.chunkIndex,
+      contextRadius,
+      passages: [],
+    }
+  }
+
+  const manifest = await readIndexManifest(config)
+  if (!manifest) {
+    throw new Error(
+      "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before expanding citations.",
+    )
+  }
+  const freshnessWarning = await getIndexFreshnessWarning(config)
+  if (freshnessWarning) {
+    throw new Error(freshnessWarning)
+  }
+
+  const minimumChunkIndex = Math.max(0, target.chunkIndex - contextRadius)
+  const maximumChunkIndex = target.chunkIndex + contextRadius
+  const rows = (await table
+    .query()
+    .select(SEARCH_COLUMNS)
+    .where(
+      `relativePath = ${sqlString(target.relativePath)} AND chunkIndex >= ${minimumChunkIndex} AND chunkIndex <= ${maximumChunkIndex}`,
+    )
+    .toArray()) as SearchRow[]
+  const targetRow = rows.find((row) => row.chunkIndex === target.chunkIndex)
+  if (!targetRow) {
+    return {
+      requestedCitation,
+      found: false,
+      relativePath: target.relativePath,
+      chunkIndex: target.chunkIndex,
+      contextRadius,
+      passages: [],
+    }
+  }
+  if (citationForRow(targetRow) !== requestedCitation) {
+    throw new Error("Citation coordinates do not match the indexed passage.")
+  }
+
+  return {
+    requestedCitation,
+    found: true,
+    relativePath: target.relativePath,
+    chunkIndex: target.chunkIndex,
+    contextRadius,
+    passages: rows.sort(compareChunkRows).map(contextChunkForRow),
   }
 }
 
@@ -624,6 +691,33 @@ async function assertIndexFreshness(config: Awaited<ReturnType<typeof loadConfig
 
 function rowKey(row: SearchRow): string {
   return `${row.relativePath}\0${row.chunkIndex}`
+}
+
+function parseCitationTarget(citation: string): { relativePath: string; chunkIndex: number } {
+  const match = /#(\d+)$/u.exec(citation)
+  const chunkIndexText = match?.[1]
+  if (!match || chunkIndexText === undefined) {
+    throw new Error("Citation must end with a Ragmir chunk suffix such as `#3`.")
+  }
+
+  const chunkIndex = Number.parseInt(chunkIndexText, 10)
+  let relativePath = citation.slice(0, match.index)
+  relativePath = relativePath.replace(/:L\d+-L\d+$/u, "")
+  relativePath = relativePath.replace(/:p\d+(?:-p\d+)?$/u, "")
+  if (!relativePath) {
+    throw new Error("Citation must include a source path before its chunk suffix.")
+  }
+  return { relativePath, chunkIndex }
+}
+
+function normalizeContextRadius(contextRadius: number | undefined): number {
+  if (contextRadius === undefined) {
+    return 0
+  }
+  if (!Number.isInteger(contextRadius) || contextRadius < 0) {
+    throw new Error("contextRadius must be a non-negative integer.")
+  }
+  return Math.min(contextRadius, MAX_CONTEXT_RADIUS)
 }
 
 function citationForRow(row: SearchRow): string {

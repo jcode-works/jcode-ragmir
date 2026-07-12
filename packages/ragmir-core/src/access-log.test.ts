@@ -2,7 +2,7 @@ import { appendFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/prom
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { accessLogUsageReport, recordAccess } from "./access-log.js"
+import { accessLogUsageReport, recordAccess, recordMcpOutput } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { initProject } from "./init.js"
 
@@ -76,6 +76,71 @@ describe("accessLogUsageReport", () => {
     expect(report.averageResultCountByAction.search).toBe(6)
     expect(report.averageResultCountByAction.ask).toBe(2)
     expect(report.averageResultCountByAction.evaluate).toBeNull()
+  })
+
+  it("should aggregate metadata-only MCP output metrics without storing corpus details", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-mcp-output-log-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const config = await loadConfig(root)
+
+    await recordMcpOutput(config, {
+      tool: "ragmir_search",
+      retrievedBytes: 8_000,
+      returnedBytes: 2_000,
+      compacted: true,
+      truncated: false,
+    })
+    await recordMcpOutput(config, {
+      tool: "ragmir_expand",
+      retrievedBytes: 3_000,
+      returnedBytes: 1_000,
+      compacted: false,
+      truncated: true,
+    })
+
+    const report = await accessLogUsageReport({ cwd: root, days: 7 })
+    const rawLog = await readFile(config.accessLogPath, "utf8")
+
+    expect(report.mcpOutput).toEqual({
+      responses: 2,
+      retrievedBytes: 11_000,
+      returnedBytes: 3_000,
+      savedBytes: 8_000,
+      reductionRatio: 8 / 11,
+      compactedResponses: 1,
+      truncatedResponses: 1,
+    })
+    expect(rawLog).not.toContain("private query")
+    expect(rawLog).not.toContain("raw/policy.md")
+    expect(rawLog).not.toContain(root)
+  })
+
+  it("should reject malformed MCP metric lines while reading older access entries", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-mcp-output-invalid-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const config = await loadConfig(root)
+    await recordAccess(config, { action: "search", query: "known query", resultCount: 1 })
+    await appendFile(
+      config.accessLogPath,
+      `${JSON.stringify({
+        timestamp: new Date().toISOString(),
+        kind: "mcp-output",
+        tool: "ragmir_search",
+        retrievedBytes: -1,
+        returnedBytes: 1,
+        compacted: false,
+        truncated: false,
+      })}\n`,
+      "utf8",
+    )
+
+    const report = await accessLogUsageReport({ cwd: root, days: 7 })
+
+    expect(report.eventsByAction.search).toBe(1)
+    expect(report.mcpOutput.responses).toBe(0)
+    expect(report.invalidLines).toBe(1)
   })
 })
 

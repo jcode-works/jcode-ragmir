@@ -9,6 +9,7 @@ import type {
   AccessLogUsageOptions,
   AccessLogUsageReport,
   Config,
+  McpOutputTool,
 } from "./types.js"
 
 export interface AccessLogEvent {
@@ -19,12 +20,32 @@ export interface AccessLogEvent {
   redactions?: number
 }
 
+export interface McpOutputLogEvent {
+  tool: McpOutputTool
+  retrievedBytes: number
+  returnedBytes: number
+  compacted: boolean
+  truncated: boolean
+}
+
 interface AccessLogLine {
   timestamp: string
   action: AccessLogAction
   queryHash?: string
   resultCount?: number
 }
+
+interface McpOutputLogLine {
+  timestamp: string
+  kind: "mcp-output"
+  tool: McpOutputTool
+  retrievedBytes: number
+  returnedBytes: number
+  compacted: boolean
+  truncated: boolean
+}
+
+type ParsedAccessLogLine = AccessLogLine | McpOutputLogLine
 
 interface ResultCountStats {
   total: number
@@ -40,6 +61,13 @@ const ACCESS_LOG_ACTIONS: AccessLogAction[] = [
   "destroy-index",
 ]
 const ACCESS_LOG_ACTION_SET = new Set<string>(ACCESS_LOG_ACTIONS)
+const MCP_OUTPUT_TOOLS: McpOutputTool[] = [
+  "ragmir_search",
+  "ragmir_ask",
+  "ragmir_research",
+  "ragmir_expand",
+]
+const MCP_OUTPUT_TOOL_SET = new Set<string>(MCP_OUTPUT_TOOLS)
 const DEFAULT_USAGE_REPORT_DAYS = 7
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
 /**
@@ -67,6 +95,33 @@ export async function recordAccess(config: Config, event: AccessLogEvent): Promi
     await hardenPrivateFile(config.accessLogPath)
   } catch {
     // Access logging is best-effort so read-only workspaces do not block local use.
+  }
+}
+
+export async function recordMcpOutput(config: Config, event: McpOutputLogEvent): Promise<void> {
+  if (!config.accessLog) {
+    return
+  }
+
+  try {
+    await ensurePrivateDirectory(path.dirname(config.accessLogPath))
+    await trimAccessLogIfNeeded(config.accessLogPath)
+    const line: McpOutputLogLine = {
+      timestamp: new Date().toISOString(),
+      kind: "mcp-output",
+      tool: event.tool,
+      retrievedBytes: event.retrievedBytes,
+      returnedBytes: event.returnedBytes,
+      compacted: event.compacted,
+      truncated: event.truncated,
+    }
+    await appendFile(config.accessLogPath, `${JSON.stringify(line)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    })
+    await hardenPrivateFile(config.accessLogPath)
+  } catch {
+    // Output metrics are best-effort and must never block local retrieval.
   }
 }
 
@@ -109,6 +164,11 @@ export async function accessLogUsageReport(
   let invalidLines = 0
   let resultCountTotal = 0
   let resultCountEvents = 0
+  let mcpOutputResponses = 0
+  let mcpRetrievedBytes = 0
+  let mcpReturnedBytes = 0
+  let compactedResponses = 0
+  let truncatedResponses = 0
   let lastEventAt: string | null = null
 
   if (existsSync(config.accessLogPath)) {
@@ -128,6 +188,17 @@ export async function accessLogUsageReport(
         continue
       }
       totalEvents += 1
+      if (isMcpOutputLogLine(event)) {
+        mcpOutputResponses += 1
+        mcpRetrievedBytes += event.retrievedBytes
+        mcpReturnedBytes += event.returnedBytes
+        compactedResponses += event.compacted ? 1 : 0
+        truncatedResponses += event.truncated ? 1 : 0
+        if (lastEventAt === null || event.timestamp > lastEventAt) {
+          lastEventAt = event.timestamp
+        }
+        continue
+      }
       eventsByAction[event.action] += 1
       if (event.queryHash) {
         queryHashes.add(event.queryHash)
@@ -154,6 +225,15 @@ export async function accessLogUsageReport(
     uniqueQueryHashes: queryHashes.size,
     averageResultCount: resultCountEvents === 0 ? null : resultCountTotal / resultCountEvents,
     averageResultCountByAction: averageResultCounts(resultCountsByAction),
+    mcpOutput: {
+      responses: mcpOutputResponses,
+      retrievedBytes: mcpRetrievedBytes,
+      returnedBytes: mcpReturnedBytes,
+      savedBytes: mcpRetrievedBytes - mcpReturnedBytes,
+      reductionRatio: mcpRetrievedBytes === 0 ? null : 1 - mcpReturnedBytes / mcpRetrievedBytes,
+      compactedResponses,
+      truncatedResponses,
+    },
     lastEventAt,
   }
 }
@@ -246,16 +326,33 @@ function normalizeUsageReportDays(days: number | undefined): number {
   return days
 }
 
-function parseAccessLogLine(line: string): AccessLogLine | null {
+function parseAccessLogLine(line: string): ParsedAccessLogLine | null {
   try {
     const parsed: unknown = JSON.parse(line)
-    if (!isAccessLogLine(parsed)) {
-      return null
+    if (isAccessLogLine(parsed) || isMcpOutputLogLine(parsed)) {
+      return parsed
     }
-    return parsed
+    return null
   } catch {
     return null
   }
+}
+
+function isMcpOutputLogLine(value: unknown): value is McpOutputLogLine {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    hasTimestamp(value) &&
+    "kind" in value &&
+    value.kind === "mcp-output" &&
+    "tool" in value &&
+    typeof value.tool === "string" &&
+    MCP_OUTPUT_TOOL_SET.has(value.tool) &&
+    hasNonNegativeNumber(value, "retrievedBytes") &&
+    hasNonNegativeNumber(value, "returnedBytes") &&
+    hasBoolean(value, "compacted") &&
+    hasBoolean(value, "truncated")
+  )
 }
 
 function isAccessLogLine(value: unknown): value is AccessLogLine {
@@ -285,4 +382,13 @@ function hasOptionalQueryHash(value: object): value is { queryHash?: string } {
 
 function hasOptionalResultCount(value: object): value is { resultCount?: number } {
   return !("resultCount" in value) || typeof value.resultCount === "number"
+}
+
+function hasNonNegativeNumber(value: object, key: string): boolean {
+  const field = Reflect.get(value, key)
+  return typeof field === "number" && Number.isFinite(field) && field >= 0
+}
+
+function hasBoolean(value: object, key: string): boolean {
+  return typeof Reflect.get(value, key) === "boolean"
 }

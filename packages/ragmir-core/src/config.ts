@@ -52,6 +52,7 @@ const rawConfigSchema = z
       .default(DEFAULT_CONFIG.redaction),
     accessLog: z.boolean().default(DEFAULT_CONFIG.accessLog),
     mcpMaxTopK: z.number().int().positive().default(DEFAULT_CONFIG.mcpMaxTopK),
+    mcpMaxOutputBytes: z.number().int().min(1_024).default(DEFAULT_CONFIG.mcpMaxOutputBytes),
     topK: z.number().int().positive().default(DEFAULT_CONFIG.topK),
     chunkSize: z.number().int().positive().default(DEFAULT_CONFIG.chunkSize),
     chunkOverlap: z.number().int().nonnegative().default(DEFAULT_CONFIG.chunkOverlap),
@@ -153,6 +154,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     redaction: effective.redaction,
     accessLog: effective.accessLog,
     mcpMaxTopK: effective.mcpMaxTopK,
+    mcpMaxOutputBytes: effective.mcpMaxOutputBytes,
     topK: effective.topK,
     chunkSize: effective.chunkSize,
     chunkOverlap: effective.chunkOverlap,
@@ -199,6 +201,7 @@ function applyPrivacyFloor(config: RawConfig): RawConfig {
     transformersAllowRemoteModels: false,
     redaction: { ...config.redaction, enabled: true, builtIn: true },
     mcpMaxTopK: Math.min(config.mcpMaxTopK, 5),
+    mcpMaxOutputBytes: Math.min(config.mcpMaxOutputBytes, 16_384),
     pdfOcrCommand: [],
     imageOcrCommand: [],
     legacyWordCommand: [],
@@ -260,6 +263,12 @@ function applyEnv(config: RawConfig): RawConfig {
     },
     accessLog: readBooleanEnv("RAGMIR_ACCESS_LOG", "KB_ACCESS_LOG", config.accessLog),
     mcpMaxTopK: readPositiveIntEnv("RAGMIR_MCP_MAX_TOP_K", "KB_MCP_MAX_TOP_K", config.mcpMaxTopK),
+    mcpMaxOutputBytes: readIntegerAtLeastEnv(
+      "RAGMIR_MCP_MAX_OUTPUT_BYTES",
+      "KB_MCP_MAX_OUTPUT_BYTES",
+      1_024,
+      config.mcpMaxOutputBytes,
+    ),
     topK: readPositiveIntEnv("RAGMIR_TOP_K", "KB_TOP_K", config.topK),
     chunkSize: readPositiveIntEnv("RAGMIR_CHUNK_SIZE", "KB_CHUNK_SIZE", config.chunkSize),
     chunkOverlap: readNonNegativeIntEnv(
@@ -376,6 +385,24 @@ function readPositiveIntEnv(name: string, legacyName: string, fallback: number):
   const value = Number.parseInt(raw, 10)
   if (!(Number.isInteger(value) && value > 0)) {
     warnInvalidEnv(name, raw, "a positive integer")
+    return fallback
+  }
+  return value
+}
+
+function readIntegerAtLeastEnv(
+  name: string,
+  legacyName: string,
+  minimum: number,
+  fallback: number,
+): number {
+  const raw = process.env[name] ?? process.env[legacyName]
+  if (!raw) {
+    return fallback
+  }
+  const value = Number.parseInt(raw, 10)
+  if (!(Number.isInteger(value) && value >= minimum)) {
+    warnInvalidEnv(name, raw, `an integer greater than or equal to ${minimum}`)
     return fallback
   }
   return value

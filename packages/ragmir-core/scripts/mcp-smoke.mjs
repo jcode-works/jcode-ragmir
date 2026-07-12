@@ -17,6 +17,7 @@ const requiredTools = [
   "ragmir_search",
   "ragmir_ask",
   "ragmir_research",
+  "ragmir_expand",
   "ragmir_audit",
   "ragmir_evaluate",
   "ragmir_usage_report",
@@ -61,6 +62,9 @@ try {
   if (status.chunksIndexed < 1) {
     throw new Error("MCP status reported an empty index.")
   }
+  if (status.mcpMaxOutputBytes !== 32_768) {
+    throw new Error(`MCP status reported an unexpected output budget: ${JSON.stringify(status)}`)
+  }
   if (
     status.ingestionLimits?.maxFileBytes !== 50_000_000 ||
     status.ingestionLimits?.maxFiles !== null ||
@@ -90,6 +94,47 @@ try {
     throw new Error("MCP compact search did not return snippet-only results.")
   }
 
+  const boundedSearchResult = await client.callTool(
+    {
+      name: "ragmir_search",
+      arguments: {
+        query: "offline retrieval approval",
+        topK: 2,
+        compact: true,
+        maxBytes: 1_024,
+      },
+    },
+    undefined,
+    { timeout: 10_000 },
+  )
+  const boundedSearch = parseJsonToolResult(boundedSearchResult, "ragmir_search")
+  const outputMeta = boundedSearchResult._meta?.["ragmir/output"]
+  if (
+    !Array.isArray(boundedSearch) ||
+    typeof outputMeta?.returnedBytes !== "number" ||
+    outputMeta.returnedBytes > 1_024 ||
+    outputMeta.budgetBytes !== 1_024
+  ) {
+    throw new Error(
+      `MCP search did not enforce its byte budget: ${JSON.stringify(boundedSearchResult)}`,
+    )
+  }
+
+  const expanded = await callJsonTool(client, "ragmir_expand", {
+    citation: searchResults[0].citation,
+    contextRadius: 1,
+    maxBytes: 1_024,
+  })
+  if (
+    expanded.found !== true ||
+    !Array.isArray(expanded.passages) ||
+    !expanded.passages.some((passage) => passage.citation === searchResults[0].citation)
+  ) {
+    throw new Error(
+      `MCP citation expansion returned an unexpected result: ${JSON.stringify(expanded)}`,
+    )
+  }
+
   const filteredSearchResults = await callJsonTool(client, "ragmir_search", {
     query: "offline retrieval approval",
     topK: 5,
@@ -108,9 +153,13 @@ try {
   const answer = await callJsonTool(client, "ragmir_ask", {
     query: "What evidence supports offline operation?",
     topK: 2,
+    compact: true,
   })
   if (!Array.isArray(answer.sources) || answer.sources.length < 1) {
     throw new Error("MCP ask returned no cited sources.")
+  }
+  if (!("snippet" in answer.sources[0]) || "text" in answer.sources[0]) {
+    throw new Error("MCP compact ask did not return snippet-only sources.")
   }
 
   const research = await callJsonTool(client, "ragmir_research", {
@@ -140,6 +189,9 @@ try {
   if (typeof usage.averageResultCountByAction?.search !== "number") {
     throw new Error(`MCP usage report omitted per-action averages: ${JSON.stringify(usage)}`)
   }
+  if (usage.mcpOutput?.responses < 1 || usage.mcpOutput.returnedBytes < 1) {
+    throw new Error(`MCP usage report omitted output metrics: ${JSON.stringify(usage)}`)
+  }
   if (JSON.stringify(usage).includes(demoRoot)) {
     throw new Error("MCP usage report should not expose local project paths.")
   }
@@ -152,6 +204,7 @@ try {
         tools: requiredTools,
         chunksIndexed: status.chunksIndexed,
         searchResults: searchResults.length,
+        expandedPassages: expanded.passages.length,
         askSources: answer.sources.length,
         researchEvidence: research.evidence.length,
         evaluationRecall: evaluation.recall,
@@ -182,6 +235,10 @@ function runCliJson(args) {
 
 async function callJsonTool(client, name, args) {
   const result = await client.callTool({ name, arguments: args }, undefined, { timeout: 10_000 })
+  return parseJsonToolResult(result, name)
+}
+
+function parseJsonToolResult(result, name) {
   if (result.isError) {
     throw new Error(`${name} returned an MCP error.`)
   }
