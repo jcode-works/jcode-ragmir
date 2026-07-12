@@ -7,7 +7,7 @@ upload, offline by default.
 
 ## Canonical facts
 
-- License: MIT, open-source, no account required.
+- Open source, no account required.
 - Scope: retrieval only. Ragmir returns cited passages (file + chunk references); answer synthesis
   stays with the calling agent or model.
 - Best for: confidential non-code corpora that exceed the model context window.

@@ -1,6 +1,6 @@
 # Contributing
 
-Ragmir is an open-source project under the MIT License. Issues and pull requests are welcome.
+Ragmir is an open-source MIT project. Issues and pull requests are welcome.
 
 Ragmir is maintained by a single developer ([Jean-Baptiste Thery](https://github.com/jb-thery)).
 Be kind, be specific, and keep the scope of each contribution focused so it can be reviewed
@@ -21,9 +21,8 @@ to avoid duplicates. Security vulnerabilities must not be reported through publi
 
 ## Development
 
-This repo pins its Node.js and Rust versions with [mise](https://mise.jdx.dev/) (see `mise.toml`),
-the same versions CI uses; Rust is only needed if you're working on `packages/ragmir-app`'s Tauri
-shell. Install mise, then run the single onboarding command:
+This repo pins its Node.js version with [mise](https://mise.jdx.dev/) (see `mise.toml`), the same
+version CI uses. Install mise, then run the single onboarding command:
 
 ```bash
 pnpm bootstrap
@@ -35,9 +34,8 @@ works too — just run `pnpm install` directly.
 
 Activate mise in your shell (`mise activate`, per the
 [mise docs](https://mise.jdx.dev/getting-started.html)) so that entering this repository puts the
-pinned Node (and Rust) on your `PATH` automatically. Then `pnpm dev:app`, `pnpm dev:landing`, and
-`pnpm example` run on the same toolchain as CI without any per-script wiring — mise stays a
-version pinner, not a task runner (see `AGENTS.md`).
+pinned Node on your `PATH` automatically. Then `pnpm dev:landing` and `pnpm example` run on the
+same toolchain as CI without per-script wiring.
 
 `pnpm validate` runs Biome, a dependency security audit, TypeScript, Vitest, the production CLI/MCP
 smoke test, and npm package metadata checks.
@@ -62,7 +60,7 @@ pnpm audit:security
   into `develop`.
 - Keep changes focused and include tests or smoke coverage for behavior changes.
 - Do not commit private documents, generated vector stores, generated `.ragmir/` state, environment
-  files, tokens, credentials, customer ledgers, pricing tests, or interview notes.
+  files, tokens, credentials, or interview notes.
 - Use conventional commit messages such as `feat: add source parser` or
   `fix: handle empty index`.
 - Non-release branches run CI only. npm publishing is restricted to the protected semantic-release

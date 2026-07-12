@@ -1,27 +1,11 @@
 # Ragmir Landing
 
-Unpublished Astro static landing package for the Ragmir product surface.
-
-The visible product title stays `Ragmir`. The technical core remains `Ragmir Core` in developer-facing
-metadata only.
+Astro landing for the open-source Ragmir library, CLI, and MCP server.
 
 ```bash
 pnpm --filter @jcode.labs/ragmir-landing dev
 pnpm --filter @jcode.labs/ragmir-landing build
-pnpm --filter @jcode.labs/ragmir-landing cf:dry-run
 ```
 
-Local Astro dev runs on <http://localhost:4322>; Astro preview runs on
-<http://localhost:4323>. Those ports are configured in [`astro.config.mjs`](./astro.config.mjs) to
-avoid colliding with the WorkoutGen landing defaults.
-
-The landing presents the open-source Ragmir Core package (local RAG that gives AI agents cited
-passages over MCP without burning tokens), sovereign local retrieval, and a light teaser for the
-future Tauri desktop client. It does not collect emails.
-
-Cloudflare Workers Static Assets configuration lives in [`wrangler.jsonc`](./wrangler.jsonc). The
-canonical domain is `ragmir.com`; it is the future direct-download release surface for Ragmir
-Desktop, not an App Store or Play Store destination.
-
-No PostHog or hosted document telemetry belongs here. If analytics are needed later, prefer
-Cloudflare Web Analytics.
+Local development uses port 4322 and preview uses port 4323. The landing is static and has no
+product telemetry or document upload path.

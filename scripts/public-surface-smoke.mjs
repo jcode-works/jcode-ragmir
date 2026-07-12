@@ -6,23 +6,6 @@ import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const trackedFiles = gitLines(["ls-files"])
-const misleadingSourcePattern = new RegExp(
-  [
-    ["private", "workspace", "package"].join("\\s+"),
-    ["is", "proprietary"].join("\\s+"),
-    String.raw`proprietary\s+(?:Tauri|Ragmir|desktop|app|shell)`,
-    ["source", "available", "license"].join("\\s+"),
-  ].join("|"),
-  "giu",
-)
-const internalCommercialPattern = new RegExp(
-  [
-    ["Pricing", "Hypothesis"].join("\\s+"),
-    ["Willingness", "to", "pay"].join("\\s+"),
-    ["Evidence", "Ledger", "Fields"].join("\\s+"),
-  ].join("|"),
-  "gu",
-)
 const pathRules = [
   { pattern: /^\.kb\//u, label: "generated Ragmir index/config path" },
   { pattern: /^\.ragmir\//u, label: "generated Ragmir agent-state path" },
@@ -35,44 +18,12 @@ const pathRules = [
 ]
 const contentRules = [
   {
-    pattern: /https:\/\/ragmir\.jcode\.works\/download[^\s"'`)<]*/giu,
-    label: "active-looking Ragmir download URL",
-  },
-  {
-    pattern: /https:\/\/updates\.ragmir\.jcode\.works[^\s"'`)<]*/giu,
-    label: "active-looking Ragmir updater URL",
-  },
-  {
-    pattern: /https:\/\/(?:checkout|buy)\.lemonsqueezy\.com[^\s"'`)<]*/giu,
-    label: "real Lemon Squeezy checkout URL",
-  },
-  {
-    pattern: /https:\/\/buy\.paddle\.com[^\s"'`)<]*/giu,
-    label: "real Paddle checkout URL",
-  },
-  {
-    pattern: /https:\/\/buy\.stripe\.com[^\s"'`)<]*/giu,
-    label: "real Stripe checkout URL",
-  },
-  {
     pattern: /BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY/giu,
     label: "private key material",
   },
   {
     pattern: /\b(?:ghp|github_pat|sk_live|sk_test)_[A-Za-z0-9_]+/gu,
     label: "token-shaped secret",
-  },
-  {
-    pattern: /\bPrivate (?:workspace|Tauri|Astro|Cloudflare Worker|package)\b/gu,
-    label: "private package wording in public docs",
-  },
-  {
-    pattern: misleadingSourcePattern,
-    label: "misleading proprietary wording for tracked MIT source",
-  },
-  {
-    pattern: internalCommercialPattern,
-    label: "internal commercial validation wording",
   },
 ]
 

@@ -13,6 +13,16 @@ export { audit, ingest } from "./ingest.js"
 export { initProject } from "./init.js"
 export { ingestionLimits } from "./limits.js"
 export { serveMcp } from "./mcp.js"
+export type {
+  ConfigurePdfOcrOptions,
+  ConfigurePdfOcrResult,
+  ExtractPdfPageOptions,
+  OcrExecutableStatus,
+  PdfOcrEngine,
+  PdfOcrEngineSelection,
+  PdfOcrStatus,
+} from "./ocr.js"
+export { configurePdfOcr, extractPdfPage, inspectPdfOcr } from "./ocr.js"
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
 export type { PromptRouteDecision, PromptRouteTool } from "./prompt-routing.js"

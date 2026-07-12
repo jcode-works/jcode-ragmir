@@ -1,110 +1,16 @@
-# Ragmir Core Package
+# Ragmir Core
 
-`@jcode.labs/ragmir` is Ragmir Core, the technical core package for Ragmir, an open-source local RAG
-library, CLI, and MCP server. It indexes your specs, docs, and code locally and gives your AI agents
-only the useful cited passages, over MCP, without burning tokens on your whole repo.
-
-**Full documentation:** https://github.com/jcode-works/jcode-ragmir#readme
-
-This npm README is intentionally short because package READMEs are displayed separately on npm. The
-GitHub root README is the canonical product documentation.
-
-## What It Does
-
-Ragmir lets a Node.js repository keep a local knowledge base next to its private documents. It indexes
-supported local files, stores the generated retrieval index in the target repository, and exposes the
-same evidence through:
-
-- the `rgr` CLI;
-- a TypeScript library API;
-- a local MCP stdio server for compatible AI agents;
-- portable agent skills copied by `rgr setup`, including audio, Markdown-report, and legal-dossier
-  workflows.
-
-Ragmir does not send documents to a hosted RAG service and does not generate final LLM answers in
-core. It complements agent memory with a read-focused local evidence layer, then returns cited
-retrieval context with line-aware citations so the agent or model you trust can write from local
-evidence.
-
-## Use It For
-
-- private project, legal, operational, research, or institutional dossiers;
-- codebase and architecture context retrieval;
-- local-first agent workflows with bounded MCP access;
-- cited summaries, audits, briefs, and decision support.
-
-## Install
+`@jcode.labs/ragmir` provides the `rgr` CLI, TypeScript API, MCP server, and portable agent skills for
+local cited retrieval.
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir
-```
-
-## Quick Start
-
-```bash
 npx rgr setup
-npx rgr install-agent --agents claude,codex,kimi,opencode,cline
-npx rgr doctor --fix
-
-# Claude Code
-claude mcp add-json --scope local ragmir "$(cat .ragmir/claude-mcp-server.json)"
-
-# Codex
-cat .ragmir/codex-mcp.toml
-
-# Kimi Code CLI
-kimi --mcp-config-file .ragmir/kimi-mcp.json
-
-# OpenCode
-cat .ragmir/opencode.jsonc
-
-# Cline
-cat .ragmir/cline-mcp.json
+npx rgr sources add "docs/**/*.md"
+npx rgr ingest
+npx rgr search "your question"
 ```
 
-`rgr` is the public CLI command. The older `ragmir` command and legacy `kb` alias remain available as
-deprecated compatibility bins for existing scripts and print migration warnings; update automation to
-use `rgr`.
-
-Use `npx rgr setup --agents claude,codex --mcp-command ./scripts/serve-mcp.sh` when a
-repository should generate only selected MCP helpers or launch through a local wrapper.
-
-By default, Ragmir keeps local config, raw documents, generated indexes, access logs, models, reports,
-audio, and agent helper files under a single ignored `.ragmir/` project folder. It reports
-unsupported/skipped files during ingestion and reports supported files that produced no extractable
-text. `rgr setup` adds the matching Git ignore entry for local Ragmir state.
-
-The primary workflow is agent-first: Claude Code, Codex, Kimi, OpenCode, Cline, or another
-MCP-capable assistant asks Ragmir for cited local context, then writes or reasons from those
-citations. For terminal checks, use `npx rgr search "your question"` or
-`npx rgr ask "your question"`. Add `--context-radius 1` when a matched passage needs bounded
-neighboring chunks. For broader implementation or review work, use
-`npx rgr research "your topic" --compact` before asking the agent to synthesize.
-Agent hooks can call `npx rgr route-prompt "..." --json` first to decide whether a prompt needs
-Ragmir local context without storing prompt text or calling an LLM.
-
-Run `npx rgr doctor --fix` later to repair missing setup or rebuild stale indexes.
-For better semantic Q&A, run `npx rgr models pull --enable`, then run
-`npx rgr ingest --rebuild`.
-
-## Entry Points
-
-- CLI: `rgr`
-- Library import: `@jcode.labs/ragmir`
-- MCP server: `npx rgr serve-mcp`
-- Bundled skills: `npx rgr setup` or `npx rgr install-skill`
-
-The public TypeScript API reference is maintained in the root repository at
-[`docs/api-reference.md`](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md).
-
-## Main Agent Setup
-
-After `npx rgr setup`, use `npx rgr install-agent --agents claude`, `--agents kimi`,
-`--agents cline`, or a comma-separated list for native agent skill discovery. Native agent folders
-link back to `.ragmir/skills/` by default so there is one original skill source. Ragmir Core also
-generates MCP helpers for Claude Code, Codex, Kimi, OpenCode, and Cline under `.ragmir/`. See the
-canonical GitHub README for the full agent demo.
-
-## License
-
-MIT (c) Jean-Baptiste Thery.
+The generated `.ragmir/` state stays local and ignored by Git. See the
+[root README](https://github.com/jcode-works/jcode-ragmir#readme) for the API, agent setup, and
+focused documentation.

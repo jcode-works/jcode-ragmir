@@ -1,35 +1,25 @@
 # Ragmir
 
-> Open-source local RAG library, CLI, and MCP server. Ragmir indexes your specs, docs, and code
-> locally and gives your AI agents only the useful cited passages, over MCP, without burning tokens
-> on your whole repo. It stays sovereign and offline by default, storing vectors locally with
-> LanceDB; answer synthesis stays with the calling agent or model.
+Ragmir is a local-first RAG library, CLI, and MCP server for cited retrieval over files selected by
+the user. It keeps indexes under ignored local `.ragmir/` state and does not provide a hosted document
+store.
 
-Ragmir Core (`@jcode.labs/ragmir`, npm) ingests local files from the target repository, redacts
-secrets and PII before anything is embedded, and serves cited passages through a CLI (`rgr ...`),
-an MCP server (`rgr serve-mcp`), a TypeScript library, and portable skills for Claude Code, Codex,
-Kimi Code CLI, OpenCode, and Cline. It does not perform LLM answer synthesis itself; `rgr ask`
-returns cited passages only, and synthesis stays with the calling agent or model. Ragmir Chat
-(`@jcode.labs/ragmir-chat`, npm) is the optional desktop/CLI cited-chat add-on: it runs verified
-Gemma 4 QAT GGUF profiles through `node-llama-cpp` 3.19, with E2B `fast` by default, opt-in E4B
-`quality`, explicit setup, offline normal answers, and raw thought hidden and unpersisted. It requires no
-Ollama, Python, or hosted LLM API. Ragmir TTS (`@jcode.labs/ragmir-tts`, npm) renders offline audio
-summaries.
+## Core facts
 
-## Docs
+- Install: `pnpm add -D @jcode.labs/ragmir`
+- First use: `pnpm exec rgr setup && pnpm exec rgr ingest`
+- CLI: `rgr search "query"`, `rgr doctor`, `rgr audit`, and `rgr security-audit`
+- Core behavior: cited retrieval only. `ask` returns evidence, while synthesis belongs to the calling
+  agent or optional local chat add-on.
+- Default retrieval: local-hash, with no model download. Semantic embeddings and local GGUF chat are
+  explicit opt-ins.
 
-- [README](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/README.md): overview, install, quick start, developer use cases, full CLI walkthrough
-- [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/cli-reference.md): every `rgr` command and flag
-- [API reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/api-reference.md): library exports and MCP tools
-- [Agent integration](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/agent-integration.md): wiring Ragmir into Claude Code, Codex, Kimi Code CLI, OpenCode, Cline
+## Documentation
+
+- [README](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/README.md)
+- [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/cli-reference.md)
+- [API reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/api-reference.md)
+- [Configuration](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/configuration.md)
+- [Agent integration](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/agent-integration.md)
 - [Troubleshooting](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/troubleshooting.md)
-- [Offline chat preload](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/offline-chat-preload.md)
-- [Contributing](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/CONTRIBUTING.md): dev setup (mise-pinned Node.js toolchain), pull request and Git Flow conventions
-
-## Optional
-
-- [Source boundary](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/source-boundary.md): MIT source boundary and package split between Ragmir Core and add-ons
-- [Offline TTS preload](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/offline-tts-preload.md)
-- [FR/EU sovereign positioning](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/fr-eu-sovereign-positioning.md)
 - [Security hardening](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/SECURITY-HARDENING.md)
-- [Security policy](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/SECURITY.md)

@@ -28,6 +28,7 @@ import { audit, ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
+import { configurePdfOcr, extractPdfPage, inspectPdfOcr, parsePdfOcrEngine } from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
 import { routePrompt } from "./prompt-routing.js"
 import { ask, search } from "./query.js"
@@ -105,6 +106,94 @@ modelsCommand
       console.log("  2. Run `rgr ingest --rebuild` so existing vectors use the semantic model.")
     }
   })
+
+const ocrCommand = program
+  .command("ocr")
+  .description("Configure and diagnose local OCR for scanned PDF pages.")
+
+ocrCommand
+  .command("doctor")
+  .description("Detect supported local PDF OCR engines and installed languages.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }, command: Command) => {
+    const status = await inspectPdfOcr(projectRoot(command))
+    if (options.json) {
+      console.log(JSON.stringify(status, null, 2))
+      return
+    }
+
+    printPdfOcrStatus(status)
+  })
+
+ocrCommand
+  .command("setup")
+  .description("Detect a local PDF OCR engine and write a safe page-aware configuration.")
+  .option("--engine <engine>", "OCR engine: auto, ocrmypdf, or tesseract.", "auto")
+  .option("--language <codes>", "Tesseract language codes such as eng, fra, or eng+fra.", "eng")
+  .option("--timeout-ms <number>", "Per-page OCR timeout in milliseconds.", parsePositiveInt)
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (
+      options: {
+        engine: string
+        language: string
+        timeoutMs?: number
+        json?: boolean
+      },
+      command: Command,
+    ) => {
+      const configureOptions: Parameters<typeof configurePdfOcr>[0] = {
+        cwd: projectRoot(command),
+        engine: parsePdfOcrEngine(options.engine, true),
+        language: options.language,
+      }
+      addOption(configureOptions, "timeoutMs", options.timeoutMs)
+      const result = await configurePdfOcr(configureOptions)
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2))
+        return
+      }
+
+      console.log(pc.green("Local PDF OCR configured."))
+      console.log(`engine=${result.engine}`)
+      console.log(`language=${result.language}`)
+      console.log(`timeoutMs=${result.timeoutMs}`)
+      console.log(`configPath=${result.configPath}`)
+      console.log("")
+      console.log("Next steps:")
+      console.log("  1. Run `rgr ingest` to index scanned PDF pages with local OCR.")
+      console.log("  2. Run `rgr doctor` to confirm complete coverage.")
+    },
+  )
+
+ocrCommand
+  .command("extract-page", { hidden: true })
+  .requiredOption("--engine <engine>", "OCR engine: ocrmypdf or tesseract.")
+  .requiredOption("--language <codes>", "Tesseract language codes.")
+  .requiredOption("--input <path>", "PDF file to process.")
+  .requiredOption("--page <number>", "One-based PDF page number.", parsePositiveInt)
+  .option("--timeout-ms <number>", "OCR timeout in milliseconds.", parsePositiveInt)
+  .action(
+    async (
+      options: {
+        engine: string
+        language: string
+        input: string
+        page: number
+        timeoutMs?: number
+      },
+      command: Command,
+    ) => {
+      const extractOptions: Parameters<typeof extractPdfPage>[0] = {
+        engine: parsePdfOcrEngine(options.engine),
+        language: options.language,
+        input: path.resolve(projectRoot(command), options.input),
+        page: options.page,
+      }
+      addOption(extractOptions, "timeoutMs", options.timeoutMs)
+      process.stdout.write(await extractPdfPage(extractOptions))
+    },
+  )
 
 program
   .command("doctor")
@@ -1509,6 +1598,37 @@ function researchEvidencePreview(
   return evidence.text.replace(/\s+/gu, " ").trim().slice(0, SEARCH_TEXT_PREVIEW_LENGTH)
 }
 
+function printPdfOcrStatus(status: Awaited<ReturnType<typeof inspectPdfOcr>>): void {
+  console.log(`privacyProfile=${status.privacyProfile}`)
+  console.log(`configured=${status.configured}`)
+  console.log(`recommendedEngine=${status.recommendedEngine ?? "none"}`)
+  console.log(`ocrmypdf.available=${status.ocrmypdf.available}`)
+  console.log(`ocrmypdf.supported=${status.ocrmypdf.supported}`)
+  console.log(`ocrmypdf.version=${status.ocrmypdf.version ?? "unavailable"}`)
+  console.log(`tesseract.available=${status.tesseract.available}`)
+  console.log(`tesseract.version=${status.tesseract.version ?? "unavailable"}`)
+  console.log(`pdftoppm.available=${status.pdftoppm.available}`)
+  console.log(`pdftoppm.version=${status.pdftoppm.version ?? "unavailable"}`)
+  console.log(`languages=${status.languages.join(",")}`)
+  if (status.privacyProfile === "strict") {
+    console.log(
+      pc.yellow(
+        "The strict privacy profile disables external OCR even when local tools are installed.",
+      ),
+    )
+  } else if (!status.recommendedEngine) {
+    console.log(
+      pc.yellow(
+        "Install OCRmyPDF 12.6+ or install both Tesseract and Poppler, then run `rgr ocr setup`.",
+      ),
+    )
+  } else if (!status.configured) {
+    console.log(
+      `Run \`rgr ocr setup --engine ${status.recommendedEngine}\` to enable local PDF OCR.`,
+    )
+  }
+}
+
 function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: string): void {
   console.log(pc.green(title))
   console.log(`projectRoot=${result.projectRoot}`)
@@ -1596,7 +1716,7 @@ function printEmptyTextFiles(files: string[]): void {
   }
   console.log(
     pc.yellow(
-      "These supported files produced no indexable text. For scanned/image-only sources, configure pdfOcrCommand or imageOcrCommand, or store local OCR text beside the source file.",
+      "These supported files produced no indexable text. For scanned PDFs, run `rgr ocr doctor` then `rgr ocr setup`; for images, configure imageOcrCommand or store local OCR text beside the source file.",
     ),
   )
 }

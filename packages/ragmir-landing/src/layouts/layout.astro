@@ -117,12 +117,7 @@ function alternateHref(targetLocale: string): string {
     <meta name="robots" content={robots} />
     <meta name="googlebot" content={robots} />
     <meta name="format-detection" content="telephone=no" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Ragmir" />
-    <meta name="application-name" content="Ragmir" />
     <meta name="theme-color" content="#000000" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="canonical" href={canonicalURL.href} />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <link rel="alternate" href="/llms.txt" type="text/plain" title="LLM instructions" />
@@ -173,16 +168,6 @@ function alternateHref(targetLocale: string): string {
     <title>{title}</title>
     <ClientRouter />
     <slot name="head" />
-    {
-      isProduction && (
-        <script
-          is:inline
-          defer
-          src="https://static.cloudflareinsights.com/beacon.min.js"
-          data-cf-beacon='{"token": "8f36a1b1d0874ad991f59720e82d14d2"}'
-        />
-      )
-    }
   </head>
   <body class="relative min-h-dvh">
     <slot />
