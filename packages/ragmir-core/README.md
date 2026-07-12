@@ -1,50 +1,70 @@
 # Ragmir Core
 
-`@jcode.labs/ragmir` is the main Ragmir package. It provides the `rgr` command-line interface, a
-TypeScript retrieval API, a local MCP server, and portable agent helpers.
+[![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-Use it when a repository needs searchable, cited context without uploading its documents to a hosted
-knowledge base. It is retrieval-first: the default `local-hash` mode works offline, without an
-account or model download.
+**The CLI, TypeScript API, and local MCP server for cited project retrieval.**
 
-## Choose this package when you need
+`@jcode.labs/ragmir` indexes the files a project selects and returns source-backed passages without
+a hosted document store. The default `local-hash` retrieval path works offline, without an account
+or model download.
 
-| Need | What Core provides |
+[Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
+[CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md) ·
+[API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
+
+## Install Core when you need
+
+| Goal | Core interface |
 | --- | --- |
-| Search project documents from a terminal | `rgr search` with source citations. |
-| Give an AI agent bounded access to repository context | A local stdio MCP server and generated helpers. |
-| Build retrieval into a Node.js tool | A typed TypeScript API for ingesting and searching. |
-| Index PDFs, Markdown, source files, Office files, HTML, or CSV | Local extraction, redaction, chunking, and storage. |
-| Work with a confidential repository offline | Ignored local `.ragmir/` state and offline-first retrieval. |
+| Search repository documents with citations | `rgr search` |
+| Audit a local knowledge base | `rgr audit`, `rgr doctor`, and `rgr security-audit` |
+| Add retrieval to a Node.js application | Typed `ingest`, `search`, `ask`, and `research` exports |
+| Give an AI agent bounded project context | Local stdio MCP server and generated helpers |
+| Index scanned PDFs | Embedded text first, with optional page-aware local OCR |
 
-For answer generation, install the optional [Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
-package. For audio summaries, install [Ragmir TTS](https://www.npmjs.com/package/@jcode.labs/ragmir-tts).
+Core retrieves evidence. It does not require a generative model and does not produce an ungrounded
+answer. Add [Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) only when local
+GGUF synthesis is useful, or [Ragmir TTS](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
+when you need audio output.
 
-## Quick start
+## First cited search
 
-Install Core in the repository that owns the documents you want to search:
+Requires Node.js 20 or later.
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir
 npx rgr setup
-npx rgr sources add "docs/**/*.md"
+npx rgr sources add "README.md" "docs/**/*.md"
 npx rgr ingest
-npx rgr search "Which decision changed the deployment?"
+npx rgr search "Which decision changed the rollout?"
 ```
 
-`rgr setup` creates ignored local state. `rgr ingest` incrementally extracts text, applies configured
-redaction, chunks the content, and writes the local index. Every search result identifies its source
-file, excerpt, chunk, and PDF page when available.
+The project now owns an ignored `.ragmir/` directory containing configuration and generated local
+state. Ingestion is incremental, and every result identifies the source path, chunk, line range, and
+PDF page when one is available.
 
-## How it works
+## CLI essentials
 
-1. Select files with `rgr sources add` or `.ragmir/sources.txt`.
-2. Ragmir extracts and redacts text locally, then writes a local index under `.ragmir/`.
-3. `rgr search`, the TypeScript API, and MCP return ranked passages with citations.
-4. Semantic embeddings, OCR, local chat, and audio are explicit opt-ins.
+```bash
+# Readiness and source coverage
+npx rgr doctor
+npx rgr audit --unsupported
+npx rgr security-audit
 
-For a scanned PDF, OCR runs only on pages that have no embedded text, through a command configured on
-your machine. Ragmir never sends PDF pages to a cloud OCR service.
+# Retrieval
+npx rgr search "deployment decision"
+npx rgr ask "What evidence supports the deployment decision?"
+npx rgr research "deployment obligations" --compact
+
+# Machine-readable output
+npx rgr search "deployment decision" --json
+```
+
+`ask` returns cited retrieval context, not LLM synthesis. `research` performs an audit-backed,
+multi-query retrieval pass and reports missing or weak evidence.
 
 ## TypeScript API
 
@@ -53,39 +73,100 @@ import { ingest, search } from "@jcode.labs/ragmir"
 
 await ingest({ cwd: process.cwd() })
 
-const results = await search("Which decision changed the deployment?", { topK: 5 })
+const results = await search("Which decision changed the rollout?", {
+  cwd: process.cwd(),
+  topK: 5,
+})
 
 for (const result of results) {
-  console.log(result.relativePath, result.citation, result.text)
+  console.log(result.citation, result.text)
 }
 ```
 
-Use `ask()` for cited retrieval context without an LLM, `research()` for audit-backed multi-query
-retrieval, and `serveMcp()` to start the local MCP server from your own integration.
+Frequently used exports:
 
-## Agent setup
+| Export | Purpose |
+| --- | --- |
+| `setupProject`, `addSourceEntries` | Initialize project state and select files |
+| `ingest`, `audit` | Build the index and compare it with files on disk |
+| `search`, `ask`, `research` | Retrieve cited passages at different levels of breadth |
+| `doctor`, `securityAudit` | Inspect readiness and local privacy posture |
+| `serveMcp` | Start the read-focused local MCP server |
+| `configurePdfOcr`, `inspectPdfOcr` | Configure and inspect local PDF OCR |
 
-Generate local MCP helpers for the agents used by the repository:
+See the [complete API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
+for options and result shapes.
+
+## Connect an AI agent
 
 ```bash
 npx rgr setup --agents claude,codex,kimi,opencode,cline
+npx rgr doctor
 ```
 
-The generated helper points the agent at the current project, never at Ragmir's package installation
-directory. Retrieval stays bounded and read-focused.
+Ragmir writes helper files for the selected clients and points them at the current project. MCP
+exposes status, search, ask, research, audit, evaluation, usage, and security tools. It does not
+expose index deletion.
 
-## Technology and local data
+## Retrieval modes
 
-Core is TypeScript for Node.js 20 or later. It uses LanceDB for local storage, the Model Context
-Protocol TypeScript SDK for agent integration, and Transformers.js only when semantic retrieval is
-explicitly enabled. Its generated `.ragmir/` state is local and should stay ignored by Git.
+| Mode | Network requirement | Best for |
+| --- | --- | --- |
+| `local-hash` | None | Default offline retrieval, setup-free projects, and deterministic evaluation |
+| `transformers` | Explicit model preload or download | Higher-quality semantic matching with local inference |
 
-## Further reading
+Enable semantic retrieval explicitly:
 
-- [Ragmir overview and package comparison](https://github.com/jcode-works/jcode-ragmir#readme)
+```bash
+npx rgr setup --semantic
+npx rgr ingest --rebuild
+```
+
+`local-hash` is lexical/hash retrieval. It should not be presented as equivalent to semantic
+embeddings.
+
+## Documents and OCR
+
+Core parses common source, text, structured-data, Office, OpenDocument, EPUB, HTML, email, notebook,
+and PDF formats. Projects can add custom text extensions. Run `rgr audit --unsupported` to see every
+skipped file and recommendation.
+
+For scanned PDFs:
+
+```bash
+npx rgr ocr setup --engine auto
+npx rgr ingest --rebuild
+```
+
+Ragmir prefers embedded PDF text and invokes OCR only for blank pages. OCR runs through a configured
+local executable, never a shell string or cloud OCR service.
+
+## Local data and privacy
+
+- Project paths resolve from `cwd` or explicit configuration, not the npm installation directory.
+- Generated indexes, models, reports, audio, and access logs belong under ignored `.ragmir/` state.
+- Redaction runs before indexing when configured, but it is not a compliance certification.
+- External extractors and model downloads are opt-in system boundaries.
+- MCP retrieval is bounded and access logs contain metadata, not query text or retrieved passages.
+
+Read [configuration and privacy](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
+and [security hardening](https://github.com/jcode-works/jcode-ragmir/blob/main/SECURITY-HARDENING.md)
+before indexing sensitive material.
+
+## Runnable examples
+
+| Example | Demonstrates |
+| --- | --- |
+| [Sovereign RAG demo](https://github.com/jcode-works/jcode-ragmir/tree/main/packages/ragmir-core/examples/sovereign-rag-demo) | CLI ingestion, search, audit, redaction, and evaluation |
+| [Library API demo](https://github.com/jcode-works/jcode-ragmir/tree/main/packages/ragmir-core/examples/library-api-demo) | The public library surface against fictional files |
+| [Document evidence benchmark](https://github.com/jcode-works/jcode-ragmir/tree/main/packages/ragmir-core/examples/document-evidence-benchmark) | Recall and exact citation evaluation |
+
+## Documentation
+
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [TypeScript API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
-- [Configuration and privacy](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
+- [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
+- [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
 
-Ragmir is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
+Ragmir Core is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
