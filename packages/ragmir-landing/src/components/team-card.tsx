@@ -1,4 +1,4 @@
-import { cn } from "@jcode.labs/ragmir-ui/utils"
+import { cn } from "../lib/utils"
 
 interface TeamCardLink {
   label: string

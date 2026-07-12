@@ -1,6 +1,6 @@
-import { cn } from "@jcode.labs/ragmir-ui/utils"
 import { Check, Copy } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { cn } from "../lib/utils"
 import { emitCopyToast } from "./command-copy-toast"
 
 interface CommandCopyBoxProps {
