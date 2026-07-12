@@ -1,10 +1,11 @@
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { ingest } from "./ingest.js"
+import { initProject } from "./init.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -183,6 +184,48 @@ describe("evaluateGoldenQueries", () => {
       true,
     )
     expect(result?.returnedPaths).not.toContain("raw/security-policy.yaml")
+  })
+
+  it("applies structural context filters declared by each golden query", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-context-filter-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "runbook.md"),
+      [
+        "# Operations",
+        "",
+        "## Current",
+        "Verified approval evidence for the current workflow.",
+        "",
+        "## Archive",
+        "Verified approval evidence for the archived workflow.",
+      ].join("\n"),
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, "context-golden.json"),
+      JSON.stringify([
+        {
+          query: "verified approval evidence",
+          expectedPaths: [".ragmir/raw/runbook.md"],
+          contextPaths: ["Operations > Archive"],
+          topK: 3,
+        },
+      ]),
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const report = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "context-golden.json",
+    })
+
+    expect(report.cases[0]?.hit).toBe(true)
+    expect(report.cases[0]?.contextPaths).toEqual(["Operations > Archive"])
+    expect(report.cases[0]?.returnedPaths).toEqual([".ragmir/raw/runbook.md"])
   })
 
   it("reports a miss when no expected path is retrieved", async () => {
