@@ -36,6 +36,9 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, and `excludePaths`.
 `ExpandCitationOptions` accepts `cwd` and a `contextRadius` clamped to three chunks.
+Search results expose a `contextPath` derived from Markdown headings or JSON structure. This field
+improves retrieval, while `text`, offsets, and citations continue to reference the exact source
+passage.
 
 ## Operations and privacy
 

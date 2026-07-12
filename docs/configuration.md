@@ -27,6 +27,8 @@ edit JSON only for a real need.
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
 
 Changing an embedding provider, model, or chunking field requires `rgr ingest --rebuild`.
+Ragmir also preserves Markdown heading paths and JSON or JSONL structure as retrieval-only context.
+Rebuild indexes created by an older Ragmir version to populate that structural context.
 
 ## Privacy profiles
 
@@ -62,7 +64,8 @@ they run without a shell and must print text to stdout.
 Use `RAGMIR_*` variables for local experiments, for example:
 
 ```bash
-RAGMIR_TOP_K=5 RAGMIR_MCP_MAX_OUTPUT_BYTES=16384 rgr search "migration"
+RAGMIR_TOP_K=5 rgr search "migration"
+RAGMIR_MCP_MAX_OUTPUT_BYTES=16384 rgr mcp
 ```
 
 Environment overrides cover selected runtime settings such as models, retrieval limits, access logs,

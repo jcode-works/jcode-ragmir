@@ -18,6 +18,7 @@ describe("MCP output budgeting", () => {
         source: "policy.md",
         relativePath: "raw/policy.md",
         chunkIndex: 0,
+        contextPath: "Policy > Controls",
         citation: "raw/policy.md:L1-L2#0",
         snippet: "évidence concise",
         distance: 0.1,
@@ -150,6 +151,7 @@ function searchResult(text: string): SearchResult {
     source: "policy.md",
     relativePath: "raw/policy.md",
     chunkIndex: 0,
+    contextPath: "Policy > Controls",
     citation: "raw/policy.md:L1-L2#0",
     text,
     distance: 0.1,
@@ -197,6 +199,7 @@ function researchPayload(detail: string): McpResearchPayload {
 function contextPassage(chunkIndex: number, text: string) {
   return {
     chunkIndex,
+    contextPath: "Policy > Controls",
     text,
     charStart: chunkIndex * 10,
     charEnd: chunkIndex * 10 + text.length,
