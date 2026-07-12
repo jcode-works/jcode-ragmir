@@ -1,5 +1,9 @@
 export { accessLogUsageReport } from "./access-log.js"
 export { loadConfig } from "./config.js"
+export {
+  getKnowledgeBaseContext,
+  getKnowledgeBaseSourceCatalog,
+} from "./context-resources.js"
 export { destroyIndex } from "./destroy.js"
 export { doctor } from "./doctor.js"
 export { clearTransformersCache, pullEmbeddingModel } from "./embeddings.js"
@@ -82,9 +86,11 @@ export type {
   IndexManifestFile,
   IngestionLimitsReport,
   IngestResult,
+  KnowledgeBaseContextReport,
   KnowledgeBaseIdentity,
   KnowledgeBaseInfo,
   KnowledgeBaseInventory,
+  KnowledgeBaseSourceCatalog,
   McpOutputTool,
   McpOutputUsageReport,
   ParsedPage,

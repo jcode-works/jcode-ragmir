@@ -718,6 +718,7 @@ prompt should call Ragmir before answering. The router is local and does not sto
     `This helper is pinned to one knowledge-base root. In a monorepo, keep the generated server name
 \`${input.mcpServerName}\` and generate a separate helper from each nested base. Call
 \`ragmir_status\` and verify \`knowledgeBaseId\` before retrieval when the active base is unclear.`,
+    "Read `ragmir://context` for bounded base identity, readiness, freshness, and capabilities. Read `ragmir://sources` only when source coverage or index drift matters.",
   ]
 
   if (hasAgentHelper(input, "claude")) {

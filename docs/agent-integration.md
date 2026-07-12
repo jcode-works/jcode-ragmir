@@ -48,6 +48,17 @@ The server exposes `ragmir_status`, `ragmir_route_prompt`, `ragmir_search`, `rag
 `ragmir_research`, `ragmir_expand`, `ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`, and
 `ragmir_security_audit`.
 
+It also exposes two bounded resources:
+
+| Resource | Use |
+| --- | --- |
+| `ragmir://context` | Active base identity, readiness, freshness, coverage, and available operations. |
+| `ragmir://sources` | Source coverage, skipped-file counts, and index drift, with per-file lists capped at 50. |
+
+Read `ragmir://context` first when the client supports resources. This gives an agent enough context
+to choose the next operation without chaining status, doctor, and audit calls. Totals in
+`ragmir://sources` stay complete even when detail lists are truncated.
+
 Use compact retrieval first, then pass a returned citation to `ragmir_expand` when the agent needs
 the exact chunk or a bounded neighbor window. Search, ask, research, and expansion accept `maxBytes`;
 the server also enforces the configured `mcpMaxOutputBytes` ceiling. Their single JSON text result

@@ -311,6 +311,55 @@ export interface KnowledgeBaseInventory {
   bases: KnowledgeBaseInfo[]
 }
 
+export interface KnowledgeBaseContextReport {
+  knowledgeBaseId: string | null
+  projectRoot: string
+  privacyProfile: PrivacyProfile
+  retrievalProfile: RetrievalProfile
+  embeddingProvider: EmbeddingProvider
+  ready: boolean
+  coverage: {
+    supportedFiles: number
+    indexedFiles: number
+    chunksIndexed: number
+    missingFromIndex: number
+    staleInIndex: number
+    emptyTextFiles: number
+  }
+  indexFreshness: DoctorReport["indexFreshness"]
+  securityWarningCount: number
+  nextSteps: string[]
+  routing: {
+    selection: "nearest-configured-ancestor"
+    discoverCommand: "rgr bases --json"
+  }
+  tools: string[]
+  resources: string[]
+}
+
+export interface KnowledgeBaseSourceCatalog {
+  knowledgeBaseId: string | null
+  totals: {
+    indexedFiles: number
+    chunks: number
+    missingFromIndex: number
+    staleInIndex: number
+    emptyTextFiles: number
+    skippedFiles: number
+  }
+  indexedFiles: Array<{ source: string; chunks: number }>
+  missingFromIndex: string[]
+  staleInIndex: string[]
+  emptyTextFiles: string[]
+  skippedByReason: Record<string, number>
+  omitted: {
+    indexedFiles: number
+    missingFromIndex: number
+    staleInIndex: number
+    emptyTextFiles: number
+  }
+}
+
 export interface SearchOptions {
   cwd?: PathLike
   topK?: number

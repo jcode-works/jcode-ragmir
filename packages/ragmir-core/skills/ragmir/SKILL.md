@@ -43,6 +43,8 @@ acceptable. Normal confidential indexing keeps remote model loading disabled.
 
 | Need | Command or MCP tool |
 | --- | --- |
+| Active base, readiness, and capabilities | Read `ragmir://context` or run `rgr status --json` |
+| Bounded source coverage and index drift | Read `ragmir://sources` or run `rgr audit` |
 | Readiness | `rgr doctor` or `ragmir_status` |
 | Repair setup or stale data | `rgr doctor --fix` |
 | Check unindexed or unsupported files | `rgr audit --unsupported` |
@@ -119,6 +121,10 @@ Prefer compact search, ask, or research output first. Call `ragmir_expand` with 
 only when the exact chunk or neighboring context is needed. Retrieval tools accept `maxBytes`, but
 the configured `mcpMaxOutputBytes` remains the hard ceiling. Inspect `_meta["ragmir/output"]` to see
 whether the response was compacted or truncated.
+
+When MCP resources are supported, read `ragmir://context` first for a bounded identity, readiness,
+freshness, coverage, and capability overview. Read `ragmir://sources` only when source coverage or
+index drift matters; its per-file lists are capped while totals remain complete.
 
 MCP is read-focused. Only remove an index with the explicit shell command:
 

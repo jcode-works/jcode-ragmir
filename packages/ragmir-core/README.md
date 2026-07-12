@@ -89,6 +89,7 @@ Frequently used exports:
 | --- | --- |
 | `setupProject`, `addSourceEntries` | Initialize project state and select files |
 | `discoverKnowledgeBases`, `knowledgeBaseIdentity` | Route root and nested monorepo bases |
+| `getKnowledgeBaseContext`, `getKnowledgeBaseSourceCatalog` | Give agents bounded readiness and source context |
 | `ingest`, `audit` | Build the index and compare it with files on disk |
 | `search`, `ask`, `research`, `expandCitation` | Retrieve or expand cited passages |
 | `doctor`, `securityAudit` | Inspect readiness and local privacy posture |

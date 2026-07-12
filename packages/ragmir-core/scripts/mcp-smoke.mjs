@@ -23,6 +23,7 @@ const requiredTools = [
   "ragmir_usage_report",
   "ragmir_security_audit",
 ]
+const requiredResources = ["ragmir://context", "ragmir://sources"]
 
 const client = new Client({ name: "ragmir-mcp-smoke", version: "0.0.0" })
 const transport = new StdioClientTransport({
@@ -56,6 +57,40 @@ try {
     if (!toolNames.includes(toolName)) {
       throw new Error(`Missing MCP tool: ${toolName}`)
     }
+  }
+
+  const resourcesResult = await client.listResources(undefined, { timeout: 5_000 })
+  const resourceUris = resourcesResult.resources.map((resource) => resource.uri)
+  for (const resourceUri of requiredResources) {
+    if (!resourceUris.includes(resourceUri)) {
+      throw new Error(`Missing MCP resource: ${resourceUri}`)
+    }
+  }
+  const contextResource = parseJsonResource(
+    await client.readResource({ uri: "ragmir://context" }, { timeout: 10_000 }),
+    "ragmir://context",
+  )
+  if (
+    contextResource.knowledgeBaseId !== "." ||
+    contextResource.indexFreshness?.manifestFound !== true ||
+    !contextResource.tools?.includes("ragmir_search")
+  ) {
+    throw new Error(
+      `MCP context resource returned unexpected data: ${JSON.stringify(contextResource)}`,
+    )
+  }
+  const sourcesResource = parseJsonResource(
+    await client.readResource({ uri: "ragmir://sources" }, { timeout: 10_000 }),
+    "ragmir://sources",
+  )
+  if (
+    sourcesResource.totals?.indexedFiles < 1 ||
+    !Array.isArray(sourcesResource.indexedFiles) ||
+    sourcesResource.indexedFiles.length < 1
+  ) {
+    throw new Error(
+      `MCP source resource returned unexpected data: ${JSON.stringify(sourcesResource)}`,
+    )
   }
 
   const status = await callJsonTool(client, "ragmir_status", {})
@@ -231,6 +266,7 @@ try {
         ok: true,
         projectRoot: demoRoot,
         tools: requiredTools,
+        resources: resourceUris,
         chunksIndexed: status.chunksIndexed,
         searchResults: searchResults.length,
         expandedPassages: expanded.passages.length,
@@ -278,4 +314,16 @@ function parseJsonToolResult(result, name) {
   }
 
   return JSON.parse(textItem.text)
+}
+
+function parseJsonResource(result, resourceUri) {
+  const content = result.contents[0]
+  if (!content || !("text" in content)) {
+    throw new Error(`${resourceUri} returned no text content.`)
+  }
+  try {
+    return JSON.parse(content.text)
+  } catch (error) {
+    throw new Error(`${resourceUri} returned invalid JSON: ${String(error)}`)
+  }
 }

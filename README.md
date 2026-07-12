@@ -78,7 +78,8 @@ pnpm exec rgr doctor
 
 Setup writes local helper files for the selected agents. The MCP surface is intentionally bounded
 and read-focused. Agents can request compact evidence first, then expand one returned citation
-without opening a second index or reading arbitrary files.
+without opening a second index or reading arbitrary files. MCP clients can read `ragmir://context`
+for a compact base, readiness, freshness, and capability overview before choosing a tool.
 
 ### Route knowledge in a monorepo
 

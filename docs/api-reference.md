@@ -19,6 +19,8 @@ All paths resolve from `cwd` or the current working directory. Retrieval results
 | `loadConfig(start?)` | Resolve and validate effective configuration. |
 | `knowledgeBaseIdentity(start?)` | Identify the nearest base relative to the outer configured workspace. |
 | `discoverKnowledgeBases(start?)` | List root and nested bases and mark the active one. |
+| `getKnowledgeBaseContext(cwd?)` | Return bounded identity, readiness, freshness, and capability context. |
+| `getKnowledgeBaseSourceCatalog(cwd?)` | Return bounded source coverage with complete totals. |
 | `listSourceEntries(cwd?)` | Read configured source entries. |
 | `addSourceEntries(options)` | Add source paths or exclusions. |
 

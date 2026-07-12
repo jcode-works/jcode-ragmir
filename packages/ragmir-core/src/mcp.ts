@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { accessLogUsageReport, recordMcpOutput } from "./access-log.js"
 import { findProjectConfig, loadConfig } from "./config.js"
+import { getKnowledgeBaseContext, getKnowledgeBaseSourceCatalog } from "./context-resources.js"
 import { RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { audit } from "./ingest.js"
@@ -88,6 +89,30 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
     name: "ragmir",
     version: VERSION,
   })
+
+  server.registerResource(
+    "ragmir-context",
+    "ragmir://context",
+    {
+      title: "Ragmir Knowledge Base Context",
+      description:
+        "Active base identity, readiness, freshness, coverage, and available operations.",
+      mimeType: "application/json",
+    },
+    async (uri) => jsonResource(uri, await getKnowledgeBaseContext(cwd)),
+  )
+
+  server.registerResource(
+    "ragmir-sources",
+    "ragmir://sources",
+    {
+      title: "Ragmir Source Catalog",
+      description:
+        "Bounded source coverage, skipped-file counts, and index drift for the active base.",
+      mimeType: "application/json",
+    },
+    async (uri) => jsonResource(uri, await getKnowledgeBaseSourceCatalog(cwd)),
+  )
 
   server.registerTool(
     "ragmir_status",
@@ -444,6 +469,21 @@ function textResult(value: unknown): { content: Array<{ type: "text"; text: stri
     content: [
       {
         type: "text",
+        text: JSON.stringify(value, null, 2),
+      },
+    ],
+  }
+}
+
+function jsonResource(
+  uri: URL,
+  value: unknown,
+): { contents: Array<{ uri: string; mimeType: string; text: string }> } {
+  return {
+    contents: [
+      {
+        uri: uri.href,
+        mimeType: "application/json",
         text: JSON.stringify(value, null, 2),
       },
     ],
