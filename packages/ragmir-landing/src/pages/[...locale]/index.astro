@@ -5,7 +5,6 @@ import { LibrarySection } from "../../components/library-section"
 import { LandingNavbar } from "../../components/landing-navbar"
 import Agents from "../../components/sections/agents.astro"
 import ClosingCta from "../../components/sections/closing-cta.astro"
-import Desktop from "../../components/sections/desktop.astro"
 import Faq from "../../components/sections/faq.astro"
 import Features from "../../components/sections/features.astro"
 import Footer from "../../components/sections/footer.astro"
@@ -39,7 +38,6 @@ const faqItems = [
   { question: t("faq_compare_question"), answer: t("faq_compare_answer") },
   { question: t("faq_role_question"), answer: t("faq_role_answer") },
   { question: t("faq_formats_question"), answer: t("faq_formats_answer") },
-  { question: t("faq_license_question"), answer: t("faq_license_answer") },
 ]
 const structuredData = [
   {
@@ -89,22 +87,14 @@ const structuredData = [
   },
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
+    "@type": "SoftwareSourceCode",
     "@id": "https://ragmir.com/#software",
     name: "Ragmir",
     description: t("seo_home_description"),
     url: pageUrl,
     codeRepository: "https://github.com/jcode-works/jcode-ragmir",
-    applicationCategory: "DeveloperApplication",
-    operatingSystem: "macOS, Linux, Windows",
+    runtimePlatform: "Node.js",
     softwareRequirements: t("seo_software_requirements"),
-    isAccessibleForFree: true,
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-    },
-    license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
     programmingLanguage: "TypeScript",
     inLanguage: ["en", "fr"],
     featureList: [
@@ -114,7 +104,6 @@ const structuredData = [
       "Agent setup for cloud agents and local OpenCode workflows",
       t("seo_software_feature_chat"),
       "Optional local audio summaries with MP3 or WAV output",
-      "Planned desktop client distributed through direct downloads",
       "Redaction before indexing",
       "Metadata-only access logs",
     ],
@@ -198,8 +187,6 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
     <Privacy translations={translations} />
 
     <Strengths translations={translations} />
-
-    <Desktop translations={translations} />
 
     <Faq translations={translations} />
 
