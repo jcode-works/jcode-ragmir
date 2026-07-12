@@ -1,223 +1,43 @@
-# Agent Integration
+# Agent integration
 
-Ragmir ships with portable agent skills and a standard MCP server.
-
-If `rgr setup` was not used, install the agent kit into a repository:
+Ragmir gives agents cited local passages through one stdio MCP server. Prepare the target repository once:
 
 ```bash
-npx rgr install-skill
+rgr setup --agents claude,codex,kimi,opencode,cline
 ```
 
-By default this writes helper files for every supported agent. To keep a repository focused on only
-the agents it uses, pass a comma-separated target list:
+The generated files live under ignored `.ragmir/`. They reference `rgr serve-mcp` in the target repository, never a hosted document service.
+
+## Native helpers
+
+| Agent | Generated helper |
+| --- | --- |
+| Claude Code | `.ragmir/claude-mcp-server.json` |
+| Codex | `.ragmir/codex-mcp.toml` |
+| Kimi | `.ragmir/kimi-mcp.json` |
+| OpenCode | `.ragmir/opencode.jsonc` |
+| Cline | `.ragmir/cline-mcp.json` |
+
+Install native skill discovery when the agent supports it:
 
 ```bash
-npx rgr setup --agents claude,codex
-npx rgr install-skill --agents claude,codex
+rgr install-agent --agents codex,claude
 ```
 
-If an agent must launch Ragmir through a repository wrapper, generate the MCP helpers with that
-command:
+Use `--scope user` only when you intentionally want a user-wide installation. Project scope is the default. `--mode copy` is a fallback for filesystems that cannot follow symlinks.
+
+## MCP tools
+
+The server exposes `ragmir_status`, `ragmir_route_prompt`, `ragmir_search`, `ragmir_ask`, `ragmir_research`, `ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`, and `ragmir_security_audit`.
+
+Use compact search output when context is limited. `ragmir_ask` returns cited evidence, not a model generated answer. A cloud agent can receive returned passages, so choose that handoff only when it matches the corpus’s confidentiality requirements.
+
+## Verify
 
 ```bash
-npx rgr setup --agents claude,codex --mcp-name project-docs --mcp-command ./scripts/serve-mcp.sh
+rgr doctor
+rgr status --json
+rgr search "known phrase" --compact
 ```
 
-This creates:
-
-```plain text
-.ragmir/skills/ragmir/SKILL.md
-.ragmir/skills/ragmir-audio-summary/SKILL.md
-.ragmir/skills/ragmir-markdown-report/SKILL.md
-.ragmir/skills/ragmir-legal-dossier/SKILL.md
-.ragmir/mcp.json
-.ragmir/claude-mcp-server.json
-.ragmir/codex-mcp.toml
-.ragmir/kimi-mcp.json
-.ragmir/opencode.jsonc
-.ragmir/cline-mcp.json
-.ragmir/agent-setup.md
-.ragmir/README.md
-```
-
-When `--agents` is used, Ragmir keeps `.ragmir/mcp.json`, the skill folders, and the shared guides, but
-only writes the selected agent helper files. Previously generated unselected helper files are
-removed from `.ragmir/`.
-
-Agents that support skill folders can load `.ragmir/skills/ragmir/` for deep local RAG usage. Load
-`.ragmir/skills/ragmir-audio-summary/` only when an optional spoken summary is needed. Load
-`.ragmir/skills/ragmir-markdown-report/` when the user asks for a cited Markdown report, dossier,
-audit memo, or planning note. Load `.ragmir/skills/ragmir-legal-dossier/` when the user asks for a
-legal chronology, clause review, evidence table, or professional-review handoff. Other agents can
-read the generated `.ragmir/README.md` and use the MCP config snippet.
-
-For native discovery in a specific agent, install only the agent you use:
-
-```bash
-npx rgr install-agent --agents claude
-npx rgr install-agent --agents kimi
-npx rgr install-agent --agents claude,codex,kimi,opencode,cline
-```
-
-By default, `install-agent` writes project-scope skill folders as links back to `.ragmir/skills/`.
-That keeps one original version of every skill. Add `--scope user` for global installations, or
-`--mode copy` only when an agent/runtime cannot follow symlinked skill directories.
-
-| Agent | Project skill directory | Main MCP helper |
-| --- | --- | --- |
-| Claude Code | `.claude/skills/` | `.ragmir/claude-mcp-server.json` |
-| Codex | `.codex/skills/` plus `skills.config` | `.ragmir/codex-mcp.toml` |
-| Kimi Code CLI | `.kimi/skills/` | `.ragmir/kimi-mcp.json` |
-| OpenCode | `.opencode/skills/` | `.ragmir/opencode.jsonc` |
-| Cline | `.cline/skills/` | `.ragmir/cline-mcp.json` |
-
-Start the MCP server from the repository root:
-
-```bash
-npx rgr serve-mcp
-```
-
-For a repository-level protocol smoke test, run the synthetic demo client:
-
-```bash
-pnpm --filter @jcode.labs/ragmir mcp:smoke
-```
-
-MCP tools exposed:
-
-- `ragmir_status`
-- `ragmir_route_prompt`
-- `ragmir_search`
-- `ragmir_ask`
-- `ragmir_research`
-- `ragmir_audit`
-- `ragmir_evaluate`
-- `ragmir_usage_report`
-- `ragmir_security_audit`
-
-This MCP layer is the recommended way to let any compatible LLM or agent query the same local
-knowledge base. The LLM does not need to know about LanceDB or the raw file layout; it asks Ragmir for
-prompt-routing advice, ranked passages, cited context, audit-backed research reports, local recall
-gates, or metadata-only usage summaries and uses the returned citations.
-
-Ragmir complements agent memory instead of replacing it. The agent keeps its conversation state,
-task plan, and native code index; Ragmir provides a read-focused local evidence layer for documents
-that need citations. Keeping MCP read-focused is a security boundary, not a missing write feature.
-
-`ragmir_search` and `ragmir_ask` accept `contextRadius` when an agent needs neighboring chunks around
-a cited hit. Ragmir also sanitizes unusually long agent prompts before retrieval, so system,
-developer, or task-planning text does not become the embedded search query.
-
-## Prompt Routing
-
-`rgr route-prompt` and MCP `ragmir_route_prompt` are the opt-in bridge for agents that support
-pre-message hooks or that can call a lightweight tool before retrieval. They classify the user's
-prompt with deterministic local heuristics and return an explainable decision:
-
-```bash
-echo "Review this repository release checklist from cited local evidence" | npx rgr route-prompt --json
-```
-
-The router does not store prompt text, call an LLM, read the vector index, or perform retrieval. When
-`shouldUseRagmir` is true, the agent should call the suggested tool (`ragmir_search`, `ragmir_ask`,
-or `ragmir_research`) with the returned `query`. When it is false, the agent should answer normally.
-
-## Claude Code
-
-From the target repository root:
-
-```bash
-npx rgr setup --agents claude
-npx rgr install-agent --agents claude
-claude mcp add-json --scope local ragmir "$(cat .ragmir/claude-mcp-server.json)"
-```
-
-Claude Code provides the active project path to MCP servers through `CLAUDE_PROJECT_DIR`. Ragmir uses
-that value only when the server working directory does not already point at a configured Ragmir
-project. This keeps subfolder knowledge bases inside larger workspaces from being overridden by the
-umbrella repository path. Keep the MCP scope local unless you intentionally want to share the server
-config.
-
-## Codex
-
-From the target repository root:
-
-```bash
-npx rgr setup --agents codex
-npx rgr install-agent --agents codex
-cat .ragmir/codex-mcp.toml
-```
-
-Copy the printed TOML into `~/.codex/config.toml` or another trusted Codex config layer. The snippet
-contains the repository `cwd`, the Ragmir MCP server, and `skills.config` entries for the bundled
-skills.
-
-## Kimi Code CLI
-
-From the target repository root:
-
-```bash
-npx rgr setup --agents kimi
-npx rgr install-agent --agents kimi
-kimi --mcp-config-file .ragmir/kimi-mcp.json
-```
-
-Kimi can discover project skills from `.kimi/skills/`. The MCP config can also be installed in
-Kimi's global MCP file if you intentionally want a global setup. If you prefer not to create a
-`.kimi/skills/` discovery folder, Kimi can also be launched directly with
-`kimi --skills-dir .ragmir/skills --mcp-config-file .ragmir/kimi-mcp.json`.
-
-## OpenCode
-
-From the target repository root:
-
-```bash
-npx rgr setup --agents opencode
-npx rgr install-agent --agents opencode
-cat .ragmir/opencode.jsonc
-```
-
-Copy or merge the generated snippet into the OpenCode config layer you use for the project.
-
-## Cline
-
-From the target repository root:
-
-```bash
-npx rgr setup --agents cline
-npx rgr install-agent --agents cline
-cat .ragmir/cline-mcp.json
-```
-
-Cline can discover project skills from `.cline/skills/`. Add the generated MCP JSON under
-`mcpServers` in Cline's MCP configuration when tool access is needed.
-
-For other MCP clients that cannot set `cwd`, set `RAGMIR_PROJECT_ROOT=/absolute/path/to/repository`
-when launching `rgr serve-mcp`. `RAGMIR_PROJECT_ROOT` always wins over `cwd` and agent-provided
-project environment variables.
-
-## Agent Demo
-
-From a repository that already ran `rgr setup` and has Ragmir wired into the current agent, ask:
-
-```plain text
-Use Ragmir to audit the local evidence. First run ragmir_status and ragmir_audit. Then run
-ragmir_research for "release readiness and risks" and produce a cited Markdown report. Do not rely on
-memory if Ragmir does not contain enough evidence.
-```
-
-Agents that support skill folders should also load:
-
-```plain text
-.ragmir/skills/ragmir/
-.ragmir/skills/ragmir-markdown-report/
-```
-
-The Markdown report skill writes reports under `.ragmir/reports/` by default, which stays ignored by
-Git.
-
-Print the bundled skill path from the installed package:
-
-```bash
-npx rgr skill-path
-```
+If the client cannot set a working directory, launch the server with `RAGMIR_PROJECT_ROOT=/absolute/path/to/project`.
