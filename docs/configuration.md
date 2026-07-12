@@ -137,7 +137,7 @@ Use environment variables for machine-specific paths or CI experiments:
 Extractor command variables are JSON arrays, for example:
 
 ```bash
-RAGMIR_PDF_OCR_COMMAND='["ragmir-pdf-ocr","{input}"]' rgr ingest
+RAGMIR_PDF_OCR_COMMAND='["my-pdf-ocr","{input}","{page}"]' rgr ingest
 ```
 
 ## Supported Files
@@ -179,11 +179,24 @@ their timeout expires. The `strict` privacy profile disables them.
 | Direct image OCR | `imageOcrCommand` | `RAGMIR_IMAGE_PATH` |
 | Old `.doc` Word extraction | `legacyWordCommand` | `RAGMIR_LEGACY_WORD_PATH` |
 
-Example:
+For scanned PDFs, let Ragmir detect and configure supported local tools:
+
+```bash
+rgr ocr doctor
+rgr ocr setup --language eng+fra
+rgr ingest
+```
+
+`auto` prefers OCRmyPDF 12.6 or newer, then Tesseract plus Poppler. Setup only writes the local
+command configuration. It does not install those tools, download language packs, or send files to a
+remote OCR service. Use `--engine ocrmypdf` or `--engine tesseract` when the choice must be explicit.
+
+The generated configuration remains the same public extractor contract and can be replaced with a
+custom local wrapper when needed:
 
 ```json
 {
-  "pdfOcrCommand": ["ragmir-pdf-ocr", "{input}"],
+  "pdfOcrCommand": ["my-pdf-ocr", "{input}", "{page}"],
   "pdfOcrTimeoutMs": 120000
 }
 ```

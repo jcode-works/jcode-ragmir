@@ -56,20 +56,24 @@ OCR/transcribe them, or add a safe custom UTF-8 text extension with `includeExte
 
 ## Scanned PDFs Or Images Produce No Text
 
-Ragmir extracts embedded PDF text page by page. For blank scanned pages, configure an explicit local
-OCR wrapper that prints UTF-8 text to stdout:
+Ragmir extracts embedded PDF text page by page. For blank scanned pages, detect and configure a
+supported local OCR engine:
 
-```json
-{
-  "pdfOcrCommand": ["ragmir-pdf-ocr", "{input}"],
-  "pdfOcrTimeoutMs": 120000
-}
+```bash
+rgr ocr doctor
+rgr ocr setup --language eng+fra
+rgr ingest
 ```
 
-The command runs only for pages where embedded extraction returns no text. It is executed without a
-shell and with a minimal environment, receives `RAGMIR_PDF_PATH` and `RAGMIR_PDF_PAGE`, and may use
-`{input}` and `{page}` in its arguments. The `strict` privacy profile disables external extractors.
-Keep OCR tooling local for confidential documents.
+Setup prefers OCRmyPDF 12.6 or newer, then Tesseract plus Poppler. It does not install those tools or
+language packs, and it never calls a cloud OCR API. If `ocr doctor` reports missing languages, install
+the required Tesseract packs and retry. The command runs only for pages where embedded extraction
+returns no text. It is executed without a shell and with a minimal environment. The `strict` privacy
+profile disables external extractors.
+
+Advanced users can still set `pdfOcrCommand` or `RAGMIR_PDF_OCR_COMMAND` to a custom local wrapper.
+It receives `RAGMIR_PDF_PATH` and `RAGMIR_PDF_PAGE`, may use `{input}` and `{page}`, and must print
+UTF-8 text to stdout.
 
 Standalone image files such as `.png`, `.jpg`, `.heic`, and `.tiff` are skipped by default. To index
 them directly, configure an explicit local image OCR wrapper:

@@ -91,6 +91,55 @@ const config = await loadConfig("/path/to/workspace/subdir")
 console.log(config.projectRoot)
 ```
 
+### `inspectPdfOcr(cwd?)`
+
+Detects supported local PDF OCR tools without changing configuration. The result reports OCRmyPDF,
+Tesseract, Poppler, installed Tesseract languages, the effective privacy profile, and the currently
+configured command.
+
+```ts
+import { inspectPdfOcr } from "@jcode.labs/ragmir"
+
+const status = await inspectPdfOcr("/path/to/workspace")
+console.log(status.recommendedEngine, status.languages)
+```
+
+### `configurePdfOcr(options?)`
+
+Initializes the project when needed, selects an installed local engine, and writes a page-aware
+`pdfOcrCommand` to `.ragmir/config.json`. `engine: "auto"` prefers OCRmyPDF 12.6 or newer, then
+Tesseract plus Poppler. It never installs system tools, downloads OCR models, or calls a cloud API.
+The `strict` privacy profile rejects configuration because it disables all external extractors.
+
+```ts
+import { configurePdfOcr } from "@jcode.labs/ragmir"
+
+const configured = await configurePdfOcr({
+  cwd: "/path/to/workspace",
+  engine: "auto",
+  language: "eng+fra",
+  timeoutMs: 120_000,
+})
+console.log(configured.engine, configured.pdfOcrCommand)
+```
+
+### `extractPdfPage(options)`
+
+Runs the low-level local page extractor used by the configured command. Applications normally call
+`configurePdfOcr` and then `ingest`; direct callers must provide a positive one-based page number,
+an installed engine, and Tesseract language codes.
+
+```ts
+import { extractPdfPage } from "@jcode.labs/ragmir"
+
+const text = await extractPdfPage({
+  engine: "tesseract",
+  input: "/path/to/scan.pdf",
+  page: 2,
+  language: "eng",
+})
+```
+
 ### `listSourceEntries(cwd?)`
 
 Reads the `sources` array from `.ragmir/config.json` and returns active source entries.

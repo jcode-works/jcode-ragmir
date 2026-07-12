@@ -34,6 +34,15 @@ try {
     "ragmir|kb",
     "CLI help should not advertise previous command aliases",
   )
+  assertIncludes(help.stdout, "ocr", "CLI help should expose local PDF OCR onboarding")
+  const ocrHelp = await runKb(["ocr", "--help"], tempRoot)
+  assertIncludes(ocrHelp.stdout, "doctor", "OCR help should expose readiness checks")
+  assertIncludes(ocrHelp.stdout, "setup", "OCR help should expose local configuration")
+  assertNotIncludes(
+    ocrHelp.stdout,
+    "extract-page",
+    "OCR help should hide the internal page extractor",
+  )
 
   const deprecatedCliPath = path.join(tempRoot, "ragmir")
   await symlink(cliPath, deprecatedCliPath)
@@ -145,6 +154,22 @@ try {
     "agentKitInstalled=true",
     "setup should leave the agent kit installed",
   )
+
+  const ocrDoctorJson = parseJson(
+    (await runKb(["ocr", "doctor", "--json"], tempRoot)).stdout,
+    "OCR doctor JSON",
+  )
+  if (
+    typeof ocrDoctorJson.configured !== "boolean" ||
+    !Array.isArray(ocrDoctorJson.languages) ||
+    typeof ocrDoctorJson.ocrmypdf?.available !== "boolean" ||
+    typeof ocrDoctorJson.tesseract?.available !== "boolean" ||
+    typeof ocrDoctorJson.pdftoppm?.available !== "boolean"
+  ) {
+    throw new Error(
+      `ocr doctor --json should expose local tool readiness, got ${JSON.stringify(ocrDoctorJson)}`,
+    )
+  }
 
   const mcpConfig = await readFile(path.join(tempRoot, ".ragmir", "mcp.json"), "utf8")
   assertIncludes(mcpConfig, '"command": "pnpm"', "default generated MCP config should use pnpm")

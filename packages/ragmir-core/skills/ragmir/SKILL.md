@@ -156,6 +156,11 @@ or total-corpus-byte ceiling, so benchmark large corpora on their target machine
 no missing or stale supported files, and the security audit should not show warnings before relying
 on Ragmir for sensitive work.
 
+When scanned PDFs produce empty text, run `rgr ocr doctor`, install a supported local tool if needed,
+then run `rgr ocr setup --language <codes>` and ingest again. OCR setup does not install tools,
+download language packs, or call a cloud service. It prefers OCRmyPDF 12.6+, then Tesseract plus
+Poppler, and the `strict` privacy profile continues to disable external extractors.
+
 Default retrieval is tuned for broader recall (`topK: 8`, `chunkOverlap: 200`). Keep MCP retrieval
 bounded by `mcpMaxTopK`, and raise `--top-k` only when the first results are too narrow.
 

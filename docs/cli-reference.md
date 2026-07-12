@@ -15,6 +15,8 @@ Ragmir ships three CLIs:
 | `rgr init` | Create `.ragmir/config.json` (with a `sources` array), `.ragmir/raw/`, and Git ignore rules. |
 | `rgr doctor` | Diagnose setup, index freshness, security warnings, and the next command to run. |
 | `rgr doctor --fix` | Create missing scaffolding, install skills/MCP config, and update stale indexes when safe. |
+| `rgr ocr doctor` | Detect OCRmyPDF, Tesseract, Poppler, installed OCR languages, and the active PDF OCR configuration. |
+| `rgr ocr setup [--engine auto\|ocrmypdf\|tesseract] [--language eng+fra]` | Configure local page-aware PDF OCR without installing tools or editing JSON manually. |
 | `rgr models pull` | Download the configured Transformers.js embedding model into `embeddingModelPath`. |
 | `rgr models pull --enable` | Download the embedding model and switch Ragmir config to safe Transformers embeddings. |
 | `rgr sources add "../apps/*/docs/**/*.md"` | Add source paths, glob patterns, or `!` exclusions to the `sources` array in `.ragmir/config.json`. |
@@ -97,6 +99,9 @@ expose raw thought text.
 | `--mcp-command <command>` | `setup`, `install-skill` | Use a repository wrapper or custom executable as the generated MCP stdio command. |
 | `--mcp-arg <arg>` | `setup`, `install-skill` | Add one argument to `--mcp-command`; repeat for multiple arguments. Use `--mcp-arg=--flag` for dash-prefixed values. |
 | `--semantic` | `setup` | Explicitly download the configured Transformers.js embedding model once, enable `embeddingProvider: "transformers"`, and keep remote model loading disabled for normal indexing. |
+| `--engine <auto\|ocrmypdf\|tesseract>` | `ocr setup` | Select a detected local PDF OCR engine. `auto` prefers OCRmyPDF 12.6+, then Tesseract plus Poppler. |
+| `--language <codes>` | `ocr setup` | Select installed Tesseract language packs such as `eng`, `fra`, or `eng+fra`. Default `eng`. |
+| `--timeout-ms <number>` | `ocr setup` | Set the per-page OCR timeout written to `.ragmir/config.json`. |
 | `--profile <lite\|fast\|quality>` | `chat`, chat setup/doctor, standalone chat setup/doctor | Select Qwen2.5 0.5B `lite` (491 MB), Gemma 4 E2B `fast` (default, 3.35 GB), or Gemma 4 E4B `quality` (5.15 GB). |
 | `--thinking <off\|standard\|deep>` | `chat` | Select no, normal bounded, or larger bounded local reasoning. `lite` normalizes every value to `off`. Raw thought is never displayed, stored, or logged. |
 | `--verify` | `chat doctor`, standalone chat doctor | Recompute the full GGUF SHA-256 and expose `modelHashValid`; use after transfer or when integrity is in doubt. |
@@ -107,7 +112,7 @@ expose raw thought text.
 | `--exclude-path <prefix>` | `search`, `ask`, `research` | Remove an exact project-relative path or directory prefix before ranking. Repeat for multiple roots. |
 | `--fail-under <recall>` | `evaluate` | Exit non-zero when mean Recall@K is below a threshold from `0` to `1`; without this option evaluation remains strict and fails on any miss. |
 | `--days <number>` | `usage-report` | Number of recent days to include in the metadata-only usage summary. |
-| `--json` | `setup`, `doctor`, `ingest`, `search`, `ask`, `chat`, `research`, `route-prompt`, `evaluate`, `audit`, `limits`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `rgr-chat doctor`, `rgr-tts doctor` | Print machine-readable JSON. |
+| `--json` | `setup`, `doctor`, `ocr doctor`, `ocr setup`, `ingest`, `search`, `ask`, `chat`, `research`, `route-prompt`, `evaluate`, `audit`, `limits`, `usage-report`, `status`, `security-audit`, `audio --doctor`, `rgr-chat doctor`, `rgr-tts doctor` | Print machine-readable JSON. |
 | `--compact` | `search`, `research` | Return short snippets instead of full retrieved passages. |
 | `--no-code` | `research` | Skip the lightweight repository code scan. |
 | `--unsupported` | `audit` | List skipped file paths and reasons. |
@@ -136,17 +141,30 @@ files, dependency folders, caches, and unnecessary locale noise.
 
 ## External Text Extraction Configuration
 
-OCR and legacy binary extraction are intentionally configuration-based rather than default CLI flags.
-For scanned/image-only PDFs, add a local wrapper that prints OCR text to stdout:
+OCR and legacy binary extraction remain opt-in. For scanned or image-only PDFs, start with the
+local readiness check and setup command:
+
+```bash
+rgr ocr doctor
+rgr ocr setup --language eng+fra
+rgr ingest
+```
+
+Setup detects OCRmyPDF 12.6 or newer first, then Tesseract plus Poppler. It writes a page-aware
+`pdfOcrCommand` that calls the installed project version of `rgr`; it does not install system tools,
+download language packs, or call a cloud OCR service. The selected language packs must already be
+reported by `tesseract --list-langs`.
+
+For a custom local extractor, configure a wrapper that prints OCR text to stdout instead:
 
 ```json
 {
-  "pdfOcrCommand": ["ragmir-pdf-ocr", "{input}"],
+  "pdfOcrCommand": ["my-pdf-ocr", "{input}", "{page}"],
   "pdfOcrTimeoutMs": 120000
 }
 ```
 
-Or set `RAGMIR_PDF_OCR_COMMAND` to a JSON array. Ragmir invokes it only for pages where embedded-text
+You can also set `RAGMIR_PDF_OCR_COMMAND` to a JSON array. Ragmir invokes it only for pages where embedded-text
 extraction returns no text. PDF wrappers also receive `RAGMIR_PDF_PAGE` and may use `{page}` in an
 argument. When a supported document still yields no indexable text,
 `rgr ingest --json` reports the relative paths under `emptyTextFiles`.
