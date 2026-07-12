@@ -45,8 +45,7 @@ const homeUrl = getLocalizedUrl("/", defaultLang)
     </a>
   </main>
 
-  {/* Cloudflare serves a single /404.html for every route, so localize French
-      client-side from the URL path (/fr/...). */}
+  {/* Localize French client-side from the URL path (/fr/...). */}
   <script is:inline>
     ;(() => {
       if (!/^\/fr(?:\/|$)/i.test(location.pathname)) return

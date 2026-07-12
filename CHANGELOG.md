@@ -6,7 +6,6 @@
 - Keep `ragmir`, `kb`, and `ragmir-tts` as deprecated compatibility bins that warn users to migrate
   to `rgr` / `rgr-tts`.
 - Add deterministic prompt routing through `rgr route-prompt` and MCP `ragmir_route_prompt`.
-- Move the production landing target to `ragmir.com` and keep staging on `staging.ragmir.jcode.works`.
 
 ## 0.4.2 - 2026-06-29
 
@@ -55,7 +54,6 @@
 
 ## 0.2.1 - 2026-06-28
 
-- Add GitHub Sponsors funding metadata and document suggested sponsor tiers.
 - Add maintainer positioning for Jean-Baptiste Thery and JCode Labs in the README.
 - Make `rgr init` and `rgr install-skill` automatically keep `.ragmir/` ignored by Git.
 

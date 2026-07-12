@@ -8,7 +8,6 @@ no WorkoutGen copy, assets, analytics, CDN configuration, or secrets.
 Used by:
 
 - `@jcode.labs/ragmir-landing`
-- `@jcode.labs/ragmir-app`
 
 ```bash
 pnpm --filter @jcode.labs/ragmir-ui check

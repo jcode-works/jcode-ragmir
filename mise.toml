@@ -1,6 +1,5 @@
 [tools]
 node = "22"
-rust = "stable"
 
 [settings]
 experimental = true

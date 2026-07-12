@@ -17,10 +17,6 @@
   "bugs": {
     "url": "https://github.com/jcode-works/jcode-ragmir/issues"
   },
-  "funding": {
-    "type": "github",
-    "url": "https://github.com/sponsors/jb-thery"
-  },
   "keywords": [
     "ragmir",
     "rag",
@@ -36,10 +32,9 @@
   "scripts": {
     "bootstrap": "mise install && pnpm install",
     "audit:security": "pnpm audit --audit-level moderate",
-    "build": "pnpm --filter @jcode.labs/ragmir-ui build && pnpm --filter @jcode.labs/ragmir-app build && pnpm --filter @jcode.labs/ragmir-landing build && pnpm --filter @jcode.labs/ragmir-license-webhook build && pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm --filter @jcode.labs/ragmir build",
-    "check": "pnpm --filter @jcode.labs/ragmir-ui check && pnpm --filter @jcode.labs/ragmir-app check && pnpm --filter @jcode.labs/ragmir-landing check && pnpm --filter @jcode.labs/ragmir-license-webhook check && pnpm --filter @jcode.labs/ragmir-tts check && pnpm --filter @jcode.labs/ragmir-chat check && pnpm --filter @jcode.labs/ragmir check",
+    "build": "pnpm --filter @jcode.labs/ragmir-ui build && pnpm --filter @jcode.labs/ragmir-landing build && pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm --filter @jcode.labs/ragmir build",
+    "check": "pnpm --filter @jcode.labs/ragmir-ui check && pnpm --filter @jcode.labs/ragmir-landing check && pnpm --filter @jcode.labs/ragmir-tts check && pnpm --filter @jcode.labs/ragmir-chat check && pnpm --filter @jcode.labs/ragmir check",
     "commitlint": "commitlint --from=HEAD~1 --to=HEAD --verbose",
-    "dev:app": "pnpm --filter @jcode.labs/ragmir-app tauri:dev",
     "dev:landing": "pnpm --filter @jcode.labs/ragmir-landing dev",
     "example": "pnpm --filter @jcode.labs/ragmir build && node packages/ragmir-core/examples/library-api-demo/run.mjs",
     "format": "biome format --write .",
@@ -49,7 +44,7 @@
     "public:smoke": "node scripts/public-surface-smoke.mjs",
     "release:artifacts": "node scripts/release-artifacts.mjs",
     "release:semantic:smoke": "node scripts/semantic-release-smoke.mjs",
-    "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/ragmir mcp:smoke && pnpm --filter @jcode.labs/ragmir-tts smoke && pnpm --filter @jcode.labs/ragmir-chat smoke && pnpm --filter @jcode.labs/ragmir-app license:lemonsqueezy:smoke && pnpm --filter @jcode.labs/ragmir-app release:preflight:smoke && pnpm --filter @jcode.labs/ragmir-app release:updater-guard:smoke && pnpm --filter @jcode.labs/ragmir-app release:checksums:smoke && pnpm --filter @jcode.labs/ragmir-app release:manifest:smoke && pnpm --filter @jcode.labs/ragmir-app release:bundle:verify:smoke && pnpm --filter @jcode.labs/ragmir-license-webhook smoke && pnpm --filter @jcode.labs/ragmir-license-webhook cf:dry-run",
+    "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/ragmir mcp:smoke && pnpm --filter @jcode.labs/ragmir-tts smoke && pnpm --filter @jcode.labs/ragmir-chat smoke",
     "test": "pnpm --filter @jcode.labs/ragmir-tts test && pnpm --filter @jcode.labs/ragmir-chat test && pnpm --filter @jcode.labs/ragmir test",
     "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
   },

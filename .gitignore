@@ -16,12 +16,8 @@ release-artifacts/
 packages/ragmir-core/dist/
 packages/ragmir-tts/dist/
 packages/ragmir-chat/dist/
-packages/ragmir-app/dist/
-packages/ragmir-app/src-tauri/target/
-packages/ragmir-app/src-tauri/gen/
 packages/ragmir-landing/.astro/
 packages/ragmir-landing/dist/
-packages/ragmir-license-webhook/dist/
 
 # Tracked synthetic examples. Keep generated example runtime state ignored.
 !packages/ragmir-core/examples/
