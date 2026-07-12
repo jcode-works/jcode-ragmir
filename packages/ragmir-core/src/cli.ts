@@ -496,6 +496,13 @@ program
     collectOptionValue,
     [],
   )
+  .option(
+    "--context-path <prefix>",
+    "Search only chunks under this structural context. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
@@ -506,6 +513,8 @@ program
         contextRadius?: number
         includePath: string[]
         excludePath: string[]
+        contextPath: string[]
+        explain?: boolean
         compact?: boolean
         json?: boolean
       },
@@ -539,6 +548,15 @@ program
         console.log(
           "snippet" in result ? result.snippet : result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH),
         )
+        if (result.score) {
+          const vectorRank = result.score.vectorRank ?? "n/a"
+          const lexicalRank = result.score.lexicalRank ?? "n/a"
+          console.log(
+            pc.dim(
+              `score=${result.score.combinedScore.toFixed(6)} fusion=${result.score.fusion} vector=${result.score.vectorContribution.toFixed(6)} lexical=${result.score.lexicalContribution.toFixed(6)} vectorRank=${vectorRank} lexicalRank=${lexicalRank} matchedTerms=${result.score.matchedTerms.join(",") || "n/a"}`,
+            ),
+          )
+        }
       }
     },
   )
@@ -565,6 +583,13 @@ program
     collectOptionValue,
     [],
   )
+  .option(
+    "--context-path <prefix>",
+    "Use only chunks under this structural context. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
+  .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -574,6 +599,8 @@ program
         contextRadius?: number
         includePath: string[]
         excludePath: string[]
+        contextPath: string[]
+        explain?: boolean
         json?: boolean
       },
       command: Command,
@@ -595,7 +622,8 @@ program
       if (result.sources.length > 0) {
         console.log(pc.dim("Sources:"))
         for (const [index, source] of result.sources.entries()) {
-          console.log(`  [${index + 1}] ${source.citation} chunk=${source.chunkIndex}`)
+          const score = source.score ? ` score=${source.score.combinedScore.toFixed(6)}` : ""
+          console.log(`  [${index + 1}] ${source.citation} chunk=${source.chunkIndex}${score}`)
         }
       }
     },
@@ -619,6 +647,12 @@ program
     collectOptionValue,
     [],
   )
+  .option(
+    "--context-path <prefix>",
+    "Use only chunks under this structural context. Repeat for multiple prefixes.",
+    collectOptionValue,
+    [],
+  )
   .option("--compact", "Return snippets instead of full retrieved passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
@@ -629,6 +663,7 @@ program
         code?: boolean
         includePath: string[]
         excludePath: string[]
+        contextPath: string[]
         compact?: boolean
         json?: boolean
       },
@@ -1359,6 +1394,8 @@ function withSearchOptions(
     contextRadius?: number
     includePath?: string[]
     excludePath?: string[]
+    contextPath?: string[]
+    explain?: boolean
   },
 ): {
   cwd: string
@@ -1366,6 +1403,8 @@ function withSearchOptions(
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
+  explain?: boolean
 } {
   const result: {
     cwd: string
@@ -1373,22 +1412,28 @@ function withSearchOptions(
     contextRadius?: number
     includePaths?: string[]
     excludePaths?: string[]
+    contextPaths?: string[]
+    explain?: boolean
   } = { cwd }
   addOption(result, "topK", options.topK)
   addOption(result, "contextRadius", options.contextRadius)
   addPathFilters(result, options)
+  addOption(result, "explain", options.explain)
   return result
 }
 
 function addPathFilters(
-  target: { includePaths?: string[]; excludePaths?: string[] },
-  options: { includePath?: string[]; excludePath?: string[] },
+  target: { includePaths?: string[]; excludePaths?: string[]; contextPaths?: string[] },
+  options: { includePath?: string[]; excludePath?: string[]; contextPath?: string[] },
 ): void {
   if (options.includePath && options.includePath.length > 0) {
     target.includePaths = options.includePath
   }
   if (options.excludePath && options.excludePath.length > 0) {
     target.excludePaths = options.excludePath
+  }
+  if (options.contextPath && options.contextPath.length > 0) {
+    target.contextPaths = options.contextPath
   }
 }
 

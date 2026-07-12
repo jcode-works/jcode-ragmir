@@ -182,6 +182,28 @@ try {
   await configureProject(tempRoot)
   await writeFixtureDocuments(tempRoot)
 
+  const previewJson = parseJson(
+    (
+      await runKb(
+        ["preview", "--path", ".ragmir/raw/tax.md", "--max-chunks", "1", "--json"],
+        tempRoot,
+      )
+    ).stdout,
+    "preview JSON",
+  )
+  if (
+    previewJson.matchedFiles !== 1 ||
+    previewJson.files?.[0]?.chunks?.[0]?.contextPath !== "Tax situation" ||
+    previewJson.files?.[0]?.chunks?.[0]?.text?.includes("maintainer@example.com")
+  ) {
+    throw new Error(
+      `preview --json should expose redacted structured chunks, got ${JSON.stringify(previewJson)}`,
+    )
+  }
+  if (existsSync(path.join(tempRoot, ".ragmir", "storage", "chunks.lance"))) {
+    throw new Error("preview should not create an index table")
+  }
+
   const fixedDoctor = await runKb(["doctor", "--fix"], tempRoot)
   assertIncludes(fixedDoctor.stdout, "Ragmir repair complete.", "doctor --fix should repair setup")
   assertIncludes(
@@ -243,7 +265,21 @@ try {
   }
 
   const searchJson = parseJson(
-    (await runKb(["search", "French tax residency", "--top-k", "1", "--json"], tempRoot)).stdout,
+    (
+      await runKb(
+        [
+          "search",
+          "French tax residency",
+          "--top-k",
+          "1",
+          "--context-path",
+          "Tax situation",
+          "--explain",
+          "--json",
+        ],
+        tempRoot,
+      )
+    ).stdout,
     "search JSON",
   )
   if (searchJson.results?.[0]?.relativePath !== ".ragmir/raw/tax.md") {
@@ -252,6 +288,15 @@ try {
   if (!searchJson.results?.[0]?.citation?.includes(".ragmir/raw/tax.md:L")) {
     throw new Error(
       `search --json should expose line-aware citations, got ${JSON.stringify(searchJson)}`,
+    )
+  }
+  if (
+    searchJson.results?.[0]?.contextPath !== "Tax situation" ||
+    searchJson.results?.[0]?.score?.fusion !== "rrf" ||
+    typeof searchJson.results?.[0]?.score?.combinedScore !== "number"
+  ) {
+    throw new Error(
+      `search --context-path --explain should expose filtered score evidence, got ${JSON.stringify(searchJson)}`,
     )
   }
 
@@ -357,6 +402,7 @@ try {
   const audit = await runKb(["audit"], tempRoot)
   assertIncludes(audit.stdout, "missingFromIndex=0", "audit should find no missing files")
   assertIncludes(audit.stdout, "staleInIndex=0", "audit should find no stale files")
+  assertIncludes(audit.stdout, "chunkStats.p95Chars=", "audit should expose chunk distributions")
   const unsupportedAudit = await runKb(["audit", "--unsupported"], tempRoot)
   assertIncludes(
     unsupportedAudit.stdout,

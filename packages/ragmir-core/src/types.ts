@@ -295,6 +295,8 @@ export interface SearchOptions {
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
+  explain?: boolean
 }
 
 export interface SearchContextChunk {
@@ -325,6 +327,19 @@ export interface SearchResult {
   pageStart: number | null
   pageEnd: number | null
   context: SearchContextChunk[]
+  score?: SearchScoreExplanation
+}
+
+export interface SearchScoreExplanation {
+  fusion: "rrf"
+  combinedScore: number
+  vectorContribution: number
+  lexicalContribution: number
+  vectorRank: number | null
+  lexicalRank: number | null
+  vectorDistance: number | null
+  lexicalBackendScore: number | null
+  matchedTerms: string[]
 }
 
 export interface ExpandCitationOptions {
@@ -353,6 +368,7 @@ export interface CompactSearchResult {
   lineEnd: number | null
   pageStart: number | null
   pageEnd: number | null
+  score?: SearchScoreExplanation
 }
 
 export interface SourceDuplicateCandidate {
@@ -377,6 +393,7 @@ export interface ResearchOptions {
   includeCode?: boolean
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
 }
 
 export interface ResearchEvidence {
@@ -433,6 +450,7 @@ export interface GoldenQuery {
   expectedCitations?: string[]
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
   topK?: number
 }
 
@@ -449,6 +467,7 @@ export interface EvaluationCaseResult {
   expectedPaths: string[]
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
   topK: number
   returnedPaths: string[]
   returnedCitations: string[]

@@ -95,6 +95,7 @@ export type {
   RetrievalProfile,
   SearchContextChunk,
   SearchResult,
+  SearchScoreExplanation,
   SecurityAuditReport,
   SourceDiagnostics,
   SourceDuplicateCandidate,

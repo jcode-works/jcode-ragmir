@@ -83,6 +83,70 @@ describe("search", () => {
     )
   })
 
+  it("should filter retrieval by structural context prefixes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-context-filter-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "runbook.md"),
+      [
+        "# Operations",
+        "",
+        "## Release",
+        "The verified control evidence belongs to the active release workflow.",
+        "",
+        "## Archive",
+        "The verified control evidence belongs to the archived workflow.",
+      ].join("\n"),
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const results = await search("verified control evidence", {
+      cwd: root,
+      contextPaths: ["Operations > Archive"],
+    })
+
+    expect(results.length).toBeGreaterThan(0)
+    expect(results.every((result) => result.contextPath === "Operations > Archive")).toBe(true)
+    expect(results.every((result) => result.text.includes("archived workflow"))).toBe(true)
+  })
+
+  it("should explain hybrid retrieval without changing the default result shape", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-explain-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "security.md"),
+      "Token rotation requires signed source-control evidence.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "facilities.md"),
+      "Facilities planning covers staffing and maintenance.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const plain = await search("token rotation evidence", { cwd: root, topK: 1 })
+    const explained = await search("token rotation evidence", { cwd: root, topK: 1, explain: true })
+    const score = explained[0]?.score
+
+    expect(plain[0]).not.toHaveProperty("score")
+    expect(explained[0]?.relativePath).toBe(plain[0]?.relativePath)
+    expect(score?.fusion).toBe("rrf")
+    expect(score?.combinedScore).toBeCloseTo(
+      (score?.vectorContribution ?? 0) + (score?.lexicalContribution ?? 0),
+    )
+    expect(score?.vectorRank).toBeGreaterThan(0)
+    expect(score?.lexicalRank).toBeGreaterThan(0)
+    expect(score?.vectorDistance).toBe(explained[0]?.distance)
+    expect(score?.lexicalBackendScore).toBeGreaterThan(0)
+    expect(score?.matchedTerms).toEqual(expect.arrayContaining(["token", "rotation", "evidence"]))
+  })
+
   it("uses the full-text lexical index when the fallback scan limit is narrow", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fts-"))
     tempDirs.push(root)

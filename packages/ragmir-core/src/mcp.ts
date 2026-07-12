@@ -39,6 +39,8 @@ const queryToolInputSchema = z.object({
   maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).optional(),
   includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
   excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+  contextPaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+  explain: z.boolean().optional(),
 })
 
 const askToolInputSchema = queryToolInputSchema.extend({
@@ -53,6 +55,7 @@ const researchToolInputSchema = z.object({
   maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).optional(),
   includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
   excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+  contextPaths: z.array(z.string().min(1).max(500)).max(20).optional(),
 })
 
 const searchToolInputSchema = queryToolInputSchema.extend({
@@ -154,11 +157,29 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Retrieve relevant passages from the local Ragmir knowledge base.",
       inputSchema: searchToolInputSchema,
     },
-    async ({ query, topK, contextRadius, compact, maxBytes, includePaths, excludePaths }) => {
+    async ({
+      query,
+      topK,
+      contextRadius,
+      compact,
+      maxBytes,
+      includePaths,
+      excludePaths,
+      contextPaths,
+      explain,
+    }) => {
       const config = await loadConfig(cwd)
       const results = await search(
         query,
-        await searchOptions(cwd, topK, contextRadius, includePaths, excludePaths),
+        await searchOptions(
+          cwd,
+          topK,
+          contextRadius,
+          includePaths,
+          excludePaths,
+          contextPaths,
+          explain,
+        ),
       )
       const compactResults = compactSearchResults(results)
       const compactOutput = config.privacyProfile === "strict" || compact === true
@@ -184,9 +205,27 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Return cited retrieval context for a question without calling an LLM.",
       inputSchema: askToolInputSchema,
     },
-    async ({ query, topK, contextRadius, compact, maxBytes, includePaths, excludePaths }) => {
+    async ({
+      query,
+      topK,
+      contextRadius,
+      compact,
+      maxBytes,
+      includePaths,
+      excludePaths,
+      contextPaths,
+      explain,
+    }) => {
       const config = await loadConfig(cwd)
-      const options = await searchOptions(cwd, topK, contextRadius, includePaths, excludePaths)
+      const options = await searchOptions(
+        cwd,
+        topK,
+        contextRadius,
+        includePaths,
+        excludePaths,
+        contextPaths,
+        explain,
+      )
       let fullPayload: AskResult
       if (config.privacyProfile === "strict") {
         const results = await search(query, options)
@@ -226,14 +265,31 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
         "Run an audit-backed multi-query research pass with cited evidence and optional code matches.",
       inputSchema: researchToolInputSchema,
     },
-    async ({ query, topK, includeCode, compact, maxBytes, includePaths, excludePaths }) => {
+    async ({
+      query,
+      topK,
+      includeCode,
+      compact,
+      maxBytes,
+      includePaths,
+      excludePaths,
+      contextPaths,
+    }) => {
       const config = await loadConfig(cwd)
-      const options = await searchOptions(cwd, topK, undefined, includePaths, excludePaths)
+      const options = await searchOptions(
+        cwd,
+        topK,
+        undefined,
+        includePaths,
+        excludePaths,
+        contextPaths,
+      )
       const researchOptions: Parameters<typeof research>[1] = { cwd }
       addOption(researchOptions, "topK", options.topK)
       addOption(researchOptions, "includeCode", includeCode)
       addOption(researchOptions, "includePaths", options.includePaths)
       addOption(researchOptions, "excludePaths", options.excludePaths)
+      addOption(researchOptions, "contextPaths", options.contextPaths)
       const result = await research(query, researchOptions)
       const compactResult = compactResearchReport(result)
       const compactOutput = config.privacyProfile === "strict" || compact === true
@@ -410,12 +466,16 @@ export async function searchOptions(
   contextRadius?: number | undefined,
   includePaths?: string[] | undefined,
   excludePaths?: string[] | undefined,
+  contextPaths?: string[] | undefined,
+  explain?: boolean | undefined,
 ): Promise<{
   cwd: string
   topK?: number
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
+  contextPaths?: string[]
+  explain?: boolean
 }> {
   const config = await loadConfig(cwd)
   const boundedTopK = Math.min(topK ?? config.topK, config.mcpMaxTopK)
@@ -427,6 +487,8 @@ export async function searchOptions(
     contextRadius?: number
     includePaths?: string[]
     excludePaths?: string[]
+    contextPaths?: string[]
+    explain?: boolean
   } = {
     cwd,
     topK: boundedTopK,
@@ -434,6 +496,8 @@ export async function searchOptions(
   addOption(result, "contextRadius", boundedContextRadius)
   addOption(result, "includePaths", includePaths)
   addOption(result, "excludePaths", excludePaths)
+  addOption(result, "contextPaths", contextPaths)
+  addOption(result, "explain", explain)
   return result
 }
 

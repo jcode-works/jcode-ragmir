@@ -139,6 +139,7 @@ try {
     query: "offline retrieval approval",
     topK: 5,
     includePaths: ["raw/review-notes.evidence"],
+    explain: true,
   })
   if (
     !Array.isArray(filteredSearchResults) ||
@@ -147,6 +148,31 @@ try {
   ) {
     throw new Error(
       `MCP search path filter returned unexpected results: ${JSON.stringify(filteredSearchResults)}`,
+    )
+  }
+  if (
+    filteredSearchResults.some(
+      (result) => result.score?.fusion !== "rrf" || typeof result.score?.combinedScore !== "number",
+    )
+  ) {
+    throw new Error(
+      `MCP search explanation returned unexpected results: ${JSON.stringify(filteredSearchResults)}`,
+    )
+  }
+
+  const contextFilteredResults = await callJsonTool(client, "ragmir_search", {
+    query: "remote model loading disabled",
+    topK: 5,
+    includePaths: ["raw/incident-timeline.jsonl"],
+    contextPaths: ["$[1..4]"],
+  })
+  if (
+    !Array.isArray(contextFilteredResults) ||
+    contextFilteredResults.length < 1 ||
+    !contextFilteredResults.every((result) => result.contextPath === "$[1..4]")
+  ) {
+    throw new Error(
+      `MCP structural context filter returned unexpected results: ${JSON.stringify(contextFilteredResults)}`,
     )
   }
 
