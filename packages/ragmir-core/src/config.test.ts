@@ -43,6 +43,7 @@ describe("loadConfig", () => {
     expect(config.redaction.enabled).toBe(true)
     expect(config.accessLog).toBe(true)
     expect(config.mcpMaxTopK).toBe(10)
+    expect(config.mcpMaxOutputBytes).toBe(32_768)
     expect(config.sources).toEqual([])
     expect(config.includeExtensions).toEqual([])
     expect(config.pdfOcrCommand).toEqual([])
@@ -308,6 +309,31 @@ describe("loadConfig", () => {
     }
   })
 
+  it("should override the MCP output budget from env and reject undersized config values", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-mcp-output-budget-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir/config.json"), "{}\n", "utf8")
+
+    const original = process.env.RAGMIR_MCP_MAX_OUTPUT_BYTES
+    process.env.RAGMIR_MCP_MAX_OUTPUT_BYTES = "8192"
+    try {
+      expect((await loadConfig(root)).mcpMaxOutputBytes).toBe(8_192)
+      process.env.RAGMIR_MCP_MAX_OUTPUT_BYTES = "invalid"
+      expect((await loadConfig(root)).mcpMaxOutputBytes).toBe(32_768)
+      process.env.RAGMIR_MCP_MAX_OUTPUT_BYTES = "512"
+      expect((await loadConfig(root)).mcpMaxOutputBytes).toBe(32_768)
+    } finally {
+      restoreEnv("RAGMIR_MCP_MAX_OUTPUT_BYTES", original)
+    }
+
+    await writeFile(
+      path.join(root, ".ragmir/config.json"),
+      JSON.stringify({ mcpMaxOutputBytes: 512 }),
+    )
+    await expect(loadConfig(root)).rejects.toThrow()
+  })
+
   it("defaults hybridTextScanLimit and overrides it from env", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-scan-limit-"))
     tempDirs.push(root)
@@ -349,6 +375,7 @@ describe("loadConfig", () => {
         transformersAllowRemoteModels: true,
         redaction: { enabled: false, builtIn: false },
         mcpMaxTopK: 50,
+        mcpMaxOutputBytes: 100_000,
         pdfOcrCommand: ["ocr-wrapper"],
       }),
     )
@@ -362,6 +389,7 @@ describe("loadConfig", () => {
       expect(config.redaction.enabled).toBe(true)
       expect(config.redaction.builtIn).toBe(true)
       expect(config.mcpMaxTopK).toBe(5)
+      expect(config.mcpMaxOutputBytes).toBe(16_384)
       expect(config.pdfOcrCommand).toEqual([])
     } finally {
       restoreEnv("RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS", originalRemote)

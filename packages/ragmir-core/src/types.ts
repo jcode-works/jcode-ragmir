@@ -20,6 +20,7 @@ export interface Config {
   redaction: RedactionConfig
   accessLog: boolean
   mcpMaxTopK: number
+  mcpMaxOutputBytes: number
   topK: number
   chunkSize: number
   chunkOverlap: number
@@ -62,7 +63,20 @@ export interface AccessLogUsageReport {
   uniqueQueryHashes: number
   averageResultCount: number | null
   averageResultCountByAction: Record<AccessLogAction, number | null>
+  mcpOutput: McpOutputUsageReport
   lastEventAt: string | null
+}
+
+export type McpOutputTool = "ragmir_search" | "ragmir_ask" | "ragmir_research" | "ragmir_expand"
+
+export interface McpOutputUsageReport {
+  responses: number
+  retrievedBytes: number
+  returnedBytes: number
+  savedBytes: number
+  reductionRatio: number | null
+  compactedResponses: number
+  truncatedResponses: number
 }
 
 export interface IngestionLimitsReport {
@@ -174,6 +188,7 @@ export interface TextChunk {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
   text: string
   charStart: number
   charEnd: number
@@ -187,6 +202,7 @@ export interface TextChunk {
 }
 
 export interface VectorRow extends TextChunk {
+  searchText: string
   vector: number[]
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
@@ -229,6 +245,7 @@ export interface SearchOptions {
 
 export interface SearchContextChunk {
   chunkIndex: number
+  contextPath: string
   text: string
   charStart: number | null
   charEnd: number | null
@@ -243,6 +260,7 @@ export interface SearchResult {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
   citation: string
   text: string
   distance: number | null
@@ -255,10 +273,25 @@ export interface SearchResult {
   context: SearchContextChunk[]
 }
 
+export interface ExpandCitationOptions {
+  cwd?: PathLike
+  contextRadius?: number
+}
+
+export interface ExpandedCitation {
+  requestedCitation: string
+  found: boolean
+  relativePath: string
+  chunkIndex: number
+  contextRadius: number
+  passages: SearchContextChunk[]
+}
+
 export interface CompactSearchResult {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
   citation: string
   snippet: string
   distance: number | null
@@ -296,6 +329,7 @@ export interface ResearchEvidence {
   source: string
   relativePath: string
   chunkIndex: number
+  contextPath: string
   citation: string
   text: string
   distance: number | null
@@ -502,6 +536,7 @@ export interface SecurityAuditReport {
   }
   mcp: {
     maxTopK: number
+    maxOutputBytes: number
     destructiveToolsExposed: false
   }
   gitignore: {

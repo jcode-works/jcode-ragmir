@@ -36,6 +36,7 @@ describe("securityAudit", () => {
 
     expect(report.providers.embedding).toBe("transformers")
     expect(report.providers.transformersAllowRemoteModels).toBe(true)
+    expect(report.mcp.maxOutputBytes).toBe(32_768)
     expect(report.warnings).toContain(
       "Transformers remote model loading is enabled; model files can be downloaded from Hugging Face.",
     )

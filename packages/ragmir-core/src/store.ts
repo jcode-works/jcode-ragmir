@@ -75,13 +75,13 @@ interface EnsureVectorIndexResult {
 
 async function ensureLexicalIndex(table: lancedb.Table): Promise<EnsureVectorIndexResult> {
   const existing = await table.listIndices()
-  const hasTextIndex = existing.some((index) => index.name === "text_idx")
+  const hasTextIndex = existing.some((index) => index.name === "searchText_idx")
   if (hasTextIndex) {
     return { created: false, warning: null }
   }
 
   try {
-    await table.createIndex("text", {
+    await table.createIndex("searchText", {
       config: lancedb.Index.fts({ asciiFolding: true, lowercase: true }),
     })
     return { created: true, warning: null }

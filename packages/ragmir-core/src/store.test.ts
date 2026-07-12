@@ -33,6 +33,8 @@ function sampleRow(
     source: path.basename(relativePath),
     relativePath,
     chunkIndex,
+    contextPath: "Evidence",
+    searchText: `Evidence\ncontent ${chunkIndex}`,
     text: `content ${chunkIndex}`,
     charStart: chunkIndex * 10,
     charEnd: chunkIndex * 10 + 9,
@@ -63,6 +65,8 @@ describe("store", () => {
     expect(rows[0]?.vector[1]).toBeCloseTo(0.2)
     expect(rows[0]?.vector[2]).toBeCloseTo(0.3)
     expect(rows[0]?.embeddingProvider).toBe("local-hash")
+    expect(rows[0]?.contextPath).toBe("Evidence")
+    expect(rows[0]?.searchText).toBe("Evidence\ncontent 0")
   })
 
   it("drops the table when writing zero rows", async () => {
