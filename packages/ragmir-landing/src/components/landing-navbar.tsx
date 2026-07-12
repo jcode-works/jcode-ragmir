@@ -1,8 +1,8 @@
-import { Button } from "@jcode.labs/ragmir-ui"
-import { cn } from "@jcode.labs/ragmir-ui/utils"
 import { ChevronDown, Globe2, Menu, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { cn } from "../lib/utils"
 import { GithubIcon } from "./github-icon"
+import { Button } from "./ui/button"
 
 interface AlternateLocale {
   locale: string

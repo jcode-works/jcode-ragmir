@@ -1,5 +1,5 @@
-import { cn } from "@jcode.labs/ragmir-ui/utils"
 import { useEffect, useRef, useState } from "react"
+import { cn } from "../lib/utils"
 
 const COUNT_UP_DURATION_MS = 1200
 

@@ -17,8 +17,7 @@ Use `pnpm --filter @jcode.labs/ragmir <script>` for Core-only work. The pinned N
 - `packages/ragmir-core`: published CLI, library, MCP server, and skills.
 - `packages/ragmir-chat`: optional local chat add-on.
 - `packages/ragmir-tts`: optional audio add-on.
-- `packages/ragmir-ui`: shared landing primitives.
-- `packages/ragmir-landing`: static Astro documentation and product site.
+- `packages/ragmir-landing`: self-contained static Astro documentation and product site.
 
 Generated `dist/`, `.astro/`, `release-artifacts/`, and `.ragmir/` directories are ignored. Do not
 commit them. The root README is the canonical documentation entrypoint; keep package READMEs short.
