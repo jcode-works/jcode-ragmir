@@ -15,7 +15,7 @@
     },
     {
       "id": "runbook-evidence-pack",
-      "query": "What runbook evidence must be collected after a payment incident?",
+      "query": "What runbook evidence must be collected after a service incident?",
       "expectedPaths": ["raw/runbooks/incident-response-runbook.md"],
       "expectedCitations": ["raw/runbooks/incident-response-runbook.md:L1-L11#0"]
     },

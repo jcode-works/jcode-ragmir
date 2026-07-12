@@ -97,22 +97,22 @@ describe("research", () => {
     await mkdir(path.join(root, "src"), { recursive: true })
     await writeFile(
       path.join(root, ".ragmir", "raw", "policy.md"),
-      "The billing rotation secret handling policy.\n",
+      "The credential rotation secret handling policy.\n",
       "utf8",
     )
     await writeFile(
       path.join(root, "src", "config.ts"),
-      "export const billingSecret = 'sk-proj-0123456789abcdefghijklmnopqrstuvwxyz'\n",
+      "export const credentialSecret = 'sk-proj-0123456789abcdefghijklmnopqrstuvwxyz'\n",
       "utf8",
     )
     await writeFile(
       path.join(root, ".env.json"),
-      JSON.stringify({ billingSecret: "sk-proj-0123456789abcdefghijklmnopqrstuvwxyz" }),
+      JSON.stringify({ credentialSecret: "sk-proj-0123456789abcdefghijklmnopqrstuvwxyz" }),
       "utf8",
     )
 
     await ingest({ cwd: root })
-    const report = await research("billing secret", { cwd: root })
+    const report = await research("credential secret", { cwd: root })
 
     const scannedPaths = report.codeEvidence.map((entry) => entry.relativePath)
     expect(scannedPaths).toContain("src/config.ts")

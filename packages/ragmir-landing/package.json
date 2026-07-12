@@ -4,11 +4,8 @@
   "private": true,
   "description": "Static Ragmir landing page built with Astro.",
   "type": "module",
-  "license": "MIT",
   "scripts": {
     "build": "node scripts/astro-no-telemetry.mjs check && node scripts/astro-no-telemetry.mjs build",
-    "cf:dry-run": "pnpm build && wrangler deploy --dry-run",
-    "cf:preview": "pnpm build && wrangler dev --local --port 8787",
     "check": "node scripts/astro-no-telemetry.mjs check",
     "dev": "node scripts/astro-no-telemetry.mjs dev",
     "preview": "node scripts/astro-no-telemetry.mjs preview",
@@ -35,7 +32,6 @@
     "@types/node": "^24.10.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "wrangler": "^4.105.0",
     "xml2js": "^0.6.2"
   }
 }
