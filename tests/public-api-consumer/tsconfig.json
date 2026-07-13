@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "paths": {
+      "@jcode.labs/ragmir": ["../../packages/ragmir-core/dist/index.d.ts"],
+      "@jcode.labs/ragmir-chat": ["../../packages/ragmir-chat/dist/index.d.ts"],
+      "@jcode.labs/ragmir-tts": ["../../packages/ragmir-tts/dist/index.d.ts"]
+    },
+    "skipLibCheck": false,
+    "strict": true,
+    "target": "ES2022",
+    "typeRoots": ["../../packages/ragmir-core/node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": ["consumer.ts"]
+}

@@ -6,6 +6,7 @@ export {
 } from "./context-resources.js"
 export { destroyIndex } from "./destroy.js"
 export { doctor } from "./doctor.js"
+export type { PullEmbeddingModelResult } from "./embeddings.js"
 export { clearTransformersCache, pullEmbeddingModel } from "./embeddings.js"
 export { evaluateGoldenQueries } from "./evaluate.js"
 export {
@@ -37,6 +38,7 @@ export { ask, expandCitation, search } from "./query.js"
 export { redactText } from "./redaction.js"
 export { compactResearchReport, compactSearchResults, research } from "./research.js"
 export { securityAudit } from "./security.js"
+export type { EnableSemanticEmbeddingsResult } from "./semantic-config.js"
 export { enableSemanticEmbeddings } from "./semantic-config.js"
 export type { SetupOptions, SetupResult, SetupSemanticResult } from "./setup.js"
 export { setupProject } from "./setup.js"
@@ -88,6 +90,7 @@ export type {
   IndexManifest,
   IndexManifestFile,
   IngestionLimitsReport,
+  IngestOptions,
   IngestResult,
   KnowledgeBaseContextReport,
   KnowledgeBaseIdentity,
@@ -102,11 +105,13 @@ export type {
   PreviewFile,
   PreviewReport,
   PrivacyProfile,
+  RedactionCount,
   ResearchEvidence,
   ResearchOptions,
   ResearchReport,
   RetrievalProfile,
   SearchContextChunk,
+  SearchOptions,
   SearchResult,
   SearchScoreExplanation,
   SecurityAuditReport,
