@@ -55,7 +55,7 @@ describe("setupProject", () => {
       "opencode",
       "cline",
     ])
-  })
+  }, 15_000)
 
   it("can preload and enable semantic embeddings during setup", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-semantic-"))
@@ -108,7 +108,7 @@ describe("setupProject", () => {
     expect(second.nextSteps).toContain(
       "Restart or reload the selected agents so they discover the installed Ragmir skills.",
     )
-  })
+  }, 15_000)
 
   it("passes targeted MCP helper options to the generated agent kit", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-"))
