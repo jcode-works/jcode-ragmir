@@ -5,10 +5,7 @@
   "description": "Monorepo for Ragmir Core and open-source Ragmir add-ons.",
   "type": "module",
   "license": "MIT",
-  "author": {
-    "name": "Jean-Baptiste Thery",
-    "url": "https://github.com/jb-thery"
-  },
+  "author": "Jean-Baptiste Thery (https://github.com/jb-thery)",
   "homepage": "https://github.com/jcode-works/jcode-ragmir#readme",
   "repository": {
     "type": "git",
@@ -55,5 +52,9 @@
     "@semantic-release/exec": "^7.1.0",
     "semantic-release": "^25.0.5",
     "yaml": "^2.9.0"
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
   }
 }

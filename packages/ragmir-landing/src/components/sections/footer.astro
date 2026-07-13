@@ -15,6 +15,9 @@ const footerLinks = [
   { href: "https://github.com/jcode-works/jcode-ragmir", label: t("nav_github") },
   { href: "https://www.npmjs.com/package/@jcode.labs/ragmir", label: t("footer_link_npm") },
   { href: "https://github.com/jcode-works/jcode-ragmir#readme", label: t("footer_link_docs") },
+  { href: "https://github.com/jcode-works/jcode-ragmir/releases/latest", label: t("footer_link_releases") },
+  { href: "https://github.com/jcode-works/jcode-ragmir/blob/main/CHANGELOG.md", label: t("footer_link_changelog") },
+  { href: "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md", label: t("footer_link_api") },
 ]
 
 const marqueeCopy =
@@ -23,7 +26,12 @@ const marqueeCopy =
 
 <footer class="relative z-10 mt-10 overflow-hidden">
   <div class="relative isolate overflow-hidden pt-16 pb-10">
-    <RagmirBackground client:visible behindContent={true} className="inset-0" height="100%" />
+    <RagmirBackground
+      client:visible
+      behindContent={false}
+      className="inset-0"
+      height="100%"
+    />
 
     <div class="relative z-10 mx-auto flex max-w-7xl flex-col items-center gap-6 px-5 md:px-8">
       <a

@@ -13,6 +13,10 @@ files you choose, stores the index inside the project, and returns source-backed
 CLI, TypeScript API, or local MCP server. The default path needs no account, hosted document store,
 or model download.
 
+Bring the AI or automation you already use. Ragmir Core does not call a model. If no retrieved
+passage may leave the machine, connect a local CLI or MCP consumer, or add Ragmir Chat for cited
+answer generation from a verified local model.
+
 [Website](https://ragmir.com) · [npm](https://www.npmjs.com/package/@jcode.labs/ragmir) ·
 [CLI reference](./docs/cli-reference.md) · [Examples](#runnable-examples)
 
@@ -41,8 +45,8 @@ Using npm instead of pnpm? Replace `pnpm add -D` with `npm install --save-dev` a
 | --- | --- | --- |
 | `rgr` CLI | Setup, ingest, search, audit, and maintenance | Human-readable or JSON output |
 | TypeScript API | Embed retrieval in a Node.js application | Typed results with citations |
-| Local MCP server | Give coding agents bounded project context | Read-focused retrieval tools |
-| Ragmir Chat | Generate an answer with a local GGUF model | Cited local synthesis |
+| Local MCP server | Give your preferred AI bounded project context | Read-focused retrieval tools |
+| Ragmir Chat | Keep answer generation on the workstation | Cited offline synthesis |
 | Ragmir TTS | Turn a text brief into audio | Local WAV or explicit online MP3 |
 
 Ragmir Core stays retrieval-first. `ask()` returns cited context without calling an LLM. Local chat
@@ -58,7 +62,7 @@ flowchart LR
     C --> D["Cited search results"]
     D --> E["CLI"]
     D --> F["TypeScript API"]
-    D --> G["MCP agents"]
+    D --> G["AI and automation over MCP"]
     D -. optional .-> H["Local GGUF chat"]
     B -. blank PDF pages .-> I["Configured local OCR"]
 ```
@@ -69,7 +73,7 @@ from the installed npm package.
 
 ## Common workflows
 
-### Give an agent cited project context
+### Connect the AI or automation you already use
 
 ```bash
 pnpm exec rgr setup --agents claude,codex,kimi,opencode,cline
@@ -81,6 +85,11 @@ backed by a generated project runner. The MCP surface is intentionally bounded a
 Agents can request compact evidence first, then expand one returned citation
 without opening a second index or reading arbitrary files. MCP clients can read `ragmir://context`
 for a compact base, readiness, freshness, and capability overview before choosing a tool.
+
+Core is model-agnostic: any compatible CLI, TypeScript, or MCP consumer can use the returned
+citations. A hosted AI receives the passages you return to it under that provider's data policy. A
+local consumer keeps the handoff on the workstation, and the optional Chat package adds local
+answer generation when the whole workflow must remain offline.
 
 ### Route knowledge in a monorepo
 
@@ -176,9 +185,10 @@ Core also exports `previewChunks`, `ask`, `research`, `audit`, `doctor`, `securi
 | Capability | Default behavior | Network boundary |
 | --- | --- | --- |
 | Core retrieval | Local files, local index, `local-hash` retrieval | No network service required |
+| Preferred AI or automation | Receives only the passages the integration requests | The consumer's data policy applies; use a local consumer when passages must not leave |
 | Semantic embeddings | Disabled until explicitly enabled | Model download is explicit; inference can then stay local |
 | PDF and image OCR | Disabled until a local command is configured | No cloud OCR integration |
-| Ragmir Chat | Local inference from a verified GGUF file | Setup may download the selected model |
+| Ragmir Chat | Local inference from a verified GGUF profile | Setup may download the selected profile; answer generation then stays local |
 | Ragmir TTS | Local Transformers.js WAV rendering | Edge MP3 mode sends narration text when explicitly selected |
 
 Redaction reduces accidental exposure but is not a compliance certification. Review the
@@ -218,6 +228,8 @@ outside Git or under ignored local state.
 | --- | --- |
 | [CLI reference](./docs/cli-reference.md) | Commands, options, and JSON output |
 | [API reference](./docs/api-reference.md) | TypeScript exports and result shapes |
+| [Release history](https://github.com/jcode-works/jcode-ragmir/releases) | Generated notes, compatibility changes, and verification artifacts |
+| [Changelog](./CHANGELOG.md) | Semantic Versioning and API compatibility policy |
 | [Configuration](./docs/configuration.md) | Sources, privacy profiles, models, limits, and extractors |
 | [Agent integration](./docs/agent-integration.md) | Native helpers and MCP clients |
 | [Troubleshooting](./docs/troubleshooting.md) | Empty indexes, OCR, retrieval, or local-model problems |
@@ -236,7 +248,8 @@ pnpm example
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. Report vulnerabilities
 through [SECURITY.md](./SECURITY.md), not a public issue. Release history is available in
-[CHANGELOG.md](./CHANGELOG.md).
+[GitHub Releases](https://github.com/jcode-works/jcode-ragmir/releases), with compatibility policy
+in [CHANGELOG.md](./CHANGELOG.md).
 
 ## License
 
