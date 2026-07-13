@@ -1,15 +1,5 @@
 ---
-import {
-  Bug,
-  FileSearch,
-  FolderSync,
-  LifeBuoy,
-  Replace,
-  ShieldCheck,
-  UserPlus,
-  Workflow,
-} from "@lucide/astro"
-import { RagmirBackground } from "../ragmir-background"
+import { UseCaseCarousel } from "../use-case-carousel"
 
 interface Props {
   translations: Record<string, string>
@@ -18,16 +8,6 @@ interface Props {
 const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 
-const useCases = [
-  { icon: FolderSync, eyebrow: t("use_case_drive_eyebrow"), title: t("use_case_drive_title"), text: t("use_case_drive_text") },
-  { icon: Workflow, eyebrow: t("use_case_automation_eyebrow"), title: t("use_case_automation_title"), text: t("use_case_automation_text") },
-  { icon: UserPlus, eyebrow: t("use_case_onboarding_eyebrow"), title: t("use_case_onboarding_title"), text: t("use_case_onboarding_text") },
-  { icon: Replace, eyebrow: t("use_case_refactor_eyebrow"), title: t("use_case_refactor_title"), text: t("use_case_refactor_text") },
-  { icon: Bug, eyebrow: t("use_case_debug_eyebrow"), title: t("use_case_debug_title"), text: t("use_case_debug_text") },
-  { icon: LifeBuoy, eyebrow: t("use_case_support_eyebrow"), title: t("use_case_support_title"), text: t("use_case_support_text") },
-  { icon: ShieldCheck, eyebrow: t("use_case_compliance_eyebrow"), title: t("use_case_compliance_title"), text: t("use_case_compliance_text") },
-  { icon: FileSearch, eyebrow: t("use_case_research_eyebrow"), title: t("use_case_research_title"), text: t("use_case_research_text") },
-]
 ---
 
 <section
@@ -35,8 +15,6 @@ const useCases = [
   aria-labelledby="use-cases-heading"
   class="container-default relative z-10 px-5 py-24 md:px-8 md:py-40"
 >
-  <RagmirBackground client:visible behindContent className="inset-0" height="calc(100% + 8rem)" />
-
   <div class="mb-8 max-w-3xl">
     <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
       {t("use_cases_eyebrow")}
@@ -47,20 +25,5 @@ const useCases = [
     <p class="mt-4 text-muted-foreground text-sm leading-6">{t("use_cases_text")}</p>
   </div>
 
-  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-    {useCases.map((useCase) => (
-      <div class="rounded-xl border border-border bg-card/82 text-card-foreground shadow-xl shadow-black/20">
-        <div class="flex flex-col gap-3 p-5 md:p-6">
-          <div class="flex items-center gap-3">
-            <useCase.icon class="size-5 text-muted-foreground" aria-hidden="true" />
-            <p class="text-muted-foreground text-xs font-bold uppercase tracking-[0.14em]">
-              {useCase.eyebrow}
-            </p>
-          </div>
-          <h3 class="font-semibold text-lg leading-none tracking-tight">{useCase.title}</h3>
-          <p class="text-sm text-muted-foreground leading-6">{useCase.text}</p>
-        </div>
-      </div>
-    ))}
-  </div>
+  <UseCaseCarousel client:visible translations={translations} />
 </section>

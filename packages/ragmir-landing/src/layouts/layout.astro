@@ -5,7 +5,6 @@ import "../styles/global.css"
 interface Props {
   title?: string
   description?: string
-  keywords?: string
   locale?: string
   ogType?: string
   ogImage?: string
@@ -21,7 +20,6 @@ interface Props {
 const {
   title = "Ragmir",
   description = "Sovereign local RAG for confidential dossiers and AI agents.",
-  keywords,
   locale = "en",
   ogType = "website",
   ogImage = "/og/ragmir-og.png",
@@ -75,7 +73,7 @@ function alternateHref(targetLocale: string): string {
 ---
 
 <!doctype html>
-<html lang={locale} dir="ltr" class="dark" translate="no">
+<html lang={locale} dir="ltr" class="dark">
   <head>
     <meta charset="UTF-8" />
     <script is:inline>
@@ -112,7 +110,6 @@ function alternateHref(targetLocale: string): string {
     <meta name="generator" content={Astro.generator} />
     <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    {keywords && <meta name="keywords" content={keywords} />}
     <meta name="author" content={author} />
     <meta name="robots" content={robots} />
     <meta name="googlebot" content={robots} />

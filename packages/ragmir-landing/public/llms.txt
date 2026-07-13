@@ -7,9 +7,12 @@ through a CLI, TypeScript API, or local read-focused MCP server.
 ## Product boundary
 
 - `@jcode.labs/ragmir` is retrieval-first. Core does not call an LLM or write generated answers.
+- Core is model-agnostic. The user can connect a preferred AI or automation through CLI,
+  TypeScript, or MCP.
 - The default `local-hash` path works offline with no account, API key, or model download.
 - Semantic Transformers.js embeddings are an explicit opt-in and require a rebuilt index.
 - `@jcode.labs/ragmir-chat` adds optional cited synthesis with a local GGUF model.
+- Qwen and Gemma are optional Chat profile choices, not Core or MCP requirements.
 - `@jcode.labs/ragmir-tts` adds optional local audio or explicitly selected online speech.
 - Ragmir is not a hosted document store, cloud-sync service, agent-memory replacement, or universal
   code-search replacement.

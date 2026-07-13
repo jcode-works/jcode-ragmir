@@ -1,5 +1,4 @@
 ---
-import { RagmirBackground } from "../../components/ragmir-background"
 import { CommandCopyToast } from "../../components/command-copy-toast"
 import { LibrarySection } from "../../components/library-section"
 import { LandingNavbar } from "../../components/landing-navbar"
@@ -11,7 +10,6 @@ import Footer from "../../components/sections/footer.astro"
 import Hero from "../../components/sections/hero.astro"
 import Privacy from "../../components/sections/privacy.astro"
 import Strengths from "../../components/sections/strengths.astro"
-import Updates from "../../components/sections/updates.astro"
 import UseCases from "../../components/sections/use-cases.astro"
 import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
@@ -89,7 +87,7 @@ const structuredData = [
   },
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareSourceCode",
+    "@type": ["SoftwareApplication", "SoftwareSourceCode"],
     "@id": "https://ragmir.com/#source",
     name: "Ragmir",
     description: t("seo_home_description"),
@@ -98,6 +96,8 @@ const structuredData = [
     mainEntityOfPage: pageUrl,
     codeRepository: "https://github.com/jcode-works/jcode-ragmir",
     runtimePlatform: "Node.js 20 or newer",
+    operatingSystem: "Linux, macOS, Windows",
+    applicationCategory: "DeveloperApplication",
     programmingLanguage: "TypeScript",
     inLanguage: ["en", "fr"],
     keywords: t("seo_home_keywords")
@@ -105,6 +105,11 @@ const structuredData = [
       .map((keyword) => keyword.trim()),
     license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
     isAccessibleForFree: true,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
     ...(publicVersion ? { version: publicVersion } : {}),
     publisher: {
       "@id": "https://ragmir.com/#organization",
@@ -136,14 +141,12 @@ const localizedLibraryUrl = `${getLocalizedUrl("/", locale)}#library`
 const localizedFeaturesUrl = `${getLocalizedUrl("/", locale)}#features`
 const localizedUseCasesUrl = `${getLocalizedUrl("/", locale)}#use-cases`
 const localizedAgentsUrl = `${getLocalizedUrl("/", locale)}#agents`
-const localizedUpdatesUrl = `${getLocalizedUrl("/", locale)}#updates`
 const localizedTeamUrl = getLocalizedUrl("/team", locale)
 ---
 
 <Layout
   title={t("seo_home_title")}
   description={t("seo_home_description")}
-  keywords={t("seo_home_keywords")}
   author={t("seo_author")}
   robots={t("seo_robots")}
   ogImageAlt={t("seo_image_alt")}
@@ -152,13 +155,6 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
   structuredData={structuredData}
 >
   <main class="relative min-h-screen overflow-hidden bg-background text-foreground">
-    <RagmirBackground
-      client:load
-      height="100dvh"
-      className="inset-0 min-h-[110dvh]"
-      behindContent={false}
-    />
-
     <LandingNavbar
       client:load
       alternateLocales={alternateLocales}
@@ -168,7 +164,6 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       localizedHomeUrl={localizedHomeUrl}
       localizedLibraryUrl={localizedLibraryUrl}
       localizedTeamUrl={localizedTeamUrl}
-      localizedUpdatesUrl={localizedUpdatesUrl}
       localizedUseCasesUrl={localizedUseCasesUrl}
       translations={translations}
     />
@@ -187,8 +182,6 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
     <Features translations={translations} />
 
     <Agents translations={translations} />
-
-    <Updates translations={translations} />
 
     <Privacy translations={translations} />
 

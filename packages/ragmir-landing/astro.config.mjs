@@ -27,14 +27,6 @@ export default defineConfig({
     ...(isProduction
       ? [
           sitemap({
-            lastmod: new Date(),
-            serialize(item) {
-              const path = new URL(item.url).pathname
-              if (/^\/(?:fr\/)?$/.test(path)) {
-                return { ...item, changefreq: "weekly", priority: 1.0 }
-              }
-              return { ...item, priority: 0.5 }
-            },
             i18n: {
               defaultLocale,
               locales: {

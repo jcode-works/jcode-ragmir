@@ -581,13 +581,13 @@ export const RagmirBackground = ({
       />
       {overlay && (
         <div
-          className="absolute inset-0 bg-linear-to-b from-background via-transparent via-40% to-background pointer-events-none"
+          className="absolute inset-0 pointer-events-none"
           style={{
             position: "absolute",
             inset: 0,
             pointerEvents: "none",
             background:
-              "linear-gradient(to bottom, var(--background), transparent 40%, var(--background))",
+              "linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.88) 8%, transparent 34%, transparent 66%, rgba(0, 0, 0, 0.88) 92%, #000 100%)",
           }}
         />
       )}

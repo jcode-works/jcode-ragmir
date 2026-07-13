@@ -1,5 +1,5 @@
 import { ChevronDown, Globe2, Menu, X } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "../lib/utils"
 import { GithubIcon } from "./github-icon"
 import { Button } from "./ui/button"
@@ -19,7 +19,6 @@ interface LandingNavbarProps {
   localizedLibraryUrl: string
   localizedFeaturesUrl: string
   localizedAgentsUrl: string
-  localizedUpdatesUrl: string
   localizedTeamUrl: string
 }
 
@@ -103,13 +102,13 @@ export function LandingNavbar({
   localizedLibraryUrl,
   localizedFeaturesUrl,
   localizedAgentsUrl,
-  localizedUpdatesUrl,
   localizedTeamUrl,
 }: LandingNavbarProps): React.JSX.Element {
   const t = (key: string): string => translations[key] ?? key
   const [hasScrolled, setHasScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const lastScrollY = useRef(0)
   const isHidden = useRef(false)
 
@@ -118,9 +117,13 @@ export function LandingNavbar({
     { href: localizedLibraryUrl, label: t("nav_library") },
     { href: localizedFeaturesUrl, label: t("nav_features") },
     { href: localizedAgentsUrl, label: t("nav_agents") },
-    { href: localizedUpdatesUrl, label: t("nav_updates") },
     { href: localizedTeamUrl, label: t("nav_team") },
   ]
+
+  const closeMenu = useCallback(() => {
+    menuTriggerRef.current?.focus()
+    setMenuOpen(false)
+  }, [])
 
   useEffect(() => {
     const header = headerRef.current
@@ -162,7 +165,7 @@ export function LandingNavbar({
   useEffect(() => {
     if (!menuOpen) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false)
+      if (event.key === "Escape") closeMenu()
     }
     document.addEventListener("keydown", onKeyDown)
     document.body.style.overflow = "hidden"
@@ -170,7 +173,7 @@ export function LandingNavbar({
       document.removeEventListener("keydown", onKeyDown)
       document.body.style.overflow = ""
     }
-  }, [menuOpen])
+  }, [menuOpen, closeMenu])
 
   return (
     <>
@@ -242,6 +245,7 @@ export function LandingNavbar({
               aria-label={t("nav_menu")}
               className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setMenuOpen(true)}
+              ref={menuTriggerRef}
               type="button"
             >
               <Menu aria-hidden="true" className="size-5" />
@@ -263,7 +267,7 @@ export function LandingNavbar({
             "absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity duration-300",
             menuOpen ? "opacity-100" : "opacity-0",
           )}
-          onClick={() => setMenuOpen(false)}
+          onClick={closeMenu}
           tabIndex={menuOpen ? 0 : -1}
           type="button"
         />
@@ -278,7 +282,7 @@ export function LandingNavbar({
             <button
               aria-label={t("nav_menu_close")}
               className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setMenuOpen(false)}
+              onClick={closeMenu}
               tabIndex={menuOpen ? 0 : -1}
               type="button"
             >
@@ -292,7 +296,7 @@ export function LandingNavbar({
                 className="rounded-lg px-3 py-3 font-bold text-base text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 href={link.href}
                 key={link.href}
-                onClick={() => setMenuOpen(false)}
+                onClick={closeMenu}
                 tabIndex={menuOpen ? 0 : -1}
               >
                 {link.label}
