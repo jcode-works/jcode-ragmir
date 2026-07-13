@@ -1,5 +1,6 @@
 import type { PathLike } from "node:fs"
 import type { PackageManager } from "./package-manager.js"
+import type { AgentIntegrationReport } from "./skill.js"
 
 export interface Config {
   projectRoot: string
@@ -606,6 +607,7 @@ export interface DoctorReport {
   packageManager: PackageManager
   runCommand: string
   agentKitInstalled: boolean
+  agentIntegration: AgentIntegrationReport
   rawDir: string
   storageDir: string
   embeddingProvider: EmbeddingProvider

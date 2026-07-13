@@ -1,10 +1,18 @@
-import { cp, mkdir, rm, symlink, writeFile } from "node:fs/promises"
+import { spawnSync } from "node:child_process"
+import { existsSync } from "node:fs"
+import { cp, lstat, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { DEFAULT_SKILL_TARGET_DIR, RAGMIR_DIR, RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { ensureRagmirGitignore } from "./gitignore.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
-import { type RagmirCommand, rgrCommand } from "./package-manager.js"
+import {
+  type RagmirCommand,
+  RGR_RUNNER_FILENAME,
+  RGR_RUNNER_PROBE_ARG,
+  rgrCommand,
+} from "./package-manager.js"
+import { VERSION } from "./version.js"
 
 export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
 export type AgentInstallScope = "project" | "user"
@@ -32,6 +40,7 @@ export interface InstallSkillResult {
   clineConfigPath: string
   agentSetupPath: string
   readmePath: string
+  runnerPath: string
   agentHelpers: AgentHelperFile[]
   mcpServerName: string
   mcpCommand: string
@@ -39,13 +48,12 @@ export interface InstallSkillResult {
   written: string[]
 }
 
-export interface InstallAgentSkillsOptions {
-  cwd?: string
-  agents?: readonly AgentTarget[]
+export interface InstallAgentSkillsOptions extends InstallSkillOptions {
   scope?: AgentInstallScope
   mode?: AgentInstallMode
   homeDir?: string
   env?: Record<string, string | undefined>
+  force?: boolean
 }
 
 export interface AgentSkillInstallation {
@@ -69,6 +77,20 @@ export interface AgentHelperFile {
   path: string
 }
 
+export type RagmirRunnerMode = "local-bin" | "workspace" | "installed-package" | "npm-cache"
+
+export interface AgentIntegrationReport {
+  runnerPath: string
+  runnerReady: boolean
+  runnerMode: RagmirRunnerMode | null
+  runnerRequiresDownload: boolean
+  projectAgents: AgentTarget[]
+  userAgents: AgentTarget[]
+  nativeAgents: AgentTarget[]
+  ready: boolean
+  warnings: string[]
+}
+
 const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const PRIMARY_SKILL_NAME = "ragmir"
 const AUDIO_SKILL_NAME = "ragmir-audio-summary"
@@ -76,6 +98,7 @@ const REPORT_SKILL_NAME = "ragmir-markdown-report"
 const LEGAL_SKILL_NAME = "ragmir-legal-dossier"
 const DEFAULT_MCP_SERVER_NAME = "ragmir"
 const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]+$/u
+const MANAGED_SKILL_METADATA_FILENAME = ".ragmir-managed.json"
 export const SKILL_NAMES = [
   PRIMARY_SKILL_NAME,
   AUDIO_SKILL_NAME,
@@ -131,8 +154,8 @@ const AGENT_DESTINATIONS: Record<
   codex: {
     label: "Codex",
     env: "CODEX_SKILLS_DIR",
-    projectDir: path.join(".codex", "skills"),
-    userDir: (homeDir) => path.join(homeDir, ".codex", "skills"),
+    projectDir: path.join(".agents", "skills"),
+    userDir: (homeDir) => path.join(homeDir, ".agents", "skills"),
   },
   kimi: {
     label: "Kimi Code CLI",
@@ -213,10 +236,16 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
   const clineConfigPath = agentConfigPaths.cline
   const agentSetupPath = path.join(ragmirDir, AGENT_SETUP_FILENAME)
   const readmePath = path.join(ragmirDir, "README.md")
+  const runnerPath = path.join(ragmirDir, RGR_RUNNER_FILENAME)
 
   await mkdir(targetDir, { recursive: true })
   await mkdir(ragmirDir, { recursive: true })
   await copyBundledSkills(targetDir)
+  await writeFile(
+    runnerPath,
+    ragmirRunnerSource(VERSION, path.join(PACKAGE_ROOT, "dist", "cli.js")),
+    { encoding: "utf8", mode: 0o755 },
+  )
 
   const serveCommand = await resolveMcpCommand(cwd, options)
   const doctorCommand = await rgrCommand(cwd, ["doctor"])
@@ -305,6 +334,7 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
     path.relative(cwd, audioSkillPath),
     path.relative(cwd, reportSkillPath),
     path.relative(cwd, legalSkillPath),
+    path.relative(cwd, runnerPath),
     path.relative(cwd, mcpConfigPath),
     ...agentHelpers.map((helper) => path.relative(cwd, helper.path)),
     path.relative(cwd, agentSetupPath),
@@ -328,6 +358,7 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
     clineConfigPath,
     agentSetupPath,
     readmePath,
+    runnerPath,
     agentHelpers,
     mcpServerName,
     mcpCommand: serveCommand.command,
@@ -345,7 +376,12 @@ export async function installAgentSkills(
   const homeDir = path.resolve(options.homeDir ?? process.env.HOME ?? process.cwd())
   const env = options.env ?? process.env
   const agents = options.agents ?? SUPPORTED_AGENT_TARGETS
-  const projectKit = await installSkill({ cwd, agents })
+  const installOptions: InstallSkillOptions = { cwd, agents }
+  if (options.targetDir !== undefined) installOptions.targetDir = options.targetDir
+  if (options.mcpServerName !== undefined) installOptions.mcpServerName = options.mcpServerName
+  if (options.mcpCommand !== undefined) installOptions.mcpCommand = options.mcpCommand
+  if (options.mcpArgs !== undefined) installOptions.mcpArgs = options.mcpArgs
+  const projectKit = await installSkill(installOptions)
   const sourceDir = path.dirname(projectKit.skillPath)
   const installations: AgentSkillInstallation[] = []
   const written: string[] = []
@@ -355,7 +391,12 @@ export async function installAgentSkills(
     const targetDir = agentTargetDir(agent, scope, cwd, homeDir, env)
     await mkdir(targetDir, { recursive: true })
 
-    const { mode, skillPaths } = await exposeAgentSkills(sourceDir, targetDir, requestedMode)
+    const { mode, skillPaths } = await exposeAgentSkills(
+      sourceDir,
+      targetDir,
+      requestedMode,
+      options.force ?? false,
+    )
     written.push(...skillPaths.map((skillPath) => displayPath(cwd, skillPath)))
 
     installations.push({
@@ -366,6 +407,18 @@ export async function installAgentSkills(
       targetDir,
       skillPaths,
     })
+  }
+
+  if (scope === "project") {
+    const gitignoreEntries = installations.flatMap((installation) =>
+      installation.skillPaths.map((skillPath) => posixRelativePath(cwd, skillPath)),
+    )
+    if (await ensureRagmirGitignore(cwd, gitignoreEntries)) {
+      if (!projectKit.written.includes(".gitignore")) {
+        projectKit.written.push(".gitignore")
+      }
+      written.push(".gitignore")
+    }
   }
 
   return {
@@ -518,27 +571,29 @@ async function exposeAgentSkills(
   sourceDir: string,
   targetDir: string,
   requestedMode: AgentInstallMode,
+  force: boolean,
 ): Promise<{ mode: AgentInstallMode; skillPaths: string[] }> {
   if (requestedMode === "copy") {
-    return copyAgentSkills(sourceDir, targetDir)
+    return copyAgentSkills(sourceDir, targetDir, force)
   }
 
   try {
-    return await linkAgentSkills(sourceDir, targetDir)
+    return await linkAgentSkills(sourceDir, targetDir, force)
   } catch {
-    return copyAgentSkills(sourceDir, targetDir)
+    return copyAgentSkills(sourceDir, targetDir, force)
   }
 }
 
 async function linkAgentSkills(
   sourceDir: string,
   targetDir: string,
+  force: boolean,
 ): Promise<{ mode: AgentInstallMode; skillPaths: string[] }> {
   const skillPaths: string[] = []
   for (const skillName of SKILL_NAMES) {
     const source = path.join(sourceDir, skillName)
     const target = path.join(targetDir, skillName)
-    await replaceWithDirectorySymlink(source, target)
+    await replaceWithDirectorySymlink(source, target, skillName, force)
     skillPaths.push(target)
   }
   return { mode: "link", skillPaths }
@@ -547,24 +602,96 @@ async function linkAgentSkills(
 async function copyAgentSkills(
   sourceDir: string,
   targetDir: string,
+  force: boolean,
 ): Promise<{ mode: AgentInstallMode; skillPaths: string[] }> {
   const skillPaths: string[] = []
   for (const skillName of SKILL_NAMES) {
     const source = path.join(sourceDir, skillName)
     const target = path.join(targetDir, skillName)
+    await assertManagedSkillTarget(source, target, skillName, force)
     await rm(target, { recursive: true, force: true })
     await cp(source, target, { recursive: true, force: true })
+    await writeFile(
+      path.join(target, MANAGED_SKILL_METADATA_FILENAME),
+      `${JSON.stringify({ managedBy: "ragmir", skillName }, null, 2)}\n`,
+      "utf8",
+    )
     skillPaths.push(target)
   }
   return { mode: "copy", skillPaths }
 }
 
-async function replaceWithDirectorySymlink(source: string, target: string): Promise<void> {
+async function replaceWithDirectorySymlink(
+  source: string,
+  target: string,
+  skillName: string,
+  force: boolean,
+): Promise<void> {
   if (path.resolve(source) === path.resolve(target)) {
     return
   }
+  await assertManagedSkillTarget(source, target, skillName, force)
   await rm(target, { recursive: true, force: true })
   await symlink(source, target, process.platform === "win32" ? "junction" : "dir")
+}
+
+async function assertManagedSkillTarget(
+  source: string,
+  target: string,
+  skillName: string,
+  force: boolean,
+): Promise<void> {
+  let targetStats: Awaited<ReturnType<typeof lstat>>
+  try {
+    targetStats = await lstat(target)
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) return
+    throw error
+  }
+
+  if (force) return
+
+  if (targetStats.isSymbolicLink()) {
+    try {
+      if ((await realpath(target)) === (await realpath(source))) return
+    } catch {
+      // A broken or unreadable link is not safe to replace implicitly.
+    }
+  } else if (targetStats.isDirectory()) {
+    const metadata = await readManagedSkillMetadata(target)
+    if (metadata?.managedBy === "ragmir" && metadata.skillName === skillName) return
+  }
+
+  throw new Error(
+    `Refusing to replace unmanaged agent skill at ${target}. Move it, or rerun with --force after reviewing its contents.`,
+  )
+}
+
+async function readManagedSkillMetadata(
+  target: string,
+): Promise<{ managedBy: string; skillName: string } | null> {
+  try {
+    const value: unknown = JSON.parse(
+      await readFile(path.join(target, MANAGED_SKILL_METADATA_FILENAME), "utf8"),
+    )
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "managedBy" in value &&
+      typeof value.managedBy === "string" &&
+      "skillName" in value &&
+      typeof value.skillName === "string"
+    ) {
+      return { managedBy: value.managedBy, skillName: value.skillName }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === code
 }
 
 function agentTargetDir(
@@ -601,6 +728,216 @@ function displayPath(cwd: string, filePath: string): string {
     return relative
   }
   return filePath
+}
+
+function posixRelativePath(cwd: string, filePath: string): string {
+  return path.relative(cwd, filePath).split(path.sep).join("/")
+}
+
+export function inspectAgentIntegration(
+  cwd = process.cwd(),
+  homeDir = process.env.HOME ?? process.cwd(),
+  env: Record<string, string | undefined> = process.env,
+): AgentIntegrationReport {
+  const projectRoot = path.resolve(cwd)
+  const resolvedHome = path.resolve(homeDir)
+  const runnerPath = path.join(projectRoot, RAGMIR_DIR, RGR_RUNNER_FILENAME)
+  const probe = probeRagmirRunner(projectRoot, runnerPath)
+  const projectAgents = detectedAgentTargets("project", projectRoot, resolvedHome, env)
+  const userAgents = detectedAgentTargets("user", projectRoot, resolvedHome, env)
+  const nativeAgents = [...new Set([...projectAgents, ...userAgents])]
+  const warnings: string[] = []
+
+  if (!existsSync(runnerPath)) {
+    warnings.push("The generated Ragmir runner is missing. Run `rgr setup` or `rgr doctor --fix`.")
+  } else if (!probe.runnerReady) {
+    warnings.push(
+      "The generated Ragmir runner could not verify a local CLI. Install @jcode.labs/ragmir in the project or rebuild the workspace package.",
+    )
+  }
+  if (probe.runnerRequiresDownload) {
+    warnings.push(
+      "The runner will fall back to the pinned npm package and may need a network download before first use.",
+    )
+  }
+  if (nativeAgents.length === 0) {
+    warnings.push(
+      "No native agent skill exposure was detected. Run `rgr install-agent --agents <list>`.",
+    )
+  }
+
+  return {
+    runnerPath,
+    runnerReady: probe.runnerReady,
+    runnerMode: probe.runnerMode,
+    runnerRequiresDownload: probe.runnerRequiresDownload,
+    projectAgents,
+    userAgents,
+    nativeAgents,
+    ready: probe.runnerReady && nativeAgents.length > 0,
+    warnings,
+  }
+}
+
+function detectedAgentTargets(
+  scope: AgentInstallScope,
+  projectRoot: string,
+  homeDir: string,
+  env: Record<string, string | undefined>,
+): AgentTarget[] {
+  return SUPPORTED_AGENT_TARGETS.filter((agent) => {
+    const targetDir = agentTargetDir(agent, scope, projectRoot, homeDir, env)
+    return SKILL_NAMES.every((skillName) => existsSync(path.join(targetDir, skillName, "SKILL.md")))
+  })
+}
+
+function probeRagmirRunner(
+  projectRoot: string,
+  runnerPath: string,
+): Pick<AgentIntegrationReport, "runnerReady" | "runnerMode" | "runnerRequiresDownload"> {
+  if (!existsSync(runnerPath)) {
+    return { runnerReady: false, runnerMode: null, runnerRequiresDownload: false }
+  }
+
+  const result = spawnSync(process.execPath, [runnerPath, RGR_RUNNER_PROBE_ARG], {
+    cwd: projectRoot,
+    encoding: "utf8",
+    timeout: 5_000,
+    env: { ...process.env, [RAGMIR_PROJECT_ROOT_ENV]: projectRoot },
+  })
+  if (result.status !== 0) {
+    return { runnerReady: false, runnerMode: null, runnerRequiresDownload: false }
+  }
+
+  try {
+    const value: unknown = JSON.parse(result.stdout.trim())
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "verified" in value &&
+      typeof value.verified === "boolean" &&
+      "mode" in value &&
+      isRagmirRunnerMode(value.mode) &&
+      "requiresDownload" in value &&
+      typeof value.requiresDownload === "boolean"
+    ) {
+      return {
+        runnerReady: value.verified,
+        runnerMode: value.mode,
+        runnerRequiresDownload: value.requiresDownload,
+      }
+    }
+  } catch {
+    return { runnerReady: false, runnerMode: null, runnerRequiresDownload: false }
+  }
+
+  return { runnerReady: false, runnerMode: null, runnerRequiresDownload: false }
+}
+
+function isRagmirRunnerMode(value: unknown): value is RagmirRunnerMode {
+  return (
+    value === "local-bin" ||
+    value === "workspace" ||
+    value === "installed-package" ||
+    value === "npm-cache"
+  )
+}
+
+function ragmirRunnerSource(version: string, installedCliPath: string): string {
+  const packageSpec = `@jcode.labs/ragmir@${version}`
+  return `#!/usr/bin/env node
+const { spawnSync } = require("node:child_process")
+const { existsSync, readFileSync } = require("node:fs")
+const path = require("node:path")
+
+const PACKAGE_SPEC = ${JSON.stringify(packageSpec)}
+const INSTALLED_CLI = ${JSON.stringify(installedCliPath)}
+const PROBE_ARG = ${JSON.stringify(RGR_RUNNER_PROBE_ARG)}
+const projectRoot = path.resolve(process.env.${RAGMIR_PROJECT_ROOT_ENV} || process.cwd())
+
+function isRagmirWorkspaceCli(cliPath) {
+  if (!existsSync(cliPath)) return false
+  try {
+    const manifestPath = path.join(path.dirname(path.dirname(cliPath)), "package.json")
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+    return manifest.name === "@jcode.labs/ragmir"
+  } catch {
+    return false
+  }
+}
+
+function resolveCommand() {
+  const localBin = path.join(
+    projectRoot,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "rgr.cmd" : "rgr",
+  )
+  if (existsSync(localBin)) {
+    return { mode: "local-bin", command: localBin, args: [], requiresDownload: false }
+  }
+
+  const workspaceCli = path.join(projectRoot, "packages", "ragmir-core", "dist", "cli.js")
+  if (isRagmirWorkspaceCli(workspaceCli)) {
+    return {
+      mode: "workspace",
+      command: process.execPath,
+      args: [workspaceCli],
+      requiresDownload: false,
+    }
+  }
+
+  if (isRagmirWorkspaceCli(INSTALLED_CLI)) {
+    return {
+      mode: "installed-package",
+      command: process.execPath,
+      args: [INSTALLED_CLI],
+      requiresDownload: false,
+    }
+  }
+
+  return {
+    mode: "npm-cache",
+    command: process.platform === "win32" ? "npx.cmd" : "npx",
+    args: ["--yes", "--package", PACKAGE_SPEC, "rgr"],
+    requiresDownload: true,
+  }
+}
+
+const selected = resolveCommand()
+const commandArgs = process.argv.slice(2)
+
+if (commandArgs[0] === PROBE_ARG) {
+  const probeArgs = selected.mode === "npm-cache" ? ["--version"] : [...selected.args, "--version"]
+  const probe = spawnSync(selected.command, probeArgs, {
+    cwd: projectRoot,
+    stdio: "ignore",
+    env: { ...process.env, ${RAGMIR_PROJECT_ROOT_ENV}: projectRoot },
+  })
+  const available = probe.status === 0
+  console.log(
+    JSON.stringify({
+      available,
+      verified: available && selected.mode !== "npm-cache",
+      mode: selected.mode,
+      requiresDownload: selected.requiresDownload,
+    }),
+  )
+  process.exitCode = available ? 0 : 1
+} else {
+  const result = spawnSync(selected.command, [...selected.args, ...commandArgs], {
+    cwd: projectRoot,
+    stdio: "inherit",
+    env: { ...process.env, ${RAGMIR_PROJECT_ROOT_ENV}: projectRoot },
+  })
+  if (result.error) {
+    console.error(result.error.message)
+    process.exitCode = 1
+  } else {
+    process.exitCode = result.status ?? 1
+  }
+}
+`
 }
 
 function mcpConfig(
@@ -955,7 +1292,7 @@ Default project-scope targets:
 | Agent | Project skill directory | User skill directory |
 | --- | --- | --- |
 | Claude Code | \`.claude/skills/\` | \`~/.claude/skills/\` |
-| Codex | \`.codex/skills/\` | \`~/.codex/skills/\` |
+| Codex | \`.agents/skills/\` | \`~/.agents/skills/\` |
 | Kimi Code CLI | \`.kimi/skills/\` | \`~/.kimi/skills/\` |
 | OpenCode | \`.opencode/skills/\` | \`~/.config/opencode/skills/\` |
 | Cline | \`.cline/skills/\` | \`~/.cline/skills/\` |
@@ -964,7 +1301,8 @@ Override paths with \`CLAUDE_SKILLS_DIR\`, \`CODEX_SKILLS_DIR\`, \`KIMI_SKILLS_D
 \`OPENCODE_SKILLS_DIR\`, or \`CLINE_SKILLS_DIR\`.
 
 Use \`--mode copy\` only when an agent runtime does not follow symlinked skill directories. When using
-copy mode, rerun \`install-agent\` after refreshing \`.ragmir/skills/\`.
+copy mode, rerun \`install-agent\` after refreshing \`.ragmir/skills/\`. Ragmir refuses to replace
+an unmanaged same-name skill by default; use \`--force\` only after reviewing that existing folder.
 
 ## Skill Folders
 

@@ -5,7 +5,10 @@ import { RAGMIR_GITIGNORE_ENTRY } from "./defaults.js"
 
 export const RAGMIR_GITIGNORE_ENTRIES = [RAGMIR_GITIGNORE_ENTRY]
 
-export async function ensureRagmirGitignore(cwd = process.cwd()): Promise<boolean> {
+export async function ensureRagmirGitignore(
+  cwd = process.cwd(),
+  additionalEntries: readonly string[] = [],
+): Promise<boolean> {
   const root = path.resolve(cwd)
   const gitignorePath = path.join(root, ".gitignore")
   const current = existsSync(gitignorePath) ? await readFile(gitignorePath, "utf8") : ""
@@ -15,7 +18,8 @@ export async function ensureRagmirGitignore(cwd = process.cwd()): Promise<boolea
       .map((line) => line.trim())
       .filter(Boolean),
   )
-  const missingEntries = RAGMIR_GITIGNORE_ENTRIES.filter((entry) => !currentLines.has(entry))
+  const desiredEntries = [...new Set([...RAGMIR_GITIGNORE_ENTRIES, ...additionalEntries])]
+  const missingEntries = desiredEntries.filter((entry) => !currentLines.has(entry))
 
   if (missingEntries.length === 0) {
     return false
