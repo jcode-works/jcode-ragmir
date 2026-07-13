@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir-chat",
   "version": "0.4.12",
-  "description": "Ragmir add-on for local offline cited chat with Gemma 4 and llama.cpp.",
+  "description": "Ragmir add-on for offline cited answer generation with verified local GGUF models and llama.cpp.",
   "type": "module",
   "license": "MIT",
   "author": {
@@ -15,6 +15,8 @@
     "offline-ai",
     "local-first",
     "gemma",
+    "qwen",
+    "local-llm",
     "llama-cpp",
     "private-ai",
     "rag"

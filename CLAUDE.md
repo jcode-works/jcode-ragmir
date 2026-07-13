@@ -30,6 +30,8 @@ verify both surfaces and leave them unchanged when no update is needed.
 Ragmir stores and retrieves local cited context. It has no hosted document store, account system,
 native desktop shell, or cloud-vendor deployment configuration. Keep OCR optional and
 local, remote model downloads explicit, and normal confidential retrieval offline.
+Describe Core as model-agnostic: users can connect their preferred AI or automation, or keep the
+consumer local. Qwen and Gemma are optional Chat profiles, never Core or MCP requirements.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

@@ -11,6 +11,10 @@
 a hosted document store. The default `local-hash` retrieval path works offline, without an account
 or model download.
 
+Core is independent of the model or client that consumes those passages. Connect the AI or
+automation you already use, or keep the consumer local when no retrieved passage may leave the
+workstation.
+
 [Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md) ·
 [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
@@ -103,7 +107,7 @@ Frequently used exports:
 See the [complete API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 for options and result shapes.
 
-## Connect an AI agent
+## Connect your preferred AI or automation
 
 ```bash
 npx rgr setup --agents claude,codex,kimi,opencode,cline
@@ -115,6 +119,11 @@ runner plus MCP helpers, and points them at the current project. MCP
 exposes status, search, ask, research, exact citation expansion, audit, evaluation, usage, and
 security tools. Retrieval responses have a global byte ceiling and expose metadata-only output
 metrics. The server does not expose index deletion.
+
+Any compatible CLI, TypeScript, or MCP client can consume the same cited results. A hosted AI
+receives returned passages under its provider's data policy. OpenCode or another local consumer can
+keep the handoff on the workstation. Optional Ragmir Chat adds local answer generation, but Qwen,
+Gemma, and every other generative model remain outside Core.
 
 For a monorepo with root and app-specific bases, run `rgr bases --json` before retrieval when scope
 is unclear. The nearest configured base is active, nested MCP helpers get unique names, and every
