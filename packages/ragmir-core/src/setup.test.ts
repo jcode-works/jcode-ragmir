@@ -36,8 +36,25 @@ describe("setupProject", () => {
     expect(result.configurationPrompt).toContain("You are helping configure Ragmir")
     expect(result.configurationPrompt).toContain("rgr sources add")
     expect(result.configurationPrompt).toContain("Do not add every locale by default")
-    expect(mcpConfig.mcpServers.ragmir.command).toBe("pnpm")
-    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["exec", "rgr", "serve-mcp"])
+    expect(mcpConfig.mcpServers.ragmir.command).toBe("node")
+    expect(mcpConfig.mcpServers.ragmir.args).toEqual([result.agentKit.runnerPath, "serve-mcp"])
+    expect(result.agentInstallations.map((installation) => installation.agent)).toEqual([
+      "claude",
+      "codex",
+      "kimi",
+      "opencode",
+      "cline",
+    ])
+    expect(existsSync(path.join(root, ".agents", "skills", "ragmir", "SKILL.md"))).toBe(true)
+    expect(result.doctor.agentIntegration.ready).toBe(result.doctor.agentIntegration.runnerReady)
+    expect(["installed-package", "npm-cache"]).toContain(result.doctor.agentIntegration.runnerMode)
+    expect(result.doctor.agentIntegration.projectAgents).toEqual([
+      "claude",
+      "codex",
+      "kimi",
+      "opencode",
+      "cline",
+    ])
   })
 
   it("can preload and enable semantic embeddings during setup", async () => {
@@ -86,10 +103,10 @@ describe("setupProject", () => {
     expect(second.ingested?.indexedFiles).toBe(1)
     expect(second.doctor.ready).toBe(true)
     expect(second.doctor.nextSteps).toContain(
-      "Run `rgr install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Restart or reload the selected agents so they discover the installed Ragmir skills.",
     )
     expect(second.nextSteps).toContain(
-      "Run `rgr install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Restart or reload the selected agents so they discover the installed Ragmir skills.",
     )
   })
 
@@ -111,6 +128,8 @@ describe("setupProject", () => {
     expect(mcpConfig.mcpServers["local-docs"]?.command).toBe("./scripts/serve-mcp.sh")
     expect(mcpConfig.mcpServers["local-docs"]?.args).toEqual([])
     expect(result.agentKit.agentHelpers.map((helper) => helper.agent)).toEqual(["claude"])
+    expect(result.agentInstallations.map((installation) => installation.agent)).toEqual(["claude"])
+    expect(existsSync(path.join(root, ".claude", "skills", "ragmir", "SKILL.md"))).toBe(true)
     expect(existsSync(path.join(root, ".ragmir", "codex-mcp.toml"))).toBe(false)
     expect(existsSync(path.join(root, ".ragmir", "kimi-mcp.json"))).toBe(false)
   })

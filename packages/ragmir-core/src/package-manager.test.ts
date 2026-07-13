@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -48,6 +48,20 @@ describe("package manager detection", () => {
 
     expect(await detectPackageManager(bunRoot)).toBe("bun")
     expect(await detectPackageManager(yarnRoot)).toBe("yarn")
+  })
+
+  it("prefers the generated project runner when it exists", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pm-"))
+    tempDirs.push(root)
+    const runnerPath = path.join(root, ".ragmir", "run.cjs")
+    await mkdir(path.dirname(runnerPath), { recursive: true })
+    await writeFile(runnerPath, "", "utf8")
+
+    await expect(rgrCommand(root, ["doctor"])).resolves.toMatchObject({
+      command: "node",
+      args: [runnerPath, "doctor"],
+      display: "node .ragmir/run.cjs doctor",
+    })
   })
 
   it("keeps existing command helpers as compatibility aliases", () => {

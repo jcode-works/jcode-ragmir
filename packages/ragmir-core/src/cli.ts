@@ -225,7 +225,9 @@ program
 
 program
   .command("setup")
-  .description("Initialize Ragmir, install the agent kit, run doctor, and ingest when safe.")
+  .description(
+    "Initialize Ragmir, expose native agent skills, generate MCP helpers, and ingest when safe.",
+  )
   .option(
     "--target-dir <path>",
     "Directory where the skill folder should be copied.",
@@ -233,7 +235,7 @@ program
   )
   .option(
     "--agents <list>",
-    `Agent MCP helpers to generate: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`,
+    `Native agent skills and MCP helpers to install: all, ${SUPPORTED_AGENT_TARGETS.join(", ")}.`,
     "all",
   )
   .option(
@@ -252,6 +254,10 @@ program
     "Download the configured Transformers.js embedding model and enable higher-quality semantic retrieval.",
   )
   .option("--no-ingest", "Skip automatic indexing even when supported files are present.")
+  .option(
+    "--force-agent-skills",
+    "Replace same-name native skills after reviewing that they can be overwritten.",
+  )
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -263,6 +269,7 @@ program
         mcpArg: string[]
         semantic?: boolean
         ingest?: boolean
+        forceAgentSkills?: boolean
         json?: boolean
       },
       command: Command,
@@ -277,6 +284,7 @@ program
       addOption(setupOptions, "semantic", options.semantic)
       addOption(setupOptions, "ingest", options.ingest)
       addOption(setupOptions, "mcpCommand", options.mcpCommand)
+      addOption(setupOptions, "forceAgentSkills", options.forceAgentSkills)
       if (options.mcpArg.length > 0) {
         setupOptions.mcpArgs = options.mcpArg
       }
@@ -1327,17 +1335,27 @@ program
   )
   .option("--scope <scope>", "Install scope: project or user.", "project")
   .option("--mode <mode>", "Expose skills as links or physical copies: link or copy.", "link")
+  .option(
+    "--force",
+    "Replace same-name native skills after reviewing that they can be overwritten.",
+  )
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
-      options: { agents: string; scope: string; mode: string; json?: boolean },
+      options: { agents: string; scope: string; mode: string; force?: boolean; json?: boolean },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
       const scope = parseAgentInstallScope(options.scope)
       const mode = parseAgentInstallMode(options.mode)
       const agents = parseAgentTargets(options.agents)
-      const result = await installAgentSkills({ cwd, agents, scope, mode })
+      const result = await installAgentSkills({
+        cwd,
+        agents,
+        scope,
+        mode,
+        force: options.force ?? false,
+      })
       if (options.json) {
         console.log(JSON.stringify(result, null, 2))
         return
@@ -1651,6 +1669,15 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`packageManager=${report.packageManager}`)
   console.log(`runCommand=${report.runCommand}`)
   console.log(`agentKitInstalled=${report.agentKitInstalled}`)
+  console.log(`agentIntegration.ready=${report.agentIntegration.ready}`)
+  console.log(`agentIntegration.runnerReady=${report.agentIntegration.runnerReady}`)
+  console.log(`agentIntegration.runnerMode=${report.agentIntegration.runnerMode ?? "none"}`)
+  console.log(`agentIntegration.projectAgents=${report.agentIntegration.projectAgents.join(",")}`)
+  console.log(`agentIntegration.userAgents=${report.agentIntegration.userAgents.join(",")}`)
+  console.log(`agentIntegration.nativeAgents=${report.agentIntegration.nativeAgents.join(",")}`)
+  for (const warning of report.agentIntegration.warnings) {
+    console.log(pc.yellow(`agentIntegration.warning: ${warning}`))
+  }
   console.log(`embeddingProvider=${report.embeddingProvider}`)
   console.log(`transformersAllowRemoteModels=${report.transformersAllowRemoteModels}`)
   console.log(`redactionEnabled=${report.redactionEnabled}`)
@@ -1808,6 +1835,11 @@ function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: str
     console.log(`  - ${helper.label} MCP helper: ${helper.path}`)
   }
   console.log(`  - agent setup guide: ${result.agentKit.agentSetupPath}`)
+  for (const installation of result.agentInstallations) {
+    console.log(
+      `  - ${installation.label} skills: ${installation.targetDir} (${installation.mode})`,
+    )
+  }
   console.log("")
   if (result.semantic) {
     console.log(pc.cyan("Semantic retrieval:"))

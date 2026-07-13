@@ -44,15 +44,18 @@ export type {
   AgentHelperFile,
   AgentInstallMode,
   AgentInstallScope,
+  AgentIntegrationReport,
   AgentSkillInstallation,
   AgentTarget,
   InstallAgentSkillsOptions,
   InstallAgentSkillsResult,
   InstallSkillOptions,
   InstallSkillResult,
+  RagmirRunnerMode,
 } from "./skill.js"
 export {
   bundledSkillPath,
+  inspectAgentIntegration,
   installAgentSkills,
   installSkill,
   parseAgentTargets,

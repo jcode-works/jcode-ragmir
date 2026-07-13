@@ -62,19 +62,19 @@ describe("installSkill", () => {
     expect(audioSkill).toContain("name: ragmir-audio-summary")
     expect(reportSkill).toContain("name: ragmir-markdown-report")
     expect(legalSkill).toContain("name: ragmir-legal-dossier")
-    expect(mcpConfig.mcpServers.ragmir.command).toBe("pnpm")
-    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["exec", "rgr", "serve-mcp"])
+    expect(mcpConfig.mcpServers.ragmir.command).toBe("node")
+    expect(mcpConfig.mcpServers.ragmir.args).toEqual([result.runnerPath, "serve-mcp"])
     expect(mcpConfig.mcpServers.ragmir.cwd).toBe(root)
     expect(mcpConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(claudeConfig).toEqual({
       type: "stdio",
-      command: "pnpm",
-      args: ["exec", "rgr", "serve-mcp"],
+      command: "node",
+      args: [result.runnerPath, "serve-mcp"],
       env: { RAGMIR_PROJECT_ROOT: root },
     })
     expect(codexConfig).toContain("[mcp_servers.ragmir]")
-    expect(codexConfig).toContain('command = "pnpm"')
-    expect(codexConfig).toContain('args = ["exec", "rgr", "serve-mcp"]')
+    expect(codexConfig).toContain('command = "node"')
+    expect(codexConfig).toContain(`args = [${JSON.stringify(result.runnerPath)}, "serve-mcp"]`)
     expect(codexConfig).toContain(`cwd = ${JSON.stringify(root)}`)
     expect(codexConfig).toContain("[[skills.config]]")
     expect(codexConfig).toContain(path.join(root, ".ragmir", "skills", "ragmir"))
@@ -82,7 +82,7 @@ describe("installSkill", () => {
     expect(kimiConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(opencodeConfig.mcp.ragmir).toEqual({
       type: "local",
-      command: ["pnpm", "exec", "rgr", "serve-mcp"],
+      command: ["node", result.runnerPath, "serve-mcp"],
       enabled: true,
       environment: { RAGMIR_PROJECT_ROOT: root },
     })
@@ -92,6 +92,8 @@ describe("installSkill", () => {
     expect(agentSetup).toContain("Kimi Code CLI")
     expect(agentSetup).toContain("OpenCode")
     expect(agentSetup).toContain("Cline")
+    expect(agentSetup).toContain(".agents/skills/")
+    expect(await readFile(result.runnerPath, "utf8")).toContain("@jcode.labs/ragmir@")
   })
 
   it("should generate unique rooted MCP helpers for a nested monorepo base", async () => {
@@ -135,6 +137,7 @@ describe("installSkill", () => {
     expect(first.written).toContain(path.join(".ragmir", "skills", "ragmir-audio-summary"))
     expect(first.written).toContain(path.join(".ragmir", "skills", "ragmir-markdown-report"))
     expect(first.written).toContain(path.join(".ragmir", "skills", "ragmir-legal-dossier"))
+    expect(first.written).toContain(path.join(".ragmir", "run.cjs"))
     expect(first.written).toContain(path.join(".ragmir", "claude-mcp-server.json"))
     expect(first.written).toContain(path.join(".ragmir", "codex-mcp.toml"))
     expect(first.written).toContain(path.join(".ragmir", "kimi-mcp.json"))
@@ -147,7 +150,7 @@ describe("installSkill", () => {
     expect(gitignore).not.toContain("!private/")
   })
 
-  it("uses the target repository package manager in generated MCP config", async () => {
+  it("uses the generated local runner independently of the target package manager", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-skill-"))
     tempDirs.push(root)
     await writeFile(path.join(root, "package-lock.json"), "{}\n", "utf8")
@@ -159,11 +162,11 @@ describe("installSkill", () => {
     const codexConfig = await readFile(result.codexConfigPath, "utf8")
     const readme = await readFile(result.readmePath, "utf8")
 
-    expect(mcpConfig.mcpServers.ragmir.command).toBe("npx")
-    expect(mcpConfig.mcpServers.ragmir.args).toEqual(["rgr", "serve-mcp"])
-    expect(codexConfig).toContain('command = "npx"')
-    expect(codexConfig).toContain('args = ["rgr", "serve-mcp"]')
-    expect(readme).toContain("npx rgr serve-mcp")
+    expect(mcpConfig.mcpServers.ragmir.command).toBe("node")
+    expect(mcpConfig.mcpServers.ragmir.args).toEqual([result.runnerPath, "serve-mcp"])
+    expect(codexConfig).toContain('command = "node"')
+    expect(codexConfig).toContain(`args = [${JSON.stringify(result.runnerPath)}, "serve-mcp"]`)
+    expect(readme).toContain("node .ragmir/run.cjs serve-mcp")
   })
 
   it("can generate selected agent helpers with a custom MCP command", async () => {
@@ -228,28 +231,40 @@ describe("installAgentSkills", () => {
 
     const result = await installAgentSkills({
       cwd: root,
-      agents: parseAgentTargets("claude,kimi"),
+      agents: parseAgentTargets("claude,codex,kimi"),
       scope: "project",
     })
 
     expect(result.installations.map((installation) => installation.agent)).toEqual([
       "claude",
+      "codex",
       "kimi",
     ])
-    expect(result.installations.map((installation) => installation.mode)).toEqual(["link", "link"])
+    expect(result.installations.map((installation) => installation.mode)).toEqual([
+      "link",
+      "link",
+      "link",
+    ])
     const claudeSkillDir = path.join(root, ".claude", "skills", "ragmir")
+    const codexSkillDir = path.join(root, ".agents", "skills", "ragmir")
     const kimiSkillDir = path.join(root, ".kimi", "skills", "ragmir")
     expect(existsSync(path.join(claudeSkillDir, "SKILL.md"))).toBe(true)
+    expect(existsSync(path.join(codexSkillDir, "SKILL.md"))).toBe(true)
     expect(existsSync(path.join(kimiSkillDir, "SKILL.md"))).toBe(true)
     expect((await lstat(claudeSkillDir)).isSymbolicLink()).toBe(true)
+    expect((await lstat(codexSkillDir)).isSymbolicLink()).toBe(true)
     expect((await lstat(kimiSkillDir)).isSymbolicLink()).toBe(true)
     const canonicalSkillDir = await realpath(path.join(root, ".ragmir", "skills", "ragmir"))
     expect(await realpath(claudeSkillDir)).toBe(canonicalSkillDir)
+    expect(await realpath(codexSkillDir)).toBe(canonicalSkillDir)
     expect(await realpath(kimiSkillDir)).toBe(canonicalSkillDir)
     expect(existsSync(path.join(root, ".codex", "skills", "ragmir", "SKILL.md"))).toBe(false)
     expect(result.written).toContain(path.join(".claude", "skills", "ragmir"))
     expect(result.written).toContain(path.join(".kimi", "skills", "ragmir-markdown-report"))
     expect(result.written).toContain(path.join(".kimi", "skills", "ragmir-legal-dossier"))
+    const gitignore = await readFile(path.join(root, ".gitignore"), "utf8")
+    expect(gitignore).toContain(".agents/skills/ragmir")
+    expect(gitignore).toContain(".claude/skills/ragmir")
   })
 
   it("can copy skills when symlinks are not wanted", async () => {
@@ -267,6 +282,23 @@ describe("installAgentSkills", () => {
     expect(result.installations[0]?.mode).toBe("copy")
     expect(existsSync(path.join(clineSkillDir, "SKILL.md"))).toBe(true)
     expect((await lstat(clineSkillDir)).isSymbolicLink()).toBe(false)
+    expect(existsSync(path.join(clineSkillDir, ".ragmir-managed.json"))).toBe(true)
+  })
+
+  it("refuses to replace unmanaged skills unless force is explicit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-agent-"))
+    tempDirs.push(root)
+    const customSkillDir = path.join(root, ".claude", "skills", "ragmir")
+    await mkdir(customSkillDir, { recursive: true })
+    await writeFile(path.join(customSkillDir, "SKILL.md"), "custom skill\n", "utf8")
+
+    await expect(
+      installAgentSkills({ cwd: root, agents: ["claude"], scope: "project" }),
+    ).rejects.toThrow("Refusing to replace unmanaged agent skill")
+    expect(await readFile(path.join(customSkillDir, "SKILL.md"), "utf8")).toBe("custom skill\n")
+
+    await installAgentSkills({ cwd: root, agents: ["claude"], scope: "project", force: true })
+    expect((await lstat(customSkillDir)).isSymbolicLink()).toBe(true)
   })
 
   it("uses user-scope directories and environment overrides", async () => {

@@ -4,6 +4,8 @@ import path from "node:path"
 
 export type PackageManager = "pnpm" | "npm" | "yarn" | "bun"
 const RGR_CLI_BIN = "rgr"
+export const RGR_RUNNER_FILENAME = "run.cjs"
+export const RGR_RUNNER_PROBE_ARG = "--ragmir-runner-probe"
 
 export interface RagmirCommand {
   packageManager: PackageManager
@@ -37,7 +39,17 @@ export async function detectPackageManager(cwd = process.cwd()): Promise<Package
 }
 
 export async function rgrCommand(cwd: string, args: string[]): Promise<RagmirCommand> {
-  const packageManager = await detectPackageManager(cwd)
+  const root = path.resolve(cwd)
+  const packageManager = await detectPackageManager(root)
+  const runnerPath = path.join(root, ".ragmir", RGR_RUNNER_FILENAME)
+  if (existsSync(runnerPath)) {
+    return {
+      packageManager,
+      command: "node",
+      args: [runnerPath, ...args],
+      display: displayRunnerCommand(root, runnerPath, args),
+    }
+  }
   const commandArgs = commandArgsFor(packageManager, args)
   return {
     packageManager,
@@ -45,6 +57,12 @@ export async function rgrCommand(cwd: string, args: string[]): Promise<RagmirCom
     args: commandArgs.args,
     display: displayCommand(packageManager, args),
   }
+}
+
+function displayRunnerCommand(root: string, runnerPath: string, args: string[]): string {
+  const relativeRunner = path.relative(root, runnerPath) || runnerPath
+  const suffix = [relativeRunner, ...args].map(formatArg).join(" ")
+  return `node ${suffix}`
 }
 
 export const ragmirCommand = rgrCommand
