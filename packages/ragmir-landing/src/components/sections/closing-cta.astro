@@ -1,6 +1,5 @@
 ---
 import { ArrowRight } from "@lucide/astro"
-import { RagmirBackground } from "../ragmir-background"
 
 interface Props {
   translations: Record<string, string>
@@ -13,8 +12,6 @@ const t = (key: string): string => translations[key] ?? key
 
 <section id="cta-final" class="container-wide relative w-full overflow-hidden">
   <div class="relative flex flex-col min-h-[60vh]">
-    <RagmirBackground client:visible height="60vh" className="absolute inset-0" behindContent={true} />
-
     <div class="container-default mx-auto w-full px-5 pt-12 md:pt-16">
       <div class="flex justify-between text-[10px] font-mono tracking-[0.25em] uppercase text-muted-foreground">
         <span>{t("closing_eyebrow")}</span>

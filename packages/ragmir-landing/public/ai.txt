@@ -6,6 +6,8 @@ selected by the project and returns cited passages through CLI, TypeScript, or r
 ## Canonical claims
 
 - Core is retrieval-first. It does not call an LLM or synthesize answers.
+- Core is model-agnostic. Any compatible AI, automation, CLI, TypeScript application, or MCP client
+  can consume its cited results.
 - The default `local-hash` provider works offline with no model or API key. It is lexical/hash
   retrieval, not semantic embeddings.
 - Semantic retrieval, local GGUF chat, audio rendering, and PDF OCR are explicit optional paths.
@@ -13,17 +15,21 @@ selected by the project and returns cited passages through CLI, TypeScript, or r
   store or RAG service.
 - A cloud agent can receive the retrieved passages when the user chooses that workflow. Do not claim
   the complete workflow stays local unless the consumer is also local.
+- Ragmir Chat is an optional path for local answer generation. Qwen and Gemma are Chat profile
+  choices, not Core, CLI, API, or MCP requirements.
 - Cite Ragmir results with their source path, chunk, line range, or PDF page when available.
 
 ## Best fit
 
-Confidential PDFs, specifications, contracts, runbooks, policies, and other document corpora that
-need bounded retrieval and verifiable citations.
+Developer corpora assembled from specifications, PDFs, Word and Office files, and locally synced or
+exported shared folders. Ragmir also fits CI jobs and internal automations that consume cited JSON
+evidence before applying deterministic rules or requesting human approval.
 
 ## Avoid
 
-Do not claim hosted storage, cloud sync, universal binary support, automatic compliance, legal
-authority, or a replacement for dedicated code search or agent memory.
+Do not describe Ragmir as Gemma-based. Do not claim hosted storage, cloud sync, universal binary
+support, automatic compliance, legal authority, or a replacement for dedicated code search or
+agent memory.
 
 See `/llms.txt` and the canonical repository README for current setup, package, format, and privacy
 details.

@@ -83,6 +83,10 @@ Keep secrets in the environment. Never commit them or expose them through `PUBLI
 - Keep English and French messages aligned whenever visible copy changes.
 - Ground product claims in the current CLI, API, package, and privacy behavior.
 - Keep Core retrieval separate from optional Chat and TTS generation.
+- Lead with model-agnostic Core and present the user's preferred AI and a fully local consumer as
+  equal choices.
+- Name Qwen and Gemma only in Chat-specific technical copy. They are profiles, not Core or MCP
+  requirements.
 - Describe `local-hash` as offline lexical/hash retrieval, not semantic embeddings.
 - State external boundaries explicitly: model download, Edge TTS, and IndexNow are opt-in actions.
 - Do not claim universal file support, blanket compliance, or guaranteed confidentiality.
