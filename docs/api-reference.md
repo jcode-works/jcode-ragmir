@@ -80,10 +80,11 @@ evaluate one heading or structured-data branch.
 | Export | Use |
 | --- | --- |
 | `serveMcp(cwd?)` | Start the local stdio MCP server. |
-| `installSkill(options?)` / `installAgentSkills(options?)` | Install bundled helper files. |
+| `installSkill(options?)` / `installAgentSkills(options?)` | Install the canonical kit and ownership-safe native skill links. |
+| `inspectAgentIntegration(cwd?)` | Verify the local runner and native skill discovery targets. |
 | `parseAgentTargets(value)` / `SUPPORTED_AGENT_TARGETS` | Validate supported agent targets. |
 | `detectPackageManager(cwd?)` | Detect the target project package manager. |
-| `rgrCommand(cwd, args)` | Build the canonical local `rgr` command. |
+| `rgrCommand(cwd, args)` | Prefer the generated project runner, then build the package-manager command. |
 
 `kbCommand` and `ragmirCommand` remain compatibility helpers. New integration code should use
 `rgrCommand` and the `rgr` CLI name.

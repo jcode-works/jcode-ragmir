@@ -110,7 +110,8 @@ npx rgr setup --agents claude,codex,kimi,opencode,cline
 npx rgr doctor
 ```
 
-Ragmir writes helper files for the selected clients and points them at the current project. MCP
+Ragmir links the canonical skills into each selected client's native project folder, writes a local
+runner plus MCP helpers, and points them at the current project. MCP
 exposes status, search, ask, research, exact citation expansion, audit, evaluation, usage, and
 security tools. Retrieval responses have a global byte ceiling and expose metadata-only output
 metrics. The server does not expose index deletion.

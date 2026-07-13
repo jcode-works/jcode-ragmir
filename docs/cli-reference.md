@@ -89,7 +89,9 @@ rgr usage-report --days 30
 rgr destroy-index --yes
 ```
 
-- `install-skill` and `install-agent` install the bundled project helpers.
+- `setup` installs canonical skills, native project links, a local runner, and selected MCP helpers.
+- `install-skill` refreshes only the canonical kit; `install-agent` changes native scope or link mode.
+- `install-agent --force` replaces a conflicting same-name skill only when explicitly requested.
 - `serve-mcp` starts the local stdio MCP server.
 - `route-prompt` classifies whether a prompt should use Ragmir without storing it.
 - `evaluate` measures retrieval against a local golden-query file.

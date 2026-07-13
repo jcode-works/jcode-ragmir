@@ -6,7 +6,13 @@ import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { type PackageManager, rgrCommand } from "./package-manager.js"
 import { type EnableSemanticEmbeddingsResult, enableSemanticEmbeddings } from "./semantic-config.js"
-import { type AgentTarget, type InstallSkillResult, installSkill } from "./skill.js"
+import {
+  type AgentSkillInstallation,
+  type AgentTarget,
+  type InstallAgentSkillsOptions,
+  type InstallSkillResult,
+  installAgentSkills,
+} from "./skill.js"
 import type { DoctorReport, IngestResult } from "./types.js"
 
 export interface SetupOptions {
@@ -18,6 +24,7 @@ export interface SetupOptions {
   mcpServerName?: string
   mcpCommand?: string
   mcpArgs?: readonly string[]
+  forceAgentSkills?: boolean
 }
 
 export interface SetupSemanticResult {
@@ -31,6 +38,7 @@ export interface SetupResult {
   runCommand: string
   created: string[]
   agentKit: InstallSkillResult
+  agentInstallations: AgentSkillInstallation[]
   semantic: SetupSemanticResult | null
   ingested: IngestResult | null
   doctor: DoctorReport
@@ -56,7 +64,7 @@ Keep all proposed paths relative to the repository root. Do not add secrets or p
 export async function setupProject(options: SetupOptions = {}): Promise<SetupResult> {
   const cwd = path.resolve(options.cwd ?? process.cwd())
   const created = await initProject(cwd)
-  const installOptions: Parameters<typeof installSkill>[0] = { cwd }
+  const installOptions: InstallAgentSkillsOptions = { cwd, scope: "project", mode: "link" }
   if (options.targetDir !== undefined) {
     installOptions.targetDir = options.targetDir
   }
@@ -72,7 +80,11 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
   if (options.mcpArgs !== undefined) {
     installOptions.mcpArgs = options.mcpArgs
   }
-  const agentKit = await installSkill(installOptions)
+  if (options.forceAgentSkills !== undefined) {
+    installOptions.force = options.forceAgentSkills
+  }
+  const agentSkills = await installAgentSkills(installOptions)
+  const agentKit = agentSkills.projectKit
   const semantic = options.semantic ? await setupSemanticEmbeddings(cwd) : null
   let report = await doctor(cwd)
   let ingested: IngestResult | null = null
@@ -90,6 +102,7 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
     runCommand: command.display,
     created,
     agentKit,
+    agentInstallations: agentSkills.installations,
     semantic,
     ingested,
     doctor: report,
@@ -120,7 +133,7 @@ function setupNextSteps(report: DoctorReport): string[] {
   if (report.ready) {
     return [
       "Ask questions with the search or ask command shown by `rgr doctor`.",
-      "Run `rgr install-agent --agents claude` or another targeted agent list for native skill discovery.",
+      "Restart or reload the selected agents so they discover the installed Ragmir skills.",
       "Wire the matching MCP helper from .ragmir/ when the agent should call Ragmir tools directly.",
     ]
   }

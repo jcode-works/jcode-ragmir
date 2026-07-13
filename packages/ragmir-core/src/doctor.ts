@@ -5,11 +5,12 @@ import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
 import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit } from "./ingest.js"
-import { rgrCommand } from "./package-manager.js"
+import { RGR_RUNNER_FILENAME, rgrCommand } from "./package-manager.js"
 import { securityAudit } from "./security.js"
 import {
   AGENT_HELPER_CONFIG_FILENAMES,
   AGENT_SETUP_FILENAME,
+  inspectAgentIntegration,
   MCP_CONFIG_FILENAME,
   SKILL_NAMES,
 } from "./skill.js"
@@ -22,6 +23,7 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
   const config = await loadConfig(cwd)
   const command = await rgrCommand(config.projectRoot, [])
   const agentKitInstalled = isAgentKitInstalled(config.projectRoot)
+  const agentIntegration = inspectAgentIntegration(config.projectRoot)
   const [auditReport, securityReport, chunksIndexed, manifest, freshnessWarning] =
     await Promise.all([
       audit(config.projectRoot),
@@ -63,6 +65,8 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     warnings: securityReport.warnings.length,
     embeddingProvider: config.embeddingProvider,
     agentKitInstalled,
+    agentRunnerReady: agentIntegration.runnerReady,
+    nativeAgentCount: agentIntegration.nativeAgents.length,
     freshnessWarning,
     lexicalScanWarning,
     run: (args) => command.display + (args.length > 0 ? ` ${args.join(" ")}` : ""),
@@ -74,6 +78,7 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     packageManager: command.packageManager,
     runCommand: command.display,
     agentKitInstalled,
+    agentIntegration,
     rawDir: config.rawDir,
     storageDir: config.storageDir,
     embeddingProvider: config.embeddingProvider,
@@ -126,6 +131,8 @@ interface NextActionInput {
   warnings: number
   embeddingProvider: string
   agentKitInstalled: boolean
+  agentRunnerReady: boolean
+  nativeAgentCount: number
   freshnessWarning: string | null
   lexicalScanWarning: string | null
   run: (args: string[]) => string
@@ -205,12 +212,21 @@ function nextActions(input: NextActionInput): string[] {
     steps.push(
       `Run \`${input.run(["research", '"your topic"'])}\` for audit-backed multi-query evidence.`,
     )
-    if (input.agentKitInstalled) {
+    if (input.agentKitInstalled && input.nativeAgentCount > 0) {
       steps.push(
-        "Run `rgr install-agent --agents claude` or another targeted agent list for native skill discovery.",
+        "Restart or reload the selected agents so they discover the installed Ragmir skills.",
       )
+      if (!input.agentRunnerReady) {
+        steps.push(
+          "Install @jcode.labs/ragmir in this project or rebuild the workspace package, then rerun `rgr doctor` to verify the local runner.",
+        )
+      }
       steps.push(
         "Wire the matching MCP helper from .ragmir/ when the agent should call Ragmir tools directly.",
+      )
+    } else if (input.agentKitInstalled) {
+      steps.push(
+        "Run `rgr install-agent --agents claude` or another targeted agent list, then rerun `rgr doctor`.",
       )
     } else {
       steps.push(
@@ -226,6 +242,7 @@ function isAgentKitInstalled(projectRoot: string): boolean {
   const ragmirDir = path.join(projectRoot, RAGMIR_DIR)
   const requiredPaths = [
     ...SKILL_NAMES.map((skillName) => path.join(ragmirDir, "skills", skillName, "SKILL.md")),
+    path.join(ragmirDir, RGR_RUNNER_FILENAME),
     path.join(ragmirDir, MCP_CONFIG_FILENAME),
     path.join(ragmirDir, AGENT_SETUP_FILENAME),
   ]
