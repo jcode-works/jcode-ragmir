@@ -18,6 +18,7 @@ passage may leave the machine, connect a local CLI or MCP consumer, or add Ragmi
 answer generation from a verified local model.
 
 [Website](https://ragmir.com) · [npm](https://www.npmjs.com/package/@jcode.labs/ragmir) ·
+[Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [CLI reference](./docs/cli-reference.md) · [Examples](#runnable-examples)
 
 ## Your first cited search
@@ -224,8 +225,13 @@ outside Git or under ignored local state.
 
 ## Documentation
 
+Browse the [project wiki](https://github.com/jcode-works/jcode-ragmir/wiki) to navigate the complete
+documentation. The versioned files below remain canonical for releases, npm packages, Context7,
+and pull-request review.
+
 | Guide | Read it when you need |
 | --- | --- |
+| [Project wiki](https://github.com/jcode-works/jcode-ragmir/wiki) | Browse every guide from one documentation index |
 | [CLI reference](./docs/cli-reference.md) | Commands, options, and JSON output |
 | [API reference](./docs/api-reference.md) | TypeScript exports and result shapes |
 | [Release history](https://github.com/jcode-works/jcode-ragmir/releases) | Generated notes, compatibility changes, and verification artifacts |

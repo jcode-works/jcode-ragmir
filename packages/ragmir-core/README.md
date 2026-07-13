@@ -16,6 +16,7 @@ automation you already use, or keep the consumer local when no retrieved passage
 workstation.
 
 [Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
+[Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md) ·
 [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 
@@ -185,6 +186,7 @@ before indexing sensitive material.
 
 ## Documentation
 
+- [Project documentation](https://github.com/jcode-works/jcode-ragmir/wiki)
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [TypeScript API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 - [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
