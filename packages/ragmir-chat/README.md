@@ -15,6 +15,7 @@ Ragmir does not require this package or any model to retrieve evidence. Use Core
 AI or automation, and add Chat only when answer generation also needs to stay on the workstation.
 
 [Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
+[Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [Offline chat guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-chat-preload.md) ·
 [Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
 
@@ -142,6 +143,7 @@ is the explicit setup step on a connected machine.
 
 ## Further reading
 
+- [Project documentation](https://github.com/jcode-works/jcode-ragmir/wiki)
 - [Offline chat preparation](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-chat-preload.md)
 - [Ragmir configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)

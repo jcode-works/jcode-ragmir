@@ -57,6 +57,7 @@ pnpm exec rgr search "Which decision changed the rollout?"
 
 ## Canonical documentation
 
+- [Documentation wiki](https://github.com/jcode-works/jcode-ragmir/wiki)
 - [README](https://github.com/jcode-works/jcode-ragmir#readme)
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)

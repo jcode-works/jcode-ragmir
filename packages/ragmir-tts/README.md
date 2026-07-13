@@ -12,6 +12,7 @@ default Transformers.js path produces WAV audio locally after the model is prepa
 Edge mode produces online neural-voice MP3 when sending narration text to that service is acceptable.
 
 [Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
+[Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [Offline TTS guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md) ·
 [Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
 
@@ -120,6 +121,7 @@ local `edge-tts` executable, and removes temporary files after rendering.
 
 ## Further reading
 
+- [Project documentation](https://github.com/jcode-works/jcode-ragmir/wiki)
 - [Offline TTS preparation](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md)
 - [Ragmir configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
