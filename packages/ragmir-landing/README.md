@@ -1,6 +1,7 @@
 # Ragmir Landing
 
-The static, telemetry-free website for [Ragmir](https://ragmir.com).
+The static, telemetry-free website for [Ragmir](https://ragmir.com). Public guides are available in
+the [project documentation](https://github.com/jcode-works/jcode-ragmir/wiki).
 
 This private workspace package presents the open-source CLI, TypeScript API, MCP integration, local
 chat, local audio, and privacy boundaries. It does not host document storage, user accounts, a

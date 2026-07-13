@@ -31,5 +31,5 @@ Do not describe Ragmir as Gemma-based. Do not claim hosted storage, cloud sync, 
 support, automatic compliance, legal authority, or a replacement for dedicated code search or
 agent memory.
 
-See `/llms.txt` and the canonical repository README for current setup, package, format, and privacy
-details.
+See the [documentation wiki](https://github.com/jcode-works/jcode-ragmir/wiki), `/llms.txt`, and the
+canonical repository README for current setup, package, format, and privacy details.
