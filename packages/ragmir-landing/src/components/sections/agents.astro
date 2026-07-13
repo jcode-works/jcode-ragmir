@@ -1,5 +1,5 @@
 ---
-import { Cloud, Cpu, Terminal } from "@lucide/astro"
+import { Cloud, Cpu, Terminal, Workflow } from "@lucide/astro"
 import { CommandCopyBox } from "../command-copy"
 
 interface Props {
@@ -10,10 +10,10 @@ const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 
 const agentTargets = [
-  { icon: Cloud, name: t("agents_cloud_name"), text: t("agents_cloud_text") },
-  { icon: Terminal, name: "OpenCode", text: t("agents_opencode_text") },
-  { icon: Cpu, name: t("agents_chat_name"), text: t("agents_chat_text") },
-  { icon: Cpu, name: "Ollama", text: t("agents_ollama_text") },
+  { icon: Cloud, name: t("agents_preferred_name"), text: t("agents_preferred_text") },
+  { icon: Terminal, name: t("agents_local_name"), text: t("agents_local_text") },
+  { icon: Cpu, name: t("agents_offline_name"), text: t("agents_offline_text") },
+  { icon: Workflow, name: t("agents_automation_name"), text: t("agents_automation_text") },
 ]
 ---
 
