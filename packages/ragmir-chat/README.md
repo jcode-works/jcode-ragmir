@@ -11,6 +11,9 @@
 retrieved by Ragmir Core, asks the model to answer only from that evidence, and validates the source
 markers in the visible answer.
 
+Ragmir does not require this package or any model to retrieve evidence. Use Core with your preferred
+AI or automation, and add Chat only when answer generation also needs to stay on the workstation.
+
 [Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Offline chat guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-chat-preload.md) ·
 [Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
@@ -44,6 +47,9 @@ The setup command downloads and verifies one model under `.ragmir/models/chat/<p
 chat commands require that prepared local file and never enable remote model resolution.
 
 ## Choose a profile
+
+Profiles are implementation choices for this optional package. They are not requirements of
+Ragmir Core, the CLI, the TypeScript API, or the MCP server.
 
 | Profile | Model family | Choose it for |
 | --- | --- | --- |

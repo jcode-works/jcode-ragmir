@@ -1,68 +1,32 @@
 # Changelog
 
-## Unreleased
+Ragmir publishes its canonical version history through
+[GitHub Releases](https://github.com/jcode-works/jcode-ragmir/releases). Each release is generated
+by semantic-release from the Conventional Commits merged into `main`, after the repository
+validation workflow passes.
 
-- Rename the public CLI commands to `rgr` and `rgr-tts`.
-- Keep `ragmir`, `kb`, and `ragmir-tts` as deprecated compatibility bins that warn users to migrate
-  to `rgr` / `rgr-tts`.
-- Add deterministic prompt routing through `rgr route-prompt` and MCP `ragmir_route_prompt`.
+This file is intentionally a stable entrypoint instead of a second, manually maintained copy of
+the version history.
 
-## 0.4.2 - 2026-06-29
+## Release history
 
-- Add `rgr doctor` to diagnose initialization, index freshness, security posture, and next steps.
-- Make `rgr audio` and `rgr-tts` default to the offline/confidential Transformers.js WAV path;
-  Edge MP3 now requires an explicit `--engine edge` command.
-- Stop indexing the generated `private/README.md` helper file created by `rgr init`.
-- Improve onboarding output from `rgr init` and `rgr install-skill`.
+- [Latest release](https://github.com/jcode-works/jcode-ragmir/releases/latest)
+- [All releases and version comparisons](https://github.com/jcode-works/jcode-ragmir/releases)
+- [Current TypeScript API reference](./docs/api-reference.md)
 
-## 0.4.1 - 2026-06-29
+Each GitHub release contains generated feature, fix, and compatibility notes plus the verification
+artifacts produced by the release workflow.
 
-- Add an Edge-compatible Ragmir TTS engine so `rgr audio` can match the global Voice Forge quality
-  path with `edge-tts`, `fr-FR-DeniseNeural`, and MP3 output.
-- Keep Transformers.js WAV rendering as the explicit offline/confidential path.
-- Remove duplicated governance documents from package directories; root project docs are the single
-  source of truth.
+## API compatibility
 
-## 0.4.0 - 2026-06-28
+Ragmir follows Semantic Versioning:
 
-- Reposition Ragmir as sovereign local RAG for confidential datasets and AI agents.
-- Expand default ingestion to common text, Office/OpenDocument, data, config, log, and source-code
-  file types.
-- Add `includeExtensions` / `RAGMIR_INCLUDE_EXTENSIONS` for custom UTF-8 text file extensions.
-- Add the optional `ragmir-audio-summary` bundled skill for confidential audio summaries.
-- Install both the main Ragmir skill and optional audio-summary skill with `rgr install-skill`.
-- Improve agent guidance for deep multi-query retrieval before synthesis.
-- Make Ragmir core retrieval-only: `rgr ask` now returns cited context for external agents or LLMs
-  instead of generating answers internally.
-- Add optional Transformers.js semantic embeddings through `embeddingProvider: "transformers"`.
-- Remove Ollama providers and keep `embeddingProvider: "local-hash"` as the no-model default.
-- Move the repository to a simple pnpm workspace monorepo without adding Turbo.
-- Move the core `@jcode.labs/ragmir` package into `packages/ragmir-core`.
-- Add `@jcode.labs/ragmir-tts` for plug-and-play JS/ONNX WAV rendering without Python or ffmpeg.
-- Add `rgr audio` and update the audio-summary skill to use Ragmir TTS before advanced fallback
-  engines.
+- `fix` commits produce patch releases.
+- `feat` commits produce minor releases.
+- commits with a `BREAKING CHANGE` footer produce major releases and surface the compatibility
+  change in the generated release notes.
+- documentation commits produce patch releases so the npm documentation stays current.
+- landing-only commits do not publish the library packages.
 
-## 0.3.0 - 2026-06-28
-
-- Add confidentiality hardening defaults: built-in redaction before indexing, metadata-only access
-  logs, and bounded MCP retrieval.
-- Add `rgr security-audit` for zero-telemetry, provider, redaction, gitignore, storage, and
-  MCP posture checks.
-- Add `rgr destroy-index --yes` to remove generated vector indexes.
-- Add release verification artifacts: npm tarball, SHA256 checksums, SBOM, and manifest.
-- Document air-gapped operation, threat model, MCP hardening, and secure deletion limits.
-
-## 0.2.1 - 2026-06-28
-
-- Add maintainer positioning for Jean-Baptiste Thery and JCode Labs in the README.
-- Make `rgr init` and `rgr install-skill` automatically keep `.ragmir/` ignored by Git.
-
-## 0.2.0 - 2026-06-28
-
-- Rename public product branding to Ragmir while keeping the JCode Labs npm scope.
-- Add the bundled portable `ragmir` agent skill.
-- Add the MCP stdio server with `ragmir_status`, `ragmir_search`, `ragmir_ask`, and
-  `ragmir_audit`.
-- Add production smoke coverage for the built CLI and MCP server.
-- Add Biome, commitlint, publint, CodeQL, Dependabot grouping, protected npm publishing,
-  and open-source contribution/security documentation.
+Check the release notes for the version you plan to install, then compare the
+[API reference](./docs/api-reference.md) when upgrading across a major version.

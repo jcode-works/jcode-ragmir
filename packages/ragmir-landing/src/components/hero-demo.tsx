@@ -1,13 +1,13 @@
 import {
-  BookOpenText,
+  Bot,
+  Boxes,
   Code2,
-  Cpu,
+  FileText,
+  FolderSync,
   type LucideIcon,
-  Plane,
   RotateCcw,
-  Scale,
   ShieldCheck,
-  Wrench,
+  Workflow,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "../lib/utils"
@@ -38,20 +38,16 @@ const INITIAL_PLAYBACK_STATE: PlaybackState = {
   isComplete: false,
 }
 
-const TYPEABLE_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
-const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
-const TERMINAL_PROMPT_GRID_CLASS = "grid-cols-[4rem_minmax(0,1fr)_auto]"
-const TERMINAL_CONTENT_INDENT_CLASS = "pl-[4.5rem]"
+const TYPEABLE_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex", "hermes", "n8n"])
+const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex", "hermes", "n8n"])
 
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
-  military: ShieldCheck,
-  dev: Code2,
-  aviation: Plane,
-  security: ShieldCheck,
-  incident: Wrench,
-  legal: Scale,
-  content: BookOpenText,
-  local: Cpu,
+  word: FileText,
+  drive: FolderSync,
+  n8n: Workflow,
+  hermes: Bot,
+  monorepo: Boxes,
+  gameplan: ShieldCheck,
 }
 
 export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
@@ -226,6 +222,8 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
   const lineClass: Record<TerminalLineKind, string> = {
     shell: "text-foreground/92",
     codex: "text-amber-300",
+    hermes: "text-violet-300",
+    n8n: "text-orange-300",
     tree: "text-sky-300/90",
     output: "text-muted-foreground",
     mcp: "text-[var(--accent-title)]",
@@ -236,9 +234,11 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
   }
 
   const linePrefix: Partial<Record<TerminalLineKind, string>> = {
-    shell: "$",
-    codex: "codex>",
-    mcp: "mcp",
+    shell: "$ shell",
+    codex: "Codex",
+    hermes: "Hermes Agent",
+    n8n: "n8n",
+    mcp: "Ragmir",
   }
 
   const progress = Math.round((playback.visibleCount / activeScenario.lines.length) * 100)
@@ -271,7 +271,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
           >
             <div className="flex min-w-max">
               {HERO_DEMO_SCENARIOS.map((scenario, index) => {
-                const Icon = SCENARIO_ICONS[scenario.id] ?? Plane
+                const Icon = SCENARIO_ICONS[scenario.id] ?? Code2
                 const isActive = scenario.id === activeScenario.id
 
                 return (
@@ -381,28 +381,30 @@ function renderTerminalLine(input: {
 
   if (prefix) {
     return (
-      <div
-        className={cn(
-          "group/terminal-line mt-2 mb-1 grid items-start gap-2",
-          TERMINAL_PROMPT_GRID_CLASS,
-        )}
-        key={key}
-      >
-        <span className="text-right text-green-400">{prefix}</span>
-        <span className="min-w-0 flex-1">{content}</span>
-        {copyable && (
-          <CommandCopyButton
-            className="mt-0.5 opacity-0 group-hover/terminal-line:opacity-100 focus-visible:opacity-100"
-            command={text}
-            copyLabel={copyLabel}
-          />
-        )}
+      <div className="group/terminal-line mt-3 mb-1" key={key}>
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="h-px w-4 bg-green-400/50" />
+          <span className="font-mono text-[0.55rem] font-bold uppercase tracking-[0.16em] text-green-400/80">
+            {prefix}
+          </span>
+          <span className="h-px min-w-0 flex-1 bg-border/60" />
+        </div>
+        <div className="flex min-w-0 items-start gap-2 border-border/80 border-l pl-3">
+          <span className="min-w-0 flex-1">{content}</span>
+          {copyable && (
+            <CommandCopyButton
+              className="mt-0.5 opacity-0 group-hover/terminal-line:opacity-100 focus-visible:opacity-100"
+              command={text}
+              copyLabel={copyLabel}
+            />
+          )}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className={cn("mb-0.5", TERMINAL_CONTENT_INDENT_CLASS, lineClass[line.kind])} key={key}>
+    <div className={cn("mb-0.5 border-border/50 border-l pl-3", lineClass[line.kind])} key={key}>
       {content}
     </div>
   )

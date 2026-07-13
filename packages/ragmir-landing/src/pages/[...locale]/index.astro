@@ -1,5 +1,4 @@
 ---
-import { RagmirBackground } from "../../components/ragmir-background"
 import { CommandCopyToast } from "../../components/command-copy-toast"
 import { LibrarySection } from "../../components/library-section"
 import { LandingNavbar } from "../../components/landing-navbar"
@@ -88,7 +87,7 @@ const structuredData = [
   },
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareSourceCode",
+    "@type": ["SoftwareApplication", "SoftwareSourceCode"],
     "@id": "https://ragmir.com/#source",
     name: "Ragmir",
     description: t("seo_home_description"),
@@ -97,6 +96,8 @@ const structuredData = [
     mainEntityOfPage: pageUrl,
     codeRepository: "https://github.com/jcode-works/jcode-ragmir",
     runtimePlatform: "Node.js 20 or newer",
+    operatingSystem: "Linux, macOS, Windows",
+    applicationCategory: "DeveloperApplication",
     programmingLanguage: "TypeScript",
     inLanguage: ["en", "fr"],
     keywords: t("seo_home_keywords")
@@ -104,6 +105,11 @@ const structuredData = [
       .map((keyword) => keyword.trim()),
     license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
     isAccessibleForFree: true,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
     ...(publicVersion ? { version: publicVersion } : {}),
     publisher: {
       "@id": "https://ragmir.com/#organization",
@@ -141,7 +147,6 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
 <Layout
   title={t("seo_home_title")}
   description={t("seo_home_description")}
-  keywords={t("seo_home_keywords")}
   author={t("seo_author")}
   robots={t("seo_robots")}
   ogImageAlt={t("seo_image_alt")}
@@ -150,13 +155,6 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
   structuredData={structuredData}
 >
   <main class="relative min-h-screen overflow-hidden bg-background text-foreground">
-    <RagmirBackground
-      client:load
-      height="100dvh"
-      className="inset-0 min-h-[110dvh]"
-      behindContent={false}
-    />
-
     <LandingNavbar
       client:load
       alternateLocales={alternateLocales}
@@ -177,13 +175,13 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       localizedUseCasesUrl={localizedUseCasesUrl}
     />
 
+    <UseCases translations={translations} />
+
     <LibrarySection client:visible translations={translations} />
 
     <Features translations={translations} />
 
     <Agents translations={translations} />
-
-    <UseCases translations={translations} />
 
     <Privacy translations={translations} />
 
