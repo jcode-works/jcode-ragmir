@@ -32,3 +32,25 @@ packages/ragmir-core/examples/**/.ragmir/models/
 packages/ragmir-core/examples/**/.ragmir/reports/
 packages/ragmir-core/examples/**/.ragmir/audio/
 .gitnexus
+
+# Ragmir
+.claude/skills/ragmir
+.claude/skills/ragmir-audio-summary
+.claude/skills/ragmir-markdown-report
+.claude/skills/ragmir-legal-dossier
+.agents/skills/ragmir
+.agents/skills/ragmir-audio-summary
+.agents/skills/ragmir-markdown-report
+.agents/skills/ragmir-legal-dossier
+.kimi/skills/ragmir
+.kimi/skills/ragmir-audio-summary
+.kimi/skills/ragmir-markdown-report
+.kimi/skills/ragmir-legal-dossier
+.opencode/skills/ragmir
+.opencode/skills/ragmir-audio-summary
+.opencode/skills/ragmir-markdown-report
+.opencode/skills/ragmir-legal-dossier
+.cline/skills/ragmir
+.cline/skills/ragmir-audio-summary
+.cline/skills/ragmir-markdown-report
+.cline/skills/ragmir-legal-dossier

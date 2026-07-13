@@ -1,6 +1,17 @@
 # Agent integration
 
-Ragmir gives agents cited local passages through one stdio MCP server. Prepare the target repository once:
+Ragmir gives the AI or automation you choose cited local passages through CLI or one stdio MCP
+server. Core is model-agnostic and never calls a model itself.
+
+Choose the handoff that matches the corpus:
+
+| Path | What stays local | What crosses the boundary |
+| --- | --- | --- |
+| Preferred hosted AI | Corpus, index, and retrieval | Only returned passages, under the AI provider's data policy |
+| Local AI or automation | Corpus, index, retrieval, and the consumer | Nothing, unless that consumer uses another network service |
+| Ragmir Chat | Corpus, index, retrieval, and answer generation | One explicit model download during setup, then no network |
+
+Prepare the target repository once:
 
 ```bash
 rgr setup --agents claude,codex,kimi,opencode,cline
@@ -72,6 +83,10 @@ stays parseable, while `_meta["ragmir/output"]` reports retrieved bytes, returne
 and truncation. `ragmir_ask` returns cited evidence, not a model generated answer. A cloud agent can
 receive returned passages, so choose that handoff only when it matches the corpus’s confidentiality
 requirements.
+
+The generated helpers cover Claude Code, Codex, Kimi, OpenCode, and Cline. Other tools can consume
+the same evidence through the CLI, TypeScript API, or any compatible MCP client. Hermes, n8n
+workers, CI jobs, and internal applications do not require a dedicated Ragmir model integration.
 
 ## Verify
 

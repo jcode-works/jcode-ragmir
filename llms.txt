@@ -13,10 +13,14 @@ store.
   `rgr security-audit`
 - Core behavior: cited retrieval only. `ask` returns evidence, while synthesis belongs to the calling
   agent or optional local chat add-on.
+- Consumer choice: use the AI or automation you already have through CLI, TypeScript, or MCP. Use a
+  local consumer or optional Chat when no retrieved passage may leave the machine.
 - Default retrieval: local-hash, with no model download. Semantic embeddings and local GGUF chat are
   explicit opt-ins.
 - Optional packages: `@jcode.labs/ragmir-chat` for local cited GGUF synthesis and
   `@jcode.labs/ragmir-tts` for local audio or explicitly selected online speech.
+- Model boundary: Qwen and Gemma are optional Chat profile choices. Ragmir Core, its CLI, API, and
+  MCP server do not depend on either family or on any generative model.
 - Privacy boundary: the corpus and index stay local. A cloud agent receives retrieved passages only
   when the user chooses that workflow, under that provider's data policy.
 - OCR boundary: embedded PDF text comes first; a configured local executable runs only for blank

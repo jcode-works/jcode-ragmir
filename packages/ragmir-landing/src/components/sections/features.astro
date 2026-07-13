@@ -71,57 +71,59 @@ const featureGroups = [
 <section
   id="features"
   aria-labelledby="features-heading"
-  class="container-wide relative z-10 px-5 py-24 md:px-8 md:py-36"
+  class="relative z-10 w-full overflow-hidden py-24 md:py-36"
 >
   <RagmirBackground client:visible behindContent className="inset-0" height="100%" />
 
-  <div class="mb-10 grid gap-5 lg:grid-cols-[0.78fr_1.22fr] lg:items-end">
-    <div>
-      <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-        {t("features_eyebrow")}
+  <div class="container-wide px-5 md:px-8">
+    <div class="mb-10 grid gap-5 lg:grid-cols-[0.78fr_1.22fr] lg:items-end">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          {t("features_eyebrow")}
+        </p>
+        <h2 id="features-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
+          {t("features_title")}
+        </h2>
+      </div>
+      <p class="max-w-3xl text-muted-foreground text-sm leading-6 lg:justify-self-end">
+        {t("features_text")}
       </p>
-      <h2 id="features-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
-        {t("features_title")}
-      </h2>
     </div>
-    <p class="max-w-3xl text-muted-foreground text-sm leading-6 lg:justify-self-end">
-      {t("features_text")}
-    </p>
-  </div>
 
-  <div class="grid gap-4 lg:grid-cols-3">
-    {featureGroups.map((group) => (
-      <article class="flex min-h-full flex-col rounded-xl border border-border bg-card/82 p-5 text-card-foreground shadow-xl shadow-black/20 backdrop-blur-xl md:p-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div class="flex size-11 items-center justify-center rounded-lg border border-border bg-muted/60">
-            <group.icon class="size-5 text-[var(--accent-title)]" aria-hidden="true" />
+    <div class="grid gap-4 lg:grid-cols-3">
+      {featureGroups.map((group) => (
+        <article class="flex min-h-full flex-col rounded-xl border border-border bg-card/82 p-5 text-card-foreground shadow-xl shadow-black/20 backdrop-blur-xl md:p-6">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="flex size-11 items-center justify-center rounded-lg border border-border bg-muted/60">
+              <group.icon class="size-5 text-[var(--accent-title)]" aria-hidden="true" />
+            </div>
+            <div class="min-w-0 sm:max-w-[17rem]">
+              <CommandCopyPill
+                client:visible
+                command={group.installCommand}
+                copyLabel={t("copy_command")}
+              />
+            </div>
           </div>
-          <div class="min-w-0 sm:max-w-[17rem]">
-            <CommandCopyPill
+          <h3 class="mt-5 font-black text-xl leading-tight">{group.title}</h3>
+          <p class="mt-3 text-muted-foreground text-sm leading-6">{group.text}</p>
+          <div class="mt-5">
+            <CommandCopyBox
               client:visible
-              command={group.installCommand}
+              command={group.command}
               copyLabel={t("copy_command")}
             />
           </div>
-        </div>
-        <h3 class="mt-5 font-black text-xl leading-tight">{group.title}</h3>
-        <p class="mt-3 text-muted-foreground text-sm leading-6">{group.text}</p>
-        <div class="mt-5">
-          <CommandCopyBox
-            client:visible
-            command={group.command}
-            copyLabel={t("copy_command")}
-          />
-        </div>
-        <ul class="mt-5 grid gap-3">
-          {group.items.map((item) => (
-            <li class="flex gap-3 text-sm leading-6">
-              <item.icon class="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span class="text-foreground/88">{item.text}</span>
-            </li>
-          ))}
-        </ul>
-      </article>
-    ))}
+          <ul class="mt-5 grid gap-3">
+            {group.items.map((item) => (
+              <li class="flex gap-3 text-sm leading-6">
+                <item.icon class="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span class="text-foreground/88">{item.text}</span>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </div>
   </div>
 </section>

@@ -19,43 +19,45 @@ const faqItems = [
 
 <section
   aria-labelledby="faq-heading"
-  class="container-default relative z-10 px-5 py-24 md:px-8 md:py-40"
+  class="relative z-10 w-full overflow-hidden py-24 md:py-40"
 >
-  <div class="mb-8 max-w-3xl">
-    <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-      {t("faq_eyebrow")}
-    </p>
-    <h2 id="faq-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
-      {t("faq_title")}
-    </h2>
-    <p class="mt-4 text-muted-foreground text-sm leading-6">{t("faq_text")}</p>
-  </div>
+  <div class="container-default px-5 md:px-8">
+    <div class="mb-8 max-w-3xl">
+      <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+        {t("faq_eyebrow")}
+      </p>
+      <h2 id="faq-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
+        {t("faq_title")}
+      </h2>
+      <p class="mt-4 text-muted-foreground text-sm leading-6">{t("faq_text")}</p>
+    </div>
 
-  <div class="grid gap-3">
-    {faqItems.map((item) => (
-      <details
-        class="group rounded-lg border border-border bg-card/82 p-5 shadow-xl shadow-black/20 backdrop-blur-xl open:bg-card"
-      >
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-bold text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {item.question}
-          <svg
-            class="size-4 shrink-0 text-muted-foreground transition group-open:rotate-180"
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="m6 9 6 6 6-6"></path>
-          </svg>
-        </summary>
-        <p class="mt-3 max-w-3xl text-muted-foreground text-sm leading-6">{item.answer}</p>
-      </details>
-    ))}
+    <div class="grid gap-3">
+      {faqItems.map((item) => (
+        <details
+          class="group rounded-lg border border-border bg-card/82 p-5 shadow-xl shadow-black/20 backdrop-blur-xl open:bg-card"
+        >
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-bold text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {item.question}
+            <svg
+              class="size-4 shrink-0 text-muted-foreground transition group-open:rotate-180"
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </summary>
+          <p class="mt-3 max-w-3xl text-muted-foreground text-sm leading-6">{item.answer}</p>
+        </details>
+      ))}
+    </div>
   </div>
 </section>
