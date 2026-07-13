@@ -202,17 +202,17 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
                 </CardHeader>
 
                 <CardContent className="flex flex-col gap-6 pt-5">
-                  <div className="grid gap-4 border-b border-border pb-6 md:grid-cols-[minmax(0,0.38fr)_minmax(0,1fr)] md:items-start">
+                  <aside className="flex flex-col gap-3 rounded-lg border border-border bg-muted/35 p-4 md:p-5">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <MessageSquareQuote aria-hidden="true" />
                       <p className="font-bold text-xs uppercase tracking-[0.14em]">
                         {t("use_cases_request_label")}
                       </p>
                     </div>
-                    <blockquote className="font-semibold text-base leading-7 md:text-lg">
+                    <blockquote className="max-w-4xl font-semibold text-base leading-7 md:text-lg">
                       “{t(useCase.requestKey)}”
                     </blockquote>
-                  </div>
+                  </aside>
 
                   <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,0.72fr)_auto_minmax(0,1.1fr)] lg:items-center">
                     <section className="flex min-w-0 flex-col gap-4">
