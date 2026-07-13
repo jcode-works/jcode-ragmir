@@ -236,7 +236,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
   const linePrefix: Partial<Record<TerminalLineKind, string>> = {
     shell: "$ shell",
     codex: "Codex",
-    hermes: "Hermes Agent",
+    hermes: t("demo_hermes_prefix"),
     n8n: "n8n",
     mcp: "Ragmir",
   }
@@ -258,7 +258,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
           {activeScenario.terminalTitle}
         </span>
         <span className="font-mono text-[0.6rem] font-bold uppercase tracking-wider text-[var(--accent-title)]">
-          {activeScenario.badge}
+          {t(activeScenario.badgeKey)}
         </span>
       </div>
 

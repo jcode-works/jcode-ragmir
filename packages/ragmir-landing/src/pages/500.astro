@@ -52,9 +52,12 @@ const homeUrl = getLocalizedUrl("/", defaultLang)
       const desc = document.querySelector('[data-i18n="desc"]')
       const btn = document.querySelector('[data-i18n="btn"]')
       const link = document.querySelector('[data-i18n="link"]')
+      const description = document.querySelector('meta[name="description"]')
       if (desc) desc.textContent = "Une erreur s'est produite de notre côté. Veuillez réessayer."
       if (btn) btn.textContent = "Retour à l'accueil"
       if (link) link.setAttribute("href", "/fr/")
+      if (description) description.setAttribute("content", "Une erreur s'est produite de notre côté.")
+      document.title = "Erreur serveur | Ragmir"
       document.documentElement.setAttribute("lang", "fr")
     })()
   </script>
