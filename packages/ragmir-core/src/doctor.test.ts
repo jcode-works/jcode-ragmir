@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { doctor } from "./doctor.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
-import { installSkill } from "./skill.js"
+import { installAgentSkills, installSkill } from "./skill.js"
 
 const tempDirs: string[] = []
 
@@ -25,6 +25,7 @@ describe("doctor", () => {
     expect(uninitialized.ready).toBe(false)
     expect(uninitialized.packageManager).toBe("pnpm")
     expect(uninitialized.agentKitInstalled).toBe(false)
+    expect(uninitialized.agentIntegration.ready).toBe(false)
     expect(uninitialized.nextSteps).toEqual([
       "Run `pnpm exec rgr setup` to initialize Ragmir and install the agent kit.",
     ])
@@ -80,7 +81,18 @@ describe("doctor", () => {
 
     await installSkill({ cwd: root })
 
-    expect((await doctor(root)).agentKitInstalled).toBe(true)
+    const kitOnly = await doctor(root)
+    expect(kitOnly.agentKitInstalled).toBe(true)
+    expect(["installed-package", "npm-cache"]).toContain(kitOnly.agentIntegration.runnerMode)
+    expect(kitOnly.agentIntegration.projectAgents).toEqual([])
+    expect(kitOnly.agentIntegration.ready).toBe(
+      kitOnly.agentIntegration.runnerReady && kitOnly.agentIntegration.nativeAgents.length > 0,
+    )
+
+    await installAgentSkills({ cwd: root, agents: ["codex"] })
+    const integrated = await doctor(root)
+    expect(integrated.agentIntegration.projectAgents).toContain("codex")
+    expect(integrated.agentIntegration.ready).toBe(integrated.agentIntegration.runnerReady)
   })
 
   it("does not report complete coverage when a supported file yields no text", async () => {

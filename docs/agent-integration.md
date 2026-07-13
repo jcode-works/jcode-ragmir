@@ -6,7 +6,9 @@ Ragmir gives agents cited local passages through one stdio MCP server. Prepare t
 rgr setup --agents claude,codex,kimi,opencode,cline
 ```
 
-The generated files live under ignored `.ragmir/`. They reference `rgr serve-mcp` in the target repository, never a hosted document service.
+The canonical files live under ignored `.ragmir/`. Setup also links the selected skills into each
+agent's native project directory and generates a local `.ragmir/run.cjs` MCP runner. The runner uses
+the installed project binary first, then the current package installation, with a pinned npm fallback.
 
 ## Native helpers
 
@@ -18,13 +20,17 @@ The generated files live under ignored `.ragmir/`. They reference `rgr serve-mcp
 | OpenCode | `.ragmir/opencode.jsonc` |
 | Cline | `.ragmir/cline-mcp.json` |
 
-Install native skill discovery when the agent supports it:
+Setup installs project-scoped native skill discovery by default. Re-run installation when you want a
+different scope or copy mode:
 
 ```bash
 rgr install-agent --agents codex,claude
 ```
 
-Use `--scope user` only when you intentionally want a user-wide installation. Project scope is the default. `--mode copy` is a fallback for filesystems that cannot follow symlinks.
+Use `--scope user` only when you intentionally want a user-wide installation. Project scope is the
+default. Codex skills use `.agents/skills/` for both project and user discovery. `--mode copy` is a
+fallback for filesystems that cannot follow symlinks. Ragmir refuses to overwrite an unmanaged
+same-name skill unless you explicitly pass `--force` after reviewing it.
 
 ## Monorepo bases
 
@@ -75,5 +81,8 @@ rgr status --json
 rgr bases --json
 rgr search "known phrase" --compact
 ```
+
+Doctor reports runner verification, native agents discovered, and integration warnings separately
+from retrieval readiness.
 
 If the client cannot set a working directory, launch the server with `RAGMIR_PROJECT_ROOT=/absolute/path/to/project`.

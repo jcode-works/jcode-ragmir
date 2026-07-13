@@ -181,6 +181,11 @@ try {
     "agentKitInstalled=true",
     "setup should leave the agent kit installed",
   )
+  assertIncludes(
+    initialDoctor.stdout,
+    "agentIntegration.ready=true",
+    "setup should expose native skills through a verified local runner",
+  )
 
   const ocrDoctorJson = parseJson(
     (await runKb(["ocr", "doctor", "--json"], tempRoot)).stdout,
@@ -199,7 +204,8 @@ try {
   }
 
   const mcpConfig = await readFile(path.join(tempRoot, ".ragmir", "mcp.json"), "utf8")
-  assertIncludes(mcpConfig, '"command": "pnpm"', "default generated MCP config should use pnpm")
+  assertIncludes(mcpConfig, '"command": "node"', "default MCP config should use the local runner")
+  assertIncludes(mcpConfig, ".ragmir/run.cjs", "default MCP config should pin the generated runner")
   assertIncludes(
     mcpConfig,
     '"serve-mcp"',
