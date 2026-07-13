@@ -17,8 +17,9 @@ selected by the project and returns cited passages through CLI, TypeScript, or r
 
 ## Best fit
 
-Confidential PDFs, specifications, contracts, runbooks, policies, and other document corpora that
-need bounded retrieval and verifiable citations.
+Developer corpora assembled from specifications, PDFs, Word and Office files, and locally synced or
+exported shared folders. Ragmir also fits CI jobs and internal automations that consume cited JSON
+evidence before applying deterministic rules or requesting human approval.
 
 ## Avoid
 

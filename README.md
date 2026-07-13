@@ -218,6 +218,8 @@ outside Git or under ignored local state.
 | --- | --- |
 | [CLI reference](./docs/cli-reference.md) | Commands, options, and JSON output |
 | [API reference](./docs/api-reference.md) | TypeScript exports and result shapes |
+| [Release history](https://github.com/jcode-works/jcode-ragmir/releases) | Generated notes, compatibility changes, and verification artifacts |
+| [Changelog](./CHANGELOG.md) | Semantic Versioning and API compatibility policy |
 | [Configuration](./docs/configuration.md) | Sources, privacy profiles, models, limits, and extractors |
 | [Agent integration](./docs/agent-integration.md) | Native helpers and MCP clients |
 | [Troubleshooting](./docs/troubleshooting.md) | Empty indexes, OCR, retrieval, or local-model problems |
@@ -236,7 +238,8 @@ pnpm example
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. Report vulnerabilities
 through [SECURITY.md](./SECURITY.md), not a public issue. Release history is available in
-[CHANGELOG.md](./CHANGELOG.md).
+[GitHub Releases](https://github.com/jcode-works/jcode-ragmir/releases), with compatibility policy
+in [CHANGELOG.md](./CHANGELOG.md).
 
 ## License
 

@@ -26,9 +26,12 @@ through a CLI, TypeScript API, or local read-focused MCP server.
 
 ## Best fit
 
-- Confidential PDFs, specifications, contracts, runbooks, policies, and exported team documents.
+- Developer corpora assembled from specifications, PDFs, Word and Office files, and locally synced
+  or exported shared folders.
 - Large or fragmented corpora where answers must remain traceable to exact sources.
 - AI agents that need bounded evidence over MCP instead of a full-corpus prompt.
+- CI jobs and internal automations that consume cited JSON evidence before applying deterministic
+  rules or requesting human approval.
 
 For structured code navigation, prefer a dedicated repository index. For a tiny text corpus, pass
 the text directly when that is simpler and safe.
@@ -54,6 +57,8 @@ pnpm exec rgr search "Which decision changed the rollout?"
 - [README](https://github.com/jcode-works/jcode-ragmir#readme)
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
+- [Release history](https://github.com/jcode-works/jcode-ragmir/releases)
+- [Changelog and compatibility policy](https://github.com/jcode-works/jcode-ragmir/blob/main/CHANGELOG.md)
 - [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
 - [Security hardening](https://github.com/jcode-works/jcode-ragmir/blob/main/SECURITY-HARDENING.md)

@@ -1,16 +1,13 @@
 ---
 import {
   Bug,
-  ClipboardCheck,
   FileSearch,
+  FolderSync,
   LifeBuoy,
   Replace,
-  Scale,
   ShieldCheck,
   UserPlus,
-  Users,
-  Video,
-  Volume2,
+  Workflow,
 } from "@lucide/astro"
 import { RagmirBackground } from "../ragmir-background"
 
@@ -22,17 +19,14 @@ const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 
 const useCases = [
+  { icon: FolderSync, eyebrow: t("use_case_drive_eyebrow"), title: t("use_case_drive_title"), text: t("use_case_drive_text") },
+  { icon: Workflow, eyebrow: t("use_case_automation_eyebrow"), title: t("use_case_automation_title"), text: t("use_case_automation_text") },
   { icon: UserPlus, eyebrow: t("use_case_onboarding_eyebrow"), title: t("use_case_onboarding_title"), text: t("use_case_onboarding_text") },
   { icon: Replace, eyebrow: t("use_case_refactor_eyebrow"), title: t("use_case_refactor_title"), text: t("use_case_refactor_text") },
   { icon: Bug, eyebrow: t("use_case_debug_eyebrow"), title: t("use_case_debug_title"), text: t("use_case_debug_text") },
-  { icon: Users, eyebrow: t("use_case_team_eyebrow"), title: t("use_case_team_title"), text: t("use_case_team_text") },
   { icon: LifeBuoy, eyebrow: t("use_case_support_eyebrow"), title: t("use_case_support_title"), text: t("use_case_support_text") },
   { icon: ShieldCheck, eyebrow: t("use_case_compliance_eyebrow"), title: t("use_case_compliance_title"), text: t("use_case_compliance_text") },
-  { icon: ClipboardCheck, eyebrow: t("use_case_vendor_eyebrow"), title: t("use_case_vendor_title"), text: t("use_case_vendor_text") },
-  { icon: Scale, eyebrow: t("use_case_legal_eyebrow"), title: t("use_case_legal_title"), text: t("use_case_legal_text") },
   { icon: FileSearch, eyebrow: t("use_case_research_eyebrow"), title: t("use_case_research_title"), text: t("use_case_research_text") },
-  { icon: Video, eyebrow: t("use_case_youtube_eyebrow"), title: t("use_case_youtube_title"), text: t("use_case_youtube_text") },
-  { icon: Volume2, eyebrow: t("use_case_audio_eyebrow"), title: t("use_case_audio_title"), text: t("use_case_audio_text") },
 ]
 ---
 
