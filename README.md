@@ -240,3 +240,6 @@ through [SECURITY.md](./SECURITY.md), not a public issue. Release history is ava
 ## License
 
 Ragmir is open source under the [MIT License](./LICENSE).
+
+Created and maintained by [Jean-Baptiste Théry](https://github.com/jb-thery) through
+[jCode Works](https://github.com/jcode-works).
