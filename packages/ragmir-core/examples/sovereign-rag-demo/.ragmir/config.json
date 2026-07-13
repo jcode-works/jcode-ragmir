@@ -1,4 +1,7 @@
 {
+  "privacyProfile": "private",
+  "retrievalProfile": "balanced",
+  "acceptedRisks": [],
   "rawDir": "raw",
   "storageDir": ".ragmir/storage",
   "sourcesFile": ".ragmir/sources.txt",
@@ -16,7 +19,10 @@
   },
   "accessLog": true,
   "mcpMaxTopK": 10,
+  "mcpMaxOutputBytes": 32768,
   "topK": 5,
+  "ingestConcurrency": 1,
+  "embeddingBatchSize": 16,
   "chunkSize": 900,
   "chunkOverlap": 120,
   "includeExtensions": [".evidence"]
