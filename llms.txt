@@ -34,6 +34,7 @@ store.
 
 ## Documentation
 
+- [Documentation wiki](https://github.com/jcode-works/jcode-ragmir/wiki)
 - [README](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/README.md)
 - [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/cli-reference.md)
 - [API reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/api-reference.md)
