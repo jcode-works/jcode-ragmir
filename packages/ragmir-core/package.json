@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir",
   "version": "0.4.12",
-  "description": "Local RAG for coding agents, with cited project evidence through CLI, MCP, and TypeScript.",
+  "description": "Local RAG for coding agents, with offline cited retrieval through CLI, MCP, and TypeScript.",
   "type": "module",
   "license": "MIT",
   "author": {
@@ -69,8 +69,6 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
-    "@jcode.labs/ragmir-chat": "workspace:*",
-    "@jcode.labs/ragmir-tts": "workspace:*",
     "@lancedb/lancedb": "^0.30.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^14.0.2",
@@ -84,7 +82,21 @@
     "yaml": "^2.9.0",
     "zod": "^4.1.13"
   },
+  "peerDependencies": {
+    "@jcode.labs/ragmir-chat": "workspace:*",
+    "@jcode.labs/ragmir-tts": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@jcode.labs/ragmir-chat": {
+      "optional": true
+    },
+    "@jcode.labs/ragmir-tts": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@jcode.labs/ragmir-chat": "workspace:*",
+    "@jcode.labs/ragmir-tts": "workspace:*",
     "@types/html-to-text": "^9.0.4",
     "@types/node": "^24.10.1",
     "publint": "^0.3.21",

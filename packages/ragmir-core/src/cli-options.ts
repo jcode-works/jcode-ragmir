@@ -1,4 +1,3 @@
-import { isTtsLanguage, TTS_LANGUAGES, type TtsLanguage } from "@jcode.labs/ragmir-tts"
 import type { AgentInstallMode, AgentInstallScope } from "./skill.js"
 
 /**
@@ -11,6 +10,9 @@ import type { AgentInstallMode, AgentInstallScope } from "./skill.js"
  */
 
 export type AudioEngine = "auto" | "edge" | "transformers"
+
+export const SUPPORTED_AUDIO_LANGUAGES = ["en", "es", "fr", "ja", "th", "zh"] as const
+export type AudioLanguage = (typeof SUPPORTED_AUDIO_LANGUAGES)[number]
 
 export interface AudioOptions {
   out?: string
@@ -78,14 +80,18 @@ export function audioAllowRemoteModels(options: AudioOptions): boolean | undefin
  * Resolve the spoken language from `--lang`. Throws on an unsupported value so
  * the operator is told which languages are available.
  */
-export function audioLanguage(options: AudioOptions): TtsLanguage | undefined {
+export function audioLanguage(options: AudioOptions): AudioLanguage | undefined {
   if (options.lang === undefined) {
     return undefined
   }
-  if (isTtsLanguage(options.lang)) {
+  if (isSupportedAudioLanguage(options.lang)) {
     return options.lang
   }
-  throw new Error(`Expected --lang to be one of: ${TTS_LANGUAGES.join(", ")}.`)
+  throw new Error(`Expected --lang to be one of: ${SUPPORTED_AUDIO_LANGUAGES.join(", ")}.`)
+}
+
+function isSupportedAudioLanguage(value: string): value is AudioLanguage {
+  return SUPPORTED_AUDIO_LANGUAGES.some((language) => language === value)
 }
 
 /**

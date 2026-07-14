@@ -5,7 +5,8 @@ workflows.
 
 Use this example when you are changing Ragmir Core or evaluating it as a library rather than as a
 CLI. It imports the same package name an external consumer uses, runs the full retrieval loop, and
-prints cited results from a fictional local corpus.
+prints cited results from a fictional local corpus. The default `local-hash` path keeps the corpus
+and generated index on the machine and performs retrieval offline.
 
 ## What it proves
 

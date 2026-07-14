@@ -1,7 +1,9 @@
 # Ragmir Landing
 
-The static, telemetry-free website for [Ragmir](https://ragmir.com), local RAG for your coding agents
-and scripts. Public guides are available in the
+The static, telemetry-free website for [Ragmir](https://ragmir.com), local RAG that indexes selected
+project files on the user's machine, keeps the corpus and generated index there, and retrieves cited
+evidence offline by default. Core does not upload source documents to a hosted RAG service. Public
+guides are available in the
 [project documentation](https://github.com/jcode-works/jcode-ragmir/wiki).
 
 This private workspace package presents the open-source CLI, TypeScript API, MCP integration,

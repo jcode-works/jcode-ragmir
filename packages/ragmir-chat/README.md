@@ -7,10 +7,10 @@
 
 **Optional local answers for your coding-agent RAG workflow.**
 
-Ragmir Core retrieves cited project evidence for your coding agent or local script.
-`@jcode.labs/ragmir-chat` adds an optional answer step on the same machine: it runs a verified local
-model, limits generation to the retrieved passages, and validates the source markers in the visible
-answer.
+Ragmir Core indexes selected project files on your machine and retrieves cited evidence offline by
+default, without uploading the source corpus to a hosted RAG service. `@jcode.labs/ragmir-chat` adds
+an optional answer step on the same machine: it runs a verified local model, limits generation to
+the retrieved passages, and validates the source markers in the visible answer.
 
 Core does not require Chat or any generative model. Use this package only when the answer itself,
 not just retrieval, must stay on the workstation.

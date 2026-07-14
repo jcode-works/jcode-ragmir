@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import path from "node:path"
 import type { ChatSource } from "@jcode.labs/ragmir-chat"
-import type { TtsLanguage } from "@jcode.labs/ragmir-tts"
 import { Command } from "commander"
 import pc from "picocolors"
 import { accessLogUsageReport } from "./access-log.js"
 import {
+  type AudioLanguage,
   audioAllowRemoteModels,
   audioEngine,
   audioLanguage,
@@ -1568,7 +1568,7 @@ interface TtsRenderOptions {
   textFile: string
   outputPath?: string
   engine: "auto" | "edge" | "transformers"
-  language?: TtsLanguage
+  language?: AudioLanguage
   model?: string
   modelPath?: string
   allowRemoteModels?: boolean
@@ -1579,7 +1579,17 @@ interface TtsRenderOptions {
 }
 
 async function loadChat(): Promise<ChatModule> {
-  const module: unknown = await import(CHAT_PACKAGE_NAME)
+  let module: unknown
+  try {
+    module = await import(CHAT_PACKAGE_NAME)
+  } catch (error) {
+    if (isMissingOptionalPackage(error, CHAT_PACKAGE_NAME)) {
+      throw new Error(
+        `Ragmir Chat is optional and is not installed. Add ${CHAT_PACKAGE_NAME} to this project before using \`rgr chat\`.`,
+      )
+    }
+    throw error
+  }
   if (!isChatModule(module)) {
     throw new Error(`${CHAT_PACKAGE_NAME} did not expose the expected chat API.`)
   }
@@ -1630,11 +1640,30 @@ function toChatSource(source: Awaited<ReturnType<typeof search>>[number]): ChatS
 }
 
 async function loadTts(): Promise<TtsModule> {
-  const module: unknown = await import(TTS_PACKAGE_NAME)
+  let module: unknown
+  try {
+    module = await import(TTS_PACKAGE_NAME)
+  } catch (error) {
+    if (isMissingOptionalPackage(error, TTS_PACKAGE_NAME)) {
+      throw new Error(
+        `Ragmir TTS is optional and is not installed. Add ${TTS_PACKAGE_NAME} to this project before using \`rgr audio\`.`,
+      )
+    }
+    throw error
+  }
   if (!isTtsModule(module)) {
     throw new Error(`${TTS_PACKAGE_NAME} did not expose the expected TTS API.`)
   }
   return module
+}
+
+function isMissingOptionalPackage(error: unknown, packageName: string): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    error.code === "ERR_MODULE_NOT_FOUND" &&
+    error.message.includes(packageName)
+  )
 }
 
 function isTtsModule(value: unknown): value is TtsModule {

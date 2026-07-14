@@ -66,6 +66,8 @@ rgr models pull --enable
 rgr ocr doctor
 rgr ocr setup --language eng+fra
 rgr chat setup --profile fast
+printf '%s\n' "Non-sensitive model preload text." > /tmp/ragmir-tts-preload.txt
+rgr audio /tmp/ragmir-tts-preload.txt --allow-remote-models --out .ragmir/audio/preload.wav
 rgr audio ./brief.md --offline --out .ragmir/audio/brief.wav
 ```
 
@@ -77,7 +79,9 @@ rgr audio ./brief.md --offline --out .ragmir/audio/brief.wav
 | `audio <file>` | Render text with the optional TTS add-on. |
 
 OCR runs only for PDF pages without embedded text. The strict privacy profile disables external
-extractors. Normal chat and offline audio rendering do not download models.
+extractors. The first audio command above explicitly downloads the model from non-sensitive text;
+the second uses the prepared cache and does not download anything. See the
+[offline TTS guide](./offline-tts-preload.md) for model paths and verification.
 
 ## Agents, maintenance, and JSON
 
