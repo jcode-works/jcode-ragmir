@@ -1,7 +1,8 @@
 # Agent integration
 
-Ragmir gives the AI or automation you choose cited local passages through CLI or one stdio MCP
-server. Core is model-agnostic and never calls a model itself.
+Ragmir indexes the selected project files locally and gives the AI or automation you choose cited
+passages through CLI or one stdio MCP server. The default `local-hash` path keeps ingestion and
+retrieval offline. Core is model-agnostic, never uploads the corpus, and never calls a model itself.
 
 Choose the handoff that matches the corpus:
 

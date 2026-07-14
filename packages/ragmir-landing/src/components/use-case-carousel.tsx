@@ -461,26 +461,31 @@ function MobileWorkflow({
   }
 
   return (
-    <ol
-      className="flex w-full flex-col bg-background/50 p-4 lg:hidden"
+    <div
+      className="h-full overflow-y-auto overscroll-y-contain bg-background/50 [scrollbar-width:thin] lg:hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent"
       data-workflow-canvas={useCase.id}
+      data-workflow-scroll-region="true"
     >
-      {nodes.map((node, index) => {
-        const ports: readonly WorkflowPort[] =
-          index === 0 ? ["bottom"] : index === nodes.length - 1 ? ["top"] : ["top", "bottom"]
+      <ol className="flex min-h-full w-full flex-col justify-center p-4">
+        {nodes.map((node, index) => {
+          const ports: readonly WorkflowPort[] =
+            index === 0 ? ["bottom"] : index === nodes.length - 1 ? ["top"] : ["top", "bottom"]
 
-        return (
-          <li className="flex flex-col" key={`${useCase.id}-${node.label}`}>
-            <WorkflowNode {...node} ports={ports} />
-            {index < nodes.length - 1 ? (
-              <div className="h-10">
-                <VerticalConnector id={`${node.nodeId}-to-${nodes[index + 1]?.nodeId ?? "next"}`} />
-              </div>
-            ) : null}
-          </li>
-        )
-      })}
-    </ol>
+          return (
+            <li className="flex flex-col" key={`${useCase.id}-${node.label}`}>
+              <WorkflowNode {...node} ports={ports} />
+              {index < nodes.length - 1 ? (
+                <div className="h-10">
+                  <VerticalConnector
+                    id={`${node.nodeId}-to-${nodes[index + 1]?.nodeId ?? "next"}`}
+                  />
+                </div>
+              ) : null}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
   )
 }
 
@@ -543,8 +548,8 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
               key={useCase.id}
               value={useCase.id}
             >
-              <Card className="w-full min-w-0 overflow-hidden bg-card/90 lg:h-full">
-                <CardHeader className="gap-4 border-b border-border md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:h-[5.5rem] lg:py-4">
+              <Card className="flex h-[55rem] w-full min-w-0 flex-col overflow-hidden bg-card/90 md:h-[49rem] lg:h-full">
+                <CardHeader className="h-48 shrink-0 gap-4 border-b border-border md:grid md:h-[7.5rem] md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:h-[5.5rem] lg:py-4">
                   <div className="flex min-w-0 flex-col gap-2">
                     <CardTitle className="max-w-2xl text-xl leading-tight">
                       {t(useCase.titleKey)}
@@ -584,7 +589,7 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
                   </div>
                 </CardHeader>
 
-                <CardContent className="flex w-full min-w-0 flex-col pt-5 lg:flex-1 lg:px-0">
+                <CardContent className="flex min-h-0 w-full min-w-0 flex-1 flex-col pt-5 lg:px-0">
                   <DesktopWorkflow translations={translations} useCase={useCase} />
                   <MobileWorkflow translations={translations} useCase={useCase} />
                 </CardContent>

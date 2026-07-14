@@ -3,9 +3,10 @@
 A complete, fictional workspace for learning how agents and scripts retrieve cited local project
 context with Ragmir.
 
-Use this example to ingest several file types, search with citations, inspect privacy posture, find an
-unsupported file, evaluate golden queries, and prepare agent access. It runs with offline
-`local-hash` retrieval and contains no customer or production data.
+Use this example to ingest several file types, search with citations, inspect privacy posture, find
+an unsupported file, evaluate golden queries, and prepare agent access. It keeps the fictional
+corpus and generated index on the machine, runs with offline `local-hash` retrieval, and contains no
+customer or production data.
 
 ## Scenario
 

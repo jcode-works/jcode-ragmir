@@ -2,7 +2,7 @@
   "name": "jcode-ragmir",
   "version": "0.4.12",
   "private": true,
-  "description": "Monorepo for Ragmir, local RAG with verifiable citations for coding agents and scripts, plus optional local Chat and TTS.",
+  "description": "Monorepo for Ragmir, local RAG with offline cited retrieval for coding agents and scripts, plus optional local Chat and TTS.",
   "type": "module",
   "license": "MIT",
   "author": "Jean-Baptiste Thery (https://github.com/jb-thery)",
