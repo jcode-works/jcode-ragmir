@@ -5,15 +5,15 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**The CLI, TypeScript API, and local MCP server for cited project retrieval.**
+**Local RAG with verifiable citations for coding agents, scripts, and MCP clients.**
 
 `@jcode.labs/ragmir` indexes the files a project selects and returns source-backed passages without
 a hosted document store. The default `local-hash` retrieval path works offline, without an account
 or model download.
 
-Core is independent of the model or client that consumes those passages. Connect the AI or
-automation you already use, or keep the consumer local when no retrieved passage may leave the
-workstation.
+Core is independent of the model or client that consumes those passages. Connect the coding agent
+or script you already use, keep the consumer local when no retrieved passage may leave the
+workstation, or call the typed API from Node.js.
 
 [Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
@@ -27,27 +27,62 @@ workstation.
 | Search repository documents with citations | `rgr search` |
 | Audit a local knowledge base | `rgr audit`, `rgr doctor`, and `rgr security-audit` |
 | Add retrieval to a Node.js application | Typed `ingest`, `search`, `ask`, and `research` exports |
-| Give an AI agent bounded project context | Local stdio MCP server and generated helpers |
+| Give an agent bounded project context | Local stdio MCP server and generated helpers |
 | Index scanned PDFs | Embedded text first, with optional page-aware local OCR |
 
-Core retrieves evidence. It does not require a generative model and does not produce an ungrounded
-answer. Add [Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) only when local
+Core retrieves cited evidence. It does not require a generative model or generate answers. Add
+[Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) only when local
 GGUF synthesis is useful, or [Ragmir TTS](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 when you need audio output.
 
-## First cited search
+## Use Ragmir with a coding agent or script
 
 Requires Node.js 20 or later.
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir
-npx rgr setup
+npx rgr setup --agents codex,claude,kimi,opencode,cline
 npx rgr sources add "README.md" "docs/**/*.md"
 npx rgr ingest
+npx rgr doctor
+```
+
+Then ask the selected agent:
+
+```text
+Use Ragmir to find the rollout decision. Cite every claim and expand the strongest citation before
+you recommend a change.
+```
+
+Setup installs project-scoped native skills and writes a local stdio MCP helper for each selected
+client. The generated runner pins the current project, so an agent in a monorepo does not silently
+query a sibling index. No Ragmir-specific model is required.
+
+The same setup works with any compatible MCP client. Hermes can launch `.ragmir/run.cjs`; local
+scripts, CI, and internal tools can call the JSON CLI or the TypeScript API without a dedicated
+connector.
+
+## Use Ragmir from an automation
+
+```bash
+npx rgr search "Should this renewal require approval?" --compact --json
+```
+
+Use that command from a local shell script, a Node.js worker, or a CI step after mounting the project
+and its local `.ragmir/` state. The process returns machine-readable cited passages; the workflow
+decides whether to continue, request human approval, or stop.
+
+For long-running integrations, start the local stdio server with `npx rgr serve-mcp`. The MCP surface
+is bounded and read-focused: status, source coverage, search, retrieval-only ask, research, exact
+citation expansion, audit, evaluation, usage, and security checks. It never exposes index deletion.
+
+## Search directly from the CLI
+
+```bash
 npx rgr search "Which decision changed the rollout?"
 ```
 
-The project now owns an ignored `.ragmir/` directory containing configuration and generated local
+The project owns an ignored `.ragmir/` directory containing configuration and generated local
 state. Ingestion is incremental, and every result identifies the source path, chunk, line range, and
 PDF page when one is available.
 
@@ -107,19 +142,6 @@ Frequently used exports:
 
 See the [complete API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 for options and result shapes.
-
-## Connect your preferred AI or automation
-
-```bash
-npx rgr setup --agents claude,codex,kimi,opencode,cline
-npx rgr doctor
-```
-
-Ragmir links the canonical skills into each selected client's native project folder, writes a local
-runner plus MCP helpers, and points them at the current project. MCP
-exposes status, search, ask, research, exact citation expansion, audit, evaluation, usage, and
-security tools. Retrieval responses have a global byte ceiling and expose metadata-only output
-metrics. The server does not expose index deletion.
 
 Any compatible CLI, TypeScript, or MCP client can consume the same cited results. A hosted AI
 receives returned passages under its provider's data policy. OpenCode or another local consumer can

@@ -1,13 +1,14 @@
 # Ragmir - AI instructions
 
-Describe Ragmir as an open-source local-first retrieval toolkit for Node.js. Core indexes files
-selected by the project and returns cited passages through CLI, TypeScript, or read-focused MCP.
+Describe Ragmir as open-source local RAG for coding agents and scripts on Node.js. Core indexes
+files selected by the project and returns cited passages through CLI, TypeScript, or read-focused
+MCP.
 
 ## Canonical claims
 
 - Core is retrieval-first. It does not call an LLM or synthesize answers.
-- Core is model-agnostic. Any compatible AI, automation, CLI, TypeScript application, or MCP client
-  can consume its cited results.
+- Core is model-agnostic. Any compatible coding agent, script, CLI, TypeScript application, or MCP
+  client can consume its cited results.
 - The default `local-hash` provider works offline with no model or API key. It is lexical/hash
   retrieval, not semantic embeddings.
 - Semantic retrieval, local GGUF chat, audio rendering, and PDF OCR are explicit optional paths.

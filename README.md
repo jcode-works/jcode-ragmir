@@ -6,36 +6,51 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
-**Local, cited retrieval for the documents and code your AI agents need.**
+**Local RAG with verifiable citations for coding agents and scripts, through CLI, TypeScript, and
+MCP.**
 
 Ragmir is an open-source retrieval-augmented generation (RAG) toolkit for Node.js. It indexes the
 files you choose, stores the index inside the project, and returns source-backed passages through a
 CLI, TypeScript API, or local MCP server. The default path needs no account, hosted document store,
 or model download.
 
-Bring the AI or automation you already use. Ragmir Core does not call a model. If no retrieved
-passage may leave the machine, connect a local CLI or MCP consumer, or add Ragmir Chat for cited
-answer generation from a verified local model.
+Bring the coding agent or script you already use. Ragmir Core does not call a model. If no
+retrieved passage may leave the machine, connect a local CLI or MCP consumer, or add Ragmir Chat
+for cited answer generation from a verified local model.
 
 [Website](https://ragmir.com) · [npm](https://www.npmjs.com/package/@jcode.labs/ragmir) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [CLI reference](./docs/cli-reference.md) · [Examples](#runnable-examples)
 
-## Your first cited search
+## Give coding agents and scripts cited project context
 
 Ragmir requires Node.js 20 or later. Install it in the repository that owns the files you want to
 search:
 
 ```bash
 pnpm add -D @jcode.labs/ragmir
-pnpm exec rgr setup
+pnpm exec rgr setup --agents codex,claude,kimi,opencode,cline
 pnpm exec rgr sources add "docs/**/*.md"
 pnpm exec rgr ingest
-pnpm exec rgr search "Which decision changed the rollout?"
+pnpm exec rgr doctor
 ```
 
-`rgr setup` creates ignored local state under `.ragmir/`. `rgr ingest` is incremental. Search
-results include the source path, excerpt, chunk number, and PDF page when one is available.
+Then ask the selected agent:
+
+```text
+Use Ragmir to find which decision changed the rollout. Cite every claim and expand the strongest
+citation before you propose an edit.
+```
+
+`rgr setup` creates ignored local state under `.ragmir/`, installs project-scoped native skills,
+and writes local MCP helpers. `rgr ingest` is incremental. The agent receives bounded passages with
+the source path, excerpt, chunk, line range, and PDF page when one is available.
+
+Prefer a direct search? Run:
+
+```bash
+pnpm exec rgr search "Which decision changed the rollout?"
+```
 
 Using npm instead of pnpm? Replace `pnpm add -D` with `npm install --save-dev` and `pnpm exec` with
 `npx`.
@@ -46,9 +61,12 @@ Using npm instead of pnpm? Replace `pnpm add -D` with `npm install --save-dev` a
 | --- | --- | --- |
 | `rgr` CLI | Setup, ingest, search, audit, and maintenance | Human-readable or JSON output |
 | TypeScript API | Embed retrieval in a Node.js application | Typed results with citations |
-| Local MCP server | Give your preferred AI bounded project context | Read-focused retrieval tools |
+| Local MCP server | Give your preferred agent bounded project context | Read-focused retrieval tools |
 | Ragmir Chat | Keep answer generation on the workstation | Cited offline synthesis |
 | Ragmir TTS | Turn a text brief into audio | Local WAV or explicit online MP3 |
+
+Use the CLI or MCP for interactive agent work. Use the TypeScript API when a repeatable Node.js
+process owns the control flow.
 
 Ragmir Core stays retrieval-first. `ask()` returns cited context without calling an LLM. Local chat
 and audio are separate capabilities, so retrieval remains useful on machines that should not run a
@@ -74,18 +92,17 @@ from the installed npm package.
 
 ## Common workflows
 
-### Connect the AI or automation you already use
+### Connect a coding agent or script
 
-```bash
-pnpm exec rgr setup --agents claude,codex,kimi,opencode,cline
-pnpm exec rgr doctor
-```
+Setup links skills into supported agents' native project folders and writes local MCP helpers backed
+by a generated project runner. Any other MCP client can launch `.ragmir/run.cjs`. Hermes, local
+scripts, CI, and internal services can use the same JSON CLI or TypeScript API without a dedicated
+connector.
 
-Setup links skills into the selected agents' native project folders and writes local MCP helpers
-backed by a generated project runner. The MCP surface is intentionally bounded and read-focused.
-Agents can request compact evidence first, then expand one returned citation
-without opening a second index or reading arbitrary files. MCP clients can read `ragmir://context`
-for a compact base, readiness, freshness, and capability overview before choosing a tool.
+The MCP surface is intentionally bounded and read-focused. Agents can request compact evidence
+first, then expand one returned citation without opening a second index or reading arbitrary files.
+MCP clients can read `ragmir://context` for a compact base, readiness, freshness, and capability
+overview before choosing a tool.
 
 Core is model-agnostic: any compatible CLI, TypeScript, or MCP consumer can use the returned
 citations. A hosted AI receives the passages you return to it under that provider's data policy. A

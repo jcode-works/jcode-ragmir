@@ -1,13 +1,12 @@
 import {
-  Bot,
   Boxes,
+  Clapperboard,
   Code2,
   FileText,
   FolderSync,
+  ListChecks,
   type LucideIcon,
   RotateCcw,
-  ShieldCheck,
-  Workflow,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "../lib/utils"
@@ -38,16 +37,15 @@ const INITIAL_PLAYBACK_STATE: PlaybackState = {
   isComplete: false,
 }
 
-const TYPEABLE_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex", "hermes", "n8n"])
-const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex", "hermes", "n8n"])
+const TYPEABLE_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
+const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
 
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
   word: FileText,
-  drive: FolderSync,
-  n8n: Workflow,
-  hermes: Bot,
   monorepo: Boxes,
-  gameplan: ShieldCheck,
+  drive: FolderSync,
+  youtube: Clapperboard,
+  visa: ListChecks,
 }
 
 export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
@@ -222,8 +220,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
   const lineClass: Record<TerminalLineKind, string> = {
     shell: "text-foreground/92",
     codex: "text-amber-300",
-    hermes: "text-violet-300",
-    n8n: "text-orange-300",
+    script: "text-cyan-300",
     tree: "text-sky-300/90",
     output: "text-muted-foreground",
     mcp: "text-[var(--accent-title)]",
@@ -236,8 +233,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
   const linePrefix: Partial<Record<TerminalLineKind, string>> = {
     shell: "$ shell",
     codex: "Codex",
-    hermes: "Hermes Agent",
-    n8n: "n8n",
+    script: t("demo_script_prefix"),
     mcp: "Ragmir",
   }
 
@@ -258,7 +254,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
           {activeScenario.terminalTitle}
         </span>
         <span className="font-mono text-[0.6rem] font-bold uppercase tracking-wider text-[var(--accent-title)]">
-          {activeScenario.badge}
+          {t(activeScenario.badgeKey)}
         </span>
       </div>
 

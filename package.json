@@ -2,7 +2,7 @@
   "name": "jcode-ragmir",
   "version": "0.4.12",
   "private": true,
-  "description": "Monorepo for Ragmir Core and open-source Ragmir add-ons.",
+  "description": "Monorepo for Ragmir, local RAG with verifiable citations for coding agents and scripts, plus optional local Chat and TTS.",
   "type": "module",
   "license": "MIT",
   "author": "Jean-Baptiste Thery (https://github.com/jb-thery)",
@@ -27,6 +27,7 @@
   ],
   "packageManager": "pnpm@11.9.0",
   "scripts": {
+    "api:check": "tsc -p tests/public-api-consumer/tsconfig.json",
     "bootstrap": "mise install && pnpm install",
     "audit:security": "pnpm audit --audit-level moderate",
     "build": "pnpm --filter @jcode.labs/ragmir-landing build && pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm --filter @jcode.labs/ragmir build",
@@ -43,7 +44,7 @@
     "release:semantic:smoke": "node scripts/semantic-release-smoke.mjs",
     "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/ragmir mcp:smoke && pnpm --filter @jcode.labs/ragmir-tts smoke && pnpm --filter @jcode.labs/ragmir-chat smoke",
     "test": "pnpm --filter @jcode.labs/ragmir-tts test && pnpm --filter @jcode.labs/ragmir-chat test && pnpm --filter @jcode.labs/ragmir test",
-    "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test && pnpm build && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
+    "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test && pnpm build && pnpm api:check && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",

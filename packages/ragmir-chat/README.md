@@ -5,14 +5,14 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-chat)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Optional local GGUF answer generation for cited Ragmir evidence.**
+**Optional cited answer generation after Ragmir Core retrieval, with a verified local model.**
 
 `@jcode.labs/ragmir-chat` runs a verified local model through `node-llama-cpp`. It receives passages
 retrieved by Ragmir Core, asks the model to answer only from that evidence, and validates the source
 markers in the visible answer.
 
 Ragmir does not require this package or any model to retrieve evidence. Use Core with your preferred
-AI or automation, and add Chat only when answer generation also needs to stay on the workstation.
+agent or automation, and add Chat only when answer generation also needs to stay on the workstation.
 
 [Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
@@ -30,6 +30,32 @@ AI or automation, and add Chat only when answer generation also needs to stay on
 
 Install Ragmir Core for ingestion, search, MCP, and agent helpers. Install Chat only when you want a
 local synthesis step after retrieval.
+
+## Use it from a coding agent or script
+
+```bash
+npm install --save-dev @jcode.labs/ragmir @jcode.labs/ragmir-chat
+npx rgr setup --agents codex,claude,kimi,opencode,cline
+npx rgr sources add "README.md" "docs/**/*.md"
+npx rgr ingest
+npx rgr chat setup --profile fast
+```
+
+Then ask the selected agent:
+
+```text
+Use Ragmir to answer the release question with the local Chat profile. Verify the citation status
+and expand the cited source before you recommend an action.
+```
+
+The agent can run `npx rgr chat "What changed in the release policy?" --profile fast --offline`.
+Core retrieves the passages first, then Chat generates from those passages and validates the visible
+source markers. For a fully local workflow, use a local agent or automation runner. A hosted agent
+still receives the final answer it displays under that provider's data policy.
+
+For a local script, CI job, or shell worker, add `--json` so the next step can branch on
+`emptyContext` and `citationStatus`. Do not auto-approve a high-impact action unless the status is
+`valid` and the workflow has checked the returned sources.
 
 ## First cited local answer
 
@@ -144,6 +170,7 @@ is the explicit setup step on a connected machine.
 ## Further reading
 
 - [Project documentation](https://github.com/jcode-works/jcode-ragmir/wiki)
+- [Complete TypeScript API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md#chat-cited-local-generation)
 - [Offline chat preparation](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-chat-preload.md)
 - [Ragmir configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)

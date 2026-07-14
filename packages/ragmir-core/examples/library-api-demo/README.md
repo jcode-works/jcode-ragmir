@@ -1,6 +1,7 @@
 # Library API demo
 
-A runnable smoke test for the public `@jcode.labs/ragmir` TypeScript API.
+A runnable smoke test for the public `@jcode.labs/ragmir` TypeScript API behind agent and script
+workflows.
 
 Use this example when you are changing Ragmir Core or evaluating it as a library rather than as a
 CLI. It imports the same package name an external consumer uses, runs the full retrieval loop, and
@@ -83,6 +84,6 @@ deterministic and public-safe. Use a separate ignored corpus for private evaluat
 | --- | --- |
 | Learn the complete CLI workflow | [Sovereign RAG demo](../sovereign-rag-demo/README.md) |
 | Measure exact paths and citations | [Document evidence benchmark](../document-evidence-benchmark/README.md) |
-| Explore every exported function and option | [Core API reference](../../README.md#typescript-api) |
+| Explore every exported function and option | [Complete TypeScript API reference](../../../../docs/api-reference.md) |
 
 Return to the [Ragmir Core README](../../README.md) for installation, MCP, OCR, and privacy guidance.

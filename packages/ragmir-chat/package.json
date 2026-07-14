@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir-chat",
   "version": "0.4.12",
-  "description": "Ragmir add-on for offline cited answer generation with verified local GGUF models and llama.cpp.",
+  "description": "Optional cited local answer generation after Ragmir Core retrieval with verified GGUF models.",
   "type": "module",
   "license": "MIT",
   "author": {

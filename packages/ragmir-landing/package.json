@@ -2,7 +2,7 @@
   "name": "@jcode.labs/ragmir-landing",
   "version": "0.4.10",
   "private": true,
-  "description": "Static Ragmir landing page built with Astro.",
+  "description": "Static site for Ragmir, local RAG with verifiable citations for coding agents and scripts.",
   "type": "module",
   "scripts": {
     "build": "node scripts/astro-no-telemetry.mjs check && node scripts/astro-no-telemetry.mjs build",

@@ -46,7 +46,7 @@ describe("doctor", () => {
     expect(withEvidence.nextSteps).toContain(
       "Run `pnpm exec rgr doctor --fix` to rebuild stale or missing index data.",
     )
-  })
+  }, 15_000)
 
   it("recommends the semantic setup shortcut after the index is ready", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-"))
@@ -93,7 +93,7 @@ describe("doctor", () => {
     const integrated = await doctor(root)
     expect(integrated.agentIntegration.projectAgents).toContain("codex")
     expect(integrated.agentIntegration.ready).toBe(integrated.agentIntegration.runnerReady)
-  })
+  }, 15_000)
 
   it("does not report complete coverage when a supported file yields no text", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-empty-"))

@@ -11,6 +11,7 @@ const homeUrl = getLocalizedUrl("/", defaultLang)
   description="The page you are looking for does not exist or has moved."
   locale={defaultLang}
   robots="noindex, follow"
+  availableLocales={[]}
 >
   <RagmirBackground
     behindContent={false}
@@ -52,9 +53,12 @@ const homeUrl = getLocalizedUrl("/", defaultLang)
       const desc = document.querySelector('[data-i18n="desc"]')
       const btn = document.querySelector('[data-i18n="btn"]')
       const link = document.querySelector('[data-i18n="link"]')
+      const description = document.querySelector('meta[name="description"]')
       if (desc) desc.textContent = "Cette page n'existe pas ou a été déplacée."
       if (btn) btn.textContent = "Retour à l'accueil"
       if (link) link.setAttribute("href", "/fr/")
+      if (description) description.setAttribute("content", "Cette page n'existe pas ou a été déplacée.")
+      document.title = "Page introuvable | Ragmir"
       document.documentElement.setAttribute("lang", "fr")
     })()
   </script>
