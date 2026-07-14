@@ -101,6 +101,7 @@ authentication, authorization, rate limits, and transport security.
 | Export | Purpose |
 | --- | --- |
 | `ingest(options?)` | Incrementally parse, redact, chunk, embed, and store selected files. |
+| `getIngestionProgress(config)` | Read durable progress for the latest ingestion run. |
 | `audit(cwd?)` | Compare files on disk with the current index. |
 | `previewChunks(options?)` | Return redacted chunks and distributions without writing an index. |
 | `search(query, options?)` | Return ranked cited passages. |
@@ -112,8 +113,10 @@ authentication, authorization, rate limits, and transport security.
 | `evaluateGoldenQueries(options)` | Score retrieval against a local golden-query file. |
 
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
-`contextPaths`, `explain`, `signal`, and `timeoutMs`. `IngestOptions`, `ResearchOptions`, and
-`ExpandCitationOptions` also accept `signal` and `timeoutMs`. When explanation is enabled, each
+`contextPaths`, `explain`, `signal`, and `timeoutMs`. `IngestOptions` also accepts `rebuild`, a
+positive `batchSize` that defaults to 25 files, and an optional `onProgress` callback. Its durable
+progress contains the run ID, resume flag, last activity, chunk count, and per-stage file counts.
+`IngestOptions`, `ResearchOptions`, and `ExpandCitationOptions` accept `signal` and `timeoutMs`. When explanation is enabled, each
 result includes reciprocal-rank fusion contributions, one-based vector and lexical ranks, vector
 distance, lexical backend score, and matched query terms. `ExpandCitationOptions.contextRadius` is
 clamped to three chunks.
@@ -182,7 +185,7 @@ types that callers commonly compose explicitly.
 | Area | Exported types |
 | --- | --- |
 | Configuration | `Config`, `PrivacyProfile`, `RetrievalProfile` |
-| Ingestion | `IngestOptions`, `IngestResult`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexManifestFile`, `ParsedPage` |
+| Ingestion | `IngestOptions`, `IngestResult`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexManifestFile`, `ParsedPage` |
 | Preview | `PreviewChunksOptions`, `PreviewReport`, `PreviewFile`, `PreviewChunk` |
 | Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
 | Research and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |

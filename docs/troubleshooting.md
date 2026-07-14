@@ -16,6 +16,16 @@ Run `rgr setup`. It creates `.ragmir/config.json`, local ignore rules, and optio
 
 Check `sources` with `rgr sources list`, then run `rgr ingest`. Use `rgr audit` to compare supported files with the index. Use `rgr ingest --rebuild` after changing embedding provider, model, or chunking.
 
+## Ingestion was interrupted
+
+Run `rgr status --json`, then start `rgr ingest` again. A compatible run resumes from its last
+committed file batch. Files in `parsed` or `embedded` state without a committed index write are
+retried; files already in `indexed` state are not parsed or embedded again. If source checksums or
+the indexing policy changed, Ragmir starts a new safe run instead.
+
+An interrupted `rgr ingest --rebuild` leaves the previous complete index active. Re-run the rebuild
+to continue its isolated generation.
+
 ## A PDF or image has no text
 
 `rgr ingest --json` reports `emptyTextFiles`. For scanned PDFs, run:

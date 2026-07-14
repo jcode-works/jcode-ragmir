@@ -114,6 +114,7 @@ export interface IndexManifest {
   chunkOverlap: number
   fileCount: number
   chunkCount: number
+  tableName?: string
   indexedFiles?: IndexManifestFile[]
 }
 
@@ -228,9 +229,14 @@ export interface OperationOptions {
 export interface IngestOptions extends OperationOptions {
   cwd?: PathLike
   rebuild?: boolean
+  batchSize?: number
+  onProgress?: (progress: IngestionProgress) => void | Promise<void>
 }
 
 export interface IngestResult {
+  runId: string
+  resumed: boolean
+  batchSize: number
   discoveredFiles: number
   supportedFiles: number
   supportedBytes: number
@@ -250,6 +256,33 @@ export interface IngestResult {
   vectorIndexWarning: string | null
   lexicalIndexWarning: string | null
   errors: Array<{ path: string; message: string }>
+}
+
+export type IngestionFileStage = "pending" | "parsed" | "embedded" | "indexed" | "error"
+
+export type IngestionRunMode = "incremental" | "rebuild"
+
+export type IngestionRunStatus =
+  | "running"
+  | "interrupted"
+  | "failed"
+  | "completed"
+  | "completed_with_errors"
+
+export interface IngestionProgress {
+  runId: string
+  mode: IngestionRunMode
+  status: IngestionRunStatus
+  resumed: boolean
+  batchSize: number
+  totalFiles: number
+  pendingFiles: number
+  parsedFiles: number
+  embeddedFiles: number
+  indexedFiles: number
+  errorFiles: number
+  chunksIndexed: number
+  lastActivityAt: string
 }
 
 export interface PreviewChunksOptions {

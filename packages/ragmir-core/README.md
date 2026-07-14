@@ -84,8 +84,10 @@ npx rgr search "Which decision changed the rollout?"
 ```
 
 The project owns an ignored `.ragmir/` directory containing configuration and generated local
-state. Ingestion is incremental, and every result identifies the source path, chunk, line range, and
-PDF page when one is available.
+state. Ingestion is incremental and commits 25 files per resumable batch by default. Re-run the
+same command after an interruption, or inspect `npx rgr status --json` for the current run ID,
+counts, last activity, and resume flag. Every result identifies the source path, chunk, line range,
+and PDF page when one is available.
 
 ## CLI essentials
 
@@ -106,6 +108,10 @@ npx rgr research "deployment obligations" --compact
 # Machine-readable output
 npx rgr search "deployment decision" --json
 ```
+
+Use `npx rgr ingest --batch-size 10` when a smaller durable checkpoint is useful. Full rebuilds use
+an isolated local generation and switch the active manifest only after validation, so a failed or
+interrupted rebuild does not replace the last healthy index.
 
 `ask` returns cited retrieval context, not LLM synthesis. `research` performs an audit-backed,
 multi-query retrieval pass and reports missing or weak evidence.

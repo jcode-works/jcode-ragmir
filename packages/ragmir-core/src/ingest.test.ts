@@ -5,8 +5,9 @@ import { afterEach, describe, expect, it } from "vitest"
 import { loadConfig } from "./config.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { audit, ingest } from "./ingest.js"
+import { getIngestionProgress, readIngestionState, writeIngestionState } from "./ingestion-state.js"
 import { initProject } from "./init.js"
-import { openRowsTable, readIndexManifest } from "./store.js"
+import { openRowsTable, readIndexManifest, readRows } from "./store.js"
 
 const tempDirs: string[] = []
 
@@ -76,6 +77,198 @@ describe("ingest", () => {
     expect(second.indexedFiles).toBe(2)
     expect(second.rebuiltFiles).toBe(1)
     expect(second.reusedFiles).toBe(1)
+    const rows = await readRows(await loadConfig(root))
+    expect(rows.map((row) => row.relativePath).sort()).toEqual([
+      ".ragmir/raw/alpha.md",
+      ".ragmir/raw/beta.md",
+    ])
+    expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length)
+  })
+
+  it("resumes an interrupted run without reprocessing committed files or duplicating chunks", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-resume-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    for (const name of ["alpha", "beta", "gamma"]) {
+      await writeFile(
+        path.join(root, ".ragmir", "raw", `${name}.md`),
+        `${name} evidence.\n`,
+        "utf8",
+      )
+    }
+
+    const controller = new AbortController()
+    await expect(
+      ingest({
+        cwd: root,
+        batchSize: 1,
+        signal: controller.signal,
+        onProgress(progress) {
+          if (progress.indexedFiles === 1) {
+            controller.abort("test interruption")
+          }
+        },
+      }),
+    ).rejects.toMatchObject({ code: "ABORTED" })
+
+    const config = await loadConfig(root)
+    const interruptedState = await readIngestionState(config)
+    const committedFile = interruptedState?.files.find((file) => file.state === "indexed")
+    expect(interruptedState?.status).toBe("interrupted")
+    expect(committedFile).toBeDefined()
+    expect(await readRows(config)).toHaveLength(1)
+
+    if (!interruptedState || !committedFile) {
+      throw new Error("Expected one committed file in the interrupted ingestion state.")
+    }
+    await writeIngestionState(
+      {
+        ...interruptedState,
+        files: interruptedState.files.map((file) =>
+          file.relativePath === committedFile.relativePath ? { ...file, state: "embedded" } : file,
+        ),
+      },
+      config,
+    )
+
+    const resumedProgress: number[] = []
+    const resumed = await ingest({
+      cwd: root,
+      onProgress(progress) {
+        resumedProgress.push(progress.indexedFiles)
+      },
+    })
+    const completedState = await readIngestionState(config)
+    const committedAfterResume = completedState?.files.find(
+      (file) => file.relativePath === committedFile?.relativePath,
+    )
+    const rows = await readRows(config)
+
+    expect(resumed.runId).toBe(interruptedState?.runId)
+    expect(resumed.resumed).toBe(true)
+    expect(resumed.batchSize).toBe(1)
+    expect(resumedProgress[0]).toBe(1)
+    expect(completedState?.status).toBe("completed")
+    expect(committedAfterResume?.updatedAt).toBe(committedFile?.updatedAt)
+    expect(rows).toHaveLength(3)
+    expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length)
+    await expect(getIngestionProgress(config)).resolves.toMatchObject({
+      runId: resumed.runId,
+      resumed: true,
+      indexedFiles: 3,
+      pendingFiles: 0,
+      errorFiles: 0,
+    })
+  })
+
+  it("keeps the active healthy index when a staged rebuild is interrupted", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-rebuild-rollback-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "healthy.md"),
+      "Healthy production evidence.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const manifestBefore = await readIndexManifest(config)
+    const rowsBefore = await readRows(config)
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "new.md"),
+      "New evidence for the staged rebuild.\n",
+      "utf8",
+    )
+
+    const controller = new AbortController()
+    await expect(
+      ingest({
+        cwd: root,
+        rebuild: true,
+        batchSize: 1,
+        signal: controller.signal,
+        onProgress(progress) {
+          if (progress.mode === "rebuild" && progress.indexedFiles === 1) {
+            controller.abort("test rebuild interruption")
+          }
+        },
+      }),
+    ).rejects.toMatchObject({ code: "ABORTED" })
+
+    const manifestAfter = await readIndexManifest(config)
+    const rowsAfter = await readRows(config)
+    expect(manifestAfter).toEqual(manifestBefore)
+    expect(rowsAfter).toEqual(rowsBefore)
+    await expect(getIngestionProgress(config)).resolves.toMatchObject({
+      mode: "rebuild",
+      status: "interrupted",
+      indexedFiles: 1,
+    })
+  })
+
+  it("keeps the active healthy index when a staged rebuild fails", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-rebuild-failure-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "healthy.md"),
+      "Healthy index before a failed rebuild.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const manifestBefore = await readIndexManifest(config)
+    const rowsBefore = await readRows(config)
+
+    await expect(
+      ingest({
+        cwd: root,
+        rebuild: true,
+        batchSize: 1,
+        onProgress(progress) {
+          if (progress.mode === "rebuild" && progress.indexedFiles === 1) {
+            throw new Error("simulated fatal rebuild failure")
+          }
+        },
+      }),
+    ).rejects.toThrow("simulated fatal rebuild failure")
+
+    expect(await readIndexManifest(config)).toEqual(manifestBefore)
+    expect(await readRows(config)).toEqual(rowsBefore)
+    await expect(getIngestionProgress(config)).resolves.toMatchObject({
+      mode: "rebuild",
+      status: "failed",
+      indexedFiles: 1,
+    })
+  })
+
+  it("continues indexing healthy files when one PDF is corrupt", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-corrupt-pdf-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "broken.pdf"), "not a pdf", "utf8")
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "healthy.md"),
+      "Healthy evidence remains indexable.\n",
+      "utf8",
+    )
+
+    const result = await ingest({ cwd: root, batchSize: 1 })
+
+    expect(result.indexedFiles).toBe(1)
+    expect(result.errors).toEqual([expect.objectContaining({ path: ".ragmir/raw/broken.pdf" })])
+    expect((await readRows(await loadConfig(root))).map((row) => row.relativePath)).toEqual([
+      ".ragmir/raw/healthy.md",
+    ])
+    await expect(getIngestionProgress(await loadConfig(root))).resolves.toMatchObject({
+      status: "completed_with_errors",
+      indexedFiles: 1,
+      errorFiles: 1,
+    })
   })
 
   it("writes an index manifest after ingest and reports a null vectorIndexWarning", async () => {
