@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
-**Local, cited retrieval for the documents and code your AI agents need.**
+**Cited local retrieval for Codex, Claude Code, Kimi, OpenCode, Cline, n8n, or your Node.js app.**
 
 Ragmir is an open-source retrieval-augmented generation (RAG) toolkit for Node.js. It indexes the
 files you choose, stores the index inside the project, and returns source-backed passages through a
@@ -21,21 +21,35 @@ answer generation from a verified local model.
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [CLI reference](./docs/cli-reference.md) · [Examples](#runnable-examples)
 
-## Your first cited search
+## Give your AI cited project context
 
 Ragmir requires Node.js 20 or later. Install it in the repository that owns the files you want to
 search:
 
 ```bash
 pnpm add -D @jcode.labs/ragmir
-pnpm exec rgr setup
+pnpm exec rgr setup --agents codex,claude,kimi,opencode,cline
 pnpm exec rgr sources add "docs/**/*.md"
 pnpm exec rgr ingest
-pnpm exec rgr search "Which decision changed the rollout?"
+pnpm exec rgr doctor
 ```
 
-`rgr setup` creates ignored local state under `.ragmir/`. `rgr ingest` is incremental. Search
-results include the source path, excerpt, chunk number, and PDF page when one is available.
+Then ask the selected agent:
+
+```text
+Use Ragmir to find which decision changed the rollout. Cite every claim and expand the strongest
+citation before you propose an edit.
+```
+
+`rgr setup` creates ignored local state under `.ragmir/`, installs project-scoped native skills,
+and writes local MCP helpers. `rgr ingest` is incremental. The agent receives bounded passages with
+the source path, excerpt, chunk, line range, and PDF page when one is available.
+
+Prefer a direct search? Run:
+
+```bash
+pnpm exec rgr search "Which decision changed the rollout?"
+```
 
 Using npm instead of pnpm? Replace `pnpm add -D` with `npm install --save-dev` and `pnpm exec` with
 `npx`.
@@ -74,18 +88,17 @@ from the installed npm package.
 
 ## Common workflows
 
-### Connect the AI or automation you already use
+### Connect another AI or automation
 
-```bash
-pnpm exec rgr setup --agents claude,codex,kimi,opencode,cline
-pnpm exec rgr doctor
-```
+Setup links skills into supported agents' native project folders and writes local MCP helpers backed
+by a generated project runner. Any other MCP client can launch `.ragmir/run.cjs`. Hermes,
+self-hosted n8n, CI, and internal services can use the same JSON CLI or TypeScript API without a
+dedicated connector.
 
-Setup links skills into the selected agents' native project folders and writes local MCP helpers
-backed by a generated project runner. The MCP surface is intentionally bounded and read-focused.
-Agents can request compact evidence first, then expand one returned citation
-without opening a second index or reading arbitrary files. MCP clients can read `ragmir://context`
-for a compact base, readiness, freshness, and capability overview before choosing a tool.
+The MCP surface is intentionally bounded and read-focused. Agents can request compact evidence
+first, then expand one returned citation without opening a second index or reading arbitrary files.
+MCP clients can read `ragmir://context` for a compact base, readiness, freshness, and capability
+overview before choosing a tool.
 
 Core is model-agnostic: any compatible CLI, TypeScript, or MCP consumer can use the returned
 citations. A hosted AI receives the passages you return to it under that provider's data policy. A

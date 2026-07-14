@@ -194,11 +194,16 @@ describe("NodeLlamaChatRuntime", () => {
   })
 
   it("should load the optimized Gemma runtime once and never expose thought text", async () => {
-    const runtime = new NodeLlamaChatRuntime({
-      profile: "fast",
-      modelId: "google/gemma-4-E2B-it-qat-q4_0-gguf",
-      modelFile: "/local/model.gguf",
-    })
+    const runtime = new NodeLlamaChatRuntime(
+      {
+        profile: "fast",
+        modelId: "google/gemma-4-E2B-it-qat-q4_0-gguf",
+        modelFile: "/local/model.gguf",
+      },
+      {
+        loadNodeLlama: () => import("node-llama-cpp"),
+      },
+    )
     const events: ChatGenerationEvent[] = []
     const messages = [
       { role: "system" as const, content: "System guard." },
@@ -293,6 +298,27 @@ describe("NodeLlamaChatRuntime", () => {
     expect(state.contextDisposeCalls).toBe(1)
     expect(state.modelDisposeCalls).toBe(1)
     expect(state.llamaDisposeCalls).toBe(1)
+  })
+
+  it("should reject an invalid injected runtime module", async () => {
+    const runtime = new NodeLlamaChatRuntime(
+      {
+        profile: "lite",
+        modelId: "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+        modelFile: "/local/lite.gguf",
+      },
+      { loadNodeLlama: async () => ({}) },
+    )
+
+    await expect(
+      runtime.generate({
+        messages: [{ role: "user", content: "Current question and evidence." }],
+        thinking: "off",
+        maxNewTokens: 100,
+      }),
+    ).rejects.toThrow("The injected node-llama-cpp module is invalid.")
+
+    await runtime.dispose()
   })
 
   it("should reject an empty visible answer", async () => {

@@ -46,7 +46,7 @@ export interface CreateChatRuntimeOptions {
 }
 
 export interface ChatRuntimeDependencies {
-  loadNodeLlama?: () => Promise<NodeLlamaCppModule>
+  loadNodeLlama?: () => Promise<unknown>
 }
 
 export class NodeLlamaChatRuntime implements ChatRuntime {
@@ -72,7 +72,9 @@ export class NodeLlamaChatRuntime implements ChatRuntime {
     this.profile = options.profile
     this.modelId = options.modelId
     this.modelFile = options.modelFile
-    this.loadNodeLlama = dependencies.loadNodeLlama ?? defaultNodeLlamaLoader
+    this.loadNodeLlama = dependencies.loadNodeLlama
+      ? validatedNodeLlamaLoader(dependencies.loadNodeLlama)
+      : defaultNodeLlamaLoader
   }
 
   async generate(options: ChatRuntimeGenerationOptions): Promise<ChatRuntimeGenerationResult> {
@@ -393,6 +395,38 @@ function emitReasoning(
 
 async function defaultNodeLlamaLoader(): Promise<NodeLlamaCppModule> {
   return import("node-llama-cpp")
+}
+
+function validatedNodeLlamaLoader(
+  loadNodeLlama: () => Promise<unknown>,
+): () => Promise<NodeLlamaCppModule> {
+  return async () => {
+    const loaded = await loadNodeLlama()
+    if (!isNodeLlamaCppModule(loaded)) {
+      throw new Error("The injected node-llama-cpp module is invalid.")
+    }
+    return loaded
+  }
+}
+
+function isNodeLlamaCppModule(value: unknown): value is NodeLlamaCppModule {
+  if (typeof value !== "object" || value === null) return false
+  return (
+    "getLlama" in value &&
+    typeof value.getLlama === "function" &&
+    "getLlamaGpuTypes" in value &&
+    typeof value.getLlamaGpuTypes === "function" &&
+    "Gemma4ChatWrapper" in value &&
+    typeof value.Gemma4ChatWrapper === "function" &&
+    "resolveChatWrapper" in value &&
+    typeof value.resolveChatWrapper === "function" &&
+    "LlamaChatSession" in value &&
+    typeof value.LlamaChatSession === "function" &&
+    "LlamaLogLevel" in value &&
+    typeof value.LlamaLogLevel === "object" &&
+    value.LlamaLogLevel !== null &&
+    "error" in value.LlamaLogLevel
+  )
 }
 
 function chatComputeBackend(gpu: LlamaGpuType): ChatComputeBackend {

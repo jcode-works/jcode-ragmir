@@ -5,7 +5,7 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-tts)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Turn project briefs and research notes into local audio.**
+**Let your coding agent turn a cited brief into local audio.**
 
 `@jcode.labs/ragmir-tts` renders text files through a typed Node.js API and the `rgr-tts` CLI. Its
 default Transformers.js path produces WAV audio locally after the model is prepared. An explicit
@@ -15,6 +15,36 @@ Edge mode produces online neural-voice MP3 when sending narration text to that s
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [Offline TTS guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md) ·
 [Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
+
+## Use it from Codex or another AI
+
+Install Core and TTS in the repository that owns the source documents:
+
+```bash
+npm install --save-dev @jcode.labs/ragmir @jcode.labs/ragmir-tts
+npx rgr setup --agents codex,claude,kimi,opencode,cline
+npx rgr sources add "README.md" "docs/**/*.md"
+npx rgr ingest
+```
+
+Then ask the selected agent to run a complete, reviewable workflow:
+
+```text
+Use Ragmir to research the release risks. Write a short cited brief to
+.ragmir/reports/release-brief.md and wait for my review. Then run:
+npx rgr audio .ragmir/reports/release-brief.md --offline --out .ragmir/audio/release-brief.wav
+```
+
+Core retrieves the evidence, the chosen AI or local consumer writes the brief, and TTS renders the
+reviewed file. TTS never reads the repository or invents a summary by itself. A hosted AI receives
+the passages it uses under that provider's data policy; choose a local consumer when that handoff
+must stay on the workstation.
+
+The same command fits a self-hosted n8n Execute Command node or a shell worker after the workflow
+has written its reviewed text file. Use `--json` when the next node needs the output path and render
+metadata. n8n Cloud does not provide the Execute Command node required to launch the local CLI.
+Self-hosted n8n 2.x also disables that node by default, so enable it deliberately before using this
+path.
 
 ## Choose the rendering path deliberately
 
@@ -122,6 +152,7 @@ local `edge-tts` executable, and removes temporary files after rendering.
 ## Further reading
 
 - [Project documentation](https://github.com/jcode-works/jcode-ragmir/wiki)
+- [Complete TypeScript API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md#tts-reviewed-text-to-audio)
 - [Offline TTS preparation](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md)
 - [Ragmir configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
