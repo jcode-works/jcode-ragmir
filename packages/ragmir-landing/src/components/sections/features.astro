@@ -38,8 +38,8 @@ const featureGroups = [
     icon: Volume2,
     title: t("features_tts_title"),
     badge: t("features_optional_badge"),
-    installCommand: "npm install -D @jcode.labs/ragmir-tts",
-    command: "npx rgr audio",
+    installCommand: "npm install -D @jcode.labs/ragmir @jcode.labs/ragmir-tts",
+    command: "npx rgr audio ./public-brief.md --allow-remote-models",
     text: t("features_tts_text"),
     items: [
       { icon: Volume2, text: t("features_tts_item_1") },
@@ -52,8 +52,8 @@ const featureGroups = [
     icon: MessageSquareText,
     title: t("features_chat_title"),
     badge: t("features_optional_badge"),
-    installCommand: "npm install -D @jcode.labs/ragmir-chat",
-    command: "npx rgr chat setup",
+    installCommand: "npm install -D @jcode.labs/ragmir @jcode.labs/ragmir-chat",
+    command: "npx rgr chat setup --profile fast",
     text: t("features_chat_text"),
     items: [
       { icon: MessageSquareText, text: t("features_chat_item_1") },
@@ -73,16 +73,14 @@ const featureGroups = [
   <RagmirBackground client:visible behindContent className="inset-0" height="100%" />
 
   <div class="container-wide px-5 md:px-8">
-    <div class="mb-10 grid gap-5 lg:grid-cols-[0.78fr_1.22fr] lg:items-end">
-      <div>
-        <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-          {t("features_eyebrow")}
-        </p>
-        <h2 id="features-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
-          {t("features_title")}
-        </h2>
-      </div>
-      <p class="max-w-3xl text-muted-foreground text-sm leading-6 lg:justify-self-end">
+    <div class="mb-10 max-w-4xl">
+      <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+        {t("features_eyebrow")}
+      </p>
+      <h2 id="features-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
+        {t("features_title")}
+      </h2>
+      <p class="mt-5 max-w-3xl text-muted-foreground text-sm leading-6">
         {t("features_text")}
       </p>
     </div>
@@ -101,7 +99,7 @@ const featureGroups = [
           <h3 class="mt-5 font-black text-xl leading-tight">{group.title}</h3>
           <p class="mt-3 min-h-12 text-muted-foreground text-sm leading-6">{group.text}</p>
           <div class="mt-5 grid gap-3">
-            <div>
+            <div class="min-h-[5.25rem]">
               <p class="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 {t("features_install_label")}
               </p>
@@ -111,7 +109,7 @@ const featureGroups = [
                 copyLabel={t("copy_command")}
               />
             </div>
-            <div>
+            <div class="min-h-[5.25rem]">
               <p class="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 {t("features_run_label")}
               </p>

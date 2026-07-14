@@ -1,7 +1,7 @@
 # Ragmir Landing
 
-The static, telemetry-free website for [Ragmir](https://ragmir.com), the local RAG layer for coding
-agents and scripts. Public guides are available in the
+The static, telemetry-free website for [Ragmir](https://ragmir.com), local RAG for your coding agents
+and scripts. Public guides are available in the
 [project documentation](https://github.com/jcode-works/jcode-ragmir/wiki).
 
 This private workspace package presents the open-source CLI, TypeScript API, MCP integration,

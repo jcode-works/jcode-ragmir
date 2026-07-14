@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir-chat",
   "version": "0.4.12",
-  "description": "Optional cited local answer generation after Ragmir Core retrieval with verified GGUF models.",
+  "description": "Optional local cited answers for coding-agent workflows built on Ragmir Core retrieval.",
   "type": "module",
   "license": "MIT",
   "author": {

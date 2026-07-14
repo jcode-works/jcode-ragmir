@@ -14,7 +14,6 @@ import {
   MessageSquareQuote,
   Search,
   ServerCog,
-  TerminalSquare,
 } from "lucide-react"
 import { Fragment, useState } from "react"
 import { Button } from "./ui/button"
@@ -34,14 +33,12 @@ interface UseCaseDefinition {
 }
 
 interface WorkflowEvidenceDefinition {
-  code: string
   targetStepId: string
   titleKey: string
 }
 
 interface WorkflowStepDefinition {
   accent?: "primary" | "success"
-  code: string
   icon: LucideIcon
   id: string
   labelKey: string
@@ -54,7 +51,6 @@ interface UseCaseCarouselProps {
 
 interface WorkflowNodeProps {
   accent?: "primary" | "success"
-  code?: string
   icon: LucideIcon
   label: string
   nodeId?: string
@@ -83,13 +79,11 @@ const USE_CASES: readonly UseCaseDefinition[] = [
     titleKey: "use_case_spec_title",
     descriptionKey: "use_case_spec_description",
     evidence: {
-      code: "private/specification.docx · private/acceptance-criteria.docx",
       targetStepId: "retrieval",
       titleKey: "use_case_spec_evidence",
     },
     steps: [
       {
-        code: "Codex",
         icon: MessageSquareQuote,
         id: "request",
         labelKey: "use_cases_trigger_label",
@@ -97,7 +91,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "primary",
-        code: "ragmir_search · topK 5",
         icon: ServerCog,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
@@ -105,7 +98,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "success",
-        code: "code + E2E",
         icon: FileCheck2,
         id: "result",
         labelKey: "use_cases_result_label",
@@ -121,7 +113,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
     descriptionKey: "use_case_monorepo_description",
     steps: [
       {
-        code: "Codex · onboarding question",
         icon: MessageSquareQuote,
         id: "question",
         labelKey: "use_cases_trigger_label",
@@ -129,7 +120,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "primary",
-        code: "root + package knowledge bases",
         icon: FolderGit2,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
@@ -137,7 +127,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "success",
-        code: "cited onboarding map",
         icon: FileCheck2,
         id: "result",
         labelKey: "use_cases_result_label",
@@ -152,13 +141,11 @@ const USE_CASES: readonly UseCaseDefinition[] = [
     titleKey: "use_case_drive_title",
     descriptionKey: "use_case_drive_description",
     evidence: {
-      code: "roadmap.pdf · stories.xlsx · architecture.docx",
       targetStepId: "retrieval",
       titleKey: "use_case_drive_evidence",
     },
     steps: [
       {
-        code: "Codex · feature brief",
         icon: MessageSquareQuote,
         id: "request",
         labelKey: "use_cases_trigger_label",
@@ -166,14 +153,12 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "primary",
-        code: "ragmir_search · topK 5",
         icon: Search,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
         titleKey: "use_case_drive_retrieval",
       },
       {
-        code: "cited implementation plan",
         icon: ListChecks,
         id: "plan",
         labelKey: "use_cases_consumer_label",
@@ -181,7 +166,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "success",
-        code: "code + tests + citations",
         icon: FileCheck2,
         id: "result",
         labelKey: "use_cases_result_label",
@@ -196,21 +180,18 @@ const USE_CASES: readonly UseCaseDefinition[] = [
     titleKey: "use_case_youtube_title",
     descriptionKey: "use_case_youtube_description",
     evidence: {
-      code: "library/*.pdf · channel/voice.md",
       targetStepId: "retrieval",
       titleKey: "use_case_youtube_evidence",
     },
     steps: [
       {
-        code: "node scripts/draft-episode.mjs",
-        icon: TerminalSquare,
+        icon: Clapperboard,
         id: "topic",
         labelKey: "use_cases_trigger_label",
         titleKey: "use_case_youtube_request",
       },
       {
         accent: "primary",
-        code: 'rgr research "$TOPIC" --compact',
         icon: BookOpen,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
@@ -218,7 +199,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "success",
-        code: "drafts/episode.md · review required",
         icon: Clapperboard,
         id: "draft",
         labelKey: "use_cases_result_label",
@@ -234,7 +214,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
     descriptionKey: "use_case_visa_description",
     steps: [
       {
-        code: "node scripts/update-project-plan.mjs",
         icon: FileInput,
         id: "evidence",
         labelKey: "use_cases_trigger_label",
@@ -242,7 +221,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "primary",
-        code: 'rgr research "$QUERY" --compact',
         icon: ServerCog,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
@@ -250,7 +228,6 @@ const USE_CASES: readonly UseCaseDefinition[] = [
       },
       {
         accent: "success",
-        code: ".ragmir/reports/action-plan.md",
         icon: ListChecks,
         id: "plan",
         labelKey: "use_cases_result_label",
@@ -266,7 +243,6 @@ function isUseCaseId(value: string): value is UseCaseId {
 
 function WorkflowNode({
   accent,
-  code,
   icon: Icon,
   label,
   nodeId,
@@ -300,14 +276,6 @@ function WorkflowNode({
         <p className="text-[0.65rem] font-bold uppercase tracking-[0.14em]">{label}</p>
       </div>
       <h4 className="mt-4 text-sm font-bold leading-5 text-foreground">{title}</h4>
-      {code ? (
-        <code
-          className="mt-auto block truncate pt-4 font-mono text-[0.68rem] text-foreground/80"
-          title={code}
-        >
-          {code}
-        </code>
-      ) : null}
     </article>
   )
 }
@@ -384,7 +352,6 @@ function DesktopWorkflow({
             <div style={{ gridColumn: index * 2 + 1 }}>
               <WorkflowNode
                 accent={step.accent}
-                code={step.code}
                 icon={step.icon}
                 label={`${String(index + 1).padStart(2, "0")} · ${t(step.labelKey)}`}
                 nodeId={step.id}
@@ -438,7 +405,6 @@ function DesktopWorkflow({
                 }}
               >
                 <WorkflowNode
-                  code={useCase.evidence.code}
                   icon={FileInput}
                   label={t("use_cases_evidence_label")}
                   nodeId="evidence"
@@ -474,7 +440,6 @@ function MobileWorkflow({
   const t = (key: string): string => translations[key] ?? key
   const nodes: (WorkflowNodeProps & { nodeId: string })[] = useCase.steps.map((step, index) => ({
     accent: step.accent,
-    code: step.code,
     icon: step.icon,
     label: `${String(index + 1).padStart(2, "0")} · ${t(step.labelKey)}`,
     nodeId: step.id,
@@ -487,7 +452,6 @@ function MobileWorkflow({
     )
     if (targetIndex >= 0) {
       nodes.splice(targetIndex, 0, {
-        code: useCase.evidence.code,
         icon: FileInput,
         label: t("use_cases_evidence_label"),
         nodeId: "evidence",
