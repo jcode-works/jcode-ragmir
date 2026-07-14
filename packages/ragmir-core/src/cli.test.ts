@@ -1,3 +1,4 @@
+import { TTS_LANGUAGES } from "@jcode.labs/ragmir-tts"
 import { describe, expect, it } from "vitest"
 import {
   audioAllowRemoteModels,
@@ -8,6 +9,7 @@ import {
   parseNumber,
   parsePositiveInt,
   parseRecallThreshold,
+  SUPPORTED_AUDIO_LANGUAGES,
 } from "./cli-options.js"
 
 describe("parsePositiveInt", () => {
@@ -72,6 +74,10 @@ describe("audioAllowRemoteModels", () => {
 })
 
 describe("audioLanguage", () => {
+  it("matches the optional TTS package language contract", () => {
+    expect(SUPPORTED_AUDIO_LANGUAGES).toEqual(TTS_LANGUAGES)
+  })
+
   it("returns undefined when no language is provided", () => {
     expect(audioLanguage({})).toBeUndefined()
   })

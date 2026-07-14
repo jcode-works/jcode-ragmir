@@ -8,10 +8,11 @@
 
 **Local RAG for your coding agents.**
 
-Ragmir indexes the project files you choose, keeps the index on your machine, and gives coding
-agents and local scripts bounded evidence with verifiable citations. Connect through project-scoped
-agent skills, a local MCP server, the CLI, or the TypeScript API. The default path needs no account,
-hosted document store, or model download.
+Ragmir indexes the project files you choose on your machine and retrieves bounded, cited evidence
+offline by default. The corpus and generated index remain local, so confidential source files are
+not uploaded to a hosted RAG service. Connect through project-scoped agent skills, a local MCP
+server, the CLI, or the TypeScript API. The default `local-hash` path needs no account, API key, or
+model download.
 
 Bring the coding agent or automation you already use. Ragmir Core retrieves evidence without
 calling a model. If no retrieved passage may leave the machine, use a local consumer or Ragmir Chat
@@ -234,6 +235,8 @@ Redaction reduces accidental exposure but is not a compliance certification. Rev
 | [`@jcode.labs/ragmir`](./packages/ragmir-core/README.md) | CLI, retrieval API, MCP server, OCR configuration, and agent helpers |
 | [`@jcode.labs/ragmir-chat`](./packages/ragmir-chat/README.md) | Optional cited generation with a local GGUF model |
 | [`@jcode.labs/ragmir-tts`](./packages/ragmir-tts/README.md) | Optional local audio or explicit online voice rendering |
+
+Installing Core does not install Chat or TTS. Add only the optional package needed by the workflow.
 
 ## Runnable examples
 
