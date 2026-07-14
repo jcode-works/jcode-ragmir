@@ -57,6 +57,21 @@ describe("renderSpeech", () => {
     expect(await readFile(outputPath, "utf8")).toBe("RIFF fake wav")
   })
 
+  it("should resolve a relative text file from cwd when rendering speech", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-relative-input-"))
+    tempDirs.push(root)
+    await writeFile(path.join(root, "summary.txt"), "Bonjour depuis le dossier projet.", "utf8")
+
+    const result = await renderSpeech({
+      cwd: root,
+      textFile: "summary.txt",
+      synthesizer: silentSynthesizer,
+    })
+
+    expect(result.outputPath).toBe(path.join(root, ".ragmir/audio/summary.wav"))
+    expect(await readFile(result.outputPath, "utf8")).toBe("RIFF fake wav")
+  })
+
   it("renders mp3 output through the Edge-compatible renderer", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-edge-"))
     tempDirs.push(root)

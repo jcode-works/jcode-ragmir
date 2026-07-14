@@ -2,39 +2,50 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
-  Bot,
-  CodeXml,
+  BookOpen,
+  Boxes,
+  Clapperboard,
+  Cloud,
   FileCheck2,
   FileInput,
-  GitBranch,
+  FolderGit2,
+  ListChecks,
   type LucideIcon,
   MessageSquareQuote,
+  Search,
   ServerCog,
   TerminalSquare,
-  Workflow,
 } from "lucide-react"
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
-type UseCaseId = "spec" | "hermes" | "n8n" | "api"
+type UseCaseId = "spec" | "monorepo" | "drive" | "youtube" | "visa"
 
 interface UseCaseDefinition {
   id: UseCaseId
   icon: LucideIcon
   tabKey: string
-  eyebrowKey: string
   titleKey: string
   descriptionKey: string
-  requestKey: string
-  consumerKey: string
-  consumerDetail: string
-  resultTitleKey: string
-  resultKey: string
-  citationKey: string
-  interfaceLabel: string
-  files: readonly string[]
+  evidence?: WorkflowEvidenceDefinition
+  steps: readonly WorkflowStepDefinition[]
+}
+
+interface WorkflowEvidenceDefinition {
+  code: string
+  targetStepId: string
+  titleKey: string
+}
+
+interface WorkflowStepDefinition {
+  accent?: "primary" | "success"
+  code: string
+  icon: LucideIcon
+  id: string
+  labelKey: string
+  titleKey: string
 }
 
 interface UseCaseCarouselProps {
@@ -44,77 +55,208 @@ interface UseCaseCarouselProps {
 interface WorkflowNodeProps {
   accent?: "primary" | "success"
   code?: string
-  detail?: string
   icon: LucideIcon
   label: string
-  ports?: "horizontal" | "bottom" | "none"
+  nodeId?: string
+  ports?: readonly WorkflowPort[]
   title: string
 }
+
+type WorkflowPort = "top" | "right" | "bottom" | "left"
+
+const PORT_CLASS_NAMES: Record<WorkflowPort, string> = {
+  top: "-top-1.5 left-1/2 -translate-x-1/2",
+  right: "top-1/2 -right-1.5 -translate-y-1/2",
+  bottom: "-bottom-1.5 left-1/2 -translate-x-1/2",
+  left: "top-1/2 -left-1.5 -translate-y-1/2",
+}
+
+const DESKTOP_NODE_MIN_WIDTH_REM = 11.75
+const DESKTOP_CONNECTOR_WIDTH_REM = 2
+const DESKTOP_CANVAS_HORIZONTAL_PADDING_REM = 3
 
 const USE_CASES: readonly UseCaseDefinition[] = [
   {
     id: "spec",
     icon: FileCheck2,
     tabKey: "use_case_spec_tab",
-    eyebrowKey: "use_case_spec_eyebrow",
     titleKey: "use_case_spec_title",
     descriptionKey: "use_case_spec_description",
-    requestKey: "use_case_spec_request",
-    consumerKey: "use_case_spec_consumer",
-    consumerDetail: "ragmir_search",
-    resultTitleKey: "use_case_spec_result_title",
-    resultKey: "use_case_spec_result",
-    citationKey: "use_case_spec_citation",
-    interfaceLabel: "MCP",
-    files: ["private/cdc-auth.docx", "private/acceptance-criteria.docx"],
+    evidence: {
+      code: "private/specification.docx · private/acceptance-criteria.docx",
+      targetStepId: "retrieval",
+      titleKey: "use_case_spec_evidence",
+    },
+    steps: [
+      {
+        code: "Codex",
+        icon: MessageSquareQuote,
+        id: "request",
+        labelKey: "use_cases_trigger_label",
+        titleKey: "use_case_spec_request",
+      },
+      {
+        accent: "primary",
+        code: "ragmir_search · topK 5",
+        icon: ServerCog,
+        id: "retrieval",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_spec_retrieval",
+      },
+      {
+        accent: "success",
+        code: "code + E2E",
+        icon: FileCheck2,
+        id: "result",
+        labelKey: "use_cases_result_label",
+        titleKey: "use_case_spec_result",
+      },
+    ],
   },
   {
-    id: "hermes",
-    icon: Bot,
-    tabKey: "use_case_hermes_tab",
-    eyebrowKey: "use_case_hermes_eyebrow",
-    titleKey: "use_case_hermes_title",
-    descriptionKey: "use_case_hermes_description",
-    requestKey: "use_case_hermes_request",
-    consumerKey: "use_case_hermes_consumer",
-    consumerDetail: "stdio MCP",
-    resultTitleKey: "use_case_hermes_result_title",
-    resultKey: "use_case_hermes_result",
-    citationKey: "use_case_hermes_citation",
-    interfaceLabel: "MCP",
-    files: ["runbooks/p1-response.pdf", "ops/escalation-matrix.docx"],
+    id: "monorepo",
+    icon: Boxes,
+    tabKey: "use_case_monorepo_tab",
+    titleKey: "use_case_monorepo_title",
+    descriptionKey: "use_case_monorepo_description",
+    steps: [
+      {
+        code: "Codex · onboarding question",
+        icon: MessageSquareQuote,
+        id: "question",
+        labelKey: "use_cases_trigger_label",
+        titleKey: "use_case_monorepo_question",
+      },
+      {
+        accent: "primary",
+        code: "root + package knowledge bases",
+        icon: FolderGit2,
+        id: "retrieval",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_monorepo_retrieval",
+      },
+      {
+        accent: "success",
+        code: "cited onboarding map",
+        icon: FileCheck2,
+        id: "result",
+        labelKey: "use_cases_result_label",
+        titleKey: "use_case_monorepo_result",
+      },
+    ],
   },
   {
-    id: "n8n",
-    icon: Workflow,
-    tabKey: "use_case_n8n_tab",
-    eyebrowKey: "use_case_n8n_eyebrow",
-    titleKey: "use_case_n8n_title",
-    descriptionKey: "use_case_n8n_description",
-    requestKey: "use_case_n8n_request",
-    consumerKey: "use_case_n8n_consumer",
-    consumerDetail: "renewal-gate.sh",
-    resultTitleKey: "use_case_n8n_result_title",
-    resultKey: "use_case_n8n_result",
-    citationKey: "use_case_n8n_citation",
-    interfaceLabel: "rgr search --json",
-    files: ["sales/pricing.xlsx", "sales/renewal-policy.pdf"],
+    id: "drive",
+    icon: Cloud,
+    tabKey: "use_case_drive_tab",
+    titleKey: "use_case_drive_title",
+    descriptionKey: "use_case_drive_description",
+    evidence: {
+      code: "roadmap.pdf · stories.xlsx · architecture.docx",
+      targetStepId: "retrieval",
+      titleKey: "use_case_drive_evidence",
+    },
+    steps: [
+      {
+        code: "Codex · feature brief",
+        icon: MessageSquareQuote,
+        id: "request",
+        labelKey: "use_cases_trigger_label",
+        titleKey: "use_case_drive_request",
+      },
+      {
+        accent: "primary",
+        code: "ragmir_search · topK 5",
+        icon: Search,
+        id: "retrieval",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_drive_retrieval",
+      },
+      {
+        code: "cited implementation plan",
+        icon: ListChecks,
+        id: "plan",
+        labelKey: "use_cases_consumer_label",
+        titleKey: "use_case_drive_plan",
+      },
+      {
+        accent: "success",
+        code: "code + tests + citations",
+        icon: FileCheck2,
+        id: "result",
+        labelKey: "use_cases_result_label",
+        titleKey: "use_case_drive_result",
+      },
+    ],
   },
   {
-    id: "api",
-    icon: CodeXml,
-    tabKey: "use_case_api_tab",
-    eyebrowKey: "use_case_api_eyebrow",
-    titleKey: "use_case_api_title",
-    descriptionKey: "use_case_api_description",
-    requestKey: "use_case_api_request",
-    consumerKey: "use_case_api_consumer",
-    consumerDetail: "GET /search",
-    resultTitleKey: "use_case_api_result_title",
-    resultKey: "use_case_api_result",
-    citationKey: "use_case_api_citation",
-    interfaceLabel: "TypeScript API",
-    files: ["docs/api-contract.pdf", "docs/auth-decisions.md"],
+    id: "youtube",
+    icon: Clapperboard,
+    tabKey: "use_case_youtube_tab",
+    titleKey: "use_case_youtube_title",
+    descriptionKey: "use_case_youtube_description",
+    evidence: {
+      code: "library/*.pdf · channel/voice.md",
+      targetStepId: "retrieval",
+      titleKey: "use_case_youtube_evidence",
+    },
+    steps: [
+      {
+        code: "node scripts/draft-episode.mjs",
+        icon: TerminalSquare,
+        id: "topic",
+        labelKey: "use_cases_trigger_label",
+        titleKey: "use_case_youtube_request",
+      },
+      {
+        accent: "primary",
+        code: 'rgr research "$TOPIC" --compact',
+        icon: BookOpen,
+        id: "retrieval",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_youtube_retrieval",
+      },
+      {
+        accent: "success",
+        code: "drafts/episode.md · review required",
+        icon: Clapperboard,
+        id: "draft",
+        labelKey: "use_cases_result_label",
+        titleKey: "use_case_youtube_result",
+      },
+    ],
+  },
+  {
+    id: "visa",
+    icon: ListChecks,
+    tabKey: "use_case_visa_tab",
+    titleKey: "use_case_visa_title",
+    descriptionKey: "use_case_visa_description",
+    steps: [
+      {
+        code: "node scripts/update-project-plan.mjs",
+        icon: FileInput,
+        id: "evidence",
+        labelKey: "use_cases_trigger_label",
+        titleKey: "use_case_visa_request",
+      },
+      {
+        accent: "primary",
+        code: 'rgr research "$QUERY" --compact',
+        icon: ServerCog,
+        id: "retrieval",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_visa_retrieval",
+      },
+      {
+        accent: "success",
+        code: ".ragmir/reports/action-plan.md",
+        icon: ListChecks,
+        id: "plan",
+        labelKey: "use_cases_result_label",
+        titleKey: "use_case_visa_result",
+      },
+    ],
   },
 ]
 
@@ -125,15 +267,16 @@ function isUseCaseId(value: string): value is UseCaseId {
 function WorkflowNode({
   accent,
   code,
-  detail,
   icon: Icon,
   label,
-  ports = "horizontal",
+  nodeId,
+  ports = ["left", "right"],
   title,
 }: WorkflowNodeProps): React.JSX.Element {
   return (
     <article
-      className={`relative flex h-full min-h-40 flex-col rounded-xl border bg-card/95 p-4 shadow-xl shadow-black/20 ${
+      data-workflow-node={nodeId}
+      className={`relative flex h-full min-h-36 flex-col rounded-xl border bg-card/95 p-4 shadow-xl shadow-black/20 ${
         accent === "primary"
           ? "border-primary/70 ring-1 ring-primary/20"
           : accent === "success"
@@ -141,14 +284,14 @@ function WorkflowNode({
             : "border-border"
       }`}
     >
-      {ports === "horizontal" ? (
-        <>
-          <span className="absolute top-1/2 -left-1.5 size-3 -translate-y-1/2 rounded-full border border-border bg-background" />
-          <span className="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rounded-full border border-border bg-background" />
-        </>
-      ) : ports === "bottom" ? (
-        <span className="absolute -bottom-1.5 left-1/2 size-3 -translate-x-1/2 rounded-full border border-border bg-background" />
-      ) : null}
+      {ports.map((port) => (
+        <span
+          aria-hidden="true"
+          className={`absolute z-20 size-3 rounded-full border border-border bg-background ${PORT_CLASS_NAMES[port]}`}
+          data-workflow-port={`${nodeId ?? "node"}-${port}`}
+          key={port}
+        />
+      ))}
 
       <div className="flex items-center gap-2 text-muted-foreground">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/55">
@@ -157,7 +300,6 @@ function WorkflowNode({
         <p className="text-[0.65rem] font-bold uppercase tracking-[0.14em]">{label}</p>
       </div>
       <h4 className="mt-4 text-sm font-bold leading-5 text-foreground">{title}</h4>
-      {detail ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p> : null}
       {code ? (
         <code
           className="mt-auto block truncate pt-4 font-mono text-[0.68rem] text-foreground/80"
@@ -170,6 +312,36 @@ function WorkflowNode({
   )
 }
 
+function HorizontalConnector({ id }: { id: string }): React.JSX.Element {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative flex h-full items-center text-muted-foreground/75"
+      data-workflow-connector={id}
+    >
+      <span className="h-px w-full bg-current" />
+      <span className="absolute left-1/2 top-1/2 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-background">
+        <ArrowRight className="size-4" />
+      </span>
+    </div>
+  )
+}
+
+function VerticalConnector({ id }: { id: string }): React.JSX.Element {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative flex h-full justify-center text-muted-foreground/75"
+      data-workflow-connector={id}
+    >
+      <span className="h-full w-px bg-current" />
+      <span className="absolute left-1/2 top-1/2 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-background">
+        <ArrowDown className="size-4" />
+      </span>
+    </div>
+  )
+}
+
 function DesktopWorkflow({
   translations,
   useCase,
@@ -178,104 +350,117 @@ function DesktopWorkflow({
   useCase: UseCaseDefinition
 }): React.JSX.Element {
   const t = (key: string): string => translations[key] ?? key
-  const ConsumerIcon = useCase.id === "n8n" ? TerminalSquare : useCase.icon
-  const ResultIcon = useCase.id === "n8n" ? GitBranch : FileCheck2
-  const markerId = `workflow-arrow-${useCase.id}`
+  const trackTemplate = useCase.steps
+    .flatMap((_, index) =>
+      index === useCase.steps.length - 1
+        ? [`${DESKTOP_NODE_MIN_WIDTH_REM}rem`]
+        : [`${DESKTOP_NODE_MIN_WIDTH_REM}rem`, `${DESKTOP_CONNECTOR_WIDTH_REM}rem`],
+    )
+    .join(" ")
+  const canvasMinWidth = `${
+    useCase.steps.length * DESKTOP_NODE_MIN_WIDTH_REM +
+    (useCase.steps.length - 1) * DESKTOP_CONNECTOR_WIDTH_REM +
+    DESKTOP_CANVAS_HORIZONTAL_PADDING_REM
+  }rem`
+  const evidenceTargetIndex = useCase.evidence
+    ? useCase.steps.findIndex((step) => step.id === useCase.evidence?.targetStepId)
+    : -1
+  const evidenceNodeColumn = evidenceTargetIndex * 2 + 1
+  const evidenceColumnStart = Math.max(1, evidenceNodeColumn - 1)
+
+  const flowRow = (
+    <div
+      className="grid min-h-[10.5rem] w-full items-stretch justify-center"
+      style={{ gridTemplateColumns: trackTemplate }}
+    >
+      {useCase.steps.map((step, index) => {
+        const ports: WorkflowPort[] = []
+        if (index > 0) ports.push("left")
+        if (index < useCase.steps.length - 1) ports.push("right")
+        if (index === evidenceTargetIndex) ports.push("top")
+
+        return (
+          <Fragment key={step.id}>
+            <div style={{ gridColumn: index * 2 + 1 }}>
+              <WorkflowNode
+                accent={step.accent}
+                code={step.code}
+                icon={step.icon}
+                label={`${String(index + 1).padStart(2, "0")} · ${t(step.labelKey)}`}
+                nodeId={step.id}
+                ports={ports}
+                title={t(step.titleKey)}
+              />
+            </div>
+            {index < useCase.steps.length - 1 ? (
+              <div style={{ gridColumn: index * 2 + 2 }}>
+                <HorizontalConnector id={`${step.id}-to-${useCase.steps[index + 1]?.id}`} />
+              </div>
+            ) : null}
+          </Fragment>
+        )
+      })}
+    </div>
+  )
 
   return (
-    <div className="relative hidden min-h-[30rem] overflow-hidden rounded-xl border border-border bg-background/75 lg:block">
+    <section
+      aria-label={t(useCase.titleKey)}
+      className="relative hidden h-[29rem] w-full min-w-0 max-w-full overflow-auto bg-background/75 [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent lg:block"
+      data-workflow-canvas={useCase.id}
+      data-workflow-scroll-region="true"
+      /* biome-ignore lint/a11y/noNoninteractiveTabindex: The overflow canvas must be keyboard-scrollable. */
+      tabIndex={0}
+    >
       <div
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, color-mix(in oklab, var(--border) 75%, transparent) 1px, transparent 1px)",
-          backgroundSize: "22px 22px",
-        }}
-      />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,var(--background)_88%)] opacity-75" />
-
-      <svg
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 h-full w-full text-muted-foreground/70"
-        preserveAspectRatio="none"
-        viewBox="0 0 1000 480"
+        className="relative h-full"
+        style={{ minWidth: canvasMinWidth, width: `max(100%, ${canvasMinWidth})` }}
       >
-        <defs>
-          <marker id={markerId} markerHeight="7" markerWidth="7" orient="auto" refX="6" refY="3.5">
-            <path d="M0,0 L7,3.5 L0,7 Z" fill="currentColor" />
-          </marker>
-        </defs>
-        <path
-          d="M232 360 C248 360 256 360 272 360"
-          fill="none"
-          markerEnd={`url(#${markerId})`}
-          stroke="currentColor"
-          strokeWidth="2"
+        <div
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, color-mix(in oklab, var(--border) 75%, transparent) 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
+          }}
         />
-        <path
-          d="M480 360 C496 360 504 360 520 360"
-          fill="none"
-          markerEnd={`url(#${markerId})`}
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <path
-          d="M728 360 C744 360 752 360 768 360"
-          fill="none"
-          markerEnd={`url(#${markerId})`}
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <path
-          d="M624 182 C624 218 624 238 624 270"
-          fill="none"
-          markerEnd={`url(#${markerId})`}
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-      </svg>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,var(--background)_88%)] opacity-75" />
 
-      <div className="absolute top-7 left-[52%] w-[20%]">
-        <WorkflowNode
-          code={`${useCase.files.length} ${t("use_cases_files_label")}`}
-          detail={useCase.files.join(" · ")}
-          icon={FileInput}
-          label={t("use_cases_evidence_label")}
-          ports="bottom"
-          title={t("use_cases_sources_label")}
-        />
+        {useCase.evidence && evidenceTargetIndex >= 0 ? (
+          <div
+            className="relative z-10 grid h-full w-full content-center p-6 xl:p-8"
+            style={{ gridTemplateRows: "10.5rem 2.5rem 10.5rem" }}
+          >
+            <div className="grid justify-center" style={{ gridTemplateColumns: trackTemplate }}>
+              <div
+                style={{
+                  gridColumn: `${evidenceColumnStart} / span 3`,
+                }}
+              >
+                <WorkflowNode
+                  code={useCase.evidence.code}
+                  icon={FileInput}
+                  label={t("use_cases_evidence_label")}
+                  nodeId="evidence"
+                  ports={["bottom"]}
+                  title={t(useCase.evidence.titleKey)}
+                />
+              </div>
+            </div>
+            <div className="grid justify-center" style={{ gridTemplateColumns: trackTemplate }}>
+              <div style={{ gridColumn: evidenceNodeColumn }}>
+                <VerticalConnector id={`evidence-to-${useCase.evidence.targetStepId}`} />
+              </div>
+            </div>
+            {flowRow}
+          </div>
+        ) : (
+          <div className="relative z-10 flex h-full w-full items-center justify-center p-6 xl:p-8">
+            {flowRow}
+          </div>
+        )}
       </div>
-
-      <div className="absolute inset-x-6 bottom-8 grid grid-cols-4 items-stretch gap-10">
-        <WorkflowNode
-          icon={MessageSquareQuote}
-          label={`01 · ${t("use_cases_trigger_label")}`}
-          title={t(useCase.requestKey)}
-        />
-        <WorkflowNode
-          code={useCase.consumerDetail}
-          icon={ConsumerIcon}
-          label={`02 · ${t("use_cases_consumer_label")}`}
-          title={t(useCase.consumerKey)}
-        />
-        <WorkflowNode
-          accent="primary"
-          code={useCase.interfaceLabel}
-          detail={t("use_cases_retrieval_label")}
-          icon={ServerCog}
-          label={`03 · ${t("use_cases_retrieval_step_label")}`}
-          title={t("use_cases_ragmir_local_label")}
-        />
-        <WorkflowNode
-          accent="success"
-          code={t(useCase.citationKey)}
-          detail={t(useCase.resultKey)}
-          icon={ResultIcon}
-          label={`04 · ${t("use_cases_result_label")}`}
-          title={t(useCase.resultTitleKey)}
-        />
-      </div>
-    </div>
+    </section>
   )
 }
 
@@ -287,60 +472,50 @@ function MobileWorkflow({
   useCase: UseCaseDefinition
 }): React.JSX.Element {
   const t = (key: string): string => translations[key] ?? key
-  const ConsumerIcon = useCase.id === "n8n" ? TerminalSquare : useCase.icon
-  const ResultIcon = useCase.id === "n8n" ? GitBranch : FileCheck2
-  const nodes: WorkflowNodeProps[] = [
-    {
-      icon: MessageSquareQuote,
-      label: `01 · ${t("use_cases_trigger_label")}`,
-      title: t(useCase.requestKey),
-    },
-    {
-      code: useCase.consumerDetail,
-      icon: ConsumerIcon,
-      label: `02 · ${t("use_cases_consumer_label")}`,
-      title: t(useCase.consumerKey),
-    },
-    {
-      code: `${useCase.files.length} ${t("use_cases_files_label")}`,
-      detail: useCase.files.join(" · "),
-      icon: FileInput,
-      label: t("use_cases_evidence_label"),
-      title: t("use_cases_sources_label"),
-    },
-    {
-      accent: "primary",
-      code: useCase.interfaceLabel,
-      detail: t("use_cases_retrieval_label"),
-      icon: ServerCog,
-      label: `03 · ${t("use_cases_retrieval_step_label")}`,
-      title: t("use_cases_ragmir_local_label"),
-    },
-    {
-      accent: "success",
-      code: t(useCase.citationKey),
-      detail: t(useCase.resultKey),
-      icon: ResultIcon,
-      label: `04 · ${t("use_cases_result_label")}`,
-      title: t(useCase.resultTitleKey),
-    },
-  ]
+  const nodes: (WorkflowNodeProps & { nodeId: string })[] = useCase.steps.map((step, index) => ({
+    accent: step.accent,
+    code: step.code,
+    icon: step.icon,
+    label: `${String(index + 1).padStart(2, "0")} · ${t(step.labelKey)}`,
+    nodeId: step.id,
+    title: t(step.titleKey),
+  }))
+
+  if (useCase.evidence) {
+    const targetIndex = useCase.steps.findIndex(
+      (step) => step.id === useCase.evidence?.targetStepId,
+    )
+    if (targetIndex >= 0) {
+      nodes.splice(targetIndex, 0, {
+        code: useCase.evidence.code,
+        icon: FileInput,
+        label: t("use_cases_evidence_label"),
+        nodeId: "evidence",
+        title: t(useCase.evidence.titleKey),
+      })
+    }
+  }
 
   return (
-    <ol className="flex flex-col rounded-xl border border-border bg-background/75 p-4 lg:hidden">
-      {nodes.map((node, index) => (
-        <li className="flex flex-col" key={`${useCase.id}-${node.label}`}>
-          <WorkflowNode {...node} ports={index < nodes.length - 1 ? "bottom" : "none"} />
-          {index < nodes.length - 1 ? (
-            <div
-              className="flex h-10 items-center justify-center text-muted-foreground"
-              aria-hidden="true"
-            >
-              <ArrowDown className="size-4" />
-            </div>
-          ) : null}
-        </li>
-      ))}
+    <ol
+      className="flex w-full flex-col bg-background/50 p-4 lg:hidden"
+      data-workflow-canvas={useCase.id}
+    >
+      {nodes.map((node, index) => {
+        const ports: readonly WorkflowPort[] =
+          index === 0 ? ["bottom"] : index === nodes.length - 1 ? ["top"] : ["top", "bottom"]
+
+        return (
+          <li className="flex flex-col" key={`${useCase.id}-${node.label}`}>
+            <WorkflowNode {...node} ports={ports} />
+            {index < nodes.length - 1 ? (
+              <div className="h-10">
+                <VerticalConnector id={`${node.nodeId}-to-${nodes[index + 1]?.nodeId ?? "next"}`} />
+              </div>
+            ) : null}
+          </li>
+        )
+      })}
     </ol>
   )
 }
@@ -361,15 +536,19 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
   }
 
   return (
-    <Tabs className="gap-5" value={activeId} onValueChange={handleValueChange}>
+    <Tabs className="w-full min-w-0 gap-5" value={activeId} onValueChange={handleValueChange}>
       <TabsList
-        className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border border-border bg-card/80 p-1.5 group-data-[orientation=horizontal]/tabs:h-auto sm:grid-cols-4"
+        className="flex h-auto w-full snap-x snap-mandatory touch-pan-x flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-border bg-card/80 p-1.5 [scrollbar-width:none] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:hidden"
         aria-label={t("use_cases_tabs_label")}
       >
         {USE_CASES.map((useCase) => {
           const Icon = useCase.icon
           return (
-            <TabsTrigger className="min-w-0 py-2.5" key={useCase.id} value={useCase.id}>
+            <TabsTrigger
+              className="min-w-max shrink-0 snap-start px-4 py-2.5 sm:min-w-0 sm:flex-1 sm:px-2"
+              key={useCase.id}
+              value={useCase.id}
+            >
               <Icon aria-hidden="true" />
               <span className="truncate">{t(useCase.tabKey)}</span>
             </TabsTrigger>
@@ -377,29 +556,22 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
         })}
       </TabsList>
 
-      <div className="grid">
+      <div className="grid w-full min-w-0">
         {USE_CASES.map((useCase, index) => {
-          const Icon = useCase.icon
           return (
             <TabsContent
-              className="col-start-1 row-start-1 mt-0 data-[state=inactive]:invisible data-[state=inactive]:pointer-events-none"
+              className="col-start-1 row-start-1 mt-0 w-full min-w-0 data-[state=inactive]:hidden data-[state=inactive]:pointer-events-none lg:data-[state=inactive]:block lg:data-[state=inactive]:invisible"
               forceMount
               key={useCase.id}
               value={useCase.id}
             >
-              <Card className="h-full overflow-hidden bg-card/90">
-                <CardHeader className="gap-5 border-b border-border md:grid md:grid-cols-[1fr_auto] md:items-start">
-                  <div className="flex min-w-0 flex-col gap-3">
-                    <div className="flex items-center gap-3 text-violet-400">
-                      <Icon aria-hidden="true" />
-                      <p className="text-xs font-bold uppercase tracking-[0.16em]">
-                        {t(useCase.eyebrowKey)}
-                      </p>
-                    </div>
-                    <CardTitle className="max-w-2xl text-xl leading-tight md:text-2xl">
+              <Card className="w-full min-w-0 overflow-hidden bg-card/90 lg:h-full">
+                <CardHeader className="gap-4 border-b border-border md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:h-[5.5rem] lg:py-4">
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <CardTitle className="max-w-2xl text-xl leading-tight">
                       {t(useCase.titleKey)}
                     </CardTitle>
-                    <CardDescription className="max-w-2xl leading-6">
+                    <CardDescription className="max-w-2xl leading-5">
                       {t(useCase.descriptionKey)}
                     </CardDescription>
                   </div>
@@ -434,7 +606,7 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
                   </div>
                 </CardHeader>
 
-                <CardContent className="pt-5">
+                <CardContent className="flex w-full min-w-0 flex-col pt-5 lg:flex-1 lg:px-0">
                   <DesktopWorkflow translations={translations} useCase={useCase} />
                   <MobileWorkflow translations={translations} useCase={useCase} />
                 </CardContent>

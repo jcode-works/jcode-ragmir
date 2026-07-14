@@ -231,6 +231,7 @@ const runtime = await doctor()
 console.log(runtime.transformersAvailable)
 
 const result = await renderSpeech({
+  cwd: process.cwd(),
   textFile: ".ragmir/reports/release-brief.md",
   outputPath: ".ragmir/audio/release-brief.wav",
   engine: "transformers",
