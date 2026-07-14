@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to suggest a feature. Ragmir focuses on
-        sovereign local RAG for confidential datasets and AI agents. Features
+        confidential local RAG for coding agents and private project files. Features
         that add cloud dependencies, telemetry, or hosted services are out of
         scope.
   - type: textarea
@@ -49,7 +49,7 @@ body:
   - type: checkboxes
     id: sovereign
     attributes:
-      label: Sovereignty check
+      label: Local-first privacy check
       description: Confirm this feature is compatible with Ragmir's local-first, zero-telemetry posture.
       options:
         - label: This feature does not require sending documents, queries, or telemetry to a hosted service.

@@ -1,9 +1,9 @@
 # Ragmir Landing
 
-The static, telemetry-free website for [Ragmir](https://ragmir.com), local RAG that indexes selected
-project files on the user's machine, keeps the corpus and generated index there, and retrieves cited
-evidence offline by default. Core does not upload source documents to a hosted RAG service. Public
-guides are available in the
+The static, telemetry-free website for [Ragmir](https://ragmir.com), a confidential local RAG for
+coding agents. It indexes selected project files on the user's machine, keeps the corpus and
+generated index there, and retrieves cited evidence offline by default. Core does not upload source
+documents to a hosted RAG service. Public guides are available in the
 [project documentation](https://github.com/jcode-works/jcode-ragmir/wiki).
 
 This private workspace package presents the open-source CLI, TypeScript API, MCP integration,
@@ -86,8 +86,8 @@ Keep secrets in the environment. Never commit them or expose them through `PUBLI
 
 - Keep English and French messages aligned whenever visible copy changes.
 - Ground product claims in the current CLI, API, package, and privacy behavior.
-- Position Core as local, cited RAG for coding agents and scripts without implying that Core calls
-  a model.
+- Position Core as confidential local RAG for coding agents and scripts without implying that Core
+  calls a model.
 - Keep Core retrieval separate from optional Chat and TTS generation.
 - Lead with model-agnostic Core and present the user's preferred agent and a fully local consumer as
   equal choices.
