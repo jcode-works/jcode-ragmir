@@ -1,7 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "Ragmir",
-  "description": "Local RAG for coding agents and scripts, with offline cited retrieval. The TypeScript CLI, library, read-focused MCP server, and portable skills keep the corpus and index under ignored local state. Optional local Chat and TTS remain separate packages.",
+  "description": "Confidential local RAG for coding agents and scripts, with offline cited retrieval. The TypeScript CLI, library, read-focused MCP server, and portable skills keep the corpus and index under ignored local state. Optional local Chat and TTS remain separate packages.",
   "excludeFolders": [
     "node_modules",
     "packages/ragmir-core/dist",

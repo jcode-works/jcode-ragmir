@@ -1,7 +1,7 @@
 # Document evidence benchmark
 
-A deterministic, public-safe benchmark for the retrieval and citation quality agents receive from
-Ragmir.
+A deterministic, public-safe benchmark for the retrieval and citation quality coding agents receive
+from Ragmir's confidential local RAG pipeline.
 
 Use this example when you want to prove more than "a relevant file appeared." Its six golden queries
 check that Ragmir retrieves the expected path and the exact file, line, chunk, or PDF-page citation.
@@ -89,4 +89,4 @@ under ignored local state.
 - A perfect synthetic score proves this fixture, not universal retrieval quality.
 
 Return to the [Ragmir Core README](../../README.md) or try the
-[sovereign RAG demo](../sovereign-rag-demo/README.md) for a broader CLI walkthrough.
+[confidential local RAG demo](../sovereign-rag-demo/README.md) for a broader CLI walkthrough.

@@ -18,7 +18,9 @@
     "qwen",
     "local-llm",
     "llama-cpp",
-    "private-ai",
+    "confidential-rag",
+    "coding-agents",
+    "cited-retrieval",
     "rag"
   ],
   "repository": {

@@ -7,11 +7,12 @@
 
 **Optional local audio for your coding-agent RAG workflow.**
 
-Ragmir Core indexes selected project files on your machine and retrieves cited evidence offline by
-default, without uploading the source corpus to a hosted RAG service. Your coding agent turns that
-evidence into a reviewable brief, and `@jcode.labs/ragmir-tts` renders the approved text as audio.
-The default Transformers.js path produces WAV locally after model preparation. An explicit Edge
-mode produces online MP3 only when sending narration text to that service is acceptable.
+Ragmir Core is a confidential local RAG for coding agents. It indexes selected project files on your
+machine and retrieves cited evidence offline by default, without uploading the source corpus to a
+hosted RAG service. Your coding agent turns that evidence into a reviewable brief, and
+`@jcode.labs/ragmir-tts` renders the approved text as audio. The default Transformers.js path
+produces WAV locally after model preparation. An explicit Edge mode produces online MP3 only when
+sending narration text to that service is acceptable.
 
 [Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·

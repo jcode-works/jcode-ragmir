@@ -1,4 +1,4 @@
-# Sovereign RAG demo
+# Confidential local RAG demo
 
 A complete, fictional workspace for learning how agents and scripts retrieve cited local project
 context with Ragmir.
