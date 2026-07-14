@@ -25,6 +25,7 @@ import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
 import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
+import { getIngestionProgress } from "./ingestion-state.js"
 import { initProject } from "./init.js"
 import { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
@@ -377,46 +378,53 @@ program
   .command("ingest")
   .description("Parse changed documents, redact, chunk, embed locally, and update LanceDB.")
   .option("--rebuild", "Force a full local index rebuild instead of reusing unchanged rows.")
+  .option("--batch-size <number>", "Files committed per resumable batch.", parsePositiveInt)
   .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { rebuild?: boolean; json?: boolean }, command: Command) => {
-    const cwd = projectRoot(command)
-    const ingestOptions: Parameters<typeof ingest>[0] = { cwd }
-    addOption(ingestOptions, "rebuild", options.rebuild)
-    const result = await ingest(ingestOptions)
-    if (options.json) {
-      console.log(JSON.stringify(result, null, 2))
+  .action(
+    async (
+      options: { rebuild?: boolean; batchSize?: number; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      const ingestOptions: Parameters<typeof ingest>[0] = { cwd }
+      addOption(ingestOptions, "rebuild", options.rebuild)
+      addOption(ingestOptions, "batchSize", options.batchSize)
+      const result = await ingest(ingestOptions)
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2))
+        if (result.errors.length > 0) {
+          process.exitCode = 1
+        }
+        return
+      }
+
+      console.log(
+        pc.green(
+          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`,
+        ),
+      )
+      printUnsupportedSummary(result.unsupportedExtensions)
+      printEmptyTextFiles(result.emptyTextFiles)
+      if (result.vectorIndexWarning) {
+        console.log(pc.yellow(result.vectorIndexWarning))
+      }
+      if (result.lexicalIndexWarning) {
+        console.log(pc.yellow(result.lexicalIndexWarning))
+      }
+      if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
+        const auditCommand = await rgrCommand(cwd, ["audit", "--unsupported"])
+        console.log(
+          pc.yellow(`Some files were not indexed. Run \`${auditCommand.display}\` for details.`),
+        )
+      }
+      for (const error of result.errors) {
+        console.error(pc.red(`  - ${error.path}: ${error.message}`))
+      }
       if (result.errors.length > 0) {
         process.exitCode = 1
       }
-      return
-    }
-
-    console.log(
-      pc.green(
-        `Done. discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`,
-      ),
-    )
-    printUnsupportedSummary(result.unsupportedExtensions)
-    printEmptyTextFiles(result.emptyTextFiles)
-    if (result.vectorIndexWarning) {
-      console.log(pc.yellow(result.vectorIndexWarning))
-    }
-    if (result.lexicalIndexWarning) {
-      console.log(pc.yellow(result.lexicalIndexWarning))
-    }
-    if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
-      const auditCommand = await rgrCommand(cwd, ["audit", "--unsupported"])
-      console.log(
-        pc.yellow(`Some files were not indexed. Run \`${auditCommand.display}\` for details.`),
-      )
-    }
-    for (const error of result.errors) {
-      console.error(pc.red(`  - ${error.path}: ${error.message}`))
-    }
-    if (result.errors.length > 0) {
-      process.exitCode = 1
-    }
-  })
+    },
+  )
 
 program
   .command("preview")
@@ -970,6 +978,7 @@ program
     const config = await loadConfig(cwd)
     const identity = knowledgeBaseIdentity(config.projectRoot)
     const rows = await countRows(config)
+    const ingestion = await getIngestionProgress(config)
     const status = {
       knowledgeBaseId: identity?.id ?? null,
       projectRoot: config.projectRoot,
@@ -999,6 +1008,7 @@ program
       legacyWordCommand: config.legacyWordCommand,
       legacyWordTimeoutMs: config.legacyWordTimeoutMs,
       chunksIndexed: rows,
+      ingestion,
     }
     if (options.json) {
       console.log(JSON.stringify(status, null, 2))
@@ -1033,6 +1043,17 @@ program
     console.log(`legacyWordCommand=${config.legacyWordCommand.join(" ")}`)
     console.log(`legacyWordTimeoutMs=${config.legacyWordTimeoutMs}`)
     console.log(`chunksIndexed=${rows}`)
+    if (ingestion) {
+      console.log(`ingestionRunId=${ingestion.runId}`)
+      console.log(`ingestionStatus=${ingestion.status}`)
+      console.log(`ingestionMode=${ingestion.mode}`)
+      console.log(`ingestionResumed=${ingestion.resumed}`)
+      console.log(`ingestionBatchSize=${ingestion.batchSize}`)
+      console.log(
+        `ingestionProgress=${ingestion.indexedFiles}/${ingestion.totalFiles} indexed, ${ingestion.errorFiles} errors, ${ingestion.pendingFiles} pending`,
+      )
+      console.log(`ingestionLastActivityAt=${ingestion.lastActivityAt}`)
+    }
   })
 
 program

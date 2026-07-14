@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { destroyIndex } from "./destroy.js"
+import { createIngestionRunState, writeIngestionState } from "./ingestion-state.js"
 import { testConfig } from "./test-support/config.js"
 
 const tempDirs: string[] = []
@@ -39,6 +40,28 @@ describe("destroyIndex", () => {
     expect(result.removed).toBe(false)
   })
 
+  it("removes storage from an interrupted first run with valid ingestion state", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-ingestion-state-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await writeIngestionState(
+      createIngestionRunState({
+        mode: "incremental",
+        tableName: config.tableName,
+        previousTableName: null,
+        policyFingerprint: "test-policy",
+        batchSize: 25,
+        files: [],
+        reusablePaths: new Set(),
+        reusableChunkCounts: new Map(),
+      }),
+      config,
+    )
+
+    await expect(destroyIndex(root)).resolves.toMatchObject({ removed: true })
+    expect(existsSync(config.storageDir)).toBe(false)
+  })
+
   it("writes a destroy-index access log entry", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-log-"))
     tempDirs.push(root)
@@ -67,7 +90,7 @@ describe("destroyIndex", () => {
     await mkdir(config.storageDir, { recursive: true })
     await writeFile(path.join(config.storageDir, "unrelated.txt"), "keep", "utf8")
 
-    await expect(destroyIndex(root)).rejects.toThrow("does not contain index-manifest.json")
+    await expect(destroyIndex(root)).rejects.toThrow("contains neither index-manifest.json")
     expect(existsSync(config.storageDir)).toBe(true)
   })
 })

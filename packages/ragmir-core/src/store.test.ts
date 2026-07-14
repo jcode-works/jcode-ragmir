@@ -10,6 +10,7 @@ import {
   writeEmptyTextFiles,
   writeIndexManifest,
   writeRows,
+  writeRowsToTable,
 } from "./store.js"
 import { testConfig } from "./test-support/config.js"
 import type { IndexManifest } from "./types.js"
@@ -108,6 +109,39 @@ describe("store", () => {
     const result = await writeRows([sampleRow(".ragmir/raw/a.md", 0, [0.1, 0.2], config)], config)
     expect(result.vectorIndexWarning).toBeNull()
     expect(result.lexicalIndexWarning).toBeNull()
+  })
+
+  it("activates a completed generation through the manifest while preserving legacy tables", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-generation-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const generationTable = "chunks__generation_test"
+    await writeRows([sampleRow(".ragmir/raw/legacy.md", 0, [0.1, 0.2], config)], config)
+    await writeRowsToTable(
+      [sampleRow(".ragmir/raw/current.md", 0, [0.3, 0.4], config)],
+      generationTable,
+      config,
+    )
+
+    await writeIndexManifest(
+      {
+        schemaVersion: 7,
+        createdAt: "2026-07-14T00:00:00.000Z",
+        ragmirVersion: "test",
+        embeddingProvider: config.embeddingProvider,
+        embeddingModel: config.embeddingModel,
+        chunkSize: config.chunkSize,
+        chunkOverlap: config.chunkOverlap,
+        fileCount: 1,
+        chunkCount: 1,
+        tableName: generationTable,
+      },
+      config,
+    )
+
+    expect((await readRows(config)).map((row) => row.relativePath)).toEqual([
+      ".ragmir/raw/current.md",
+    ])
   })
 })
 

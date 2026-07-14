@@ -6,13 +6,15 @@ import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
 import { clearTransformersCache } from "./embeddings.js"
+import { readIngestionState } from "./ingestion-state.js"
 import type { DestroyIndexResult } from "./types.js"
 
 export async function destroyIndex(cwd = process.cwd()): Promise<DestroyIndexResult> {
   const config = await loadConfig(cwd)
   const existed = existsSync(config.storageDir)
+  const hasIngestionState = existed && (await readIngestionState(config)) !== null
 
-  await assertSafeIndexStorage(config.projectRoot, config.storageDir, existed)
+  await assertSafeIndexStorage(config.projectRoot, config.storageDir, existed, hasIngestionState)
 
   await recordAccess(config, { action: "destroy-index" })
   await rm(config.storageDir, { recursive: true, force: true })
@@ -31,6 +33,7 @@ async function assertSafeIndexStorage(
   projectRoot: string,
   storageDir: string,
   existed: boolean,
+  hasIngestionState: boolean,
 ): Promise<void> {
   const resolvedProjectRoot = await realpath(projectRoot)
   const resolvedStorageDir = existed ? await realpath(storageDir) : path.resolve(storageDir)
@@ -47,9 +50,13 @@ async function assertSafeIndexStorage(
     )
   }
 
-  if (existed && !existsSync(path.join(resolvedStorageDir, INDEX_MANIFEST_FILENAME))) {
+  if (
+    existed &&
+    !hasIngestionState &&
+    !existsSync(path.join(resolvedStorageDir, INDEX_MANIFEST_FILENAME))
+  ) {
     throw new Error(
-      `Refusing to remove ${JSON.stringify(storageDir)} because it does not contain ${INDEX_MANIFEST_FILENAME}.`,
+      `Refusing to remove ${JSON.stringify(storageDir)} because it contains neither ${INDEX_MANIFEST_FILENAME} nor a valid ingestion state.`,
     )
   }
 }

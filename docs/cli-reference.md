@@ -17,13 +17,13 @@ rgr search "release decision"
 | `init` | Create basic local configuration only. |
 | `doctor [--fix]` | Check setup, index freshness, and safe repairs. |
 | `preview` | Parse, redact, and chunk selected sources without writing the index. |
-| `ingest [--rebuild]` | Index configured sources; rebuild after provider or chunking changes. |
+| `ingest [--rebuild] [--batch-size N]` | Index configured sources in resumable batches; rebuild after provider or chunking changes. |
 | `search <query>` | Return ranked cited passages. |
 | `ask <query>` | Return cited context without model synthesis. |
 | `research <query>` | Run an audit-backed multi-query retrieval pass. |
 | `audit [--unsupported]` | Compare sources with the index and list skipped files. |
 | `bases` | List root and nested monorepo bases and mark the active one. |
-| `status` | Show configuration and indexed chunk count. |
+| `status` | Show configuration, indexed chunk count, and the latest ingestion progress. |
 | `security-audit [--strict]` | Check local privacy and Git-ignore posture. |
 
 ## Sources and retrieval
@@ -45,6 +45,28 @@ agent context is limited.
 
 `preview` uses the active redaction and chunking configuration but never writes storage. `audit`
 reports min, mean, p50, p95, and max chunk sizes plus structural-context coverage.
+
+## Resumable ingestion
+
+```bash
+rgr ingest
+rgr status --json
+rgr ingest --batch-size 10
+```
+
+The default batch contains 25 files. After each batch, Ragmir atomically records per-file state and
+the current manifest under `.ragmir/storage/`. Starting `rgr ingest` again resumes a compatible
+interrupted run and processes only pending, failed, or changed files. Files already committed to
+the index are not parsed or embedded again.
+
+`rgr status --json` exposes the run ID, mode, status, resume flag, last activity, batch size, chunk
+count, and file counts for `pending`, `parsed`, `embedded`, `indexed`, and `error` states. The human
+output shows the same progress in a compact form.
+
+`rgr ingest --rebuild` writes batches into an isolated LanceDB generation. The existing index stays
+active until the new table and manifest pass row-count, checksum, and duplicate-ID validation. The
+final atomic manifest replacement activates the generation. Re-run the command after interruption
+to resume the staged generation.
 
 ## Monorepos
 
