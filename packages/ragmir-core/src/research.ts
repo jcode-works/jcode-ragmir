@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
+import type { Connection } from "@lancedb/lancedb"
 import fg from "fast-glob"
 import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { countSkippedByReason, DEFAULT_FAST_GLOB_IGNORES, isSensitiveFilePath } from "./files.js"
 import { audit } from "./ingest.js"
-import { search } from "./query.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
+import { searchWithConfig } from "./query.js"
 import { redactText } from "./redaction.js"
 import { securityAudit } from "./security.js"
 import { normalizeForMatch } from "./text.js"
@@ -77,35 +79,55 @@ export async function research(
   query: string,
   options: ResearchOptions = {},
 ): Promise<ResearchReport> {
+  const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  return researchWithConfig(query, options, config)
+}
+
+export async function researchWithConfig(
+  query: string,
+  options: ResearchOptions,
+  config: Config,
+  connection?: Connection,
+): Promise<ResearchReport> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const normalizedQuery = query.trim()
   if (!normalizedQuery) {
     throw new Error("Research query must not be empty.")
   }
-  const config = await loadConfig(String(options.cwd ?? process.cwd()))
   const topK = options.topK ?? config.topK
   const [auditReport, securityReport] = await Promise.all([
     audit(config.projectRoot),
     securityAudit(config.projectRoot),
   ])
+  throwIfAborted(signal)
   const generatedQueries = researchQueries(normalizedQuery)
   const includeCode = config.privacyProfile === "strict" ? false : options.includeCode !== false
   const perQueryTopK = Math.max(2, Math.ceil(topK / 2))
   const searchResults = await Promise.all(
     generatedQueries.map(async (generatedQuery) => ({
       query: generatedQuery,
-      results: await search(generatedQuery, {
-        cwd: config.projectRoot,
-        topK: perQueryTopK,
-        ...(options.includePaths ? { includePaths: options.includePaths } : {}),
-        ...(options.excludePaths ? { excludePaths: options.excludePaths } : {}),
-        ...(options.contextPaths ? { contextPaths: options.contextPaths } : {}),
-      }),
+      results: await searchWithConfig(
+        generatedQuery,
+        {
+          cwd: config.projectRoot,
+          topK: perQueryTopK,
+          ...(options.includePaths ? { includePaths: options.includePaths } : {}),
+          ...(options.excludePaths ? { excludePaths: options.excludePaths } : {}),
+          ...(options.contextPaths ? { contextPaths: options.contextPaths } : {}),
+        },
+        config,
+        connection,
+        signal,
+      ),
     })),
   )
+  throwIfAborted(signal)
   const evidence = mergeEvidence(searchResults).slice(0, topK)
   const codeEvidence = !includeCode
     ? []
-    : await findCodeEvidence(config, normalizedQuery, DEFAULT_CODE_EVIDENCE_LIMIT)
+    : await findCodeEvidence(config, normalizedQuery, DEFAULT_CODE_EVIDENCE_LIMIT, signal)
+  throwIfAborted(signal)
   const unsupportedFiles = countSkippedByReason(auditReport.skippedFiles, "unsupported-extension")
   const oversizedFiles = countSkippedByReason(auditReport.skippedFiles, "oversized")
   const gaps = researchGaps({
@@ -251,7 +273,9 @@ async function findCodeEvidence(
   config: Config,
   query: string,
   limit: number,
+  signal: AbortSignal | undefined,
 ): Promise<CodeEvidence[]> {
+  throwIfAborted(signal)
   const terms = meaningfulTerms(query)
   if (terms.length === 0) {
     return []
@@ -273,6 +297,7 @@ async function findCodeEvidence(
   const candidates: CodeEvidence[] = []
 
   for (const entry of entries) {
+    throwIfAborted(signal)
     if (candidates.length >= candidateLimit) {
       break
     }
@@ -288,6 +313,7 @@ async function findCodeEvidence(
     }
     const relativePath = path.relative(config.projectRoot, absolutePath)
     const content = await readFile(absolutePath, "utf8").catch(() => null)
+    throwIfAborted(signal)
     if (content === null) {
       continue
     }
