@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir",
   "version": "0.4.12",
-  "description": "Ragmir Core: open-source sovereign local RAG for confidential datasets and AI agents.",
+  "description": "Local RAG with verifiable citations for coding agents, scripts, and MCP clients.",
   "type": "module",
   "license": "MIT",
   "author": {

@@ -5,14 +5,14 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Give Codex, Claude Code, Kimi, OpenCode, Cline, or any MCP client cited local context.**
+**Local RAG with verifiable citations for coding agents, scripts, and MCP clients.**
 
 `@jcode.labs/ragmir` indexes the files a project selects and returns source-backed passages without
 a hosted document store. The default `local-hash` retrieval path works offline, without an account
 or model download.
 
-Core is independent of the model or client that consumes those passages. Connect the AI or
-automation you already use, keep the consumer local when no retrieved passage may leave the
+Core is independent of the model or client that consumes those passages. Connect the coding agent
+or script you already use, keep the consumer local when no retrieved passage may leave the
 workstation, or call the typed API from Node.js.
 
 [Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
@@ -27,15 +27,15 @@ workstation, or call the typed API from Node.js.
 | Search repository documents with citations | `rgr search` |
 | Audit a local knowledge base | `rgr audit`, `rgr doctor`, and `rgr security-audit` |
 | Add retrieval to a Node.js application | Typed `ingest`, `search`, `ask`, and `research` exports |
-| Give an AI agent bounded project context | Local stdio MCP server and generated helpers |
+| Give an agent bounded project context | Local stdio MCP server and generated helpers |
 | Index scanned PDFs | Embedded text first, with optional page-aware local OCR |
 
-Core retrieves evidence. It does not require a generative model and does not produce an ungrounded
-answer. Add [Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) only when local
+Core retrieves cited evidence. It does not require a generative model or generate answers. Add
+[Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) only when local
 GGUF synthesis is useful, or [Ragmir TTS](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 when you need audio output.
 
-## Use Ragmir with your AI
+## Use Ragmir with a coding agent or script
 
 Requires Node.js 20 or later.
 

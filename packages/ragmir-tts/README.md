@@ -5,7 +5,7 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-tts)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Let your coding agent turn a cited brief into local audio.**
+**Let your coding agent turn reviewed, cited project context into local audio.**
 
 `@jcode.labs/ragmir-tts` renders text files through a typed Node.js API and the `rgr-tts` CLI. Its
 default Transformers.js path produces WAV audio locally after the model is prepared. An explicit
@@ -16,7 +16,7 @@ Edge mode produces online neural-voice MP3 when sending narration text to that s
 [Offline TTS guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md) ·
 [Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
 
-## Use it from Codex or another AI
+## Use it from a coding agent or script
 
 Install Core and TTS in the repository that owns the source documents:
 
@@ -35,10 +35,10 @@ Use Ragmir to research the release risks. Write a short cited brief to
 npx rgr audio .ragmir/reports/release-brief.md --offline --out .ragmir/audio/release-brief.wav
 ```
 
-Core retrieves the evidence, the chosen AI or local consumer writes the brief, and TTS renders the
-reviewed file. TTS never reads the repository or invents a summary by itself. A hosted AI receives
-the passages it uses under that provider's data policy; choose a local consumer when that handoff
-must stay on the workstation.
+Core retrieves the evidence, the chosen agent or local consumer writes the brief, and TTS renders
+the reviewed file. TTS never reads the repository or invents a summary by itself. A hosted agent
+receives the passages it uses under that provider's data policy; choose a local consumer when that
+handoff must stay on the workstation.
 
 The same command fits a local script or shell worker after the workflow has written its reviewed
 text file. Use `--json` when the next step needs the output path and render metadata.

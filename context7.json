@@ -1,7 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "Ragmir",
-  "description": "Open-source model-agnostic retrieval toolkit for files selected by the project. TypeScript CLI, library, read-focused MCP server, and portable skills keep the index under ignored local state and return cited passages to the user's preferred AI or automation. Optional local chat and TTS remain separate packages.",
+  "description": "Open-source local RAG with verifiable citations for coding agents and scripts. The TypeScript CLI, library, read-focused MCP server, and portable skills keep the index under ignored local state. Optional local Chat and TTS remain separate packages.",
   "excludeFolders": [
     "node_modules",
     "packages/ragmir-core/dist",
@@ -19,7 +19,7 @@
   "excludeFiles": ["CHANGELOG.md", "pnpm-lock.yaml"],
   "rules": [
     "Ragmir Core returns cited retrieval context only; it does not synthesize answers itself.",
-    "Any compatible AI, automation, CLI, TypeScript application, or MCP client can consume Core results; use a local consumer when no passage may leave the machine.",
+    "Any compatible coding agent, script, CLI, TypeScript application, or MCP client can consume Core results; use a local consumer when no passage may leave the machine.",
     "`rgr chat` is optional add-on generation via @jcode.labs/ragmir-chat; the core remains retrieval-only.",
     "Qwen and Gemma are optional Ragmir Chat profiles, never requirements of Core, the CLI, the TypeScript API, or MCP.",
     "The `local-hash` embedding provider (default) is a lexical sha256 embedding, not semantic; use `transformers` for semantic retrieval.",

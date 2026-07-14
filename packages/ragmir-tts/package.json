@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir-tts",
   "version": "0.4.12",
-  "description": "Ragmir add-on for plug-and-play Edge-quality and offline text-to-speech audio summaries.",
+  "description": "Optional local and explicit online speech rendering for reviewed text in Ragmir workflows.",
   "type": "module",
   "license": "MIT",
   "author": {
