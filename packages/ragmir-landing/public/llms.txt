@@ -1,9 +1,10 @@
 # Ragmir
 
-Ragmir is open-source local RAG for your coding agents and scripts on Node.js. It indexes selected
-project files on the user's machine, keeps the corpus and generated index under ignored `.ragmir/`
-state, and retrieves source-backed passages offline by default through a CLI, TypeScript API, or
-local read-focused MCP server. Core does not upload source documents to a hosted RAG service.
+Ragmir is an open-source confidential local RAG for your coding agents and scripts on Node.js. It
+indexes selected project files on the user's machine, keeps the corpus and generated index under
+ignored `.ragmir/` state, and retrieves source-backed passages offline by default through a CLI,
+TypeScript API, or local read-focused MCP server. Core does not upload source documents to a hosted
+RAG service.
 
 ## Product boundary
 
