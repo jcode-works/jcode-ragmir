@@ -30,15 +30,6 @@ const alternateLocales = locales.map((entry) => ({
 const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
-const faqItems = [
-  { question: t("faq_what_question"), answer: t("faq_what_answer") },
-  { question: t("faq_private_question"), answer: t("faq_private_answer") },
-  { question: t("faq_agents_question"), answer: t("faq_agents_answer") },
-  { question: t("faq_offline_question"), answer: t("faq_offline_answer") },
-  { question: t("faq_compare_question"), answer: t("faq_compare_answer") },
-  { question: t("faq_role_question"), answer: t("faq_role_answer") },
-  { question: t("faq_formats_question"), answer: t("faq_formats_answer") },
-]
 const structuredData = [
   {
     "@context": "https://schema.org",
@@ -46,6 +37,7 @@ const structuredData = [
     "@id": "https://ragmir.com/#organization",
     name: "JCode Labs",
     url: "https://github.com/jcode-works",
+    description: t("footer_text"),
     founder: {
       "@type": "Person",
       "@id": "https://ragmir.com/#jb-thery",
@@ -60,7 +52,7 @@ const structuredData = [
       "Model Context Protocol",
       "AI agent tooling",
     ],
-    sameAs: ["https://github.com/jcode-works", "https://github.com/jcode-works/jcode-ragmir"],
+    sameAs: ["https://github.com/jcode-works"],
   },
   {
     "@context": "https://schema.org",
@@ -68,26 +60,13 @@ const structuredData = [
     "@id": "https://ragmir.com/#website",
     url: siteUrl,
     name: "Ragmir",
-    alternateName: t("seo_og_site_name"),
     description: t("seo_home_description"),
     inLanguage: locale,
     publisher: { "@id": "https://ragmir.com/#organization" },
   },
   {
     "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Ragmir",
-        item: pageUrl,
-      },
-    ],
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": ["SoftwareApplication", "SoftwareSourceCode"],
+    "@type": "SoftwareSourceCode",
     "@id": "https://ragmir.com/#source",
     name: "Ragmir",
     description: t("seo_home_description"),
@@ -95,22 +74,22 @@ const structuredData = [
     url: pageUrl,
     mainEntityOfPage: pageUrl,
     codeRepository: "https://github.com/jcode-works/jcode-ragmir",
+    codeSampleType: "full solution",
     runtimePlatform: "Node.js 20 or newer",
-    operatingSystem: "Linux, macOS, Windows",
-    applicationCategory: "DeveloperApplication",
     programmingLanguage: "TypeScript",
-    inLanguage: ["en", "fr"],
     keywords: t("seo_home_keywords")
       .split(",")
       .map((keyword) => keyword.trim()),
     license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
     isAccessibleForFree: true,
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-    },
     ...(publicVersion ? { version: publicVersion } : {}),
+    isPartOf: {
+      "@id": "https://ragmir.com/#website",
+    },
+    sameAs: [
+      "https://github.com/jcode-works/jcode-ragmir",
+      "https://www.npmjs.com/package/@jcode.labs/ragmir",
+    ],
     publisher: {
       "@id": "https://ragmir.com/#organization",
     },
@@ -120,20 +99,6 @@ const structuredData = [
     maintainer: {
       "@id": "https://ragmir.com/#jb-thery",
     },
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "@id": `${pageUrl}#faq`,
-    inLanguage: locale,
-    mainEntity: faqItems.map((item) => ({
-      "@type": "Question",
-      name: item.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: item.answer,
-      },
-    })),
   },
 ]
 const localizedHomeUrl = `${getLocalizedUrl("/", locale)}#top`

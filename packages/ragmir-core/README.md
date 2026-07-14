@@ -58,8 +58,9 @@ Setup installs project-scoped native skills and writes a local stdio MCP helper 
 client. The generated runner pins the current project, so an agent in a monorepo does not silently
 query a sibling index. No Ragmir-specific model is required.
 
-The same setup works with any compatible MCP client. Hermes can launch `.ragmir/run.cjs`; n8n, CI,
-and internal tools can call the JSON CLI or the TypeScript API without a dedicated connector.
+The same setup works with any compatible MCP client. Hermes can launch `.ragmir/run.cjs`; local
+scripts, CI, and internal tools can call the JSON CLI or the TypeScript API without a dedicated
+connector.
 
 ## Use Ragmir from an automation
 
@@ -67,10 +68,9 @@ and internal tools can call the JSON CLI or the TypeScript API without a dedicat
 npx rgr search "Should this renewal require approval?" --compact --json
 ```
 
-Use that command from a shell worker, a self-hosted n8n Execute Command node, or a CI step after
-mounting the project and its local `.ragmir/` state. The process returns machine-readable cited
-passages; the workflow decides whether to continue, request human approval, or stop. n8n Cloud does
-not provide the Execute Command node, and self-hosted n8n 2.x disables it by default.
+Use that command from a local shell script, a Node.js worker, or a CI step after mounting the project
+and its local `.ragmir/` state. The process returns machine-readable cited passages; the workflow
+decides whether to continue, request human approval, or stop.
 
 For long-running integrations, start the local stdio server with `npx rgr serve-mcp`. The MCP surface
 is bounded and read-focused: status, source coverage, search, retrieval-only ask, research, exact

@@ -53,10 +53,9 @@ Core retrieves the passages first, then Chat generates from those passages and v
 source markers. For a fully local workflow, use a local agent or automation runner. A hosted agent
 still receives the final answer it displays under that provider's data policy.
 
-For self-hosted n8n, CI, or a shell worker, add `--json` so the next step can branch on
+For a local script, CI job, or shell worker, add `--json` so the next step can branch on
 `emptyContext` and `citationStatus`. Do not auto-approve a high-impact action unless the status is
-`valid` and the workflow has checked the returned sources. n8n Cloud does not provide the Execute
-Command node required to launch the local CLI, and self-hosted n8n 2.x disables it by default.
+`valid` and the workflow has checked the returned sources.
 
 ## First cited local answer
 

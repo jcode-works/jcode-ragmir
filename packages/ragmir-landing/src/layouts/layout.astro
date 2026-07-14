@@ -109,6 +109,7 @@ function alternateHref(targetLocale: string): string {
 
     <meta name="generator" content={Astro.generator} />
     <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0" />
+    <meta name="application-name" content="Ragmir" />
     <meta name="description" content={description} />
     <meta name="author" content={author} />
     <meta name="robots" content={robots} />
@@ -149,7 +150,11 @@ function alternateHref(targetLocale: string): string {
         <link rel="alternate" hreflang={hreflangLocaleMap[entry]} href={alternateHref(entry)} />
       ))
     }
-    <link rel="alternate" hreflang="x-default" href={alternateHref("en")} />
+    {
+      localesForAlternates.length > 1 && (
+        <link rel="alternate" hreflang="x-default" href={alternateHref("en")} />
+      )
+    }
 
     {
       structuredData &&
