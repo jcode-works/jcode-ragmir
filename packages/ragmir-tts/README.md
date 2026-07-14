@@ -1,22 +1,23 @@
-# Ragmir TTS
+# @jcode.labs/ragmir-tts
 
 [![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 [![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-tts)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Let your coding agent turn reviewed, cited project context into local audio.**
+**Optional local audio for your coding-agent RAG workflow.**
 
-`@jcode.labs/ragmir-tts` renders text files through a typed Node.js API and the `rgr-tts` CLI. Its
-default Transformers.js path produces WAV audio locally after the model is prepared. An explicit
-Edge mode produces online neural-voice MP3 when sending narration text to that service is acceptable.
+Ragmir Core retrieves cited project evidence, your coding agent turns it into a reviewable brief,
+and `@jcode.labs/ragmir-tts` renders the approved text as audio. The default Transformers.js path
+produces WAV locally after model preparation. An explicit Edge mode produces online MP3 only when
+sending narration text to that service is acceptable.
 
 [Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [Offline TTS guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md) ·
 [Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
 
-## Use it from a coding agent or script
+## Add audio to a coding-agent workflow
 
 Install Core and TTS in the repository that owns the source documents:
 
@@ -25,6 +26,15 @@ npm install --save-dev @jcode.labs/ragmir @jcode.labs/ragmir-tts
 npx rgr setup --agents codex,claude,kimi,opencode,cline
 npx rgr sources add "README.md" "docs/**/*.md"
 npx rgr ingest
+```
+
+Prepare the local model once with non-sensitive text before the agent handles a private brief:
+
+```bash
+printf '%s\n' "Non-sensitive model preload text." > /tmp/ragmir-tts-preload.txt
+npx rgr audio /tmp/ragmir-tts-preload.txt \
+  --allow-remote-models \
+  --out .ragmir/audio/preload.wav
 ```
 
 Then ask the selected agent to run a complete, reviewable workflow:
@@ -78,7 +88,8 @@ locations ignored by Git.
 
 ## Use it through Ragmir Core
 
-Ragmir Core exposes the same local renderer as `rgr audio`:
+With Core and TTS installed, `rgr audio` delegates rendering to Ragmir TTS. After preparing the model
+as shown above, confidential text can stay offline:
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir @jcode.labs/ragmir-tts
@@ -89,6 +100,8 @@ This path fits a retrieval workflow where a cited report or compact research not
 reviewed, and then rendered as audio.
 
 ## TypeScript API
+
+This example assumes the local model cache has already been prepared by the first offline WAV step.
 
 ```ts
 import { doctor, renderSpeech } from "@jcode.labs/ragmir-tts"
