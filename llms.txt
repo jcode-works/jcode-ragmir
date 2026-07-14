@@ -15,6 +15,10 @@ store.
   agent or optional local chat add-on.
 - Consumer choice: use the AI or automation you already have through CLI, TypeScript, or MCP. Use a
   local consumer or optional Chat when no retrieved passage may leave the machine.
+- Persistent API: `createRagmirClient()` reuses one local connection in a stateful Node.js worker,
+  supports cancellation and timeouts, and closes gracefully after active operations.
+- Service boundary: Ragmir does not open an HTTP port. Network transports, authentication, and
+  authorization belong to the embedding application.
 - Default retrieval: local-hash, with no model download. Semantic embeddings and local GGUF chat are
   explicit opt-ins.
 - Optional packages: `@jcode.labs/ragmir-chat` for local cited GGUF synthesis and
