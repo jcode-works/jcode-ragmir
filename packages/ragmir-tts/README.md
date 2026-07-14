@@ -40,11 +40,8 @@ reviewed file. TTS never reads the repository or invents a summary by itself. A 
 the passages it uses under that provider's data policy; choose a local consumer when that handoff
 must stay on the workstation.
 
-The same command fits a self-hosted n8n Execute Command node or a shell worker after the workflow
-has written its reviewed text file. Use `--json` when the next node needs the output path and render
-metadata. n8n Cloud does not provide the Execute Command node required to launch the local CLI.
-Self-hosted n8n 2.x also disables that node by default, so enable it deliberately before using this
-path.
+The same command fits a local script or shell worker after the workflow has written its reviewed
+text file. Use `--json` when the next step needs the output path and render metadata.
 
 ## Choose the rendering path deliberately
 
@@ -100,6 +97,7 @@ const runtime = await doctor()
 console.log(runtime.transformersAvailable)
 
 const result = await renderSpeech({
+  cwd: process.cwd(),
   textFile: "./brief.md",
   outputPath: ".ragmir/audio/brief.wav",
   engine: "transformers",
@@ -111,7 +109,8 @@ console.log(result.outputPath, result.samplingRate)
 ```
 
 `renderSpeech` returns the output path, engine, language, format, model metadata, and sample details.
-`doctor` reports local engine availability, defaults, supported languages, and model-cache state.
+`doctor` reports local engine availability, defaults, supported languages, and model paths. Use
+`modelCacheExists()` when an application needs a direct cache-presence check.
 
 ## Explicit online MP3
 

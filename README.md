@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
-**Cited local retrieval for Codex, Claude Code, Kimi, OpenCode, Cline, n8n, or your Node.js app.**
+**Cited local retrieval for Codex, Claude Code, Kimi, OpenCode, Cline, or your own automation.**
 
 Ragmir is an open-source retrieval-augmented generation (RAG) toolkit for Node.js. It indexes the
 files you choose, stores the index inside the project, and returns source-backed passages through a
@@ -64,6 +64,9 @@ Using npm instead of pnpm? Replace `pnpm add -D` with `npm install --save-dev` a
 | Ragmir Chat | Keep answer generation on the workstation | Cited offline synthesis |
 | Ragmir TTS | Turn a text brief into audio | Local WAV or explicit online MP3 |
 
+Use the CLI or MCP for interactive agent work. Use the TypeScript API when a repeatable Node.js
+process owns the control flow.
+
 Ragmir Core stays retrieval-first. `ask()` returns cited context without calling an LLM. Local chat
 and audio are separate capabilities, so retrieval remains useful on machines that should not run a
 generative model.
@@ -91,9 +94,9 @@ from the installed npm package.
 ### Connect another AI or automation
 
 Setup links skills into supported agents' native project folders and writes local MCP helpers backed
-by a generated project runner. Any other MCP client can launch `.ragmir/run.cjs`. Hermes,
-self-hosted n8n, CI, and internal services can use the same JSON CLI or TypeScript API without a
-dedicated connector.
+by a generated project runner. Any other MCP client can launch `.ragmir/run.cjs`. Hermes, local
+scripts, CI, and internal services can use the same JSON CLI or TypeScript API without a dedicated
+connector.
 
 The MCP surface is intentionally bounded and read-focused. Agents can request compact evidence
 first, then expand one returned citation without opening a second index or reading arbitrary files.
