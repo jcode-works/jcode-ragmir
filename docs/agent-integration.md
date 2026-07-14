@@ -88,6 +88,12 @@ The generated helpers cover Claude Code, Codex, Kimi, OpenCode, and Cline. Other
 the same evidence through the CLI, TypeScript API, or any compatible MCP client. Hermes, n8n
 workers, CI jobs, and internal applications do not require a dedicated Ragmir model integration.
 
+Embedding applications can call `createMcpServer(cwd)` to register a caller-owned transport, or
+`connectMcpServer(transport, cwd)` to connect it and receive a closeable server handle. The standard
+`serveMcp(cwd)` helper remains the simplest local stdio entry point. MCP cancellation propagates to
+search, ask, research, and citation expansion. Ragmir does not open an HTTP port; applications that
+expose a network transport own its authentication and authorization boundary.
+
 ## Verify
 
 ```bash

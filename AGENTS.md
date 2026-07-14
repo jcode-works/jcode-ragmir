@@ -15,6 +15,9 @@
 - `packages/ragmir-tts` is the optional local/offline audio add-on used by `rgr audio`.
 - `packages/ragmir-landing` is a self-contained, telemetry-free Astro site. Keep it static, open-source focused, and free of vendor deployment configuration.
 - Ragmir Core stays retrieval-first: `local-hash` supports offline retrieval, `transformers` is the explicit semantic option, and local chat remains a separate add-on.
+- Long-running Node.js processes use one `RagmirClient` per project root and close it during shutdown. Keep the top-level API for one-shot scripts.
+- Ragmir does not provide an HTTP server or fixed port. A network-facing host owns transport security, authentication, authorization, and rate limits.
+- Ingestion is serialized per local index inside one Node.js process; do not claim a distributed writer lock.
 - Public copy must lead with model-agnostic Core and the choice between the user's preferred AI or automation and a fully local consumer. Qwen and Gemma are optional Chat profiles, never Core or MCP requirements.
 
 ## Privacy and ingestion

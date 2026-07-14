@@ -9,12 +9,12 @@ prints cited results from a fictional local corpus.
 
 ## What it proves
 
-The demo exercises four public operations in order:
+The demo opens one persistent client and exercises four public operations in order:
 
-1. `ingest({ cwd, rebuild: true })` parses, redacts, chunks, embeds, and stores the corpus.
-2. `search(query, { cwd, topK })` returns ranked source passages.
-3. `ask(query, { cwd, topK })` returns retrieval-only cited context without LLM synthesis.
-4. `audit(cwd)` compares supported files with the current index.
+1. `ragmir.ingest({ rebuild: true })` parses, redacts, chunks, embeds, and stores the corpus.
+2. `ragmir.search(query, { topK })` returns ranked source passages.
+3. `ragmir.ask(query, { topK })` returns retrieval-only cited context without LLM synthesis.
+4. `ragmir.status()` reports the active knowledge base and indexed coverage.
 
 Node's package self-reference resolves `@jcode.labs/ragmir` to this checkout's local
 `packages/ragmir-core/dist` build. It never falls back to the npm-published version, so the result
@@ -30,7 +30,7 @@ pnpm example
 ```
 
 The root command builds the published packages required by Core and runs [`run.mjs`](./run.mjs). The
-output is organized into `ingest`, `search`, `ask`, and `audit` sections so a reviewer can see each
+output is organized into `ingest`, `search`, `ask`, and `status` sections so a reviewer can see each
 public step succeed.
 
 To rerun only the script after an existing build:
@@ -46,25 +46,25 @@ node packages/ragmir-core/examples/library-api-demo/run.mjs
 The essential integration is intentionally small:
 
 ```js
-import { ask, audit, ingest, search } from "@jcode.labs/ragmir"
+import { createRagmirClient } from "@jcode.labs/ragmir"
 
-await ingest({ cwd: projectRoot, rebuild: true })
+const ragmir = await createRagmirClient({ cwd: projectRoot })
+try {
+  await ragmir.ingest({ rebuild: true, timeoutMs: 30_000 })
 
-const results = await search("offline retrieval approval", {
-  cwd: projectRoot,
-  topK: 3,
-})
+  const results = await ragmir.search("offline retrieval approval", { topK: 3 })
 
-const context = await ask("What evidence supports offline operation?", {
-  cwd: projectRoot,
-  topK: 3,
-})
+  const context = await ragmir.ask("What evidence supports offline operation?", { topK: 3 })
 
-const report = await audit(projectRoot)
+  const status = await ragmir.status()
+} finally {
+  await ragmir.close()
+}
 ```
 
-All project-relative state is resolved from `cwd`. This is the key boundary for applications that
-use Ragmir across more than one repository.
+All project-relative state is resolved once from `cwd`. Reuse one client per project root in a
+long-running Node.js process and close it during shutdown. For one-shot scripts, the top-level
+`ingest`, `search`, `ask`, and `audit` functions remain available.
 
 ## Data used by the demo
 

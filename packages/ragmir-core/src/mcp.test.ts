@@ -1,8 +1,14 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js"
 import { afterEach, describe, expect, it } from "vitest"
-import { projectRelativeGoldenPath, resolveMcpProjectRoot, searchOptions } from "./mcp.js"
+import {
+  connectMcpServer,
+  projectRelativeGoldenPath,
+  resolveMcpProjectRoot,
+  searchOptions,
+} from "./mcp.js"
 
 const tempDirs: string[] = []
 
@@ -50,6 +56,19 @@ describe("resolveMcpProjectRoot", () => {
 
     expect(resolveMcpProjectRoot({}, appSource)).toBe(app)
     expect(resolveMcpProjectRoot({ RAGMIR_PROJECT_ROOT: root }, appSource)).toBe(root)
+  })
+})
+
+describe("connectMcpServer", () => {
+  it("should return a server handle that the embedding process can close", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-mcp-lifecycle-"))
+    tempDirs.push(root)
+    const [, serverTransport] = InMemoryTransport.createLinkedPair()
+
+    const server = await connectMcpServer(serverTransport, root)
+
+    expect(server.server).toBeDefined()
+    await expect(server.close()).resolves.toBeUndefined()
   })
 })
 

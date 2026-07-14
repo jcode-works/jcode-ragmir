@@ -20,6 +20,8 @@
   "rules": [
     "Ragmir Core returns cited retrieval context only; it does not synthesize answers itself.",
     "Any compatible coding agent, script, CLI, TypeScript application, or MCP client can consume Core results; use a local consumer when no passage may leave the machine.",
+    "Use one `createRagmirClient()` per project root for repeated work in a stateful Node.js process; close it during shutdown and use the top-level functions for one-shot scripts.",
+    "Ragmir does not open an HTTP port; a network-facing host owns its transport, authentication, authorization, and rate limits.",
     "`rgr chat` is optional add-on generation via @jcode.labs/ragmir-chat; the core remains retrieval-only.",
     "Qwen and Gemma are optional Ragmir Chat profiles, never requirements of Core, the CLI, the TypeScript API, or MCP.",
     "The `local-hash` embedding provider (default) is a lexical sha256 embedding, not semantic; use `transformers` for semantic retrieval.",

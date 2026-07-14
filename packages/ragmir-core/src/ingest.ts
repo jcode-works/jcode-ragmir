@@ -1,3 +1,4 @@
+import type { Connection } from "@lancedb/lancedb"
 import { recordAccess } from "./access-log.js"
 import { summarizeChunkStats } from "./chunk-stats.js"
 import { chunkDocument, chunkSearchText } from "./chunking.js"
@@ -11,6 +12,8 @@ import {
 } from "./files.js"
 import { INDEX_SCHEMA_VERSION } from "./index-diagnostics.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
+import { withIndexWriteLock } from "./index-write-lock.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
 import { redactText, totalRedactions } from "./redaction.js"
 import {
@@ -54,6 +57,27 @@ const MIRROR_PATH_PATTERNS = [
 
 export async function ingest(options: IngestOptions = {}): Promise<IngestResult> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  return ingestWithConfig(config, options)
+}
+
+export async function ingestWithConfig(
+  config: Config,
+  options: IngestOptions = {},
+  connection?: Connection,
+): Promise<IngestResult> {
+  const signal = operationSignal(options)
+  return withIndexWriteLock(config.storageDir, signal, () =>
+    ingestUnlocked(config, options, connection, signal),
+  )
+}
+
+async function ingestUnlocked(
+  config: Config,
+  options: IngestOptions,
+  connection: Connection | undefined,
+  signal: AbortSignal | undefined,
+): Promise<IngestResult> {
+  throwIfAborted(signal)
   const policyFingerprint = indexPolicyFingerprint(config)
   const existingManifest = await readIndexManifest(config)
   const manifestCompatible =
@@ -61,7 +85,7 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
     existingManifest?.schemaVersion === INDEX_SCHEMA_VERSION &&
     existingManifest.indexPolicyFingerprint === policyFingerprint &&
     existingManifest.indexedFiles !== undefined
-  const existingTable = manifestCompatible ? await openRowsTable(config) : null
+  const existingTable = manifestCompatible ? await openRowsTable(config, connection) : null
   const storedEmptyFiles = manifestCompatible ? await readEmptyTextFiles(config) : []
   const knownFiles = new Map(
     [...(existingManifest?.indexedFiles ?? []), ...storedEmptyFiles].map((file) => [
@@ -97,9 +121,10 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
   const redactionCounts: RedactionCount[] = []
   const emptyTextFiles: string[] = []
 
-  const results = await mapLimit(filesToIndex, config.ingestConcurrency, async (file) => {
+  const results = await mapLimit(filesToIndex, config.ingestConcurrency, signal, async (file) => {
     try {
       const parsed = await parseFile(file, config)
+      throwIfAborted(signal)
       const redacted = redactText(parsed.text, config)
       const chunks = chunkDocument(
         { ...parsed, text: redacted.text },
@@ -108,6 +133,7 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
       )
       return { path: file.relativePath, chunks, redactions: redacted.counts, error: null }
     } catch (error) {
+      throwIfAborted(signal)
       return {
         path: file.relativePath,
         chunks: [],
@@ -134,8 +160,10 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
 
   const rows: VectorRow[] = []
   for (let i = 0; i < allChunks.length; i += config.embeddingBatchSize) {
+    throwIfAborted(signal)
     const batch = allChunks.slice(i, i + config.embeddingBatchSize)
     const embeddings = await embedTexts(batch.map(chunkSearchText), config)
+    throwIfAborted(signal)
     for (const [index, chunk] of batch.entries()) {
       const vector = embeddings[index]
       if (!vector) {
@@ -162,14 +190,15 @@ export async function ingest(options: IngestOptions = {}): Promise<IngestResult>
     ...filesToIndex.map((file) => file.relativePath),
     ...[...previousPaths].filter((relativePath) => !currentPaths.has(relativePath)),
   ]
+  throwIfAborted(signal)
   const writeResult =
     !canReuse || chunkCount === 0
-      ? await writeRows(rows, config)
+      ? await writeRows(rows, config, connection)
       : replacePaths.length > 0
-        ? await updateRows(rows, replacePaths, config)
+        ? await updateRows(rows, replacePaths, config, connection)
         : { vectorIndexWarning: null, lexicalIndexWarning: null }
   if (chunkCount > 0) {
-    const firstRow = rows[0] ?? (await firstStoredRow(config))
+    const firstRow = rows[0] ?? (await firstStoredRow(config, connection))
     if (!firstRow) {
       throw new Error("Cannot write an index manifest without indexed rows.")
     }
@@ -258,8 +287,8 @@ function indexedFileRecords(rows: VectorRow[]): IndexManifestFile[] {
   return [...records.values()]
 }
 
-async function firstStoredRow(config: Config): Promise<VectorRow | null> {
-  const table = await openRowsTable(config)
+async function firstStoredRow(config: Config, connection?: Connection): Promise<VectorRow | null> {
+  const table = await openRowsTable(config, connection)
   if (!table) {
     return null
   }
@@ -431,6 +460,7 @@ async function currentEmptyTextFiles(
 async function mapLimit<T, R>(
   items: T[],
   concurrency: number,
+  signal: AbortSignal | undefined,
   worker: (item: T) => Promise<R>,
 ): Promise<R[]> {
   const results = new Array<R>(items.length)
@@ -438,11 +468,13 @@ async function mapLimit<T, R>(
 
   async function run(): Promise<void> {
     while (nextIndex < items.length) {
+      throwIfAborted(signal)
       const index = nextIndex
       nextIndex += 1
       const item = items[index]
       if (item !== undefined) {
         results[index] = await worker(item)
+        throwIfAborted(signal)
       }
     }
   }

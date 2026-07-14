@@ -9,6 +9,10 @@ passages through a CLI, TypeScript API, or local read-focused MCP server.
 - `@jcode.labs/ragmir` is retrieval-first. Core does not call an LLM or write generated answers.
 - Core is model-agnostic. The user can connect a preferred coding agent or script through CLI,
   TypeScript, or MCP.
+- `createRagmirClient()` reuses one local connection for repeated work in a stateful Node.js process,
+  supports cancellation and timeouts, and closes after active operations finish.
+- Ragmir does not open an HTTP port. Network transports, authentication, authorization, and rate
+  limits belong to the embedding application.
 - The default `local-hash` path works offline with no account, API key, or model download.
 - Semantic Transformers.js embeddings are an explicit opt-in and require a rebuilt index.
 - `@jcode.labs/ragmir-chat` adds optional cited synthesis with a local GGUF model.

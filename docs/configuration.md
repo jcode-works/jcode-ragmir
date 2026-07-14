@@ -70,3 +70,8 @@ RAGMIR_MCP_MAX_OUTPUT_BYTES=16384 rgr mcp
 
 Environment overrides cover selected runtime settings such as models, retrieval limits, access logs,
 and extractor commands. Run `rgr status --json` to inspect the effective result.
+
+For a long-running process that hosts more than one isolated project workflow, create one
+`RagmirClient` per project root and keep process-wide environment overrides stable after startup.
+Close every client during shutdown. If several OS processes can ingest the same storage directory,
+the host must coordinate a single writer.
