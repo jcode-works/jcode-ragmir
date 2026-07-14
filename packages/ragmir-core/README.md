@@ -1,26 +1,27 @@
-# Ragmir Core
+# @jcode.labs/ragmir
 
 [![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Local RAG with verifiable citations for coding agents, scripts, and MCP clients.**
+**Local RAG for your coding agents.**
 
-`@jcode.labs/ragmir` indexes the files a project selects and returns source-backed passages without
-a hosted document store. The default `local-hash` retrieval path works offline, without an account
-or model download.
+`@jcode.labs/ragmir` indexes the project files you select, keeps the index on your machine, and
+returns bounded evidence with verifiable citations. Your coding agent or local script gets the
+context it needs without a hosted document store. The default `local-hash` path works offline,
+without an account or model download.
 
-Core is independent of the model or client that consumes those passages. Connect the coding agent
-or script you already use, keep the consumer local when no retrieved passage may leave the
-workstation, or call the typed API from Node.js.
+Core is model-agnostic. Connect the coding agent or local script you already use through generated
+project skills, local MCP, or the JSON CLI. Use the typed Node.js API when your application owns the
+control flow.
 
 [Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md) ·
 [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 
-## Install Core when you need
+## What your coding agent gains
 
 | Goal | Core interface |
 | --- | --- |
@@ -30,12 +31,12 @@ workstation, or call the typed API from Node.js.
 | Give an agent bounded project context | Local stdio MCP server and generated helpers |
 | Index scanned PDFs | Embedded text first, with optional page-aware local OCR |
 
-Core retrieves cited evidence. It does not require a generative model or generate answers. Add
-[Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) only when local
-GGUF synthesis is useful, or [Ragmir TTS](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
-when you need audio output.
+Core retrieves cited evidence. It does not require a generative model or generate answers. Use
+[Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) only when local GGUF synthesis
+is useful, or [Ragmir TTS](https://www.npmjs.com/package/@jcode.labs/ragmir-tts) when you need audio
+output.
 
-## Use Ragmir with a coding agent or script
+## Connect a coding agent in minutes
 
 Requires Node.js 20 or later.
 
@@ -62,7 +63,7 @@ The same setup works with any compatible MCP client. Hermes can launch `.ragmir/
 scripts, CI, and internal tools can call the JSON CLI or the TypeScript API without a dedicated
 connector.
 
-## Use Ragmir from an automation
+## Use the same evidence from an automation
 
 ```bash
 npx rgr search "Should this renewal require approval?" --compact --json

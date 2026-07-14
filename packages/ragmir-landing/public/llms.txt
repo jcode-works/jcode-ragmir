@@ -1,6 +1,6 @@
 # Ragmir
 
-Ragmir is an open-source local RAG for coding agents and scripts on Node.js. It indexes the files
+Ragmir is open-source local RAG for your coding agents and scripts on Node.js. It indexes the files
 selected by the project, stores the index under ignored `.ragmir/` state, and returns source-backed
 passages through a CLI, TypeScript API, or local read-focused MCP server.
 
