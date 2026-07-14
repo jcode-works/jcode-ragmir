@@ -19,6 +19,7 @@ export {
   INDEX_SCHEMA_VERSION,
 } from "./index-diagnostics.js"
 export { audit, ingest } from "./ingest.js"
+export { getIngestionProgress } from "./ingestion-state.js"
 export { initProject } from "./init.js"
 export { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 export { ingestionLimits } from "./limits.js"
@@ -93,7 +94,11 @@ export type {
   GoldenQuery,
   IndexManifest,
   IndexManifestFile,
+  IngestionFileStage,
   IngestionLimitsReport,
+  IngestionProgress,
+  IngestionRunMode,
+  IngestionRunStatus,
   IngestOptions,
   IngestResult,
   KnowledgeBaseContextReport,
