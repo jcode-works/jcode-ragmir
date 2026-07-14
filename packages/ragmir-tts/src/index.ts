@@ -119,7 +119,7 @@ export interface EdgeTtsRenderOptions {
 
 export async function renderSpeech(options: RenderSpeechOptions): Promise<RenderSpeechResult> {
   const cwd = path.resolve(options.cwd ?? process.cwd())
-  const text = await readInputText(options)
+  const text = await readInputText(options, cwd)
   const engine = resolveEngine(options)
   const language = resolveLanguage(options)
   const modelPath = resolveFromCwd(
@@ -209,8 +209,10 @@ export async function doctor(): Promise<DoctorReport> {
   }
 }
 
-async function readInputText(options: RenderSpeechOptions): Promise<string> {
-  const text = options.text ?? (options.textFile ? await readFile(options.textFile, "utf8") : "")
+async function readInputText(options: RenderSpeechOptions, cwd: string): Promise<string> {
+  const text =
+    options.text ??
+    (options.textFile ? await readFile(resolveFromCwd(cwd, options.textFile), "utf8") : "")
   const trimmed = text.trim()
   if (!trimmed) {
     throw new Error("A non-empty text input or text file is required.")
