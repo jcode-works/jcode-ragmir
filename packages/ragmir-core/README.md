@@ -34,7 +34,7 @@ control flow.
 Core retrieves cited evidence. It does not require a generative model or generate answers. Use
 [Ragmir Chat](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) only when local GGUF synthesis
 is useful, or [Ragmir TTS](https://www.npmjs.com/package/@jcode.labs/ragmir-tts) when you need audio
-output.
+output. Core declares both as optional peer integrations and does not install either add-on.
 
 ## Connect a coding agent in minutes
 

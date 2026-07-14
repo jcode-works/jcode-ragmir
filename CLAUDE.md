@@ -17,6 +17,7 @@ Use `pnpm --filter @jcode.labs/ragmir <script>` for Core-only work. The pinned N
 - `packages/ragmir-core`: published CLI, library, MCP server, and skills.
 - `packages/ragmir-chat`: optional local chat add-on.
 - `packages/ragmir-tts`: optional audio add-on.
+- Core must install and start without Chat or TTS. Keep both as optional peer integrations and load them only when their command is used.
 - `packages/ragmir-landing`: self-contained static Astro documentation and product site.
 
 Generated `dist/`, `.astro/`, `release-artifacts/`, and `.ragmir/` directories are ignored. Do not

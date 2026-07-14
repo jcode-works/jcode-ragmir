@@ -279,6 +279,15 @@ import { doctor, renderSpeech } from "@jcode.labs/ragmir-tts"
 const runtime = await doctor()
 console.log(runtime.transformersAvailable)
 
+await renderSpeech({
+  cwd: process.cwd(),
+  text: "Non-sensitive model preload text.",
+  outputPath: "/tmp/ragmir-tts-preload.wav",
+  engine: "transformers",
+  language: "en",
+  allowRemoteModels: true,
+})
+
 const result = await renderSpeech({
   cwd: process.cwd(),
   textFile: ".ragmir/reports/release-brief.md",
@@ -292,8 +301,9 @@ console.log(result.outputPath, result.samplingRate)
 ```
 
 TTS renders text supplied by the caller. It does not retrieve evidence or write a summary. The
-default Transformers.js path produces local WAV output after an explicit model preload. The Edge
-path is explicit and sends narration text to the external service.
+first call explicitly preloads the local model from non-sensitive text. Later calls can keep
+`allowRemoteModels: false` for confidential content. The Edge path is explicit and sends narration
+text to the external service.
 
 ### TTS runtime exports
 

@@ -235,6 +235,8 @@ Redaction reduces accidental exposure but is not a compliance certification. Rev
 | [`@jcode.labs/ragmir-chat`](./packages/ragmir-chat/README.md) | Optional cited generation with a local GGUF model |
 | [`@jcode.labs/ragmir-tts`](./packages/ragmir-tts/README.md) | Optional local audio or explicit online voice rendering |
 
+Installing Core does not install Chat or TTS. Add only the optional package needed by the workflow.
+
 ## Runnable examples
 
 | Example | What it proves |
