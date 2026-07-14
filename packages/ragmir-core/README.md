@@ -7,10 +7,10 @@
 
 **Local RAG for your coding agents.**
 
-`@jcode.labs/ragmir` indexes the project files you select, keeps the index on your machine, and
-returns bounded evidence with verifiable citations. Your coding agent or local script gets the
-context it needs without a hosted document store. The default `local-hash` path works offline,
-without an account or model download.
+`@jcode.labs/ragmir` indexes the project files you select on your machine and retrieves bounded,
+cited evidence offline by default. The corpus and generated index remain local, so confidential
+source files are not uploaded to a hosted RAG service. Your coding agent or local script gets the
+context it needs without an account, API key, or model download.
 
 Core is model-agnostic. Connect the coding agent or local script you already use through generated
 project skills, local MCP, or the JSON CLI. Use the typed Node.js API when your application owns the

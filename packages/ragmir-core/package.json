@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir",
   "version": "0.4.12",
-  "description": "Local RAG for coding agents, with cited project evidence through CLI, MCP, and TypeScript.",
+  "description": "Local RAG for coding agents, with offline cited retrieval through CLI, MCP, and TypeScript.",
   "type": "module",
   "license": "MIT",
   "author": {

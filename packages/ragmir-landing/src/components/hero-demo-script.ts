@@ -55,7 +55,7 @@ export const HERO_DEMO_SCENARIOS: readonly HeroDemoScenario[] = [
       { kind: "codex", textKey: "demo_word_prompt" },
       {
         kind: "mcp",
-        text: 'ragmir_search({ query: "account recovery lockout acceptance criteria", topK: 5 })',
+        textKey: "demo_word_search_command",
       },
       { kind: "citation", text: "[1] private/specification.docx:L12-L18#2" },
       { kind: "citation", text: "[2] private/acceptance-criteria.docx:L7-L13#1" },
@@ -84,7 +84,7 @@ export const HERO_DEMO_SCENARIOS: readonly HeroDemoScenario[] = [
       { kind: "codex", textKey: "demo_monorepo_prompt" },
       {
         kind: "mcp",
-        text: 'ragmir_search({ query: "authentication flow package owners onboarding", topK: 5 })',
+        textKey: "demo_monorepo_search_command",
       },
       { kind: "citation", text: "[1] docs/adr/0042-auth-contract.md:L18-L31#3" },
       { kind: "citation", text: "[2] packages/api-client/docs/auth.md:L11-L24#2" },
@@ -118,7 +118,7 @@ export const HERO_DEMO_SCENARIOS: readonly HeroDemoScenario[] = [
       { kind: "codex", textKey: "demo_drive_prompt" },
       {
         kind: "mcp",
-        text: 'ragmir_search({ query: "feature scope dependencies acceptance criteria", topK: 5 })',
+        textKey: "demo_drive_search_command",
       },
       { kind: "citation", text: "[1] roadmap.pdf:p4:L88-L102#5" },
       { kind: "citation", text: "[2] stories.xlsx:L42-L48#8" },
@@ -149,7 +149,7 @@ export const HERO_DEMO_SCENARIOS: readonly HeroDemoScenario[] = [
       { kind: "success", textKey: "demo_youtube_out_indexed", holdMs: 1400 },
       {
         kind: "shell",
-        text: 'node scripts/draft-episode.mjs "Why habits outlast motivation"',
+        textKey: "demo_youtube_draft_command",
       },
       { kind: "script", textKey: "demo_youtube_script_research" },
       { kind: "citation", text: "[1] library/research.pdf:p8:L142-L156#9" },

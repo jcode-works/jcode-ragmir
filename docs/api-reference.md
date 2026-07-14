@@ -10,7 +10,9 @@ Ragmir publishes three ESM packages for Node.js 20 or later:
 
 Use the CLI or MCP server when an agent or automation only needs to retrieve evidence. Use these
 APIs when a Node.js process owns the workflow. All paths resolve from `cwd` or the current working
-directory, and generated state stays under the project's ignored `.ragmir/` directory.
+directory, and generated state stays under the project's ignored `.ragmir/` directory. With the
+default `local-hash` provider, Core indexes and retrieves private project files locally and
+offline. Only passages a caller explicitly hands to an external consumer cross that boundary.
 
 ## Core: cited retrieval
 

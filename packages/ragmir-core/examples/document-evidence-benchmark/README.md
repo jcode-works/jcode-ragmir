@@ -5,7 +5,8 @@ Ragmir.
 
 Use this example when you want to prove more than "a relevant file appeared." Its six golden queries
 check that Ragmir retrieves the expected path and the exact file, line, chunk, or PDF-page citation.
-Every document is fictional and safe to commit.
+Every document is fictional and safe to commit. The benchmark keeps its corpus and generated index
+on the machine and runs the default `local-hash` retrieval offline.
 
 ## What it measures
 
