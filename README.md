@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
-**Local RAG for your coding agents.**
+**Confidential local RAG for your coding agents.**
 
 Ragmir indexes the project files you choose on your machine and retrieves bounded, cited evidence
 offline by default. The corpus and generated index remain local, so confidential source files are
@@ -242,7 +242,7 @@ Installing Core does not install Chat or TTS. Add only the optional package need
 
 | Example | What it proves |
 | --- | --- |
-| [Sovereign RAG demo](./packages/ragmir-core/examples/sovereign-rag-demo/README.md) | End-to-end CLI ingestion, retrieval, redaction, audit, and evaluation |
+| [Confidential local RAG demo](./packages/ragmir-core/examples/sovereign-rag-demo/README.md) | End-to-end CLI ingestion, retrieval, redaction, audit, and evaluation |
 | [Library API demo](./packages/ragmir-core/examples/library-api-demo/README.md) | The public TypeScript API against a synthetic local corpus |
 | [Document evidence benchmark](./packages/ragmir-core/examples/document-evidence-benchmark/README.md) | Deterministic recall and exact file, line, chunk, and PDF-page citations |
 

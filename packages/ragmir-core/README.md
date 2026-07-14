@@ -5,7 +5,7 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Local RAG for your coding agents.**
+**Confidential local RAG for your coding agents.**
 
 `@jcode.labs/ragmir` indexes the project files you select on your machine and retrieves bounded,
 cited evidence offline by default. The corpus and generated index remain local, so confidential
@@ -213,7 +213,7 @@ before indexing sensitive material.
 
 | Example | Demonstrates |
 | --- | --- |
-| [Sovereign RAG demo](https://github.com/jcode-works/jcode-ragmir/tree/main/packages/ragmir-core/examples/sovereign-rag-demo) | CLI ingestion, search, audit, redaction, and evaluation |
+| [Confidential local RAG demo](https://github.com/jcode-works/jcode-ragmir/tree/main/packages/ragmir-core/examples/sovereign-rag-demo) | CLI ingestion, search, audit, redaction, and evaluation |
 | [Library API demo](https://github.com/jcode-works/jcode-ragmir/tree/main/packages/ragmir-core/examples/library-api-demo) | The public library surface against fictional files |
 | [Document evidence benchmark](https://github.com/jcode-works/jcode-ragmir/tree/main/packages/ragmir-core/examples/document-evidence-benchmark) | Recall and exact citation evaluation |
 
