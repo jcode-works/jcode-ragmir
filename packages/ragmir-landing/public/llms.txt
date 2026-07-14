@@ -1,13 +1,13 @@
 # Ragmir
 
-Ragmir is an open-source local-first retrieval toolkit for Node.js. It indexes the files selected by
-the project, stores the index under ignored `.ragmir/` state, and returns source-backed passages
-through a CLI, TypeScript API, or local read-focused MCP server.
+Ragmir is an open-source local RAG for coding agents and scripts on Node.js. It indexes the files
+selected by the project, stores the index under ignored `.ragmir/` state, and returns source-backed
+passages through a CLI, TypeScript API, or local read-focused MCP server.
 
 ## Product boundary
 
 - `@jcode.labs/ragmir` is retrieval-first. Core does not call an LLM or write generated answers.
-- Core is model-agnostic. The user can connect a preferred AI or automation through CLI,
+- Core is model-agnostic. The user can connect a preferred coding agent or script through CLI,
   TypeScript, or MCP.
 - The default `local-hash` path works offline with no account, API key, or model download.
 - Semantic Transformers.js embeddings are an explicit opt-in and require a rebuilt index.
@@ -32,7 +32,7 @@ through a CLI, TypeScript API, or local read-focused MCP server.
 - Developer corpora assembled from specifications, PDFs, Word and Office files, and locally synced
   or exported shared folders.
 - Large or fragmented corpora where answers must remain traceable to exact sources.
-- AI agents that need bounded evidence over MCP instead of a full-corpus prompt.
+- Coding agents that need bounded evidence over MCP instead of a full-corpus prompt.
 - CI jobs and internal automations that consume cited JSON evidence before applying deterministic
   rules or requesting human approval.
 
@@ -49,7 +49,7 @@ OpenDocument, EPUB, HTML, RTF, email, notebooks, and configured text extensions.
 
 ```sh
 pnpm add -D @jcode.labs/ragmir
-pnpm exec rgr setup
+pnpm exec rgr setup --agents codex
 pnpm exec rgr sources add "docs/**/*.md"
 pnpm exec rgr ingest
 pnpm exec rgr search "Which decision changed the rollout?"

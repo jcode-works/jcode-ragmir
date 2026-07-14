@@ -1,11 +1,12 @@
 # Ragmir Landing
 
-The static, telemetry-free website for [Ragmir](https://ragmir.com). Public guides are available in
-the [project documentation](https://github.com/jcode-works/jcode-ragmir/wiki).
+The static, telemetry-free website for [Ragmir](https://ragmir.com), the local RAG layer for coding
+agents and scripts. Public guides are available in the
+[project documentation](https://github.com/jcode-works/jcode-ragmir/wiki).
 
-This private workspace package presents the open-source CLI, TypeScript API, MCP integration, local
-chat, local audio, and privacy boundaries. It does not host document storage, user accounts, a
-Ragmir API, or an upload flow.
+This private workspace package presents the open-source CLI, TypeScript API, MCP integration,
+optional local chat and audio, and privacy boundaries. It does not host document storage, user
+accounts, a Ragmir API, or an upload flow.
 
 ## What lives here
 
@@ -83,8 +84,10 @@ Keep secrets in the environment. Never commit them or expose them through `PUBLI
 
 - Keep English and French messages aligned whenever visible copy changes.
 - Ground product claims in the current CLI, API, package, and privacy behavior.
+- Position Core as local, cited RAG for coding agents and scripts without implying that Core calls
+  a model.
 - Keep Core retrieval separate from optional Chat and TTS generation.
-- Lead with model-agnostic Core and present the user's preferred AI and a fully local consumer as
+- Lead with model-agnostic Core and present the user's preferred agent and a fully local consumer as
   equal choices.
 - Name Qwen and Gemma only in Chat-specific technical copy. They are profiles, not Core or MCP
   requirements.

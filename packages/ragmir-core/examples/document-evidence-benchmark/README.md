@@ -1,6 +1,7 @@
 # Document evidence benchmark
 
-A deterministic, public-safe benchmark for Ragmir retrieval and citation quality.
+A deterministic, public-safe benchmark for the retrieval and citation quality agents receive from
+Ragmir.
 
 Use this example when you want to prove more than "a relevant file appeared." Its six golden queries
 check that Ragmir retrieves the expected path and the exact file, line, chunk, or PDF-page citation.

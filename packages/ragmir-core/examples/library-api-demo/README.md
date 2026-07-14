@@ -1,6 +1,7 @@
 # Library API demo
 
-A runnable smoke test for the public `@jcode.labs/ragmir` TypeScript API.
+A runnable smoke test for the public `@jcode.labs/ragmir` TypeScript API behind agent and script
+workflows.
 
 Use this example when you are changing Ragmir Core or evaluating it as a library rather than as a
 CLI. It imports the same package name an external consumer uses, runs the full retrieval loop, and
