@@ -35,6 +35,51 @@ for (const result of results) {
 Search results include `relativePath`, `citation`, `chunkIndex`, exact text, line ranges, page ranges
 when available, structural context, and optional score explanations.
 
+### Persistent client for Node.js workers
+
+Use one client per project root when a stateful Node.js process performs repeated retrieval. The
+client reuses one strongly consistent LanceDB connection and resolves its project root at creation.
+
+```ts
+import { createRagmirClient, isRagmirError } from "@jcode.labs/ragmir"
+
+const controller = new AbortController()
+const ragmir = await createRagmirClient({ cwd: process.cwd() })
+
+try {
+  await ragmir.ingest({ signal: controller.signal, timeoutMs: 120_000 })
+  const results = await ragmir.search("release approval", {
+    topK: 5,
+    signal: controller.signal,
+    timeoutMs: 10_000,
+  })
+  console.log(results.map(({ citation }) => citation))
+} catch (error) {
+  if (isRagmirError(error)) {
+    console.error(error.code, error.retryable)
+  } else {
+    throw error
+  }
+} finally {
+  await ragmir.close()
+}
+```
+
+`RagmirClient` exposes `ingest`, `search`, `ask`, `research`, `expandCitation`, `status`, `sources`,
+and an idempotent `close`. `close()` rejects new work, waits for active operations, then closes the
+shared connection. Ingestion targeting the same storage directory is serialized inside one Node.js
+process. Cancellation is cooperative between parsing, embedding, storage, and retrieval phases.
+
+`RagmirError.code` is one of `ABORTED`, `CLIENT_CLOSED`, `INTERNAL`, `INVALID_ARGUMENT`, or
+`TIMEOUT`. `retryable` is true for cancellation and timeout errors.
+
+The writer queue coordinates clients inside one Node.js process. If several OS processes can ingest
+the same storage directory, the host must elect one writer or serialize those ingestion jobs.
+
+This API targets stateful Node.js processes with a local filesystem. It is not an edge or stateless
+serverless API, and Ragmir does not provide an HTTP listener. A network-facing application owns
+authentication, authorization, rate limits, and transport security.
+
 ### Project and source setup
 
 | Export | Purpose |
@@ -65,9 +110,11 @@ when available, structural context, and optional score explanations.
 | `evaluateGoldenQueries(options)` | Score retrieval against a local golden-query file. |
 
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
-`contextPaths`, and `explain`. When explanation is enabled, each result includes reciprocal-rank
-fusion contributions, one-based vector and lexical ranks, vector distance, lexical backend score,
-and matched query terms. `ExpandCitationOptions.contextRadius` is clamped to three chunks.
+`contextPaths`, `explain`, `signal`, and `timeoutMs`. `IngestOptions`, `ResearchOptions`, and
+`ExpandCitationOptions` also accept `signal` and `timeoutMs`. When explanation is enabled, each
+result includes reciprocal-rank fusion contributions, one-based vector and lexical ranks, vector
+distance, lexical backend score, and matched query terms. `ExpandCitationOptions.contextRadius` is
+clamped to three chunks.
 
 Structural context comes from Markdown headings or structured-data paths. It can improve candidate
 selection without changing the exact text, offsets, or citations returned to the caller.
@@ -106,6 +153,8 @@ model download must be explicitly enabled before local inference can use it.
 
 | Export | Purpose |
 | --- | --- |
+| `createMcpServer(cwd?)` | Construct the read-focused MCP server without selecting a transport. |
+| `connectMcpServer(transport, cwd?)` | Connect a caller-owned MCP transport and return a closeable server handle. |
 | `serveMcp(cwd?)` | Start the local stdio MCP server. |
 | `installAgentSkills(options?)` | Install the canonical skill kit for selected native agents. |
 | `installSkill(options?)` | Install one bundled skill with ownership checks. |
@@ -121,7 +170,7 @@ model download must be explicitly enabled before local inference can use it.
 New integrations should use `rgrCommand` and the `rgr` CLI name. MCP retrieval tools accept a
 `maxBytes` value below the configured `mcpMaxOutputBytes` ceiling. Search, ask, and research also
 accept compact output. Metrics are returned under `_meta["ragmir/output"]` and summarized by the
-metadata-only usage report.
+metadata-only usage report. MCP cancellation signals propagate into Core retrieval operations.
 
 ### Core type exports
 
@@ -136,7 +185,7 @@ types that callers commonly compose explicitly.
 | Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
 | Research and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
 | Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
-| Operations | `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
+| Operations | `RagmirClientOptions`, `OperationOptions`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
 | Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
 | Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import path from "node:path"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { z } from "zod"
 import { accessLogUsageReport, recordMcpOutput } from "./access-log.js"
 import { findProjectConfig, loadConfig } from "./config.js"
@@ -84,7 +85,7 @@ const expandToolInputSchema = z.object({
   maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).optional(),
 })
 
-export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
+export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
   const server = new McpServer({
     name: "ragmir",
     version: VERSION,
@@ -185,30 +186,31 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Retrieve relevant passages from the local Ragmir knowledge base.",
       inputSchema: searchToolInputSchema,
     },
-    async ({
-      query,
-      topK,
-      contextRadius,
-      compact,
-      maxBytes,
-      includePaths,
-      excludePaths,
-      contextPaths,
-      explain,
-    }) => {
-      const config = await loadConfig(cwd)
-      const results = await search(
+    async (
+      {
         query,
-        await searchOptions(
-          cwd,
-          topK,
-          contextRadius,
-          includePaths,
-          excludePaths,
-          contextPaths,
-          explain,
-        ),
+        topK,
+        contextRadius,
+        compact,
+        maxBytes,
+        includePaths,
+        excludePaths,
+        contextPaths,
+        explain,
+      },
+      { signal },
+    ) => {
+      const config = await loadConfig(cwd)
+      const options = await searchOptions(
+        cwd,
+        topK,
+        contextRadius,
+        includePaths,
+        excludePaths,
+        contextPaths,
+        explain,
       )
+      const results = await search(query, { ...options, signal })
       const compactResults = compactSearchResults(results)
       const compactOutput = config.privacyProfile === "strict" || compact === true
       const preferred: McpSearchPayload = compactOutput ? compactResults : results
@@ -233,17 +235,20 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Return cited retrieval context for a question without calling an LLM.",
       inputSchema: askToolInputSchema,
     },
-    async ({
-      query,
-      topK,
-      contextRadius,
-      compact,
-      maxBytes,
-      includePaths,
-      excludePaths,
-      contextPaths,
-      explain,
-    }) => {
+    async (
+      {
+        query,
+        topK,
+        contextRadius,
+        compact,
+        maxBytes,
+        includePaths,
+        excludePaths,
+        contextPaths,
+        explain,
+      },
+      { signal },
+    ) => {
       const config = await loadConfig(cwd)
       const options = await searchOptions(
         cwd,
@@ -254,16 +259,17 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
         contextPaths,
         explain,
       )
+      const cancellableOptions = { ...options, signal }
       let fullPayload: AskResult
       if (config.privacyProfile === "strict") {
-        const results = await search(query, options)
+        const results = await search(query, cancellableOptions)
         fullPayload = {
           answer: "Strict privacy profile returns compact cited retrieval only.",
           sources: results,
           staleWarning: null,
         }
       } else {
-        fullPayload = await ask(query, options)
+        fullPayload = await ask(query, cancellableOptions)
       }
       const compactPayload: McpAskPayload = {
         answer: "Ragmir returns compact cited retrieval only. Expand a citation when needed.",
@@ -293,16 +299,10 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
         "Run an audit-backed multi-query research pass with cited evidence and optional code matches.",
       inputSchema: researchToolInputSchema,
     },
-    async ({
-      query,
-      topK,
-      includeCode,
-      compact,
-      maxBytes,
-      includePaths,
-      excludePaths,
-      contextPaths,
-    }) => {
+    async (
+      { query, topK, includeCode, compact, maxBytes, includePaths, excludePaths, contextPaths },
+      { signal },
+    ) => {
       const config = await loadConfig(cwd)
       const options = await searchOptions(
         cwd,
@@ -312,7 +312,7 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
         excludePaths,
         contextPaths,
       )
-      const researchOptions: Parameters<typeof research>[1] = { cwd }
+      const researchOptions: Parameters<typeof research>[1] = { cwd, signal }
       addOption(researchOptions, "topK", options.topK)
       addOption(researchOptions, "includeCode", includeCode)
       addOption(researchOptions, "includePaths", options.includePaths)
@@ -343,10 +343,11 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
       description: "Expand one Ragmir citation into a bounded exact passage window.",
       inputSchema: expandToolInputSchema,
     },
-    async ({ citation, contextRadius, maxBytes }) => {
+    async ({ citation, contextRadius, maxBytes }, { signal }) => {
       const config = await loadConfig(cwd)
       const expanded = await expandCitation(citation, {
         cwd,
+        signal,
         ...(contextRadius === undefined ? {} : { contextRadius }),
       })
       const bounded = budgetMcpJson({
@@ -444,7 +445,20 @@ export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
     },
   )
 
-  await server.connect(new StdioServerTransport())
+  return server
+}
+
+export async function connectMcpServer(
+  transport: Transport,
+  cwd = resolveMcpProjectRoot(),
+): Promise<McpServer> {
+  const server = createMcpServer(cwd)
+  await server.connect(transport)
+  return server
+}
+
+export async function serveMcp(cwd = resolveMcpProjectRoot()): Promise<void> {
+  await connectMcpServer(new StdioServerTransport(), cwd)
 }
 
 export function resolveMcpProjectRoot(

@@ -1,4 +1,5 @@
-import { readFile, rm, writeFile } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
+import { readFile, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import * as lancedb from "@lancedb/lancedb"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
@@ -20,39 +21,50 @@ export interface IndexWriteResult {
   lexicalIndexWarning: string | null
 }
 
-export async function writeRows(rows: VectorRow[], config: Config): Promise<IndexWriteResult> {
+export async function connectStore(config: Config): Promise<lancedb.Connection> {
   await ensurePrivateDirectory(config.storageDir)
-  const db = await lancedb.connect(config.storageDir)
-
-  if (rows.length === 0) {
-    const tableNames = await db.tableNames()
-    if (tableNames.includes(config.tableName)) {
-      await db.dropTable(config.tableName)
-    }
-    await rm(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), { force: true })
-    return { vectorIndexWarning: null, lexicalIndexWarning: null }
-  }
-
-  const records = storedRows(rows)
-  const table = await db.createTable(config.tableName, records, {
-    mode: "overwrite",
+  return lancedb.connect(config.storageDir, {
+    readConsistencyInterval: 0,
   })
+}
 
-  const lexicalResult = await ensureLexicalIndex(table)
-  return {
-    vectorIndexWarning: null,
-    lexicalIndexWarning: lexicalResult.warning,
-  }
+export async function writeRows(
+  rows: VectorRow[],
+  config: Config,
+  connection?: lancedb.Connection,
+): Promise<IndexWriteResult> {
+  return withConnection(config, connection, async (db) => {
+    if (rows.length === 0) {
+      const tableNames = await db.tableNames()
+      if (tableNames.includes(config.tableName)) {
+        await db.dropTable(config.tableName)
+      }
+      await rm(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), { force: true })
+      return { vectorIndexWarning: null, lexicalIndexWarning: null }
+    }
+
+    const records = storedRows(rows)
+    const table = await db.createTable(config.tableName, records, {
+      mode: "overwrite",
+    })
+
+    const lexicalResult = await ensureLexicalIndex(table)
+    return {
+      vectorIndexWarning: null,
+      lexicalIndexWarning: lexicalResult.warning,
+    }
+  })
 }
 
 export async function updateRows(
   rows: VectorRow[],
   replacePaths: string[],
   config: Config,
+  connection?: lancedb.Connection,
 ): Promise<IndexWriteResult> {
-  const table = await openRowsTable(config)
+  const table = await openRowsTable(config, connection)
   if (!table) {
-    return writeRows(rows, config)
+    return writeRows(rows, config, connection)
   }
 
   for (const paths of batches([...new Set(replacePaths)], 200)) {
@@ -95,10 +107,8 @@ async function ensureLexicalIndex(table: lancedb.Table): Promise<EnsureVectorInd
 }
 
 export async function writeIndexManifest(manifest: IndexManifest, config: Config): Promise<void> {
-  await ensurePrivateDirectory(config.storageDir)
   const manifestPath = path.join(config.storageDir, INDEX_MANIFEST_FILENAME)
-  await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8")
-  await hardenPrivateFile(manifestPath)
+  await writePrivateJsonAtomic(manifestPath, manifest, config.storageDir)
 }
 
 export async function readIndexManifest(config: Config): Promise<IndexManifest | null> {
@@ -167,14 +177,12 @@ export async function writeEmptyTextFiles(
     return
   }
 
-  await ensurePrivateDirectory(config.storageDir)
   const sortedRecords = [...records].sort((a, b) => a.relativePath.localeCompare(b.relativePath))
-  await writeFile(
+  await writePrivateJsonAtomic(
     manifestPath,
-    JSON.stringify({ version: 1, files: sortedRecords }, null, 2),
-    "utf8",
+    { version: 1, files: sortedRecords },
+    config.storageDir,
   )
-  await hardenPrivateFile(manifestPath)
 }
 
 export async function readEmptyTextFiles(config: Config): Promise<EmptyTextFileRecord[]> {
@@ -194,14 +202,17 @@ export async function readEmptyTextFiles(config: Config): Promise<EmptyTextFileR
   }
 }
 
-export async function openRowsTable(config: Config): Promise<lancedb.Table | null> {
-  await ensurePrivateDirectory(config.storageDir)
-  const db = await lancedb.connect(config.storageDir)
-  const tableNames = await db.tableNames()
-  if (!tableNames.includes(config.tableName)) {
-    return null
-  }
-  return db.openTable(config.tableName)
+export async function openRowsTable(
+  config: Config,
+  connection?: lancedb.Connection,
+): Promise<lancedb.Table | null> {
+  return withConnection(config, connection, async (db) => {
+    const tableNames = await db.tableNames()
+    if (!tableNames.includes(config.tableName)) {
+      return null
+    }
+    return db.openTable(config.tableName)
+  })
 }
 
 export async function readRows(config: Config): Promise<VectorRow[]> {
@@ -292,4 +303,35 @@ function isEmptyTextFileRecord(value: unknown): value is EmptyTextFileRecord {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error
+}
+
+async function withConnection<T>(
+  config: Config,
+  connection: lancedb.Connection | undefined,
+  operation: (connection: lancedb.Connection) => Promise<T>,
+): Promise<T> {
+  const activeConnection = connection ?? (await connectStore(config))
+  try {
+    return await operation(activeConnection)
+  } finally {
+    if (!connection) {
+      activeConnection.close()
+    }
+  }
+}
+
+async function writePrivateJsonAtomic(
+  targetPath: string,
+  value: unknown,
+  directory: string,
+): Promise<void> {
+  await ensurePrivateDirectory(directory)
+  const temporaryPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`
+  try {
+    await writeFile(temporaryPath, JSON.stringify(value, null, 2), "utf8")
+    await hardenPrivateFile(temporaryPath)
+    await rename(temporaryPath, targetPath)
+  } finally {
+    await rm(temporaryPath, { force: true })
+  }
 }

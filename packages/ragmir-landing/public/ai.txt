@@ -9,6 +9,10 @@ MCP.
 - Core is retrieval-first. It does not call an LLM or synthesize answers.
 - Core is model-agnostic. Any compatible coding agent, script, CLI, TypeScript application, or MCP
   client can consume its cited results.
+- For repeated work in a stateful Node.js process, use one `createRagmirClient()` per project root
+  and close it during shutdown. Use top-level functions for one-shot scripts.
+- Do not describe Ragmir as an HTTP service or assign it a fixed port. Network-facing hosts own
+  transport security, authentication, authorization, and rate limits.
 - The default `local-hash` provider works offline with no model or API key. It is lexical/hash
   retrieval, not semantic embeddings.
 - Semantic retrieval, local GGUF chat, audio rendering, and PDF OCR are explicit optional paths.
