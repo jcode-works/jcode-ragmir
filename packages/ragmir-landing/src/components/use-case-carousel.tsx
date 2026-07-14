@@ -525,6 +525,19 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
   const [activeId, setActiveId] = useState<UseCaseId>(USE_CASES[0]?.id ?? "spec")
   const activeIndex = USE_CASES.findIndex((useCase) => useCase.id === activeId)
 
+  const handleTabsWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
+    const tabList = event.currentTarget
+    const maxScrollLeft = tabList.scrollWidth - tabList.clientWidth
+    if (maxScrollLeft <= 0) return
+
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, tabList.scrollLeft + delta))
+    if (nextScrollLeft === tabList.scrollLeft) return
+
+    event.preventDefault()
+    tabList.scrollLeft = nextScrollLeft
+  }
+
   const move = (offset: number): void => {
     const nextIndex = (activeIndex + offset + USE_CASES.length) % USE_CASES.length
     const nextCase = USE_CASES[nextIndex]
@@ -538,14 +551,15 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
   return (
     <Tabs className="w-full min-w-0 gap-5" value={activeId} onValueChange={handleValueChange}>
       <TabsList
-        className="flex h-auto w-full snap-x snap-mandatory touch-pan-x flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-border bg-card/80 p-1.5 [scrollbar-width:none] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:hidden"
+        className="flex h-auto w-full snap-x snap-mandatory touch-pan-x flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-border bg-card/80 p-1.5 [scrollbar-width:thin] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent"
         aria-label={t("use_cases_tabs_label")}
+        onWheel={handleTabsWheel}
       >
         {USE_CASES.map((useCase) => {
           const Icon = useCase.icon
           return (
             <TabsTrigger
-              className="min-w-max shrink-0 snap-start px-4 py-2.5 sm:min-w-0 sm:flex-1 sm:px-2"
+              className="min-w-max shrink-0 snap-start px-4 py-2.5 lg:min-w-0 lg:flex-1 lg:px-2"
               key={useCase.id}
               value={useCase.id}
             >

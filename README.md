@@ -6,22 +6,23 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
-**Cited local retrieval for Codex, Claude Code, Kimi, OpenCode, Cline, or your own automation.**
+**Local RAG with verifiable citations for coding agents and scripts, through CLI, TypeScript, and
+MCP.**
 
 Ragmir is an open-source retrieval-augmented generation (RAG) toolkit for Node.js. It indexes the
 files you choose, stores the index inside the project, and returns source-backed passages through a
 CLI, TypeScript API, or local MCP server. The default path needs no account, hosted document store,
 or model download.
 
-Bring the AI or automation you already use. Ragmir Core does not call a model. If no retrieved
-passage may leave the machine, connect a local CLI or MCP consumer, or add Ragmir Chat for cited
-answer generation from a verified local model.
+Bring the coding agent or script you already use. Ragmir Core does not call a model. If no
+retrieved passage may leave the machine, connect a local CLI or MCP consumer, or add Ragmir Chat
+for cited answer generation from a verified local model.
 
 [Website](https://ragmir.com) · [npm](https://www.npmjs.com/package/@jcode.labs/ragmir) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [CLI reference](./docs/cli-reference.md) · [Examples](#runnable-examples)
 
-## Give your AI cited project context
+## Give coding agents and scripts cited project context
 
 Ragmir requires Node.js 20 or later. Install it in the repository that owns the files you want to
 search:
@@ -60,7 +61,7 @@ Using npm instead of pnpm? Replace `pnpm add -D` with `npm install --save-dev` a
 | --- | --- | --- |
 | `rgr` CLI | Setup, ingest, search, audit, and maintenance | Human-readable or JSON output |
 | TypeScript API | Embed retrieval in a Node.js application | Typed results with citations |
-| Local MCP server | Give your preferred AI bounded project context | Read-focused retrieval tools |
+| Local MCP server | Give your preferred agent bounded project context | Read-focused retrieval tools |
 | Ragmir Chat | Keep answer generation on the workstation | Cited offline synthesis |
 | Ragmir TTS | Turn a text brief into audio | Local WAV or explicit online MP3 |
 
@@ -91,7 +92,7 @@ from the installed npm package.
 
 ## Common workflows
 
-### Connect another AI or automation
+### Connect a coding agent or script
 
 Setup links skills into supported agents' native project folders and writes local MCP helpers backed
 by a generated project runner. Any other MCP client can launch `.ragmir/run.cjs`. Hermes, local

@@ -5,14 +5,14 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-chat)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Let an agent or automation delegate cited answer generation to a verified local model.**
+**Optional cited answer generation after Ragmir Core retrieval, with a verified local model.**
 
 `@jcode.labs/ragmir-chat` runs a verified local model through `node-llama-cpp`. It receives passages
 retrieved by Ragmir Core, asks the model to answer only from that evidence, and validates the source
 markers in the visible answer.
 
 Ragmir does not require this package or any model to retrieve evidence. Use Core with your preferred
-AI or automation, and add Chat only when answer generation also needs to stay on the workstation.
+agent or automation, and add Chat only when answer generation also needs to stay on the workstation.
 
 [Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
@@ -31,7 +31,7 @@ AI or automation, and add Chat only when answer generation also needs to stay on
 Install Ragmir Core for ingestion, search, MCP, and agent helpers. Install Chat only when you want a
 local synthesis step after retrieval.
 
-## Use it from Codex or another AI
+## Use it from a coding agent or script
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir @jcode.labs/ragmir-chat
