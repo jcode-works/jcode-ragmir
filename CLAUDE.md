@@ -32,6 +32,9 @@ native desktop shell, or cloud-vendor deployment configuration. Keep OCR optiona
 local, remote model downloads explicit, and normal confidential retrieval offline.
 Describe Core as model-agnostic: users can connect their preferred AI or automation, or keep the
 consumer local. Qwen and Gemma are optional Chat profiles, never Core or MCP requirements.
+For repeated retrieval in a stateful Node.js process, use one `RagmirClient` per project root and
+close it during shutdown. Ragmir does not provide an HTTP server or fixed port; network-facing hosts
+own transport security, authentication, authorization, and rate limits.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

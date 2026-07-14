@@ -73,9 +73,9 @@ Use that command from a local shell script, a Node.js worker, or a CI step after
 and its local `.ragmir/` state. The process returns machine-readable cited passages; the workflow
 decides whether to continue, request human approval, or stop.
 
-For long-running integrations, start the local stdio server with `npx rgr serve-mcp`. The MCP surface
-is bounded and read-focused: status, source coverage, search, retrieval-only ask, research, exact
-citation expansion, audit, evaluation, usage, and security checks. It never exposes index deletion.
+For long-running agent integrations, start the local stdio server with `npx rgr serve-mcp`. For a
+Node.js worker that owns the control flow, use `createRagmirClient()` and reuse one client per project
+root. Ragmir does not open an HTTP port or define an authentication layer.
 
 ## Search directly from the CLI
 
@@ -113,19 +113,28 @@ multi-query retrieval pass and reports missing or weak evidence.
 ## TypeScript API
 
 ```ts
-import { ingest, search } from "@jcode.labs/ragmir"
+import { createRagmirClient } from "@jcode.labs/ragmir"
 
-await ingest({ cwd: process.cwd() })
+const ragmir = await createRagmirClient({ cwd: process.cwd() })
+try {
+  await ragmir.ingest({ timeoutMs: 120_000 })
 
-const results = await search("Which decision changed the rollout?", {
-  cwd: process.cwd(),
-  topK: 5,
-})
+  const results = await ragmir.search("Which decision changed the rollout?", {
+    topK: 5,
+    timeoutMs: 10_000,
+  })
 
-for (const result of results) {
-  console.log(result.citation, result.text)
+  for (const result of results) {
+    console.log(result.citation, result.text)
+  }
+} finally {
+  await ragmir.close()
 }
 ```
+
+The persistent client reuses one local database connection, supports cooperative cancellation, and
+waits for active work before shutdown. The top-level functions remain the smallest API for one-shot
+scripts.
 
 Frequently used exports:
 
@@ -134,11 +143,12 @@ Frequently used exports:
 | `setupProject`, `addSourceEntries` | Initialize project state and select files |
 | `discoverKnowledgeBases`, `knowledgeBaseIdentity` | Route root and nested monorepo bases |
 | `getKnowledgeBaseContext`, `getKnowledgeBaseSourceCatalog` | Give agents bounded readiness and source context |
+| `createRagmirClient`, `RagmirClient` | Reuse local retrieval safely in a stateful Node.js process |
 | `ingest`, `audit` | Build the index and compare it with files on disk |
 | `previewChunks` | Inspect redacted chunks and distributions without writing storage |
 | `search`, `ask`, `research`, `expandCitation` | Retrieve or expand cited passages |
 | `doctor`, `securityAudit` | Inspect readiness and local privacy posture |
-| `serveMcp` | Start the read-focused local MCP server |
+| `createMcpServer`, `connectMcpServer`, `serveMcp` | Construct, connect, or start the read-focused local MCP server |
 | `configurePdfOcr`, `inspectPdfOcr` | Configure and inspect local PDF OCR |
 
 See the [complete API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)

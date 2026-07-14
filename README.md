@@ -60,13 +60,14 @@ owns the source files.
 | Interface | Use it for | Result |
 | --- | --- | --- |
 | `rgr` CLI | Setup, ingest, search, audit, and maintenance | Human-readable or JSON output |
-| TypeScript API | Embed retrieval in a Node.js application | Typed results with citations |
+| TypeScript API | Embed retrieval in a script or stateful Node.js worker | Typed results with citations and explicit lifecycle |
 | Local MCP server | Give your preferred agent bounded project context | Read-focused retrieval tools |
 | Ragmir Chat | Keep answer generation on the workstation | Cited offline synthesis |
 | Ragmir TTS | Turn a text brief into audio | Local WAV or explicit online MP3 |
 
 Use the CLI or MCP for interactive agent work. Use the TypeScript API when a repeatable Node.js
-process owns the control flow.
+process owns the control flow. Ragmir does not open an HTTP port: applications own their network,
+authentication, and authorization boundary.
 
 Ragmir Core stays retrieval-first. `ask()` returns cited context without calling an LLM. Local chat
 and audio are separate capabilities, so retrieval remains useful on machines that should not run a
@@ -180,23 +181,37 @@ binary support.
 ## TypeScript API
 
 ```ts
-import { ingest, search } from "@jcode.labs/ragmir"
+import { createRagmirClient, isRagmirError } from "@jcode.labs/ragmir"
 
-await ingest({ cwd: process.cwd() })
+const ragmir = await createRagmirClient({ cwd: process.cwd() })
+try {
+  await ragmir.ingest({ timeoutMs: 120_000 })
 
-const results = await search("Which decision changed the rollout?", {
-  topK: 5,
-  explain: true,
-})
+  const results = await ragmir.search("Which decision changed the rollout?", {
+    topK: 5,
+    explain: true,
+    timeoutMs: 10_000,
+  })
 
-for (const result of results) {
-  console.log(result.citation, result.text)
+  for (const result of results) {
+    console.log(result.citation, result.text)
+  }
+} catch (error) {
+  if (isRagmirError(error)) console.error(error.code, error.retryable)
+  else throw error
+} finally {
+  await ragmir.close()
 }
 ```
 
-Core also exports `previewChunks`, `ask`, `research`, `audit`, `doctor`, `securityAudit`,
-`discoverKnowledgeBases`, bounded context helpers, `serveMcp`, and setup helpers. See the
-[API reference](./docs/api-reference.md) for the public surface.
+Reuse one client per project root in a long-running process. It keeps one local LanceDB connection,
+serializes ingestion for the same index inside that process, accepts `AbortSignal` and `timeoutMs`,
+and waits for active operations during `close()`. One-shot `ingest`, `search`, `ask`, and `research`
+functions remain available for short scripts.
+
+Core also exports `previewChunks`, `audit`, `doctor`, `securityAudit`, bounded context helpers,
+closeable MCP construction helpers, and setup helpers. See the [API reference](./docs/api-reference.md)
+for the complete public surface.
 
 ## Privacy boundaries
 

@@ -220,7 +220,12 @@ export interface VectorRow extends TextChunk {
   embeddingModel: string
 }
 
-export interface IngestOptions {
+export interface OperationOptions {
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface IngestOptions extends OperationOptions {
   cwd?: PathLike
   rebuild?: boolean
 }
@@ -361,7 +366,7 @@ export interface KnowledgeBaseSourceCatalog {
   }
 }
 
-export interface SearchOptions {
+export interface SearchOptions extends OperationOptions {
   cwd?: PathLike
   topK?: number
   contextRadius?: number
@@ -414,7 +419,7 @@ export interface SearchScoreExplanation {
   matchedTerms: string[]
 }
 
-export interface ExpandCitationOptions {
+export interface ExpandCitationOptions extends OperationOptions {
   cwd?: PathLike
   contextRadius?: number
 }
@@ -459,7 +464,7 @@ export interface SourceDiagnostics {
   mirrorCandidates: SourcePathCandidate[]
 }
 
-export interface ResearchOptions {
+export interface ResearchOptions extends OperationOptions {
   cwd?: PathLike
   topK?: number
   includeCode?: boolean

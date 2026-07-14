@@ -1,13 +1,16 @@
+import type { Connection } from "@lancedb/lancedb"
 import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { embedText } from "./embeddings.js"
 import { getIndexFreshnessWarning } from "./index-diagnostics.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 import { openRowsTable, readIndexManifest } from "./store.js"
 import { tokenize } from "./text.js"
 import type {
   AskResult,
+  Config,
   ExpandCitationOptions,
   ExpandedCitation,
   RetrievalProfile,
@@ -92,7 +95,20 @@ const FTS_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_score"]
 
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  const table = await openRowsTable(config)
+  return searchWithConfig(query, options, config)
+}
+
+export async function searchWithConfig(
+  query: string,
+  options: SearchOptions,
+  config: Config,
+  connection?: Connection,
+  activeSignal?: AbortSignal,
+): Promise<SearchResult[]> {
+  const signal = activeSignal ?? operationSignal(options)
+  throwIfAborted(signal)
+  const table = await openRowsTable(config, connection)
+  throwIfAborted(signal)
   if (!table) {
     return []
   }
@@ -114,6 +130,7 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     embedText(sanitized.query, config),
     lexicalCandidateRows(table, sanitized.query, config.hybridTextScanLimit, retrievalPredicate),
   ])
+  throwIfAborted(signal)
   await assertVectorIndexCompatibility(config, vector.length)
   const vectorQuery = table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS)
   const vectorRows = (await (retrievalPredicate
@@ -122,6 +139,7 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   )
     .limit(vectorCandidateLimit(topK, config.retrievalProfile))
     .toArray()) as SearchRow[]
+  throwIfAborted(signal)
   const rankedRows = rankHybridRows(sanitized.query, vectorRows, textRows)
   const relevantRows =
     config.embeddingProvider === "local-hash"
@@ -134,6 +152,7 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     rows,
     options.contextRadius ?? defaultContextRadius,
   )
+  throwIfAborted(signal)
 
   const results = rows.map((row) => {
     const vectorDistance = typeof row.row._distance === "number" ? row.row._distance : null
@@ -306,8 +325,20 @@ export function vectorCandidateLimit(topK: number, profile: RetrievalProfile = "
 
 export async function ask(query: string, options: SearchOptions = {}): Promise<AskResult> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  const sources = await search(query, options)
+  return askWithConfig(query, options, config)
+}
+
+export async function askWithConfig(
+  query: string,
+  options: SearchOptions,
+  config: Config,
+  connection?: Connection,
+): Promise<AskResult> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
+  const sources = await searchWithConfig(query, options, config, connection, signal)
   const staleWarning = await getIndexFreshnessWarning(config)
+  throwIfAborted(signal)
 
   if (sources.length === 0) {
     return {
@@ -335,11 +366,23 @@ export async function expandCitation(
   citation: string,
   options: ExpandCitationOptions = {},
 ): Promise<ExpandedCitation> {
+  const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  return expandCitationWithConfig(citation, options, config)
+}
+
+export async function expandCitationWithConfig(
+  citation: string,
+  options: ExpandCitationOptions,
+  config: Config,
+  connection?: Connection,
+): Promise<ExpandedCitation> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const requestedCitation = citation.trim()
   const target = parseCitationTarget(requestedCitation)
   const contextRadius = normalizeContextRadius(options.contextRadius)
-  const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  const table = await openRowsTable(config)
+  const table = await openRowsTable(config, connection)
+  throwIfAborted(signal)
   if (!table) {
     return {
       requestedCitation,
@@ -371,6 +414,7 @@ export async function expandCitation(
       `relativePath = ${sqlString(target.relativePath)} AND chunkIndex >= ${minimumChunkIndex} AND chunkIndex <= ${maximumChunkIndex}`,
     )
     .toArray()) as SearchRow[]
+  throwIfAborted(signal)
   const targetRow = rows.find((row) => row.chunkIndex === target.chunkIndex)
   if (!targetRow) {
     return {

@@ -1,4 +1,6 @@
 export { accessLogUsageReport } from "./access-log.js"
+export type { RagmirClientOptions } from "./client.js"
+export { createRagmirClient, RagmirClient } from "./client.js"
 export { loadConfig } from "./config.js"
 export {
   getKnowledgeBaseContext,
@@ -8,6 +10,8 @@ export { destroyIndex } from "./destroy.js"
 export { doctor } from "./doctor.js"
 export type { PullEmbeddingModelResult } from "./embeddings.js"
 export { clearTransformersCache, pullEmbeddingModel } from "./embeddings.js"
+export type { RagmirErrorCode } from "./errors.js"
+export { isRagmirError, normalizeRagmirError, RagmirError } from "./errors.js"
 export { evaluateGoldenQueries } from "./evaluate.js"
 export {
   getIndexFreshnessWarning,
@@ -18,7 +22,7 @@ export { audit, ingest } from "./ingest.js"
 export { initProject } from "./init.js"
 export { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 export { ingestionLimits } from "./limits.js"
-export { serveMcp } from "./mcp.js"
+export { connectMcpServer, createMcpServer, serveMcp } from "./mcp.js"
 export type {
   ConfigurePdfOcrOptions,
   ConfigurePdfOcrResult,
@@ -99,6 +103,7 @@ export type {
   KnowledgeBaseSourceCatalog,
   McpOutputTool,
   McpOutputUsageReport,
+  OperationOptions,
   ParsedPage,
   PreviewChunk,
   PreviewChunksOptions,
