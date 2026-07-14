@@ -33,18 +33,31 @@ export async function writeRows(
   config: Config,
   connection?: lancedb.Connection,
 ): Promise<IndexWriteResult> {
+  const tableName = await activeIndexTableName(config)
+  const result = await writeRowsToTable(rows, tableName, config, connection)
+  if (rows.length === 0) {
+    await rm(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), { force: true })
+  }
+  return result
+}
+
+export async function writeRowsToTable(
+  rows: VectorRow[],
+  tableName: string,
+  config: Config,
+  connection?: lancedb.Connection,
+): Promise<IndexWriteResult> {
   return withConnection(config, connection, async (db) => {
     if (rows.length === 0) {
       const tableNames = await db.tableNames()
-      if (tableNames.includes(config.tableName)) {
-        await db.dropTable(config.tableName)
+      if (tableNames.includes(tableName)) {
+        await db.dropTable(tableName)
       }
-      await rm(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), { force: true })
       return { vectorIndexWarning: null, lexicalIndexWarning: null }
     }
 
     const records = storedRows(rows)
-    const table = await db.createTable(config.tableName, records, {
+    const table = await db.createTable(tableName, records, {
       mode: "overwrite",
     })
 
@@ -62,9 +75,20 @@ export async function updateRows(
   config: Config,
   connection?: lancedb.Connection,
 ): Promise<IndexWriteResult> {
-  const table = await openRowsTable(config, connection)
+  const tableName = await activeIndexTableName(config)
+  return updateRowsInTable(rows, replacePaths, tableName, config, connection)
+}
+
+export async function updateRowsInTable(
+  rows: VectorRow[],
+  replacePaths: string[],
+  tableName: string,
+  config: Config,
+  connection?: lancedb.Connection,
+): Promise<IndexWriteResult> {
+  const table = await openRowsTableByName(tableName, config, connection)
   if (!table) {
-    return writeRows(rows, config, connection)
+    return writeRowsToTable(rows, tableName, config, connection)
   }
 
   for (const paths of batches([...new Set(replacePaths)], 200)) {
@@ -151,6 +175,7 @@ function isIndexManifest(value: unknown): value is IndexManifest {
     typeof value.chunkOverlap === "number" &&
     typeof value.fileCount === "number" &&
     typeof value.chunkCount === "number" &&
+    (!("tableName" in value) || typeof value.tableName === "string") &&
     (!("indexedFiles" in value) ||
       (Array.isArray(value.indexedFiles) && value.indexedFiles.every(isIndexManifestFile)))
   )
@@ -206,12 +231,36 @@ export async function openRowsTable(
   config: Config,
   connection?: lancedb.Connection,
 ): Promise<lancedb.Table | null> {
+  return openRowsTableByName(await activeIndexTableName(config), config, connection)
+}
+
+export async function openRowsTableByName(
+  tableName: string,
+  config: Config,
+  connection?: lancedb.Connection,
+): Promise<lancedb.Table | null> {
   return withConnection(config, connection, async (db) => {
     const tableNames = await db.tableNames()
-    if (!tableNames.includes(config.tableName)) {
+    if (!tableNames.includes(tableName)) {
       return null
     }
-    return db.openTable(config.tableName)
+    return db.openTable(tableName)
+  })
+}
+
+export async function activeIndexTableName(config: Config): Promise<string> {
+  return (await readIndexManifest(config))?.tableName ?? config.tableName
+}
+
+export async function dropRowsTable(
+  tableName: string,
+  config: Config,
+  connection?: lancedb.Connection,
+): Promise<void> {
+  await withConnection(config, connection, async (db) => {
+    if ((await db.tableNames()).includes(tableName)) {
+      await db.dropTable(tableName)
+    }
   })
 }
 

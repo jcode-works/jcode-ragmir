@@ -26,6 +26,7 @@
     "Qwen and Gemma are optional Ragmir Chat profiles, never requirements of Core, the CLI, the TypeScript API, or MCP.",
     "The `local-hash` embedding provider (default) is a lexical sha256 embedding, not semantic; use `transformers` for semantic retrieval.",
     "Switching `embeddingProvider` requires `rgr ingest --rebuild`, since the two providers produce incompatible vectors.",
+    "Ingestion commits resumable file batches under ignored `.ragmir/storage/` state; use `rgr status --json` for progress, and expect `--rebuild` to preserve the active index until a staged generation is validated.",
     "Run `rgr doctor --fix` after upgrading or misconfiguration to repair scaffolding, `.gitignore` entries, and the agent skill install.",
     "Config resolves from the caller's working directory (`.ragmir/config.json`), never from the package install path.",
     "In a monorepo, the nearest configured ancestor is active; use `rgr bases --json` or explicit `--project-root` to verify routing.",

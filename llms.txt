@@ -9,6 +9,9 @@ store.
 
 - Install: `pnpm add -D @jcode.labs/ragmir`
 - First use: `pnpm exec rgr setup && pnpm exec rgr ingest`
+- Resumable ingestion: `rgr ingest` commits 25 files per durable batch by default. Re-run it after an
+  interruption, inspect progress with `rgr status --json`, and use `--batch-size` to change the
+  checkpoint size. Rebuilds stay isolated until final manifest validation and activation.
 - CLI: `rgr preview`, `rgr search "query" --explain`, `rgr bases`, `rgr doctor`, `rgr audit`, and
   `rgr security-audit`
 - Core behavior: cited retrieval only. `ask` returns evidence, while synthesis belongs to the calling

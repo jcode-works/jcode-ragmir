@@ -43,8 +43,10 @@ citation before you propose an edit.
 ```
 
 `rgr setup` creates ignored local state under `.ragmir/`, installs project-scoped native skills,
-and writes local MCP helpers. `rgr ingest` is incremental. The agent receives bounded passages with
-the source path, excerpt, chunk, line range, and PDF page when one is available.
+and writes local MCP helpers. `rgr ingest` is incremental and commits resumable batches of 25 files
+by default. Re-run the same command after an interruption to continue from the last committed
+batch. The agent receives bounded passages with the source path, excerpt, chunk, line range, and
+PDF page when one is available.
 
 Prefer a direct search? Run:
 
@@ -156,6 +158,18 @@ pnpm exec rgr ingest --rebuild
 
 The default `local-hash` provider is offline lexical/hash retrieval. Semantic mode uses
 Transformers.js and requires an explicit model download or a preloaded local model.
+
+### Resume a long ingestion
+
+```bash
+pnpm exec rgr ingest --batch-size 25
+pnpm exec rgr status --json
+```
+
+Ragmir records per-file progress atomically under ignored `.ragmir/storage/` state. Files from a
+committed batch are not parsed or embedded again after a restart. A full `--rebuild` writes to an
+isolated generation and activates it only after row and manifest validation, so an interrupted
+rebuild leaves the previous searchable index active.
 
 ### Search scanned PDFs
 
