@@ -1,25 +1,26 @@
-# Ragmir Chat
+# @jcode.labs/ragmir-chat
 
 [![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 [![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-chat)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Optional cited answer generation after Ragmir Core retrieval, with a verified local model.**
+**Optional local answers for your coding-agent RAG workflow.**
 
-`@jcode.labs/ragmir-chat` runs a verified local model through `node-llama-cpp`. It receives passages
-retrieved by Ragmir Core, asks the model to answer only from that evidence, and validates the source
-markers in the visible answer.
+Ragmir Core retrieves cited project evidence for your coding agent or local script.
+`@jcode.labs/ragmir-chat` adds an optional answer step on the same machine: it runs a verified local
+model, limits generation to the retrieved passages, and validates the source markers in the visible
+answer.
 
-Ragmir does not require this package or any model to retrieve evidence. Use Core with your preferred
-agent or automation, and add Chat only when answer generation also needs to stay on the workstation.
+Core does not require Chat or any generative model. Use this package only when the answer itself,
+not just retrieval, must stay on the workstation.
 
 [Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [Offline chat guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-chat-preload.md) ·
 [Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
 
-## What this package does
+## Where Chat fits
 
 | It does | It does not |
 | --- | --- |
@@ -28,10 +29,10 @@ agent or automation, and add Chat only when answer generation also needs to stay
 | Verify downloaded model size and SHA-256 | Download a model during normal answer generation |
 | Report citation validity and model metadata | Guarantee that a small local model is factually correct |
 
-Install Ragmir Core for ingestion, search, MCP, and agent helpers. Install Chat only when you want a
-local synthesis step after retrieval.
+Use Ragmir Core for ingestion, search, MCP, and agent helpers. Use Chat only when you want a local
+synthesis step after retrieval.
 
-## Use it from a coding agent or script
+## Add local answers to a coding agent
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir @jcode.labs/ragmir-chat
@@ -70,8 +71,8 @@ npx rgr chat setup --profile fast
 npx rgr chat "What evidence supports this decision?" --profile fast --offline
 ```
 
-The setup command downloads and verifies one model under `.ragmir/models/chat/<profile>`. Normal
-chat commands require that prepared local file and never enable remote model resolution.
+`rgr chat setup` downloads and verifies one model under `.ragmir/models/chat/<profile>`. Normal chat
+commands require that prepared local file and never enable remote model resolution.
 
 ## Choose a profile
 

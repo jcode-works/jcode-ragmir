@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir-tts",
   "version": "0.4.12",
-  "description": "Optional local and explicit online speech rendering for reviewed text in Ragmir workflows.",
+  "description": "Optional local audio for reviewed, cited output from coding-agent Ragmir workflows.",
   "type": "module",
   "license": "MIT",
   "author": {

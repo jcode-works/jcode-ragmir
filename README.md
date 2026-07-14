@@ -6,23 +6,22 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![MIT](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
-**Local RAG with verifiable citations for coding agents and scripts, through CLI, TypeScript, and
-MCP.**
+**Local RAG for your coding agents.**
 
-Ragmir is an open-source retrieval-augmented generation (RAG) toolkit for Node.js. It indexes the
-files you choose, stores the index inside the project, and returns source-backed passages through a
-CLI, TypeScript API, or local MCP server. The default path needs no account, hosted document store,
-or model download.
+Ragmir indexes the project files you choose, keeps the index on your machine, and gives coding
+agents and local scripts bounded evidence with verifiable citations. Connect through project-scoped
+agent skills, a local MCP server, the CLI, or the TypeScript API. The default path needs no account,
+hosted document store, or model download.
 
-Bring the coding agent or script you already use. Ragmir Core does not call a model. If no
-retrieved passage may leave the machine, connect a local CLI or MCP consumer, or add Ragmir Chat
+Bring the coding agent or automation you already use. Ragmir Core retrieves evidence without
+calling a model. If no retrieved passage may leave the machine, use a local consumer or Ragmir Chat
 for cited answer generation from a verified local model.
 
 [Website](https://ragmir.com) · [npm](https://www.npmjs.com/package/@jcode.labs/ragmir) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
 [CLI reference](./docs/cli-reference.md) · [Examples](#runnable-examples)
 
-## Give coding agents and scripts cited project context
+## Give your coding agent cited project evidence
 
 Ragmir requires Node.js 20 or later. Install it in the repository that owns the files you want to
 search:
@@ -53,9 +52,10 @@ pnpm exec rgr search "Which decision changed the rollout?"
 ```
 
 Using npm instead of pnpm? Replace `pnpm add -D` with `npm install --save-dev` and `pnpm exec` with
-`npx`.
+`npx`. At a pnpm workspace root, use `pnpm add -Dw`; otherwise install Ragmir in the package that
+owns the source files.
 
-## What Ragmir gives you
+## Pick the interface your workflow needs
 
 | Interface | Use it for | Result |
 | --- | --- | --- |
@@ -214,7 +214,7 @@ Redaction reduces accidental exposure but is not a compliance certification. Rev
 
 ## Packages
 
-| Package | Install when you need |
+| Package | Use it when you need |
 | --- | --- |
 | [`@jcode.labs/ragmir`](./packages/ragmir-core/README.md) | CLI, retrieval API, MCP server, OCR configuration, and agent helpers |
 | [`@jcode.labs/ragmir-chat`](./packages/ragmir-chat/README.md) | Optional cited generation with a local GGUF model |
