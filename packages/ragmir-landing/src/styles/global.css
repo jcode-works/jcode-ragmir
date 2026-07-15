@@ -116,7 +116,7 @@ textarea {
   color: #000000;
 }
 
-/* Footer marquee — seamless infinite horizontal scroll (track holds duplicated halves) */
+/* Footer marquee: seamless infinite horizontal scroll (track holds duplicated halves) */
 @keyframes marquee-text {
   from {
     transform: translate3d(0, 0, 0);

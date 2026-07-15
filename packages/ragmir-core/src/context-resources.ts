@@ -2,9 +2,11 @@ import { loadConfig } from "./config.js"
 import { doctor } from "./doctor.js"
 import { audit } from "./ingest.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
 import type {
   KnowledgeBaseContextReport,
   KnowledgeBaseSourceCatalog,
+  OperationOptions,
   SkippedSourceFile,
 } from "./types.js"
 
@@ -25,9 +27,14 @@ const RAGMIR_MCP_RESOURCES = ["ragmir://context", "ragmir://sources"]
 
 export async function getKnowledgeBaseContext(
   cwd = process.cwd(),
+  options: OperationOptions = {},
 ): Promise<KnowledgeBaseContextReport> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const config = await loadConfig(cwd)
-  const report = await doctor(config.projectRoot)
+  throwIfAborted(signal)
+  const report = await doctor(config.projectRoot, signal ? { signal } : {})
+  throwIfAborted(signal)
   const identity = knowledgeBaseIdentity(config.projectRoot)
 
   return {
@@ -59,9 +66,14 @@ export async function getKnowledgeBaseContext(
 
 export async function getKnowledgeBaseSourceCatalog(
   cwd = process.cwd(),
+  options: OperationOptions = {},
 ): Promise<KnowledgeBaseSourceCatalog> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const config = await loadConfig(cwd)
-  const report = await audit(config.projectRoot)
+  throwIfAborted(signal)
+  const report = await audit(config.projectRoot, signal ? { signal } : {})
+  throwIfAborted(signal)
   const identity = knowledgeBaseIdentity(config.projectRoot)
   const indexedFiles = report.indexedFiles.slice(0, SOURCE_CATALOG_LIMIT)
   const missingFromIndex = report.missingFromIndex.slice(0, SOURCE_CATALOG_LIMIT)

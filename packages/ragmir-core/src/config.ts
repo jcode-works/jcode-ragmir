@@ -356,7 +356,6 @@ function readEmbeddingProviderEnv(
   }
   const parsed = embeddingProviderSchema.safeParse(raw)
   if (!parsed.success) {
-    warnInvalidEnv(name, raw, `"local-hash" or "transformers"`)
     return fallback
   }
   return parsed.data
@@ -382,9 +381,8 @@ function readPositiveIntEnv(name: string, legacyName: string, fallback: number):
   if (!raw) {
     return fallback
   }
-  const value = Number.parseInt(raw, 10)
-  if (!(Number.isInteger(value) && value > 0)) {
-    warnInvalidEnv(name, raw, "a positive integer")
+  const value = Number(raw)
+  if (!(Number.isSafeInteger(value) && value > 0)) {
     return fallback
   }
   return value
@@ -400,20 +398,11 @@ function readIntegerAtLeastEnv(
   if (!raw) {
     return fallback
   }
-  const value = Number.parseInt(raw, 10)
-  if (!(Number.isInteger(value) && value >= minimum)) {
-    warnInvalidEnv(name, raw, `an integer greater than or equal to ${minimum}`)
+  const value = Number(raw)
+  if (!(Number.isSafeInteger(value) && value >= minimum)) {
     return fallback
   }
   return value
-}
-
-function warnInvalidEnv(name: string, raw: string, expected: string): void {
-  // Only the CLI writes to stdout; config warnings go to stderr so the operator
-  // notices an env override that was silently ignored (e.g. RAGMIR_TOP_K=abc).
-  console.warn(
-    `[ragmir] Ignoring invalid ${name}=${JSON.stringify(raw)} (expected ${expected}); using the default instead.`,
-  )
 }
 
 function readNonNegativeIntEnv(name: string, legacyName: string, fallback: number): number {
@@ -421,8 +410,8 @@ function readNonNegativeIntEnv(name: string, legacyName: string, fallback: numbe
   if (!raw) {
     return fallback
   }
-  const value = Number.parseInt(raw, 10)
-  return Number.isInteger(value) && value >= 0 ? value : fallback
+  const value = Number(raw)
+  return Number.isSafeInteger(value) && value >= 0 ? value : fallback
 }
 
 function readExtensionsEnv(name: string, legacyName: string, fallback: string[]): string[] {

@@ -15,6 +15,15 @@ afterEach(async () => {
 })
 
 describe("context resources", () => {
+  it("should stop context diagnostics when the signal is already aborted", async () => {
+    const controller = new AbortController()
+    controller.abort("cancelled by caller")
+
+    await expect(
+      getKnowledgeBaseContext(process.cwd(), { signal: controller.signal }),
+    ).rejects.toMatchObject({ code: "ABORTED", retryable: true })
+  })
+
   it("should return a bounded agent context with readiness and routing", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-context-resource-"))
     tempDirs.push(root)

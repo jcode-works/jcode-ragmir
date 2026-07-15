@@ -4,8 +4,10 @@ import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import fg from "fast-glob"
 import { DEFAULT_CONFIG, LEGACY_KB_DIR, LEGACY_PRIVATE_DIR, RAGMIR_DIR } from "./defaults.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
 import type {
   Config,
+  OperationOptions,
   SkippedSourceFile,
   SkippedSourceReason,
   SourceFile,
@@ -105,10 +107,6 @@ interface SourceEntryStats {
   mtimeMs: number
 }
 
-export interface SourceInventoryOptions {
-  knownFiles?: ReadonlyMap<string, { checksum: string; bytes?: number; mtimeMs?: number }>
-}
-
 export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".atom",
   ".adoc",
@@ -189,15 +187,21 @@ export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".yml",
 ])
 
-export async function listSourceFiles(config: Config): Promise<SourceFile[]> {
-  return (await inventorySourceFiles(config)).supportedFiles
+export async function listSourceFiles(
+  config: Config,
+  options: OperationOptions = {},
+): Promise<SourceFile[]> {
+  return (await inventorySourceFiles(config, options)).supportedFiles
 }
 
 export async function inventorySourceFiles(
   config: Config,
-  options: SourceInventoryOptions = {},
+  options: OperationOptions = {},
 ): Promise<SourceInventory> {
-  const inputs = await sourceInputs(config)
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
+  const inputs = await sourceInputs(config, signal)
+  throwIfAborted(signal)
   const excludedPaths = new Set(
     inputs.ignorePatterns.length === 0
       ? []
@@ -210,6 +214,7 @@ export async function inventorySourceFiles(
           unique: true,
         }),
   )
+  throwIfAborted(signal)
   const files = new Map<string, SourceFile>()
   const skippedFiles = new Map<string, SkippedSourceFile>()
   let discoveredFiles = 0
@@ -219,6 +224,7 @@ export async function inventorySourceFiles(
     info: SourceEntryStats,
     source: string,
   ): Promise<void> => {
+    throwIfAborted(signal)
     if (excludedPaths.has(absolutePath)) {
       return
     }
@@ -262,11 +268,8 @@ export async function inventorySourceFiles(
       return
     }
 
-    const knownFile = options.knownFiles?.get(relativePath)
-    const checksum =
-      knownFile?.bytes === info.size && knownFile.mtimeMs === info.mtimeMs
-        ? knownFile.checksum
-        : await checksumFile(absolutePath)
+    const checksum = await checksumFile(absolutePath, signal)
+    throwIfAborted(signal)
     files.set(absolutePath, {
       absolutePath,
       relativePath,
@@ -279,11 +282,13 @@ export async function inventorySourceFiles(
   }
 
   for (const root of inputs.roots) {
+    throwIfAborted(signal)
     if (!existsSync(root)) {
       continue
     }
 
     const rootInfo = await stat(root)
+    throwIfAborted(signal)
     const entries = rootInfo.isDirectory()
       ? ((await fg("**/*", {
           cwd: root,
@@ -297,10 +302,12 @@ export async function inventorySourceFiles(
           unique: true,
         })) as Array<{ path: string; stats?: { size: number; mtimeMs: number } }>)
       : [{ path: root, stats: { size: rootInfo.size, mtimeMs: rootInfo.mtimeMs } }]
+    throwIfAborted(signal)
 
-    await mapLimit(entries, config.ingestConcurrency, async (entry) => {
+    await mapLimit(entries, config.ingestConcurrency, signal, async (entry) => {
       const absolutePath = path.isAbsolute(entry.path) ? entry.path : path.resolve(root, entry.path)
       const info = entry.stats ?? (await stat(absolutePath))
+      throwIfAborted(signal)
       const relativePath = path.relative(config.projectRoot, absolutePath)
       const source = rootInfo.isDirectory()
         ? path.relative(root, absolutePath) || path.basename(absolutePath)
@@ -310,6 +317,7 @@ export async function inventorySourceFiles(
   }
 
   if (inputs.patterns.length > 0) {
+    throwIfAborted(signal)
     const entries = (await fg(inputs.patterns, {
       cwd: config.projectRoot,
       absolute: true,
@@ -321,17 +329,20 @@ export async function inventorySourceFiles(
       stats: true,
       unique: true,
     })) as Array<{ path: string; stats?: { size: number; mtimeMs: number } }>
+    throwIfAborted(signal)
 
-    await mapLimit(entries, config.ingestConcurrency, async (entry) => {
+    await mapLimit(entries, config.ingestConcurrency, signal, async (entry) => {
       const absolutePath = path.isAbsolute(entry.path)
         ? entry.path
         : path.resolve(config.projectRoot, entry.path)
       const info = entry.stats ?? (await stat(absolutePath))
+      throwIfAborted(signal)
       const relativePath = path.relative(config.projectRoot, absolutePath)
       await recordSourceFile(absolutePath, info, relativePath || path.basename(absolutePath))
     })
   }
 
+  throwIfAborted(signal)
   return {
     discoveredFiles,
     supportedFiles: [...files.values()].sort((a, b) =>
@@ -343,26 +354,37 @@ export async function inventorySourceFiles(
   }
 }
 
-async function checksumFile(filePath: string): Promise<string> {
+async function checksumFile(filePath: string, signal: AbortSignal | undefined): Promise<string> {
   const hash = createHash("sha256")
-  for await (const chunk of createReadStream(filePath)) {
-    hash.update(chunk)
+  throwIfAborted(signal)
+  try {
+    for await (const chunk of createReadStream(filePath, signal ? { signal } : undefined)) {
+      throwIfAborted(signal)
+      hash.update(chunk)
+    }
+  } catch (error) {
+    throwIfAborted(signal)
+    throw error
   }
+  throwIfAborted(signal)
   return hash.digest("hex")
 }
 
 async function mapLimit<T>(
   values: T[],
   limit: number,
+  signal: AbortSignal | undefined,
   worker: (value: T) => Promise<void>,
 ): Promise<void> {
   let index = 0
   const workers = Array.from({ length: Math.min(limit, values.length) }, async () => {
     while (index < values.length) {
+      throwIfAborted(signal)
       const current = values[index]
       index += 1
       if (current !== undefined) {
         await worker(current)
+        throwIfAborted(signal)
       }
     }
   })
@@ -400,7 +422,11 @@ export function summarizeUnsupportedExtensions(
     .map(([extension, count]) => ({ extension, count }))
 }
 
-async function sourceInputs(config: Config): Promise<SourceInputs> {
+async function sourceInputs(
+  config: Config,
+  signal: AbortSignal | undefined,
+): Promise<SourceInputs> {
+  throwIfAborted(signal)
   const roots = [config.rawDir]
   const patterns: string[] = []
   const ignorePatterns: string[] = []
@@ -428,12 +454,21 @@ async function sourceInputs(config: Config): Promise<SourceInputs> {
   }
 
   if (existsSync(config.sourcesFile)) {
-    const content = await readFile(config.sourcesFile, "utf8")
+    let content: string
+    try {
+      content = await readFile(config.sourcesFile, { encoding: "utf8", signal })
+    } catch (error) {
+      throwIfAborted(signal)
+      throw error
+    }
+    throwIfAborted(signal)
     for (const line of content.split(/\r?\n/u)) {
+      throwIfAborted(signal)
       classifyEntry(line)
     }
   }
 
+  throwIfAborted(signal)
   return { roots, patterns, ignorePatterns }
 }
 

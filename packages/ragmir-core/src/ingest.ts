@@ -18,6 +18,7 @@ import {
   canResumeIngestion,
   createIngestionRunState,
   finishIngestionState,
+  generationTableName,
   ingestionProgress,
   readIngestionState,
   removeStagedIndexManifest,
@@ -47,6 +48,7 @@ import type {
   IndexManifestFile,
   IngestOptions,
   IngestResult,
+  OperationOptions,
   SourceDiagnostics,
   SourceFile,
   TextChunk,
@@ -101,14 +103,7 @@ async function ingestUnlocked(
     const existingManifest = await readIndexManifest(config)
     const storedState = await readIngestionState(config)
     const storedEmptyFiles = await readEmptyTextFiles(config)
-    const knownFiles = new Map(
-      [
-        ...(existingManifest?.indexedFiles ?? []),
-        ...storedEmptyFiles,
-        ...(storedState?.files ?? []),
-      ].map((file) => [file.relativePath, file]),
-    )
-    const inventory = await inventorySourceFiles(config, { knownFiles })
+    const inventory = await inventorySourceFiles(config, signal ? { signal } : {})
     const files = inventory.supportedFiles
     const inventoryMetrics = sourceInventoryMetrics(files)
     const currentFiles = new Map(files.map((file) => [file.relativePath, file]))
@@ -393,7 +388,7 @@ async function parseSourceFile(
   signal: AbortSignal | undefined,
 ): Promise<ParsedSourceFile> {
   try {
-    const parsed = await parseFile(file, config)
+    const parsed = await parseFile(file, { ...config, ...(signal ? { signal } : {}) })
     throwIfAborted(signal)
     const redacted = redactText(parsed.text, config)
     return {
@@ -578,10 +573,6 @@ async function validateIngestionTable(
   }
 }
 
-function generationTableName(baseName: string, runId: string): string {
-  return `${baseName}__generation_${runId.replaceAll("-", "")}`
-}
-
 function ingestFileBatchSize(value: number | undefined): number {
   const batchSize = value ?? DEFAULT_INGEST_FILE_BATCH_SIZE
   if (!Number.isInteger(batchSize) || batchSize <= 0) {
@@ -598,14 +589,23 @@ function valueBatches<T>(values: T[], batchSize: number): T[][] {
   return batches
 }
 
-export async function audit(cwd = process.cwd()): Promise<AuditReport> {
+export async function audit(
+  cwd = process.cwd(),
+  options: OperationOptions = {},
+): Promise<AuditReport> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const config = await loadConfig(cwd)
-  const inventory = await inventorySourceFiles(config)
+  throwIfAborted(signal)
+  const inventory = await inventorySourceFiles(config, signal ? { signal } : {})
+  throwIfAborted(signal)
   const files = inventory.supportedFiles
   const inventoryMetrics = sourceInventoryMetrics(files)
   const supportedFiles = files.map((file) => file.relativePath)
   const table = await openRowsTable(config)
-  const emptyTextFiles = await currentEmptyTextFiles(config, files)
+  throwIfAborted(signal)
+  const emptyTextFiles = await currentEmptyTextFiles(config, files, signal)
+  throwIfAborted(signal)
 
   if (!table) {
     return {
@@ -634,9 +634,11 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
     contextPath: string
     text: string
   }>
+  throwIfAborted(signal)
   const counts = new Map<string, number>()
   const checksums = new Map<string, Set<string>>()
   for (const row of rows) {
+    throwIfAborted(signal)
     counts.set(row.relativePath, (counts.get(row.relativePath) ?? 0) + 1)
     if (row.checksum) {
       const fileChecksums = checksums.get(row.relativePath) ?? new Set<string>()
@@ -649,6 +651,7 @@ export async function audit(cwd = process.cwd()): Promise<AuditReport> {
   const indexedSet = new Set(counts.keys())
   const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]))
 
+  throwIfAborted(signal)
   return {
     discoveredFiles: inventory.discoveredFiles,
     supportedBytes: inventoryMetrics.supportedBytes,
@@ -748,10 +751,15 @@ function groupedDuplicates(
 async function currentEmptyTextFiles(
   config: Awaited<ReturnType<typeof loadConfig>>,
   files: Array<{ relativePath: string; checksum: string }>,
+  signal: AbortSignal | undefined,
 ): Promise<Set<string>> {
+  throwIfAborted(signal)
   const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]))
   const emptyTextFiles = new Set<string>()
-  for (const record of await readEmptyTextFiles(config)) {
+  const records = await readEmptyTextFiles(config)
+  throwIfAborted(signal)
+  for (const record of records) {
+    throwIfAborted(signal)
     if (currentChecksums.get(record.relativePath) === record.checksum) {
       emptyTextFiles.add(record.relativePath)
     }

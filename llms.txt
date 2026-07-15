@@ -5,6 +5,8 @@ project, keeps generated state under ignored local `.ragmir/` folders, and retur
 passages through CLI, TypeScript, or a read-focused MCP server. It does not provide a hosted document
 store.
 
+Public subtagline: **Stop sending confidential documents directly to the cloud.**
+
 ## Core facts
 
 - Install: `pnpm add -D @jcode.labs/ragmir`
@@ -36,8 +38,18 @@ store.
   contributions and filter by source or structural context.
 - Monorepos: the nearest configured base is active, nested indexes remain isolated, and generated MCP
   helpers pin a distinct base root.
+- Team use: Ragmir has no built-in cloud sync. Synchronize the same source-of-truth folder with an
+  existing tool such as Google Drive or a team script, align the version, configuration, embedding
+  provider, and model, then ingest and audit on each workstation. Missing, partial, or extra files
+  produce different local indexes; never treat `.ragmir/storage/` as a shared database.
 - MCP resources: `ragmir://context` gives bounded readiness and capability context;
   `ragmir://sources` gives capped source detail with complete totals.
+- MCP safety: all ten tools advertise non-destructive behavior; every tool and resource JSON
+  response is byte-bounded. Search, ask, research, and evaluation conservatively advertise
+  open-world behavior because explicitly enabled semantic models may download public weights.
+  Tools that can initialize local state or append metadata-only logs use conservative read-only and
+  idempotency hints. Each server refreshes its lazy client after effective configuration changes and
+  closes it during shutdown.
 
 ## Documentation
 

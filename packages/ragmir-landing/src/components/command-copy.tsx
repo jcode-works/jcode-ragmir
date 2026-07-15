@@ -80,31 +80,6 @@ export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): Rea
   )
 }
 
-export function CommandCopyPill({ command, copyLabel }: CommandCopyBoxProps): React.JSX.Element {
-  const { copied, handleCopy } = useCommandCopy(command)
-
-  return (
-    <button
-      aria-label={`${copyLabel}: ${command}`}
-      className="group inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-muted/55 px-3 py-1 text-left transition hover:border-foreground/30 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => void handleCopy()}
-      type="button"
-    >
-      <code className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[0.68rem] text-muted-foreground group-hover:text-foreground">
-        {command}
-      </code>
-      {copied ? (
-        <Check aria-hidden="true" className="size-3.5 shrink-0 text-[var(--accent-title)]" />
-      ) : (
-        <Copy
-          aria-hidden="true"
-          className="size-3.5 shrink-0 text-muted-foreground transition group-hover:text-foreground"
-        />
-      )}
-    </button>
-  )
-}
-
 interface CommandCopyButtonProps extends CommandCopyBoxProps {
   className?: string
   iconClassName?: string
@@ -138,33 +113,5 @@ export function CommandCopyButton({
         <Copy aria-hidden="true" className={cn("size-3.5", iconClassName)} />
       )}
     </button>
-  )
-}
-
-interface CommandLineBlockProps {
-  command: string
-  copyLabel: string
-  icon?: React.ReactNode
-  label: string
-  className?: string
-}
-
-export function CommandLineBlock({
-  command,
-  copyLabel,
-  icon,
-  label,
-  className,
-}: CommandLineBlockProps): React.JSX.Element {
-  return (
-    <div className={cn("rounded-lg border border-border bg-muted/45 p-4", className)}>
-      <div className="flex items-center gap-2">
-        {icon}
-        <p className="font-bold text-sm">{label}</p>
-      </div>
-      <div className="mt-3">
-        <CommandCopyBox command={command} copyLabel={copyLabel} />
-      </div>
-    </div>
   )
 }

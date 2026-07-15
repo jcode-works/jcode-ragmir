@@ -381,3 +381,164 @@ function jsonBytes(value: unknown): number {
 function serializeJson(value: unknown): string {
   return JSON.stringify(value)
 }
+
+export interface BoundedJsonMetadata {
+  source: string
+  budgetBytes: number
+  retrievedBytes: number
+  returnedBytes: number
+  compacted: boolean
+  truncated: boolean
+  omittedItems: number
+}
+
+export interface BoundedJsonOutput {
+  text: string
+  metadata: BoundedJsonMetadata
+}
+
+export function fitMcpJsonOutput(
+  value: unknown,
+  maxBytes: number,
+  source: string,
+): BoundedJsonOutput {
+  const budgetBytes = Math.max(MIN_MCP_OUTPUT_BYTES, Math.floor(maxBytes))
+  const fullText = JSON.stringify(value) ?? "null"
+  const retrievedBytes = Buffer.byteLength(fullText, "utf8")
+  if (retrievedBytes <= budgetBytes) {
+    return fittedJsonOutput(source, budgetBytes, fullText, retrievedBytes, false, 0)
+  }
+
+  const candidate: unknown = JSON.parse(fullText)
+  let omittedItems = 0
+  let candidateText = JSON.stringify(candidate) ?? "null"
+  while (Buffer.byteLength(candidateText, "utf8") > budgetBytes) {
+    const arrays = jsonArrays(candidate).filter((items) => items.length > 0)
+    arrays.sort((left, right) => jsonByteLength(right) - jsonByteLength(left))
+    const largest = arrays[0]
+    if (!largest) {
+      break
+    }
+    const removeCount = Math.max(1, Math.ceil(largest.length / 2))
+    largest.splice(largest.length - removeCount, removeCount)
+    omittedItems += removeCount
+    candidateText = JSON.stringify(candidate) ?? "null"
+  }
+
+  while (Buffer.byteLength(candidateText, "utf8") > budgetBytes) {
+    const strings = mutableJsonStrings(candidate).filter((field) => field.value.length > 8)
+    strings.sort((left, right) => right.value.length - left.value.length)
+    const longest = strings[0]
+    if (!longest) {
+      break
+    }
+    const characters = [...longest.value]
+    const retained = Math.max(0, Math.floor(characters.length / 2) - 3)
+    longest.replace(`${characters.slice(0, retained).join("")}...`)
+    candidateText = JSON.stringify(candidate) ?? "null"
+  }
+
+  if (Buffer.byteLength(candidateText, "utf8") > budgetBytes) {
+    candidateText = JSON.stringify({
+      truncated: true,
+      omittedItems,
+      message: "MCP output exceeded the active byte budget.",
+    })
+  }
+  return fittedJsonOutput(source, budgetBytes, candidateText, retrievedBytes, true, omittedItems)
+}
+
+function fittedJsonOutput(
+  source: string,
+  budgetBytes: number,
+  text: string,
+  retrievedBytes: number,
+  truncated: boolean,
+  omittedItems: number,
+): BoundedJsonOutput {
+  return {
+    text,
+    metadata: {
+      source,
+      budgetBytes,
+      retrievedBytes,
+      returnedBytes: Buffer.byteLength(text, "utf8"),
+      compacted: truncated,
+      truncated,
+      omittedItems,
+    },
+  }
+}
+
+function jsonArrays(value: unknown): unknown[][] {
+  const arrays: unknown[][] = []
+  collectJsonArrays(value, arrays)
+  return arrays
+}
+
+function collectJsonArrays(value: unknown, arrays: unknown[][]): void {
+  if (Array.isArray(value)) {
+    arrays.push(value)
+    for (const item of value) {
+      collectJsonArrays(item, arrays)
+    }
+    return
+  }
+  if (isJsonRecord(value)) {
+    for (const item of Object.values(value)) {
+      collectJsonArrays(item, arrays)
+    }
+  }
+}
+
+interface MutableJsonString {
+  value: string
+  replace(value: string): void
+}
+
+function mutableJsonStrings(value: unknown): MutableJsonString[] {
+  const strings: MutableJsonString[] = []
+  collectMutableJsonStrings(value, strings)
+  return strings
+}
+
+function collectMutableJsonStrings(value: unknown, strings: MutableJsonString[]): void {
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const item = value[index]
+      if (typeof item === "string") {
+        strings.push({
+          value: item,
+          replace(next) {
+            value[index] = next
+          },
+        })
+      } else {
+        collectMutableJsonStrings(item, strings)
+      }
+    }
+    return
+  }
+  if (isJsonRecord(value)) {
+    for (const [key, item] of Object.entries(value)) {
+      if (typeof item === "string") {
+        strings.push({
+          value: item,
+          replace(next) {
+            value[key] = next
+          },
+        })
+      } else {
+        collectMutableJsonStrings(item, strings)
+      }
+    }
+  }
+}
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function jsonByteLength(value: unknown): number {
+  return Buffer.byteLength(JSON.stringify(value) ?? "null", "utf8")
+}

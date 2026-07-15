@@ -4,8 +4,8 @@ Ragmir renders local WAV audio through Transformers.js. Download the model once 
 
 ```bash
 printf '%s\n' "Non-sensitive model preload text." > /tmp/ragmir-tts-preload.txt
-rgr audio /tmp/ragmir-tts-preload.txt --allow-remote-models --out .ragmir/audio/preload.wav
-rgr audio ./brief.md --offline --out .ragmir/audio/brief.wav
+rgr audio /tmp/ragmir-tts-preload.txt --lang en --allow-remote-models --out .ragmir/audio/preload.wav
+rgr audio ./brief.md --lang en --offline --out .ragmir/audio/brief.wav
 ```
 
 The first command warms `.ragmir/models/tts`. The second command requires the local model and does not download anything. Generated files stay in ignored `.ragmir/audio/` state.

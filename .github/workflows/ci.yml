@@ -39,29 +39,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Security dependency audit
-        run: pnpm audit:security
-
-      - name: Lint and format check
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm check
-
-      - name: Test
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
-
-      - name: Smoke test production CLI and MCP
-        run: pnpm smoke
-
-      - name: Verify npm package metadata
-        run: pnpm package:check
-
-      - name: Generate release verification artifacts
-        run: pnpm release:artifacts
+      - name: Validate repository
+        run: pnpm validate
 
   commitlint:
     name: Commitlint

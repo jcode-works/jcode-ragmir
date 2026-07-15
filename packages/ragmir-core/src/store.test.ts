@@ -4,9 +4,11 @@ import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   countRows,
+  openRowsTable,
   readEmptyTextFiles,
   readIndexManifest,
   readRows,
+  updateRowsInTable,
   writeEmptyTextFiles,
   writeIndexManifest,
   writeRows,
@@ -109,6 +111,41 @@ describe("store", () => {
     const result = await writeRows([sampleRow(".ragmir/raw/a.md", 0, [0.1, 0.2], config)], config)
     expect(result.vectorIndexWarning).toBeNull()
     expect(result.lexicalIndexWarning).toBeNull()
+  })
+
+  it("should replace all rows for a source in one table version when content shrinks", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-merge-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const replacedPath = ".ragmir/raw/replaced.md"
+    const preservedPath = ".ragmir/raw/preserved.md"
+    await writeRows(
+      [
+        sampleRow(replacedPath, 0, [0.1, 0.2], config),
+        sampleRow(replacedPath, 1, [0.3, 0.4], config),
+        sampleRow(preservedPath, 0, [0.5, 0.6], config),
+      ],
+      config,
+    )
+    const tableBefore = await openRowsTable(config)
+    const versionBefore = await tableBefore?.version()
+    const replacement = {
+      ...sampleRow(replacedPath, 0, [0.7, 0.8], config),
+      text: "replacement content",
+      searchText: "Evidence\nreplacement content",
+      checksum: "replacement-checksum",
+    }
+
+    await updateRowsInTable([replacement], [replacedPath], config.tableName, config)
+
+    const rows = await readRows(config)
+    const tableAfter = await openRowsTable(config)
+    expect(rows.map((row) => `${row.relativePath}#${row.chunkIndex}`).sort()).toEqual([
+      ".ragmir/raw/preserved.md#0",
+      ".ragmir/raw/replaced.md#0",
+    ])
+    expect(rows.find((row) => row.relativePath === replacedPath)?.text).toBe("replacement content")
+    expect(await tableAfter?.version()).toBe((versionBefore ?? 0) + 1)
   })
 
   it("activates a completed generation through the manifest while preserving legacy tables", async () => {

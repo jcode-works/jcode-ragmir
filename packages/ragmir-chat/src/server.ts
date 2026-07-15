@@ -1,6 +1,20 @@
 import { createInterface } from "node:readline"
 import type { Readable } from "node:stream"
-import { DEFAULT_CHAT_THINKING, generateChatAnswer } from "./index.js"
+import {
+  DEFAULT_CHAT_THINKING,
+  generateChatAnswer,
+  MAX_CHAT_HISTORY_MESSAGES,
+} from "./generation.js"
+import {
+  MAX_CHAT_CONTEXT_CHAR_LIMIT,
+  MAX_CHAT_HISTORY_CHARS,
+  MAX_CHAT_QUESTION_CHARS,
+  MAX_CHAT_SERVER_ID_CHARS,
+  MAX_CHAT_SERVER_REQUEST_BYTES,
+  MAX_CHAT_SOURCE_COUNT,
+  MAX_CHAT_SOURCE_LABEL_CHARS,
+  MAX_CHAT_SOURCE_PATH_CHARS,
+} from "./limits.js"
 import { chatModelProfile, DEFAULT_CHAT_PROFILE } from "./profiles.js"
 import { type CreateChatRuntimeOptions, createChatRuntime } from "./runtime.js"
 import type {
@@ -144,7 +158,7 @@ export async function serveChat(options: ServeChatOptions = {}): Promise<void> {
       partialAnswer: "",
     }
     state.active = current
-    state.activeTask = (async () => {
+    const task = (async () => {
       try {
         const runtime = await getRuntime()
         const generationOptions: Parameters<typeof generateChatAnswer>[0] = {
@@ -197,60 +211,77 @@ export async function serveChat(options: ServeChatOptions = {}): Promise<void> {
       } finally {
         if (state.active === current) {
           state.active = null
-          state.activeTask = null
         }
       }
     })()
+    state.activeTask = task
+    void task.catch(() => readline.close())
   }
 
-  for await (const line of readline) {
-    if (shutdownRequested || !line.trim()) continue
+  try {
+    for await (const line of readline) {
+      if (shutdownRequested || !line.trim()) continue
 
-    const parsed = parseChatServerRequest(line)
-    if (!parsed.ok) {
-      emit({
-        id: parsed.id,
-        event: "error",
-        code: "INVALID_REQUEST",
-        message: parsed.message,
-      })
-      continue
-    }
-
-    const request = parsed.request
-    if (request.type === "generate") {
-      startGeneration(request)
-      continue
-    }
-    if (request.type === "cancel") {
-      if (state.active?.id !== request.targetId) {
+      const parsed = parseChatServerRequest(line)
+      if (!parsed.ok) {
         emit({
-          id: request.id,
+          id: parsed.id,
           event: "error",
-          code: "NOT_FOUND",
-          message: "No matching local chat generation is active.",
+          code: "INVALID_REQUEST",
+          message: parsed.message,
         })
         continue
       }
-      state.active.controller.abort(new Error("Chat generation cancelled."))
-      continue
+
+      const request = parsed.request
+      if (request.type === "generate") {
+        startGeneration(request)
+        continue
+      }
+      if (request.type === "cancel") {
+        if (state.active?.id !== request.targetId) {
+          emit({
+            id: request.id,
+            event: "error",
+            code: "NOT_FOUND",
+            message: "No matching local chat generation is active.",
+          })
+          continue
+        }
+        state.active.controller.abort(new Error("Chat generation cancelled."))
+        continue
+      }
+
+      shutdownRequested = true
+      state.active?.controller.abort(new Error("Chat server shutting down."))
+      readline.close()
     }
 
-    shutdownRequested = true
+    await state.activeTask
+  } finally {
     state.active?.controller.abort(new Error("Chat server shutting down."))
     readline.close()
-  }
-
-  await state.activeTask
-  if (state.runtimePromise !== null) {
-    const runtime = await state.runtimePromise.catch(() => null)
-    await runtime?.dispose()
+    try {
+      await state.activeTask
+    } finally {
+      if (state.runtimePromise !== null) {
+        const runtime = await state.runtimePromise.catch(() => null)
+        await runtime?.dispose()
+      }
+    }
   }
 }
 
 export function parseChatServerRequest(
   line: string,
 ): { ok: true; request: ChatServerRequest } | { ok: false; id: string; message: string } {
+  if (Buffer.byteLength(line, "utf8") > MAX_CHAT_SERVER_REQUEST_BYTES) {
+    return {
+      ok: false,
+      id: UNKNOWN_REQUEST_ID,
+      message: `Request must not exceed ${MAX_CHAT_SERVER_REQUEST_BYTES} bytes.`,
+    }
+  }
   let value: unknown
   try {
     value = JSON.parse(line)
@@ -261,7 +292,11 @@ export function parseChatServerRequest(
     return { ok: false, id: UNKNOWN_REQUEST_ID, message: "Request must be a JSON object." }
   }
 
-  if (typeof value.id !== "string" || value.id.trim() === "") {
+  if (
+    typeof value.id !== "string" ||
+    value.id.trim() === "" ||
+    value.id.length > MAX_CHAT_SERVER_ID_CHARS
+  ) {
     return {
       ok: false,
       id: UNKNOWN_REQUEST_ID,
@@ -274,7 +309,11 @@ export function parseChatServerRequest(
   }
 
   if (value.type === "cancel") {
-    if (typeof value.targetId !== "string" || !value.targetId.trim()) {
+    if (
+      typeof value.targetId !== "string" ||
+      !value.targetId.trim() ||
+      value.targetId.length > MAX_CHAT_SERVER_ID_CHARS
+    ) {
       return { ok: false, id, message: "Cancel request requires a non-empty `targetId`." }
     }
     return { ok: true, request: { id, type: "cancel", targetId: value.targetId } }
@@ -285,10 +324,18 @@ export function parseChatServerRequest(
   if (value.type !== "generate") {
     return { ok: false, id, message: "Request `type` must be generate, cancel, or shutdown." }
   }
-  if (typeof value.question !== "string" || !value.question.trim()) {
+  if (
+    typeof value.question !== "string" ||
+    !value.question.trim() ||
+    value.question.length > MAX_CHAT_QUESTION_CHARS
+  ) {
     return { ok: false, id, message: "Generate request requires a non-empty `question`." }
   }
-  if (!Array.isArray(value.sources) || !value.sources.every(isChatSource)) {
+  if (
+    !Array.isArray(value.sources) ||
+    value.sources.length > MAX_CHAT_SOURCE_COUNT ||
+    !value.sources.every(isChatSource)
+  ) {
     return { ok: false, id, message: "Generate request requires a valid `sources` array." }
   }
   if (value.history !== undefined && !isChatHistory(value.history)) {
@@ -300,7 +347,11 @@ export function parseChatServerRequest(
   if (value.maxNewTokens !== undefined && !isPositiveInteger(value.maxNewTokens)) {
     return { ok: false, id, message: "Generate request `maxNewTokens` must be positive." }
   }
-  if (value.contextCharLimit !== undefined && !isPositiveInteger(value.contextCharLimit)) {
+  if (
+    value.contextCharLimit !== undefined &&
+    (!isPositiveInteger(value.contextCharLimit) ||
+      value.contextCharLimit > MAX_CHAT_CONTEXT_CHAR_LIMIT)
+  ) {
     return { ok: false, id, message: "Generate request `contextCharLimit` must be positive." }
   }
 
@@ -338,23 +389,29 @@ function isChatSource(value: unknown): value is ChatSource {
     isRecord(value) &&
     typeof value.relativePath === "string" &&
     value.relativePath.trim() !== "" &&
+    value.relativePath.length <= MAX_CHAT_SOURCE_PATH_CHARS &&
     typeof value.chunkIndex === "number" &&
     Number.isSafeInteger(value.chunkIndex) &&
     value.chunkIndex >= 0 &&
     typeof value.text === "string" &&
-    (value.source === undefined || typeof value.source === "string") &&
-    (value.distance === undefined || value.distance === null || typeof value.distance === "number")
+    (value.source === undefined ||
+      (typeof value.source === "string" && value.source.length <= MAX_CHAT_SOURCE_LABEL_CHARS)) &&
+    (value.distance === undefined ||
+      value.distance === null ||
+      (typeof value.distance === "number" && Number.isFinite(value.distance)))
   )
 }
 
 function isChatHistory(value: unknown): value is ChatHistoryMessage[] {
   return (
     Array.isArray(value) &&
+    value.length <= MAX_CHAT_HISTORY_MESSAGES &&
     value.every(
       (message) =>
         isRecord(message) &&
         (message.role === "user" || message.role === "assistant") &&
-        typeof message.content === "string",
+        typeof message.content === "string" &&
+        message.content.length <= MAX_CHAT_HISTORY_CHARS,
     )
   )
 }

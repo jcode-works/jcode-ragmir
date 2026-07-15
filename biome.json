@@ -11,6 +11,7 @@
       "*.json",
       "scripts/**/*.mjs",
       "packages/*/scripts/**/*.mjs",
+      "packages/*/vitest.config.ts",
       "packages/*/src/**/*.{ts,tsx}"
     ]
   },

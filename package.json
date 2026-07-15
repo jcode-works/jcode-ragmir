@@ -47,14 +47,16 @@
     "release:artifacts": "node scripts/release-artifacts.mjs",
     "release:semantic:smoke": "node scripts/semantic-release-smoke.mjs",
     "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/ragmir mcp:smoke && pnpm --filter @jcode.labs/ragmir-tts smoke && pnpm --filter @jcode.labs/ragmir-chat smoke",
-    "test": "pnpm --filter @jcode.labs/ragmir-tts test && pnpm --filter @jcode.labs/ragmir-chat test && pnpm --filter @jcode.labs/ragmir test",
-    "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test && pnpm build && pnpm api:check && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
+    "test": "pnpm --filter @jcode.labs/ragmir-landing test && pnpm --filter @jcode.labs/ragmir-tts test && pnpm --filter @jcode.labs/ragmir-chat test && pnpm --filter @jcode.labs/ragmir test",
+    "test:coverage": "pnpm --filter @jcode.labs/ragmir-landing test:coverage && pnpm --filter @jcode.labs/ragmir-tts test:coverage && pnpm --filter @jcode.labs/ragmir-chat test:coverage && pnpm --filter @jcode.labs/ragmir test:coverage",
+    "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test:coverage && pnpm build && pnpm api:check && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
     "@commitlint/cli": "^21.1.0",
     "@commitlint/config-conventional": "^21.1.0",
     "@semantic-release/exec": "^7.1.0",
+    "@vitest/coverage-v8": "4.1.9",
     "semantic-release": "^25.0.5",
     "yaml": "^2.9.0"
   },
