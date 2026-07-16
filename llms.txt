@@ -26,10 +26,11 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   authorization belong to the embedding application.
 - Default retrieval: local-hash, with no model download. Semantic embeddings and local GGUF chat are
   explicit opt-ins.
-- Optional packages: `@jcode.labs/ragmir-chat` for local cited GGUF synthesis and
-  `@jcode.labs/ragmir-tts` for local audio or explicitly selected online speech.
-- Model boundary: Qwen and Gemma are optional Chat profile choices. Ragmir Core, its CLI, API, and
-  MCP server do not depend on either family or on any generative model.
+- Optional packages: `@jcode.labs/ragmir-chat` offers `lite` Qwen, default `fast` Gemma, and explicit
+  `quality` Gemma profiles; `@jcode.labs/ragmir-tts` supports offline `en`, `fr`, and `es`, plus
+  explicit online Edge voices for `ja`, `th`, and `zh`.
+- Model boundary: Chat profiles and TTS language models are optional. Ragmir Core, its CLI, API, and
+  MCP server do not depend on any generative model.
 - Privacy boundary: the corpus and index stay local. A cloud agent receives retrieved passages only
   when the user chooses that workflow, under that provider's data policy.
 - OCR boundary: embedded PDF text comes first; a configured local executable runs only for blank
