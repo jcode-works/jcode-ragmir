@@ -5,6 +5,7 @@ import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
 import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit } from "./ingest.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
 import { RGR_RUNNER_FILENAME, rgrCommand } from "./package-manager.js"
 import { securityAudit } from "./security.js"
 import {
@@ -15,23 +16,32 @@ import {
   SKILL_NAMES,
 } from "./skill.js"
 import { countRows, readIndexManifest } from "./store.js"
-import type { DoctorReport } from "./types.js"
+import type { DoctorReport, OperationOptions } from "./types.js"
 
-export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
+export async function doctor(
+  cwd = process.cwd(),
+  options: OperationOptions = {},
+): Promise<DoctorReport> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const projectConfig = findProjectConfig(cwd)
   const initialized = existsSync(projectConfig.configPath)
   const config = await loadConfig(cwd)
+  throwIfAborted(signal)
   const command = await rgrCommand(config.projectRoot, [])
+  throwIfAborted(signal)
   const agentKitInstalled = isAgentKitInstalled(config.projectRoot)
   const agentIntegration = inspectAgentIntegration(config.projectRoot)
+  const operationOptions = signal ? { signal } : {}
   const [auditReport, securityReport, chunksIndexed, manifest, freshnessWarning] =
     await Promise.all([
-      audit(config.projectRoot),
-      securityAudit(config.projectRoot),
+      audit(config.projectRoot, operationOptions),
+      securityAudit(config.projectRoot, operationOptions),
       countRows(config),
       readIndexManifest(config),
       getIndexFreshnessWarning(config),
     ])
+  throwIfAborted(signal)
 
   const lexicalScanWarning = chunksIndexed > 0 ? getLexicalScanWarning(config, chunksIndexed) : null
   const indexFreshness = {
@@ -72,6 +82,7 @@ export async function doctor(cwd = process.cwd()): Promise<DoctorReport> {
     run: (args) => command.display + (args.length > 0 ? ` ${args.join(" ")}` : ""),
   })
 
+  throwIfAborted(signal)
   return {
     projectRoot: config.projectRoot,
     initialized,

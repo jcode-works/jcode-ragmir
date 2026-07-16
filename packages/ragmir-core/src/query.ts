@@ -3,6 +3,7 @@ import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { embedText } from "./embeddings.js"
+import { RagmirError } from "./errors.js"
 import { getIndexFreshnessWarning } from "./index-diagnostics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
@@ -106,6 +107,9 @@ export async function searchWithConfig(
   activeSignal?: AbortSignal,
 ): Promise<SearchResult[]> {
   const signal = activeSignal ?? operationSignal(options)
+  const topK = normalizeTopK(options.topK ?? config.topK)
+  const defaultContextRadius = config.retrievalProfile === "quality" ? 1 : 0
+  const contextRadius = normalizeContextRadius(options.contextRadius ?? defaultContextRadius)
   throwIfAborted(signal)
   const table = await openRowsTable(config, connection)
   throwIfAborted(signal)
@@ -120,7 +124,6 @@ export async function searchWithConfig(
     return []
   }
 
-  const topK = options.topK ?? config.topK
   const retrievalPredicate = searchPredicate(
     options.includePaths,
     options.excludePaths,
@@ -146,12 +149,7 @@ export async function searchWithConfig(
       ? rankedRows.filter((ranked) => hasLexicalOverlap(queryTokens, ranked.row.searchText))
       : rankedRows
   const rows = diversifyRows(relevantRows, topK, config.retrievalProfile)
-  const defaultContextRadius = config.retrievalProfile === "quality" ? 1 : 0
-  const contextByRow = await contextChunksByRow(
-    table,
-    rows,
-    options.contextRadius ?? defaultContextRadius,
-  )
+  const contextByRow = await contextChunksByRow(table, rows, contextRadius)
   throwIfAborted(signal)
 
   const results = rows.map((row) => {
@@ -823,9 +821,16 @@ function normalizeContextRadius(contextRadius: number | undefined): number {
     return 0
   }
   if (!Number.isInteger(contextRadius) || contextRadius < 0) {
-    throw new Error("contextRadius must be a non-negative integer.")
+    throw new RagmirError("INVALID_ARGUMENT", "contextRadius must be a non-negative integer.")
   }
   return Math.min(contextRadius, MAX_CONTEXT_RADIUS)
+}
+
+function normalizeTopK(topK: number): number {
+  if (!Number.isSafeInteger(topK) || topK <= 0) {
+    throw new RagmirError("INVALID_ARGUMENT", "topK must be a positive integer.")
+  }
+  return topK
 }
 
 function citationForRow(row: SearchRow): string {

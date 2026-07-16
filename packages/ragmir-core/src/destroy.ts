@@ -5,7 +5,7 @@ import path from "node:path"
 import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
-import { clearTransformersCache } from "./embeddings.js"
+import { disposeTransformersCache } from "./embeddings.js"
 import { readIngestionState } from "./ingestion-state.js"
 import type { DestroyIndexResult } from "./types.js"
 
@@ -20,7 +20,7 @@ export async function destroyIndex(cwd = process.cwd()): Promise<DestroyIndexRes
   await rm(config.storageDir, { recursive: true, force: true })
   // Release any cached Transformers.js pipelines so a subsequent re-ingest with
   // a different embedding config does not pin stale ONNX weights in memory.
-  clearTransformersCache()
+  await disposeTransformersCache()
 
   return {
     storageDir: config.storageDir,

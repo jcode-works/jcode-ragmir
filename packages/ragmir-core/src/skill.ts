@@ -12,9 +12,10 @@ import {
   RGR_RUNNER_PROBE_ARG,
   rgrCommand,
 } from "./package-manager.js"
+import type { AgentIntegrationReport, AgentTarget, RagmirRunnerMode } from "./types.js"
 import { VERSION } from "./version.js"
 
-export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
+export type { AgentIntegrationReport, AgentTarget, RagmirRunnerMode } from "./types.js"
 export type AgentInstallScope = "project" | "user"
 export type AgentInstallMode = "link" | "copy"
 
@@ -75,20 +76,6 @@ export interface AgentHelperFile {
   agent: AgentTarget
   label: string
   path: string
-}
-
-export type RagmirRunnerMode = "local-bin" | "workspace" | "installed-package" | "npm-cache"
-
-export interface AgentIntegrationReport {
-  runnerPath: string
-  runnerReady: boolean
-  runnerMode: RagmirRunnerMode | null
-  runnerRequiresDownload: boolean
-  projectAgents: AgentTarget[]
-  userAgents: AgentTarget[]
-  nativeAgents: AgentTarget[]
-  ready: boolean
-  warnings: string[]
 }
 
 const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))

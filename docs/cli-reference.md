@@ -59,6 +59,10 @@ the current manifest under `.ragmir/storage/`. Starting `rgr ingest` again resum
 interrupted run and processes only pending, failed, or changed files. Files already committed to
 the index are not parsed or embedded again.
 
+Every inventory pass recalculates each file's SHA-256, so a content change is detected even when a
+sync tool preserves both file size and modification time. A committed batch atomically replaces the
+changed source's chunks.
+
 `rgr status --json` exposes the run ID, mode, status, resume flag, last activity, batch size, chunk
 count, and file counts for `pending`, `parsed`, `embedded`, `indexed`, and `error` states. The human
 output shows the same progress in a compact form.
@@ -66,7 +70,8 @@ output shows the same progress in a compact form.
 `rgr ingest --rebuild` writes batches into an isolated LanceDB generation. The existing index stays
 active until the new table and manifest pass row-count, checksum, and duplicate-ID validation. The
 final atomic manifest replacement activates the generation. Re-run the command after interruption
-to resume the staged generation.
+to resume the staged generation. Older generated tables remain available for searches that already
+opened them; `rgr destroy-index` removes all generated index storage.
 
 ## Monorepos
 
@@ -89,8 +94,8 @@ rgr ocr doctor
 rgr ocr setup --language eng+fra
 rgr chat setup --profile fast
 printf '%s\n' "Non-sensitive model preload text." > /tmp/ragmir-tts-preload.txt
-rgr audio /tmp/ragmir-tts-preload.txt --allow-remote-models --out .ragmir/audio/preload.wav
-rgr audio ./brief.md --offline --out .ragmir/audio/brief.wav
+rgr audio /tmp/ragmir-tts-preload.txt --lang en --allow-remote-models --out .ragmir/audio/preload.wav
+rgr audio ./brief.md --lang en --offline --out .ragmir/audio/brief.wav
 ```
 
 | Command | Purpose |
@@ -120,6 +125,7 @@ rgr destroy-index --yes
 - `install-agent --force` replaces a conflicting same-name skill only when explicitly requested.
 - `serve-mcp` starts the local stdio MCP server.
 - `route-prompt` classifies whether a prompt should use Ragmir without storing it.
-- `evaluate` measures retrieval against a local golden-query file.
-- `usage-report`, `limits`, and `destroy-index` expose local operations.
+- `evaluate` measures retrieval against a local golden-query file of at most 1 MiB and 100 cases.
+- `usage-report --days` accepts an integer from 1 to 3650; `limits` and `destroy-index` expose the
+  other local maintenance operations.
 - Add `--json` to machine-readable commands. Do not parse human-readable output in automation.

@@ -1,13 +1,20 @@
 import {
+  accessLogUsageReport,
+  audit,
   connectMcpServer,
   createMcpServer,
   createRagmirClient,
+  doctor,
   enableSemanticEmbeddings,
+  evaluateGoldenQueries,
+  getKnowledgeBaseContext,
+  getKnowledgeBaseSourceCatalog,
   ingest,
   isRagmirError,
   pullEmbeddingModel,
   redactText,
   search,
+  securityAudit,
   type Config,
   type EnableSemanticEmbeddingsResult,
   type IngestOptions,
@@ -50,14 +57,25 @@ const speechOptions = {
   language: "en",
   engine: "transformers",
   allowRemoteModels: false,
+  signal: operationOptions.signal,
+  edgeTimeoutMs: 30_000,
 } satisfies RenderSpeechOptions
 
 void ingest(ingestOptions)
 void search("What changed?", searchOptions)
 void createRagmirClient({ cwd }).then(async (client: RagmirClient) => {
   await client.search("What changed?", operationOptions)
+  await client.status(operationOptions)
+  await client.sources(operationOptions)
   await client.close()
 })
+void audit(cwd, operationOptions)
+void doctor(cwd, operationOptions)
+void securityAudit(cwd, operationOptions)
+void getKnowledgeBaseContext(cwd, operationOptions)
+void getKnowledgeBaseSourceCatalog(cwd, operationOptions)
+void evaluateGoldenQueries({ cwd, goldenPath: "golden-queries.json", ...operationOptions })
+void accessLogUsageReport({ cwd, ...operationOptions })
 void createMcpServer(cwd)
 type McpTransport = Parameters<typeof connectMcpServer>[0]
 declare const transport: McpTransport

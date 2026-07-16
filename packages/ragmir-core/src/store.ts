@@ -91,13 +91,19 @@ export async function updateRowsInTable(
     return writeRowsToTable(rows, tableName, config, connection)
   }
 
-  for (const paths of batches([...new Set(replacePaths)], 200)) {
-    if (paths.length > 0) {
+  const uniquePaths = [...new Set(replacePaths)]
+  if (rows.length > 0) {
+    let merge = table.mergeInsert("id").whenMatchedUpdateAll().whenNotMatchedInsertAll()
+    if (uniquePaths.length > 0) {
+      merge = merge.whenNotMatchedBySourceDelete({
+        where: `relativePath IN (${uniquePaths.map(sqlString).join(", ")})`,
+      })
+    }
+    await merge.execute(storedRows(rows))
+  } else {
+    for (const paths of batches(uniquePaths, 200)) {
       await table.delete(`relativePath IN (${paths.map(sqlString).join(", ")})`)
     }
-  }
-  if (rows.length > 0) {
-    await table.add(storedRows(rows))
   }
 
   const lexicalResult = await ensureLexicalIndex(table)

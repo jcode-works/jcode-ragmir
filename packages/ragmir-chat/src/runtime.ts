@@ -94,10 +94,8 @@ export class NodeLlamaChatRuntime implements ChatRuntime {
     try {
       return await generation
     } finally {
-      if (this.activeGeneration === generation) {
-        this.activeGeneration = null
-        this.activeController = null
-      }
+      this.activeGeneration = null
+      this.activeController = null
       linkedAbort.unlink()
     }
   }

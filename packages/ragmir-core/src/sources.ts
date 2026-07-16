@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import path from "node:path"
+import { readFile } from "node:fs/promises"
 import { findProjectConfig, loadConfig } from "./config.js"
+import { mutateProjectConfig, readProjectConfigObject } from "./project-config-file.js"
 
 export interface SourceEntriesResult {
   /** Where the listed entries come from: always config.json now. */
@@ -58,26 +58,24 @@ export async function addSourceEntries(
 
   const config = await loadConfig(options.cwd)
   const projectConfig = findProjectConfig(options.cwd ?? process.cwd())
-  const configEntries = await readConfigSources(projectConfig)
-  const existingEntries = new Set<string>([
-    ...configEntries,
-    ...(await readLegacySourcesTxt(config.sourcesFile)),
-  ])
-  const added: string[] = []
-  const skipped: string[] = []
+  const legacyEntries = await readLegacySourcesTxt(config.sourcesFile)
+  const { added, skipped } = await mutateProjectConfig(projectConfig, (raw) => {
+    const configEntries = configSources(raw)
+    const existingEntries = new Set<string>([...configEntries, ...legacyEntries])
+    const added: string[] = []
+    const skipped: string[] = []
 
-  for (const entry of requested) {
-    if (existingEntries.has(entry)) {
-      skipped.push(entry)
-      continue
+    for (const entry of requested) {
+      if (existingEntries.has(entry)) {
+        skipped.push(entry)
+        continue
+      }
+      existingEntries.add(entry)
+      added.push(entry)
     }
-    existingEntries.add(entry)
-    added.push(entry)
-  }
-
-  if (added.length > 0) {
-    await writeConfigSources(projectConfig, [...configEntries, ...added])
-  }
+    if (added.length > 0) raw.sources = [...configEntries, ...added]
+    return { changed: added.length > 0, value: { added, skipped } }
+  })
 
   return {
     sourcesFile: projectConfig.configPath,
@@ -91,36 +89,18 @@ async function readConfigSources(projectConfig: {
   configPath: string
   projectRoot: string
 }): Promise<string[]> {
-  if (!existsSync(projectConfig.configPath)) {
-    return []
-  }
   try {
-    const raw = JSON.parse(await readFile(projectConfig.configPath, "utf8")) as unknown
-    if (isRecord(raw) && Array.isArray(raw.sources)) {
-      return raw.sources.filter((entry): entry is string => typeof entry === "string")
-    }
+    return configSources(await readProjectConfigObject(projectConfig))
   } catch {
     // Fall back to empty if the config is unreadable; loadConfig surfaces real errors elsewhere.
   }
   return []
 }
 
-/** Write the `sources` array back into config.json, preserving other fields. */
-async function writeConfigSources(
-  projectConfig: { configPath: string; projectRoot: string },
-  entries: readonly string[],
-): Promise<void> {
-  await mkdir(path.dirname(projectConfig.configPath), { recursive: true })
-  const raw = existsSync(projectConfig.configPath)
-    ? (JSON.parse(await readFile(projectConfig.configPath, "utf8")) as unknown)
-    : {}
-  if (!isRecord(raw)) {
-    throw new Error(
-      `${path.relative(projectConfig.projectRoot, projectConfig.configPath)} must contain a JSON object.`,
-    )
-  }
-  raw.sources = [...entries]
-  await writeFile(projectConfig.configPath, `${JSON.stringify(raw, null, 2)}\n`, "utf8")
+function configSources(raw: Record<string, unknown>): string[] {
+  return Array.isArray(raw.sources)
+    ? raw.sources.filter((entry): entry is string => typeof entry === "string")
+    : []
 }
 
 /** Read the legacy sources.txt read-only for backward compatibility. */
@@ -151,8 +131,4 @@ function normalizeRequestedEntries(entries: readonly string[]): string[] {
     normalized.push(trimmed)
   }
   return normalized
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }

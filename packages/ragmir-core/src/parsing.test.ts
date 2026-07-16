@@ -1,8 +1,10 @@
+import { existsSync } from "node:fs"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { strToU8, zipSync } from "fflate"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { MAX_EXTERNAL_TEXT_STDIO_BYTES } from "./limits.js"
 import { parseFile } from "./parsing.js"
 import type { SourceFile } from "./types.js"
 
@@ -53,6 +55,42 @@ describe("parseFile", () => {
     expect(parsed.text).toContain("legacy.doc")
   })
 
+  it("should terminate an external extractor when parsing is aborted", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doc-abort-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "legacy.doc")
+    const markerPath = path.join(root, "extractor-ready")
+    const docScriptPath = path.join(root, "doc-wrapper.mjs")
+    await writeFile(filePath, "fake legacy Word bytes", "utf8")
+    await writeFile(
+      docScriptPath,
+      [
+        'import { writeFileSync } from "node:fs"',
+        `writeFileSync(${JSON.stringify(markerPath)}, "ready")`,
+        "setInterval(() => {}, 1_000)",
+      ].join("\n"),
+      "utf8",
+    )
+    const controller = new AbortController()
+    const parsing = parseFile(sourceFile(root, filePath, ".doc"), {
+      legacyWordCommand: [process.execPath, docScriptPath, "{input}"],
+      legacyWordTimeoutMs: 5_000,
+      signal: controller.signal,
+    })
+    try {
+      await vi.waitFor(() => expect(existsSync(markerPath)).toBe(true), {
+        timeout: 5_000,
+      })
+
+      controller.abort()
+
+      await expect(parsing).rejects.toMatchObject({ code: "ABORTED" })
+    } finally {
+      controller.abort()
+      await parsing.catch(() => undefined)
+    }
+  })
+
   it("extracts shared strings and values from xlsx files", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-xlsx-"))
     tempDirs.push(root)
@@ -71,6 +109,28 @@ describe("parseFile", () => {
 
     expect(parsed.text).toContain("# Finance & Ops")
     expect(parsed.text).toContain("Invoice\t\t24000\tPaid")
+  })
+
+  it.each([
+    { extension: ".docx" },
+    { extension: ".xlsx" },
+  ])("should reject $extension archives when they exceed Office entry limits", async ({
+    extension,
+  }) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-office-limit-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, `oversized${extension}`)
+    const entries = Object.fromEntries(
+      Array.from({ length: 513 }, (_entry, index) => [
+        `payload/entry-${index}.xml`,
+        strToU8("<root>bounded</root>"),
+      ]),
+    )
+    await writeFile(filePath, zipSync(entries))
+
+    await expect(parseFile(sourceFile(root, filePath, extension))).rejects.toThrow(
+      "Archive text payload exceeds Ragmir safety limits.",
+    )
   })
 
   it("extracts text from pptx slides and speaker notes", async () => {
@@ -173,6 +233,26 @@ describe("parseFile", () => {
 
     expect(parsed.text).toContain("Image OCR text for")
     expect(parsed.text).toContain("diagram.png")
+  })
+
+  it("should stop an external extractor when combined output exceeds the safety limit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-extractor-limit-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "diagram.png")
+    const scriptPath = path.join(root, "large-output.mjs")
+    await writeFile(filePath, "fake image bytes", "utf8")
+    await writeFile(
+      scriptPath,
+      `process.stdout.write(Buffer.alloc(${MAX_EXTERNAL_TEXT_STDIO_BYTES + 1}, 65))\n`,
+      "utf8",
+    )
+
+    await expect(
+      parseFile(sourceFile(root, filePath, ".png"), {
+        imageOcrCommand: [process.execPath, scriptPath, "{input}"],
+        imageOcrTimeoutMs: 10_000,
+      }),
+    ).rejects.toThrow("OCR command produced too much output.")
   })
 
   it("extracts text from epub html entries", async () => {

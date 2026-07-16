@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -14,6 +14,40 @@ afterEach(async () => {
 })
 
 describe("listSourceFiles", () => {
+  it("should stop source discovery when the signal is already aborted", async () => {
+    const controller = new AbortController()
+    controller.abort("cancelled by caller")
+
+    await expect(
+      listSourceFiles(testConfig(process.cwd()), { signal: controller.signal }),
+    ).rejects.toMatchObject({ code: "ABORTED", retryable: true })
+  })
+
+  it("should interrupt source inventory while hashing a large file", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-files-abort-"))
+    tempDirs.push(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    await mkdir(rawDir, { recursive: true })
+    const largeFile = await open(path.join(rawDir, "large.md"), "w")
+    try {
+      await largeFile.truncate(512 * 1024 * 1024)
+    } finally {
+      await largeFile.close()
+    }
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort("cancelled while hashing"), 25)
+
+    try {
+      await expect(
+        inventorySourceFiles(testConfig(root, { maxFileBytes: 1024 * 1024 * 1024 }), {
+          signal: controller.signal,
+        }),
+      ).rejects.toMatchObject({ code: "ABORTED", retryable: true })
+    } finally {
+      clearTimeout(timeout)
+    }
+  })
+
   it("indexes broad text-like formats and custom extensions while ignoring runtime folders", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-files-"))
     tempDirs.push(root)

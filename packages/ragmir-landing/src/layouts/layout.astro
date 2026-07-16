@@ -117,7 +117,7 @@ function alternateHref(targetLocale: string): string {
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#000000" />
     <link rel="canonical" href={canonicalURL.href} />
-    <link rel="sitemap" href="/sitemap-index.xml" />
+    {isProduction && <link rel="sitemap" href="/sitemap-index.xml" />}
     <link rel="alternate" href="/llms.txt" type="text/plain" title="LLM instructions" />
     <link rel="alternate" href="/ai.txt" type="text/plain" title="AI instructions" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

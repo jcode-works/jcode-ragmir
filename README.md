@@ -8,6 +8,8 @@
 
 **Confidential local RAG for your coding agents.**
 
+*Stop sending confidential documents directly to the cloud.*
+
 Ragmir indexes the project files you choose on your machine and retrieves bounded, cited evidence
 offline by default. The corpus and generated index remain local, so confidential source files are
 not uploaded to a hosted RAG service. Connect through project-scoped agent skills, a local MCP
@@ -106,7 +108,11 @@ connector.
 The MCP surface is intentionally bounded and read-focused. Agents can request compact evidence
 first, then expand one returned citation without opening a second index or reading arbitrary files.
 MCP clients can read `ragmir://context` for a compact base, readiness, freshness, and capability
-overview before choosing a tool.
+overview before choosing a tool. Every tool advertises non-destructive behavior, and every tool and
+resource JSON response is subject to a byte budget. Search, ask, research, and evaluation
+conservatively advertise open-world behavior because explicitly enabled semantic models may
+download public weights. Tools that may initialize local state or append metadata-only access logs
+do not claim read-only or idempotent behavior.
 
 Core is model-agnostic: any compatible CLI, TypeScript, or MCP consumer can use the returned
 citations. A hosted AI receives the passages you return to it under that provider's data policy. A
@@ -124,6 +130,19 @@ Ragmir selects the nearest `.ragmir/config.json` from the working directory. A m
 root base for shared knowledge and isolated bases in individual apps. `rgr bases` shows the active
 base, generated MCP helpers pin their project root, and nested bases receive distinct server names
 so agents do not silently query the wrong index.
+
+### Share one source of truth across a team
+
+Ragmir is local and confidential by design. It has no built-in cloud synchronization. Give every
+developer the same source folder through a tool such as the Google Drive desktop app or a team
+script, keep the Ragmir version, configuration, embedding provider, and model aligned, then ingest
+locally. The result is an equivalent local index on each workstation, not a shared database.
+
+Always sync before `rgr ingest`, then run `rgr audit`. A missing, partially synced, or extra file in
+the selected raw or source folder makes that developer's index diverge. Ragmir hashes file content
+on every inventory pass, so a changed file is still detected when a sync tool preserves its size
+and modification time. Teams can automate setup with `initProject`, `addSourceEntries`, and
+`createRagmirClient`; Ragmir remains the local retrieval layer, not the synchronization layer.
 
 ### Audit a knowledge base
 
@@ -169,7 +188,9 @@ pnpm exec rgr status --json
 Ragmir records per-file progress atomically under ignored `.ragmir/storage/` state. Files from a
 committed batch are not parsed or embedded again after a restart. A full `--rebuild` writes to an
 isolated generation and activates it only after row and manifest validation, so an interrupted
-rebuild leaves the previous searchable index active.
+rebuild leaves the previous searchable index active. After activation, older generated tables stay
+available so searches that already opened them can finish safely. `rgr destroy-index` removes all
+generated index storage.
 
 ### Search scanned PDFs
 

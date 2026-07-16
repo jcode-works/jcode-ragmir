@@ -16,6 +16,16 @@ afterEach(async () => {
 })
 
 describe("doctor", () => {
+  it("should stop diagnostics when the signal is already aborted", async () => {
+    const controller = new AbortController()
+    controller.abort("cancelled by caller")
+
+    await expect(doctor(process.cwd(), { signal: controller.signal })).rejects.toMatchObject({
+      code: "ABORTED",
+      retryable: true,
+    })
+  })
+
   it("reports setup state and actionable next steps", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-"))
     tempDirs.push(root)

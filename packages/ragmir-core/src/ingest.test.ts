@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -7,7 +7,7 @@ import { indexPolicyFingerprint } from "./index-policy.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress, readIngestionState, writeIngestionState } from "./ingestion-state.js"
 import { initProject } from "./init.js"
-import { openRowsTable, readIndexManifest, readRows } from "./store.js"
+import { connectStore, openRowsTable, readIndexManifest, readRows } from "./store.js"
 
 const tempDirs: string[] = []
 
@@ -18,6 +18,16 @@ afterEach(async () => {
 })
 
 describe("ingest", () => {
+  it("should stop an audit when the signal is already aborted", async () => {
+    const controller = new AbortController()
+    controller.abort("cancelled by caller")
+
+    await expect(audit(process.cwd(), { signal: controller.signal })).rejects.toMatchObject({
+      code: "ABORTED",
+      retryable: true,
+    })
+  })
+
   it("reports skipped files and detects stale indexed content by checksum", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-ingest-"))
     tempDirs.push(root)
@@ -83,6 +93,26 @@ describe("ingest", () => {
       ".ragmir/raw/beta.md",
     ])
     expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length)
+  })
+
+  it("should rebuild changed content when size and mtime are unchanged", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-checksum-refresh-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    const sourcePath = path.join(root, ".ragmir", "raw", "evidence.md")
+    const fixedTime = new Date("2026-01-01T00:00:00.000Z")
+    await writeFile(sourcePath, "AAAA\n", "utf8")
+    await utimes(sourcePath, fixedTime, fixedTime)
+    await ingest({ cwd: root })
+
+    await writeFile(sourcePath, "BBBB\n", "utf8")
+    await utimes(sourcePath, fixedTime, fixedTime)
+    const result = await ingest({ cwd: root })
+
+    expect(result.rebuiltFiles).toBe(1)
+    expect(result.reusedFiles).toBe(0)
+    expect((await readRows(await loadConfig(root))).map((row) => row.text)).toEqual(["BBBB"])
   })
 
   it("resumes an interrupted run without reprocessing committed files or duplicating chunks", async () => {
@@ -346,6 +376,38 @@ describe("ingest", () => {
     expect(rebuilt.indexedFiles).toBe(2)
     expect(rebuilt.rebuiltFiles).toBe(2)
     expect(rebuilt.reusedFiles).toBe(0)
+  })
+
+  it("should preserve open readers when a rebuilt generation becomes active", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-rebuild-cleanup-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "alpha.md"), "Alpha evidence.\n")
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const previousTableName = (await readIndexManifest(config))?.tableName ?? config.tableName
+    const previousTable = await openRowsTable(config)
+    if (!previousTable) {
+      throw new Error("Expected the active table before rebuilding.")
+    }
+    expect(await previousTable.countRows()).toBe(1)
+
+    await ingest({ cwd: root, rebuild: true })
+
+    const activeTableName = (await readIndexManifest(config))?.tableName
+    const connection = await connectStore(config)
+    try {
+      const tableNames = await connection.tableNames()
+      const generationPrefix = `${config.tableName}__generation_`
+      expect(activeTableName?.startsWith(generationPrefix)).toBe(true)
+      expect(activeTableName?.slice(generationPrefix.length)).toMatch(/^[0-9a-f]{32}$/u)
+      expect(tableNames).toContain(activeTableName)
+      expect(tableNames).toContain(previousTableName)
+      await expect(previousTable.countRows()).resolves.toBe(1)
+    } finally {
+      connection.close()
+    }
   })
 
   it("reports supported files that produce no indexable text", async () => {

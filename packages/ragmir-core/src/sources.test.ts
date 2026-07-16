@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { initProject } from "./init.js"
+import { enableSemanticEmbeddings } from "./semantic-config.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 
 const tempDirs: string[] = []
@@ -73,5 +75,24 @@ describe("source entries", () => {
     // listSourceEntries merges config + legacy, deduplicated.
     const merged = await listSourceEntries(root)
     expect(merged.entries).toEqual(["../apps/*/README.md", "../docs/**/*.md"])
+  })
+
+  it("should preserve concurrent updates from independent config features", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-sources-concurrent-"))
+    tempDirs.push(root)
+    await initProject(root)
+
+    await Promise.all([
+      addSourceEntries({ cwd: root, entries: ["../apps/a/README.md"] }),
+      addSourceEntries({ cwd: root, entries: ["../apps/b/README.md"] }),
+      enableSemanticEmbeddings(root),
+    ])
+
+    const config = JSON.parse(
+      await readFile(path.join(root, ".ragmir", "config.json"), "utf8"),
+    ) as { embeddingProvider: string; sources: string[]; transformersAllowRemoteModels: boolean }
+    expect(new Set(config.sources)).toEqual(new Set(["../apps/a/README.md", "../apps/b/README.md"]))
+    expect(config.embeddingProvider).toBe("transformers")
+    expect(config.transformersAllowRemoteModels).toBe(false)
   })
 })

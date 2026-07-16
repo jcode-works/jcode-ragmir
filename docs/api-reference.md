@@ -40,7 +40,7 @@ when available, structural context, and optional score explanations.
 ### Persistent client for Node.js workers
 
 Use one client per project root when a stateful Node.js process performs repeated retrieval. The
-client reuses one strongly consistent LanceDB connection and resolves its project root at creation.
+client reuses one local LanceDB connection and resolves its project root at creation.
 
 ```ts
 import { createRagmirClient, isRagmirError } from "@jcode.labs/ragmir"
@@ -68,12 +68,17 @@ try {
 ```
 
 `RagmirClient` exposes `ingest`, `search`, `ask`, `research`, `expandCitation`, `status`, `sources`,
-and an idempotent `close`. `close()` rejects new work, waits for active operations, then closes the
-shared connection. Ingestion targeting the same storage directory is serialized inside one Node.js
-process. Cancellation is cooperative between parsing, embedding, storage, and retrieval phases.
+and an idempotent `close`. Every data operation accepts `signal` and `timeoutMs` through its options.
+`close()` takes no options, rejects new work, waits for active operations, then closes the shared
+connection.
+Ingestion targeting the same storage directory is serialized inside one Node.js process.
+Cancellation is cooperative between filesystem, parsing, embedding, storage, retrieval, and
+diagnostic phases.
 
 `RagmirError.code` is one of `ABORTED`, `CLIENT_CLOSED`, `INTERNAL`, `INVALID_ARGUMENT`, or
-`TIMEOUT`. `retryable` is true for cancellation and timeout errors.
+`TIMEOUT`. `retryable` is true for cancellation and timeout errors. `isRagmirError(error)` narrows
+unknown failures, while `normalizeRagmirError(error)` preserves Ragmir errors and converts other
+failures into an `INTERNAL` `RagmirError` with the original cause.
 
 The writer queue coordinates clients inside one Node.js process. If several OS processes can ingest
 the same storage directory, the host must elect one writer or serialize those ingestion jobs.
@@ -91,8 +96,8 @@ authentication, authorization, rate limits, and transport security.
 | `loadConfig(start?)` | Resolve and validate effective configuration from the nearest base. |
 | `knowledgeBaseIdentity(start?)` | Identify the nearest base relative to the outer workspace. |
 | `discoverKnowledgeBases(start?)` | List root and nested bases and mark the active one. |
-| `getKnowledgeBaseContext(cwd?)` | Return bounded identity, readiness, freshness, and capabilities. |
-| `getKnowledgeBaseSourceCatalog(cwd?)` | Return bounded source coverage with complete totals. |
+| `getKnowledgeBaseContext(cwd?, options?)` | Return bounded identity, readiness, freshness, and capabilities. |
+| `getKnowledgeBaseSourceCatalog(cwd?, options?)` | Return bounded source coverage with complete totals. |
 | `listSourceEntries(cwd?)` | Read configured source and exclusion entries. |
 | `addSourceEntries(options)` | Add source paths or exclusions without duplicating entries. |
 
@@ -102,7 +107,7 @@ authentication, authorization, rate limits, and transport security.
 | --- | --- |
 | `ingest(options?)` | Incrementally parse, redact, chunk, embed, and store selected files. |
 | `getIngestionProgress(config)` | Read durable progress for the latest ingestion run. |
-| `audit(cwd?)` | Compare files on disk with the current index. |
+| `audit(cwd?, options?)` | Compare files on disk with the current index. |
 | `previewChunks(options?)` | Return redacted chunks and distributions without writing an index. |
 | `search(query, options?)` | Return ranked cited passages. |
 | `ask(query, options?)` | Return cited retrieval context without calling an LLM. |
@@ -116,10 +121,16 @@ authentication, authorization, rate limits, and transport security.
 `contextPaths`, `explain`, `signal`, and `timeoutMs`. `IngestOptions` also accepts `rebuild`, a
 positive `batchSize` that defaults to 25 files, and an optional `onProgress` callback. Its durable
 progress contains the run ID, resume flag, last activity, chunk count, and per-stage file counts.
-`IngestOptions`, `ResearchOptions`, and `ExpandCitationOptions` accept `signal` and `timeoutMs`. When explanation is enabled, each
+`IngestOptions`, `ResearchOptions`, `ExpandCitationOptions`, `EvaluationOptions`, and
+`AccessLogUsageOptions` accept `signal` and `timeoutMs`. Diagnostic functions that take a separate
+`options` argument use the same `OperationOptions` contract. When explanation is enabled, each
 result includes reciprocal-rank fusion contributions, one-based vector and lexical ranks, vector
 distance, lexical backend score, and matched query terms. `ExpandCitationOptions.contextRadius` is
 clamped to three chunks.
+
+Golden evaluation files are limited to 1 MiB and 100 cases. Each query is limited to 20,000
+characters, with at most 100 expected paths or citations of 500 characters each.
+`AccessLogUsageOptions.days` accepts an integer from 1 to 3650.
 
 Structural context comes from Markdown headings or structured-data paths. It can improve candidate
 selection without changing the exact text, offsets, or citations returned to the caller.
@@ -128,8 +139,8 @@ selection without changing the exact text, offsets, or citations returned to the
 
 | Export | Purpose |
 | --- | --- |
-| `doctor(cwd?)` | Report setup, source, index, and agent-integration readiness. |
-| `securityAudit(cwd?)` | Report local privacy, redaction, permissions, and MCP posture. |
+| `doctor(cwd?, options?)` | Report setup, source, index, and agent-integration readiness. |
+| `securityAudit(cwd?, options?)` | Report local privacy, redaction, permissions, and MCP posture. |
 | `ingestionLimits(config)` | Read active parser safety limits. |
 | `accessLogUsageReport(options?)` | Summarize metadata-only local access logs. |
 | `destroyIndex(cwd?)` | Remove generated index data without deleting source files. |
@@ -172,10 +183,25 @@ model download must be explicitly enabled before local inference can use it.
 | `kbCommand(cwd, args)` | Compatibility alias for older integrations. |
 | `ragmirCommand(cwd, args)` | Compatibility alias for older integrations. |
 
-New integrations should use `rgrCommand` and the `rgr` CLI name. MCP retrieval tools accept a
-`maxBytes` value below the configured `mcpMaxOutputBytes` ceiling. Search, ask, and research also
-accept compact output. Metrics are returned under `_meta["ragmir/output"]` and summarized by the
-metadata-only usage report. MCP cancellation signals propagate into Core retrieval operations.
+New integrations should use `rgrCommand` and the `rgr` CLI name. Search, ask, research, expansion,
+audit, and evaluation accept `maxBytes`; every tool and resource JSON response is bounded by the
+configured `mcpMaxOutputBytes` and an absolute 1 MiB ceiling. Search, ask, and research also accept
+compact output. Metrics are returned under
+`_meta["ragmir/output"]` and summarized by the metadata-only usage report.
+
+Each MCP server lazily reuses one `RagmirClient` per effective configuration, closes and refreshes it
+after configuration changes, and closes it with the server. All tools advertise non-destructive
+behavior. Search, ask, research, and evaluation conservatively advertise open-world behavior because
+explicitly enabled Transformers models may download public weights. The pure prompt router,
+security audit, and usage report also advertise read-only, idempotent behavior. Other tools do not
+because they can initialize ignored local state or append metadata-only access logs. MCP cancellation
+signals propagate into Core retrieval, audit, evaluation, security, usage, and resource operations.
+Native filesystem and LanceDB calls that do not expose `AbortSignal` are checked immediately before
+and after the call, so cancellation waits only for that in-flight native operation to return.
+`ragmir_evaluate` requires an existing
+project-relative golden file and rejects absolute paths, traversal, and symlinks outside the root.
+Strict mode returns that project-relative path, replaces evaluation errors with a generic message,
+and masks configured model, storage, source, and access-log paths in diagnostic responses.
 
 ### Core type exports
 
@@ -283,6 +309,7 @@ import { doctor, renderSpeech } from "@jcode.labs/ragmir-tts"
 
 const runtime = await doctor()
 console.log(runtime.transformersAvailable)
+const controller = new AbortController()
 
 await renderSpeech({
   cwd: process.cwd(),
@@ -300,6 +327,7 @@ const result = await renderSpeech({
   engine: "transformers",
   language: "en",
   allowRemoteModels: false,
+  signal: controller.signal,
 })
 
 console.log(result.outputPath, result.samplingRate)
@@ -309,6 +337,10 @@ TTS renders text supplied by the caller. It does not retrieve evidence or write 
 first call explicitly preloads the local model from non-sensitive text. Later calls can keep
 `allowRemoteModels: false` for confidential content. The Edge path is explicit and sends narration
 text to the external service.
+
+`RenderSpeechOptions.signal` stops before subsequent render or write phases. The Edge CLI is also
+terminated when cancelled and defaults to a 120-second bound; override it with `edgeTimeoutMs` when
+the host needs a shorter deadline.
 
 ### TTS runtime exports
 
@@ -326,7 +358,7 @@ text to the external service.
 | `DEFAULT_TTS_MODEL`, `DEFAULT_TTS_MODEL_PATH` | Default offline model and cache path. |
 | `DEFAULT_TTS_ALLOW_REMOTE_MODELS` | Default remote model-loading policy. |
 | `DEFAULT_AUDIO_DIR` | Default generated-audio directory. |
-| `DEFAULT_EDGE_VOICE`, `DEFAULT_EDGE_RATE` | Default explicit Edge settings. |
+| `DEFAULT_EDGE_VOICE`, `DEFAULT_EDGE_RATE`, `DEFAULT_EDGE_TTS_TIMEOUT_MS` | Default explicit Edge settings. |
 
 The package exports `RenderSpeechOptions`, `RenderSpeechResult`, `DoctorReport`, `TtsEngine`,
 `TtsLanguage`, `OfflineTtsLanguage`, `OutputFormat`, `TextToAudioOptions`,

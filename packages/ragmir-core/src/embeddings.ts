@@ -17,12 +17,18 @@ const CHARACTER_NGRAM_WEIGHT = 0.35
  */
 const MAX_TRANSFORMERS_PIPELINES = 3
 const transformersPipelines = new Map<string, TransformersExtractor>()
-let transformersEnvironmentQueue: Promise<void> = Promise.resolve()
+const pendingTransformersPipelines = new Map<string, Promise<TransformersExtractor>>()
+let transformersCacheGeneration = 0
+let transformersCacheMutationQueue = Promise.resolve()
 
-type TransformersExtractor = (
-  texts: string[],
-  options: { pooling: "mean"; normalize: true },
-) => Promise<unknown>
+declare global {
+  var __ragmirTransformersEnvironmentQueue: Promise<void> | undefined
+}
+
+interface TransformersExtractor {
+  (texts: string[], options: { pooling: "mean"; normalize: true }): Promise<unknown>
+  dispose?: () => Promise<void>
+}
 
 type EmbeddingInputType = "document" | "query"
 
@@ -120,14 +126,27 @@ async function transformersExtractor(config: Config): Promise<TransformersExtrac
     return cached
   }
 
-  const extractor = await createTransformersExtractor(config)
-  evictTransformersPipeline()
-  transformersPipelines.set(key, extractor)
-  return extractor
+  const pending = pendingTransformersPipelines.get(key)
+  if (pending) {
+    return pending
+  }
+
+  const generation = transformersCacheGeneration
+  const creation = createTransformersExtractor(config).then((extractor) =>
+    cacheTransformersPipeline(key, extractor, generation),
+  )
+  pendingTransformersPipelines.set(key, creation)
+  try {
+    return await creation
+  } finally {
+    if (pendingTransformersPipelines.get(key) === creation) {
+      pendingTransformersPipelines.delete(key)
+    }
+  }
 }
 
 async function createTransformersExtractor(config: Config): Promise<TransformersExtractor> {
-  const creation = transformersEnvironmentQueue.then(async () => {
+  return withTransformersEnvironment(async () => {
     const transformers = await import("@huggingface/transformers")
     const previous = {
       localModelPath: transformers.env.localModelPath,
@@ -147,14 +166,10 @@ async function createTransformersExtractor(config: Config): Promise<Transformers
       transformers.env.allowRemoteModels = previous.allowRemoteModels
     }
   })
-  transformersEnvironmentQueue = creation.then(
-    () => undefined,
-    () => undefined,
-  )
-  return creation
 }
 
-function evictTransformersPipeline(): void {
+async function evictTransformersPipeline(): Promise<void> {
+  const evicted: TransformersExtractor[] = []
   while (transformersPipelines.size >= MAX_TRANSFORMERS_PIPELINES) {
     // Map iteration order is insertion order, so the first key is the least
     // recently used entry.
@@ -162,8 +177,33 @@ function evictTransformersPipeline(): void {
     if (oldest.done) {
       break
     }
+    const extractor = transformersPipelines.get(oldest.value)
     transformersPipelines.delete(oldest.value)
+    if (extractor) {
+      evicted.push(extractor)
+    }
   }
+  await Promise.allSettled(evicted.map((extractor) => extractor.dispose?.()))
+}
+
+function cacheTransformersPipeline(
+  key: string,
+  extractor: TransformersExtractor,
+  generation: number,
+): Promise<TransformersExtractor> {
+  return withTransformersCacheMutation(async () => {
+    if (generation !== transformersCacheGeneration) {
+      await extractor.dispose?.()
+      throw new Error("Transformers cache was cleared while the pipeline was loading.")
+    }
+    await evictTransformersPipeline()
+    if (generation !== transformersCacheGeneration) {
+      await extractor.dispose?.()
+      throw new Error("Transformers cache was cleared while the pipeline was loading.")
+    }
+    transformersPipelines.set(key, extractor)
+    return extractor
+  })
 }
 
 /**
@@ -172,7 +212,47 @@ function evictTransformersPipeline(): void {
  * weights are not pinned in memory.
  */
 export function clearTransformersCache(): void {
+  const extractors = takeTransformersCache()
+  void disposeTransformersExtractors(extractors)
+}
+
+export async function disposeTransformersCache(): Promise<void> {
+  const extractors = takeTransformersCache()
+  await disposeTransformersExtractors(extractors)
+}
+
+function takeTransformersCache(): TransformersExtractor[] {
+  transformersCacheGeneration += 1
+  const extractors = [...transformersPipelines.values()]
   transformersPipelines.clear()
+  pendingTransformersPipelines.clear()
+  return extractors
+}
+
+function disposeTransformersExtractors(extractors: TransformersExtractor[]): Promise<void> {
+  return withTransformersCacheMutation(async () => {
+    await Promise.allSettled(extractors.map((extractor) => extractor.dispose?.()))
+  })
+}
+
+function withTransformersCacheMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const queued = transformersCacheMutationQueue.then(operation)
+  transformersCacheMutationQueue = queued.then(
+    () => undefined,
+    () => undefined,
+  )
+  return queued
+}
+
+function withTransformersEnvironment<T>(operation: () => Promise<T>): Promise<T> {
+  const queued = (globalThis.__ragmirTransformersEnvironmentQueue ?? Promise.resolve()).then(
+    operation,
+  )
+  globalThis.__ragmirTransformersEnvironmentQueue = queued.then(
+    () => undefined,
+    () => undefined,
+  )
+  return queued
 }
 
 function localHashEmbedding(text: string): number[] {

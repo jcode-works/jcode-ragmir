@@ -15,6 +15,8 @@ import type {
 
 const INGESTION_STATE_VERSION = 1
 const INGESTION_STATE_FILENAME = "ingestion-state.json"
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
+const GENERATION_ID_PATTERN = /^[0-9a-f]{32}$/iu
 
 export interface IngestionFileState {
   relativePath: string
@@ -187,7 +189,7 @@ export async function readIngestionState(config: Config): Promise<IngestionRunSt
     const value = JSON.parse(
       await readFile(path.join(config.storageDir, INGESTION_STATE_FILENAME), "utf8"),
     ) as unknown
-    return isIngestionRunState(value) ? value : null
+    return isIngestionRunState(value, config) ? value : null
   } catch (error) {
     if (error instanceof SyntaxError || (isNodeError(error) && error.code === "ENOENT")) {
       return null
@@ -223,23 +225,46 @@ export function ingestionProgress(state: IngestionRunState): IngestionProgress {
   }
 }
 
-function isIngestionRunState(value: unknown): value is IngestionRunState {
+function isIngestionRunState(value: unknown, config: Config): value is IngestionRunState {
+  if (
+    !isRecord(value) ||
+    value.version !== INGESTION_STATE_VERSION ||
+    !isUuidV4(value.runId) ||
+    (value.mode !== "incremental" && value.mode !== "rebuild") ||
+    !isIngestionRunStatus(value.status) ||
+    typeof value.tableName !== "string" ||
+    (value.previousTableName !== null && typeof value.previousTableName !== "string") ||
+    typeof value.policyFingerprint !== "string" ||
+    value.policyFingerprint.length === 0 ||
+    !isPositiveSafeInteger(value.batchSize) ||
+    !isIsoTimestamp(value.createdAt) ||
+    !isIsoTimestamp(value.updatedAt) ||
+    !isIsoTimestamp(value.lastActivityAt) ||
+    typeof value.resumed !== "boolean" ||
+    !Array.isArray(value.files)
+  ) {
+    return false
+  }
+
+  const policyFingerprint = value.policyFingerprint
+  if (!value.files.every((file) => isIngestionFileState(file, policyFingerprint))) {
+    return false
+  }
+
+  const uniquePaths = new Set(value.files.map((file) => file.relativePath))
+  if (uniquePaths.size !== value.files.length || !isManagedTableName(value.tableName, config)) {
+    return false
+  }
+
+  if (value.mode === "incremental") {
+    return value.previousTableName === null
+  }
+
   return (
-    isRecord(value) &&
-    value.version === INGESTION_STATE_VERSION &&
-    typeof value.runId === "string" &&
-    (value.mode === "incremental" || value.mode === "rebuild") &&
-    isIngestionRunStatus(value.status) &&
-    typeof value.tableName === "string" &&
-    (value.previousTableName === null || typeof value.previousTableName === "string") &&
-    typeof value.policyFingerprint === "string" &&
-    typeof value.batchSize === "number" &&
-    typeof value.createdAt === "string" &&
-    typeof value.updatedAt === "string" &&
-    typeof value.lastActivityAt === "string" &&
-    typeof value.resumed === "boolean" &&
-    Array.isArray(value.files) &&
-    value.files.every(isIngestionFileState)
+    value.tableName === generationTableName(config.tableName, value.runId) &&
+    value.previousTableName !== null &&
+    value.previousTableName !== value.tableName &&
+    isManagedTableName(value.previousTableName, config)
   )
 }
 
@@ -254,24 +279,79 @@ function isIngestionRunStatus(value: unknown): value is IngestionRunStatus {
 }
 
 function stagedManifestPath(runId: string, config: Config): string {
-  return path.join(config.storageDir, `index-manifest.${runId}.staging.json`)
+  if (!isUuidV4(runId)) {
+    throw new Error("Ingestion runId must be a valid UUID v4.")
+  }
+  const storageDir = path.resolve(config.storageDir)
+  const targetPath = path.resolve(storageDir, `index-manifest.${runId}.staging.json`)
+  const relativePath = path.relative(storageDir, targetPath)
+  if (relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+    throw new Error("Staged index manifest must remain inside storageDir.")
+  }
+  return targetPath
 }
 
-function isIngestionFileState(value: unknown): value is IngestionFileState {
+function isIngestionFileState(
+  value: unknown,
+  policyFingerprint: string,
+): value is IngestionFileState {
   return (
     isRecord(value) &&
     typeof value.relativePath === "string" &&
+    value.relativePath.length > 0 &&
+    !value.relativePath.includes("\0") &&
     typeof value.checksum === "string" &&
-    typeof value.bytes === "number" &&
-    typeof value.mtimeMs === "number" &&
-    typeof value.policyFingerprint === "string" &&
+    value.checksum.length > 0 &&
+    isNonNegativeSafeInteger(value.bytes) &&
+    isNonNegativeFiniteNumber(value.mtimeMs) &&
+    value.policyFingerprint === policyFingerprint &&
     isIngestionFileStage(value.state) &&
-    typeof value.chunkCount === "number" &&
-    typeof value.redactions === "number" &&
+    isNonNegativeSafeInteger(value.chunkCount) &&
+    isNonNegativeSafeInteger(value.redactions) &&
     (value.error === null || typeof value.error === "string") &&
     typeof value.reused === "boolean" &&
-    typeof value.updatedAt === "string"
+    isIsoTimestamp(value.updatedAt) &&
+    (!value.reused || value.state === "indexed")
   )
+}
+
+export function generationTableName(baseName: string, runId: string): string {
+  if (!isUuidV4(runId)) {
+    throw new Error("Ingestion runId must be a valid UUID v4.")
+  }
+  return `${baseName}__generation_${runId.replaceAll("-", "")}`
+}
+
+function isManagedTableName(tableName: string, config: Config): boolean {
+  if (tableName === config.tableName) {
+    return true
+  }
+  const prefix = `${config.tableName}__generation_`
+  return tableName.startsWith(prefix) && GENERATION_ID_PATTERN.test(tableName.slice(prefix.length))
+}
+
+function isUuidV4(value: unknown): value is string {
+  return typeof value === "string" && UUID_V4_PATTERN.test(value)
+}
+
+function isPositiveSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+}
+
+function isIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false
+  }
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value
 }
 
 function isIngestionFileStage(value: unknown): value is IngestionFileStage {

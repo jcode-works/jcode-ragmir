@@ -125,9 +125,11 @@ When a client cannot set `cwd`, set `RAGMIR_PROJECT_ROOT` for the server process
 when available. Use CLI commands when they are not.
 
 Prefer compact search, ask, or research output first. Call `ragmir_expand` with a returned citation
-only when the exact chunk or neighboring context is needed. Retrieval tools accept `maxBytes`, but
-the configured `mcpMaxOutputBytes` remains the hard ceiling. Inspect `_meta["ragmir/output"]` to see
-whether the response was compacted or truncated.
+only when the exact chunk or neighboring context is needed. Search, ask, research, expansion, audit,
+and evaluation accept `maxBytes`. Variable-size tool and resource JSON is bounded by the configured
+`mcpMaxOutputBytes` and an absolute 1 MiB server ceiling. Inspect `_meta["ragmir/output"]` to see
+whether the response was compacted or truncated. Pass `ragmir_evaluate` an existing
+project-relative golden file; absolute paths and paths outside the base are rejected.
 
 When MCP resources are supported, read `ragmir://context` first for a bounded identity, readiness,
 freshness, coverage, and capability overview. Read `ragmir://sources` only when source coverage or
