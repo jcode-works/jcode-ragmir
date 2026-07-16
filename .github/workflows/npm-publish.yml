@@ -23,8 +23,6 @@ jobs:
     environment:
       name: npm-publish
       url: https://www.npmjs.com/package/@jcode.labs/ragmir
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Verify main branch
         run: test "${GITHUB_REF}" = "refs/heads/main"
@@ -62,9 +60,3 @@ jobs:
         with:
           name: ragmir-release-${{ github.sha }}
           path: release-artifacts/
-
-      - name: Resolve released version
-        id: version
-        run: |
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"

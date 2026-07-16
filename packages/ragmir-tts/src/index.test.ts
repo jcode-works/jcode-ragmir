@@ -1,15 +1,28 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   doctor,
   type EdgeTtsRenderer,
   edgeVoiceForLanguage,
   mmsModelForLanguage,
+  modelCacheExists,
   renderSpeech,
   type TextToAudioSynthesizer,
 } from "./index.js"
+
+const transformersMock = vi.hoisted(() => ({
+  env: {
+    localModelPath: "initial-local-path",
+    cacheDir: "initial-cache-dir",
+    allowRemoteModels: false,
+  },
+  pipeline: vi.fn(),
+}))
+
+vi.mock("@huggingface/transformers", () => transformersMock)
 
 const silentSynthesizer: TextToAudioSynthesizer = async () => ({
   save: async (target) => {
@@ -19,7 +32,25 @@ const silentSynthesizer: TextToAudioSynthesizer = async () => ({
 
 const tempDirs: string[] = []
 
+async function installEdgeTtsStub(root: string, source: string): Promise<void> {
+  const binDir = path.join(root, "bin")
+  const executablePath = path.join(binDir, "edge-tts")
+  await mkdir(binDir, { recursive: true })
+  await writeFile(executablePath, `#!/usr/bin/env node\n${source}`, "utf8")
+  await chmod(executablePath, 0o755)
+  vi.stubEnv("PATH", `${binDir}${path.delimiter}${process.env.PATH ?? ""}`)
+}
+
+beforeEach(() => {
+  transformersMock.env.localModelPath = "initial-local-path"
+  transformersMock.env.cacheDir = "initial-cache-dir"
+  transformersMock.env.allowRemoteModels = false
+  transformersMock.pipeline.mockReset()
+  transformersMock.pipeline.mockResolvedValue(silentSynthesizer)
+})
+
 afterEach(async () => {
+  vi.unstubAllEnvs()
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true })
   }
@@ -82,6 +113,7 @@ describe("renderSpeech", () => {
     const edgeRenderer: EdgeTtsRenderer = async (options) => {
       expect(options.voice).toBe("fr-FR-DeniseNeural")
       expect(options.rate).toBe("+0%")
+      expect(options.timeoutMs).toBe(120_000)
       await writeFile(options.outputPath, "ID3 fake mp3", "utf8")
     }
 
@@ -99,6 +131,75 @@ describe("renderSpeech", () => {
     expect(result.voice).toBe("fr-FR-DeniseNeural")
     expect(result.rate).toBe("+0%")
     expect(await readFile(outputPath, "utf8")).toBe("ID3 fake mp3")
+  })
+
+  it("should forward cancellation and a bounded timeout to the Edge renderer", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-edge-controls-"))
+    tempDirs.push(root)
+    const controller = new AbortController()
+    const edgeRenderer = vi.fn<EdgeTtsRenderer>(async (options) => {
+      expect(options.signal).toBe(controller.signal)
+      expect(options.timeoutMs).toBe(5_000)
+      await writeFile(options.outputPath, "ID3 controlled", "utf8")
+    })
+
+    await renderSpeech({
+      cwd: root,
+      text: "Bounded Edge synthesis.",
+      outputPath: ".ragmir/audio/controlled.mp3",
+      engine: "edge",
+      edgeRenderer,
+      edgeTimeoutMs: 5_000,
+      signal: controller.signal,
+    })
+
+    expect(edgeRenderer).toHaveBeenCalledOnce()
+  })
+
+  it("should reject an aborted render before invoking an engine", async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const edgeRenderer = vi.fn<EdgeTtsRenderer>()
+
+    await expect(
+      renderSpeech({
+        text: "Private input.",
+        engine: "edge",
+        edgeRenderer,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("Speech rendering was aborted.")
+    expect(edgeRenderer).not.toHaveBeenCalled()
+  })
+
+  it("should reject when rendering is aborted during an output save", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-save-abort-"))
+    tempDirs.push(root)
+    const controller = new AbortController()
+    let notifySaveStarted: (() => void) | undefined
+    let finishSave: (() => void) | undefined
+    const saveStarted = new Promise<void>((resolve) => {
+      notifySaveStarted = resolve
+    })
+    const synthesizer: TextToAudioSynthesizer = async () => ({
+      save: () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve
+          notifySaveStarted?.()
+        }),
+    })
+    const rendering = renderSpeech({
+      cwd: root,
+      text: "Cancellable local synthesis.",
+      synthesizer,
+      signal: controller.signal,
+    })
+    await saveStarted
+
+    controller.abort()
+    finishSave?.()
+
+    await expect(rendering).rejects.toThrow("Speech rendering was aborted.")
   })
 
   it("defaults to French and its self-contained model on the offline path", async () => {
@@ -232,6 +333,250 @@ describe("renderSpeech", () => {
         edgeRenderer: async () => {},
       }),
     ).rejects.toThrow("The mp3 engine cannot write wav output")
+  })
+
+  it("should reject empty text before initializing a renderer", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-empty-"))
+    tempDirs.push(root)
+
+    await expect(
+      renderSpeech({ cwd: root, text: "  \n\t", synthesizer: silentSynthesizer }),
+    ).rejects.toThrow("A non-empty text input or text file is required")
+  })
+
+  it("should choose Edge automatically for an mp3 output path", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-auto-edge-"))
+    tempDirs.push(root)
+    const outputPath = path.join(root, "summary.mp3")
+    const edgeRenderer: EdgeTtsRenderer = async ({ outputPath: target }) => {
+      await writeFile(target, "ID3 auto edge", "utf8")
+    }
+
+    const result = await renderSpeech({
+      cwd: root,
+      text: "Bonjour depuis le moteur automatique.",
+      outputPath,
+      engine: "auto",
+      edgeRenderer,
+    })
+
+    expect(result.engine).toBe("edge")
+    expect(await readFile(outputPath, "utf8")).toBe("ID3 auto edge")
+  })
+
+  it("should reject Edge rendering when edge-tts is unavailable", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-missing-edge-"))
+    tempDirs.push(root)
+
+    await expect(
+      renderSpeech({
+        cwd: root,
+        text: "Bonjour.",
+        engine: "edge",
+        outputPath: path.join(root, "summary.mp3"),
+        edgeAvailable: () => false,
+      }),
+    ).rejects.toThrow("edge-tts is required")
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "should render through the Edge CLI with a private temporary input file",
+    async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-edge-cli-"))
+      tempDirs.push(root)
+      await installEdgeTtsStub(
+        root,
+        [
+          'const fs = require("node:fs")',
+          "const args = process.argv.slice(2)",
+          'const inputPath = args[args.indexOf("--file") + 1]',
+          'const outputPath = args[args.indexOf("--write-media") + 1]',
+          'fs.writeFileSync(outputPath, "ID3 " + fs.readFileSync(inputPath, "utf8"))',
+        ].join("\n"),
+      )
+      const outputPath = path.join(root, "summary.mp3")
+
+      const result = await renderSpeech({
+        cwd: root,
+        text: "Private Edge input.",
+        outputPath,
+        engine: "edge",
+        edgeAvailable: () => true,
+      })
+
+      expect(result.engine).toBe("edge")
+      expect(await readFile(outputPath, "utf8")).toBe("ID3 Private Edge input.")
+    },
+  )
+
+  it.skipIf(process.platform === "win32")(
+    "should terminate the Edge CLI when its timeout expires",
+    async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-edge-timeout-"))
+      tempDirs.push(root)
+      await installEdgeTtsStub(root, "setInterval(() => {}, 1_000)\n")
+
+      await expect(
+        renderSpeech({
+          cwd: root,
+          text: "Bounded Edge input.",
+          outputPath: path.join(root, "summary.mp3"),
+          engine: "edge",
+          edgeAvailable: () => true,
+          edgeTimeoutMs: 25,
+        }),
+      ).rejects.toThrow("edge-tts timed out after 25 ms.")
+    },
+  )
+
+  it.skipIf(process.platform === "win32")(
+    "should terminate the Edge CLI when rendering is aborted",
+    async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-edge-abort-"))
+      tempDirs.push(root)
+      await installEdgeTtsStub(
+        root,
+        [
+          'const fs = require("node:fs")',
+          "const args = process.argv.slice(2)",
+          'const outputPath = args[args.indexOf("--write-media") + 1]',
+          'fs.writeFileSync(outputPath + ".ready", "ready")',
+          "setInterval(() => {}, 1_000)",
+        ].join("\n"),
+      )
+      const outputPath = path.join(root, "summary.mp3")
+      const controller = new AbortController()
+      const rendering = renderSpeech({
+        cwd: root,
+        text: "Cancellable Edge input.",
+        outputPath,
+        engine: "edge",
+        edgeAvailable: () => true,
+        signal: controller.signal,
+      })
+      await vi.waitFor(() => expect(existsSync(`${outputPath}.ready`)).toBe(true))
+
+      controller.abort()
+
+      await expect(rendering).rejects.toThrow("edge-tts was aborted.")
+    },
+  )
+
+  it("should pass speaker and speed options to the Transformers synthesizer", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-options-"))
+    tempDirs.push(root)
+    let receivedOptions: Parameters<TextToAudioSynthesizer>[1]
+    const synthesizer: TextToAudioSynthesizer = async (_text, options) => {
+      receivedOptions = options
+      return silentSynthesizer("")
+    }
+
+    await renderSpeech({
+      cwd: root,
+      text: "Bonjour.",
+      synthesizer,
+      speakerEmbeddings: "speaker.bin",
+      speed: 1.2,
+    })
+
+    expect(receivedOptions).toEqual({ speaker_embeddings: "speaker.bin", speed: 1.2 })
+  })
+
+  it("should restore the Transformers environment after pipeline creation", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-transformers-env-"))
+    tempDirs.push(root)
+    const modelPath = path.join(root, "models")
+    let environmentDuringCreation: typeof transformersMock.env | undefined
+    const dispose = vi.fn(async () => undefined)
+    transformersMock.pipeline.mockImplementation(async () => {
+      environmentDuringCreation = { ...transformersMock.env }
+      return Object.assign(silentSynthesizer, { dispose })
+    })
+
+    await renderSpeech({
+      cwd: root,
+      text: "Bonjour.",
+      engine: "transformers",
+      outputPath: path.join(root, "summary.wav"),
+      modelPath,
+      allowRemoteModels: true,
+    })
+
+    expect(environmentDuringCreation).toEqual({
+      localModelPath: modelPath,
+      cacheDir: modelPath,
+      allowRemoteModels: true,
+    })
+    expect(transformersMock.env).toEqual({
+      localModelPath: "initial-local-path",
+      cacheDir: "initial-cache-dir",
+      allowRemoteModels: false,
+    })
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it("should dispose a loaded Transformers pipeline when cancellation wins during setup", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-transformers-cancel-"))
+    tempDirs.push(root)
+    const controller = new AbortController()
+    const synthesize = vi.fn(silentSynthesizer)
+    const dispose = vi.fn(async () => undefined)
+    let finishLoading:
+      | ((value: TextToAudioSynthesizer & { dispose: () => Promise<void> }) => void)
+      | undefined
+    transformersMock.pipeline.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishLoading = resolve
+        }),
+    )
+
+    const rendering = renderSpeech({
+      cwd: root,
+      text: "Bonjour.",
+      engine: "transformers",
+      outputPath: path.join(root, "summary.wav"),
+      signal: controller.signal,
+    })
+    await vi.waitFor(() => expect(finishLoading).toBeTypeOf("function"))
+    controller.abort()
+    finishLoading?.(Object.assign(synthesize, { dispose }))
+
+    await expect(rendering).rejects.toThrow("Speech rendering was aborted.")
+    expect(synthesize).not.toHaveBeenCalled()
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it("should use valid language and Edge options from the environment", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-env-"))
+    tempDirs.push(root)
+    vi.stubEnv("RAGMIR_TTS_LANG", "JA")
+    vi.stubEnv("RAGMIR_TTS_EDGE_VOICE", "ja-JP-KeitaNeural")
+    vi.stubEnv("RAGMIR_TTS_EDGE_RATE", "+15%")
+    let rendererOptions: Parameters<EdgeTtsRenderer>[0] | undefined
+
+    const result = await renderSpeech({
+      cwd: root,
+      text: "こんにちは。",
+      engine: "edge",
+      outputPath: path.join(root, "summary.mp3"),
+      edgeRenderer: async (options) => {
+        rendererOptions = options
+        await writeFile(options.outputPath, "ID3 env", "utf8")
+      },
+    })
+
+    expect(result.language).toBe("ja")
+    expect(rendererOptions).toMatchObject({ voice: "ja-JP-KeitaNeural", rate: "+15%" })
+  })
+
+  it("should report whether the configured local model cache exists", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-tts-cache-"))
+    tempDirs.push(root)
+
+    expect(modelCacheExists(root)).toBe(false)
+    await mkdir(path.join(root, ".ragmir/models/tts"), { recursive: true })
+    expect(modelCacheExists(root)).toBe(true)
   })
 })
 

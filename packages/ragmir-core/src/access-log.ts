@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import { appendFile, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { loadConfig } from "./config.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import type {
   AccessLogAction,
@@ -69,6 +70,7 @@ const MCP_OUTPUT_TOOLS: McpOutputTool[] = [
 ]
 const MCP_OUTPUT_TOOL_SET = new Set<string>(MCP_OUTPUT_TOOLS)
 const DEFAULT_USAGE_REPORT_DAYS = 7
+export const MAX_USAGE_REPORT_DAYS = 3_650
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
 /**
  * Soft cap above which the access log is trimmed to its most recent lines.
@@ -79,6 +81,7 @@ const MAX_ACCESS_LOG_BYTES = 10 * 1024 * 1024
 /** Number of most recent lines retained when the log exceeds the byte cap. */
 const TRIMMED_ACCESS_LOG_LINES = 50_000
 const ACCESS_LOG_SALT_FILE = ".ragmir-access-log.salt"
+const accessLogWriteQueues = new Map<string, Promise<void>>()
 
 export async function recordAccess(config: Config, event: AccessLogEvent): Promise<void> {
   if (!config.accessLog) {
@@ -86,13 +89,19 @@ export async function recordAccess(config: Config, event: AccessLogEvent): Promi
   }
 
   try {
-    await ensurePrivateDirectory(path.dirname(config.accessLogPath))
-    await trimAccessLogIfNeeded(config.accessLogPath)
-    await appendFile(config.accessLogPath, `${JSON.stringify(await toLogLine(config, event))}\n`, {
-      encoding: "utf8",
-      mode: 0o600,
+    await withAccessLogWriteQueue(config.accessLogPath, async () => {
+      await ensurePrivateDirectory(path.dirname(config.accessLogPath))
+      await trimAccessLogIfNeeded(config.accessLogPath)
+      await appendFile(
+        config.accessLogPath,
+        `${JSON.stringify(await toLogLine(config, event))}\n`,
+        {
+          encoding: "utf8",
+          mode: 0o600,
+        },
+      )
+      await hardenPrivateFile(config.accessLogPath)
     })
-    await hardenPrivateFile(config.accessLogPath)
   } catch {
     // Access logging is best-effort so read-only workspaces do not block local use.
   }
@@ -104,25 +113,46 @@ export async function recordMcpOutput(config: Config, event: McpOutputLogEvent):
   }
 
   try {
-    await ensurePrivateDirectory(path.dirname(config.accessLogPath))
-    await trimAccessLogIfNeeded(config.accessLogPath)
-    const line: McpOutputLogLine = {
-      timestamp: new Date().toISOString(),
-      kind: "mcp-output",
-      tool: event.tool,
-      retrievedBytes: event.retrievedBytes,
-      returnedBytes: event.returnedBytes,
-      compacted: event.compacted,
-      truncated: event.truncated,
-    }
-    await appendFile(config.accessLogPath, `${JSON.stringify(line)}\n`, {
-      encoding: "utf8",
-      mode: 0o600,
+    await withAccessLogWriteQueue(config.accessLogPath, async () => {
+      await ensurePrivateDirectory(path.dirname(config.accessLogPath))
+      await trimAccessLogIfNeeded(config.accessLogPath)
+      const line: McpOutputLogLine = {
+        timestamp: new Date().toISOString(),
+        kind: "mcp-output",
+        tool: event.tool,
+        retrievedBytes: event.retrievedBytes,
+        returnedBytes: event.returnedBytes,
+        compacted: event.compacted,
+        truncated: event.truncated,
+      }
+      await appendFile(config.accessLogPath, `${JSON.stringify(line)}\n`, {
+        encoding: "utf8",
+        mode: 0o600,
+      })
+      await hardenPrivateFile(config.accessLogPath)
     })
-    await hardenPrivateFile(config.accessLogPath)
   } catch {
     // Output metrics are best-effort and must never block local retrieval.
   }
+}
+
+function withAccessLogWriteQueue(
+  accessLogPath: string,
+  operation: () => Promise<void>,
+): Promise<void> {
+  const previous = accessLogWriteQueues.get(accessLogPath) ?? Promise.resolve()
+  const current = previous.then(operation)
+  const settled = current.then(
+    () => undefined,
+    () => undefined,
+  )
+  accessLogWriteQueues.set(accessLogPath, settled)
+  void settled.then(() => {
+    if (accessLogWriteQueues.get(accessLogPath) === settled) {
+      accessLogWriteQueues.delete(accessLogPath)
+    }
+  })
+  return current
 }
 
 async function trimAccessLogIfNeeded(accessLogPath: string): Promise<void> {
@@ -153,7 +183,10 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
 export async function accessLogUsageReport(
   options: AccessLogUsageOptions = {},
 ): Promise<AccessLogUsageReport> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  throwIfAborted(signal)
   const days = normalizeUsageReportDays(options.days)
   const until = new Date()
   const since = new Date(until.getTime() - days * MILLISECONDS_PER_DAY)
@@ -172,8 +205,17 @@ export async function accessLogUsageReport(
   let lastEventAt: string | null = null
 
   if (existsSync(config.accessLogPath)) {
-    const lines = (await readFile(config.accessLogPath, "utf8")).split(/\r?\n/u).filter(Boolean)
+    let content: string
+    try {
+      content = await readFile(config.accessLogPath, { encoding: "utf8", signal })
+    } catch (error) {
+      throwIfAborted(signal)
+      throw error
+    }
+    throwIfAborted(signal)
+    const lines = content.split(/\r?\n/u).filter(Boolean)
     for (const line of lines) {
+      throwIfAborted(signal)
       const event = parseAccessLogLine(line)
       if (!event) {
         invalidLines += 1
@@ -215,6 +257,7 @@ export async function accessLogUsageReport(
     }
   }
 
+  throwIfAborted(signal)
   return {
     accessLogEnabled: config.accessLog,
     since: since.toISOString(),
@@ -320,8 +363,8 @@ function normalizeUsageReportDays(days: number | undefined): number {
   if (days === undefined) {
     return DEFAULT_USAGE_REPORT_DAYS
   }
-  if (!Number.isInteger(days) || days <= 0) {
-    throw new Error("usage-report days must be a positive integer.")
+  if (!Number.isSafeInteger(days) || days <= 0 || days > MAX_USAGE_REPORT_DAYS) {
+    throw new Error(`usage-report days must be an integer between 1 and ${MAX_USAGE_REPORT_DAYS}.`)
   }
   return days
 }

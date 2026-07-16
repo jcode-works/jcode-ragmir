@@ -4,6 +4,7 @@ import {
   budgetMcpJson,
   fitAskPayload,
   fitExpandedCitation,
+  fitMcpJsonOutput,
   fitResearchPayload,
   fitSearchPayload,
   resolveMcpOutputBudget,
@@ -143,6 +144,30 @@ describe("MCP output budgeting", () => {
       passages: [],
     })
     expect(bounded.metadata.truncated).toBe(true)
+  })
+
+  it("should preserve generic report shape while bounding nested arrays and strings", () => {
+    const report = {
+      goldenPath: "evaluation/golden.json",
+      total: 40,
+      cases: Array.from({ length: 40 }, (_value, index) => ({
+        id: `case-${index}`,
+        query: "évidence ".repeat(100),
+        expectedPaths: [`.ragmir/raw/source-${index}.md`],
+      })),
+    }
+
+    const bounded = fitMcpJsonOutput(report, 1_024, "ragmir_evaluate")
+    const payload = JSON.parse(bounded.text)
+
+    expect(Buffer.byteLength(bounded.text, "utf8")).toBeLessThanOrEqual(1_024)
+    expect(payload.goldenPath).toBe("evaluation/golden.json")
+    expect(payload.total).toBe(40)
+    expect(bounded.metadata).toMatchObject({
+      source: "ragmir_evaluate",
+      compacted: true,
+      truncated: true,
+    })
   })
 })
 

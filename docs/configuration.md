@@ -21,7 +21,7 @@ edit JSON only for a real need.
 | `retrievalProfile` | `balanced` | Use `fast`, `quality`, or `custom` for different search budgets. |
 | `embeddingProvider` | `local-hash` | Set `transformers` only after an explicit preload. |
 | `topK` | `8` | Change the default number of returned passages. |
-| `mcpMaxOutputBytes` | `32768` | Cap each retrieval tool's serialized MCP text output. |
+| `mcpMaxOutputBytes` | `32768` | Cap variable-size MCP tool and resource JSON; the server also enforces an absolute 1 MiB ceiling. |
 | `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. |
 | `maxFileBytes` | `50000000` | Raise only when the target corpus justifies it. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
@@ -32,7 +32,8 @@ Rebuild indexes created by an older Ragmir version to populate that structural c
 
 ## Privacy profiles
 
-- `private` keeps remote model loading disabled and built-in redaction enabled.
+- `private` defaults remote model loading to disabled and keeps built-in redaction enabled; remote
+  Transformers loading still requires an explicit opt-in.
 - `strict` also bounds MCP output and disables every external extractor.
 - `trusted` and `custom` are for operators who explicitly accept different local controls.
 
@@ -65,7 +66,7 @@ Use `RAGMIR_*` variables for local experiments, for example:
 
 ```bash
 RAGMIR_TOP_K=5 rgr search "migration"
-RAGMIR_MCP_MAX_OUTPUT_BYTES=16384 rgr mcp
+RAGMIR_MCP_MAX_OUTPUT_BYTES=16384 rgr serve-mcp
 ```
 
 Environment overrides cover selected runtime settings such as models, retrieval limits, access logs,
@@ -75,3 +76,11 @@ For a long-running process that hosts more than one isolated project workflow, c
 `RagmirClient` per project root and keep process-wide environment overrides stable after startup.
 Close every client during shutdown. If several OS processes can ingest the same storage directory,
 the host must coordinate a single writer.
+
+## Parser safety limits
+
+Run `rgr limits` to inspect the fixed parser ceilings. Office archives, including DOCX and XLSX,
+allow at most 512 text entries, 25 MB per entry, and 50 MB of expanded text in total. PDF extraction
+is capped at 1,000 pages and 25 million text characters. Combined stdout and stderr from a local
+external extractor are capped at 25 MB. Files above `maxFileBytes` are skipped and reported instead
+of being partially indexed.

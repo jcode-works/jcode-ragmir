@@ -9,7 +9,7 @@ interface Props {
 
 const { translations, localizedHomeUrl } = Astro.props
 const t = (key: string): string => translations[key] ?? key
-const version = import.meta.env.PUBLIC_RAGMIR_VERSION
+const version = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
 
 const footerLinks = [
   { href: "https://github.com/jcode-works/jcode-ragmir", label: t("nav_github") },
@@ -73,15 +73,17 @@ const marqueeCopy =
       class="relative z-10 mx-auto flex max-w-3xl flex-col items-center justify-center gap-3 px-5 text-center text-foreground/90 text-xs leading-5 md:px-8"
     >
       <p>{t("footer_text")}</p>
-      <a
-        href="https://www.npmjs.com/package/@jcode.labs/ragmir"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`${t("footer_version_label")}: v${version}`}
-        class="font-semibold text-foreground no-underline transition hover:opacity-80"
-      >
-        v{version}
-      </a>
+      {version && (
+        <a
+          href="https://www.npmjs.com/package/@jcode.labs/ragmir"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${t("footer_version_label")}: v${version}`}
+          class="font-semibold text-foreground no-underline transition hover:opacity-80"
+        >
+          v{version}
+        </a>
+      )}
     </div>
   </div>
 </footer>

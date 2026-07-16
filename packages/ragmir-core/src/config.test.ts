@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { findProjectRoot, loadConfig } from "./config.js"
 
 const tempDirs: string[] = []
@@ -326,6 +326,38 @@ describe("loadConfig", () => {
       } else {
         process.env.RAGMIR_MCP_MAX_TOP_K = original
       }
+    }
+  })
+
+  it("should reject partial and unsafe integer environment overrides without library output", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-integer-env-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "config.json"), "{}\n", "utf8")
+
+    const originalTopK = process.env.RAGMIR_TOP_K
+    const originalOverlap = process.env.RAGMIR_CHUNK_OVERLAP
+    const originalProvider = process.env.RAGMIR_EMBEDDING_PROVIDER
+    process.env.RAGMIR_CHUNK_OVERLAP = "1.5"
+    process.env.RAGMIR_EMBEDDING_PROVIDER = "remote"
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    try {
+      for (const topK of ["3junk", "1.5", "9007199254740992"]) {
+        process.env.RAGMIR_TOP_K = topK
+        const config = await loadConfig(root)
+        expect(config.topK).toBe(8)
+        expect(config.chunkOverlap).toBe(200)
+        expect(config.embeddingProvider).toBe("local-hash")
+      }
+      expect(warn).not.toHaveBeenCalled()
+      expect(error).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+      error.mockRestore()
+      restoreEnv("RAGMIR_TOP_K", originalTopK)
+      restoreEnv("RAGMIR_CHUNK_OVERLAP", originalOverlap)
+      restoreEnv("RAGMIR_EMBEDDING_PROVIDER", originalProvider)
     }
   })
 

@@ -16,7 +16,7 @@ Use the [issue templates](https://github.com/jcode-works/jcode-ragmir/issues/new
   Confirm the feature stays compatible with Ragmir's local-first, zero-telemetry posture.
 
 Before opening a new issue, search [existing issues](https://github.com/jcode-works/jcode-ragmir/issues)
-to avoid duplicates. Security vulnerabilities must not be reported through public issues — follow
+to avoid duplicates. Security vulnerabilities must not be reported through public issues. Follow
 [`SECURITY.md`](./SECURITY.md).
 
 ## Development
@@ -26,19 +26,26 @@ version CI uses. Install mise, then run the single onboarding command:
 
 ```bash
 pnpm bootstrap
-pnpm validate
 ```
 
-`pnpm bootstrap` runs `mise install && pnpm install`. Without mise, any Node.js 20+ and pnpm install
-works too — just run `pnpm install` directly.
+`pnpm bootstrap` runs `mise install && pnpm install`. Without mise, install the Node.js 22 release
+pinned in `mise.toml` and pnpm, then run `pnpm install` directly. Published packages retain their
+documented Node.js 20 runtime support; the repository toolchain itself requires Node.js 22.
 
 Activate mise in your shell (`mise activate`, per the
 [mise docs](https://mise.jdx.dev/getting-started.html)) so that entering this repository puts the
 pinned Node on your `PATH` automatically. Then `pnpm dev:landing` and `pnpm example` run on the
 same toolchain as CI without per-script wiring.
 
-`pnpm validate` runs Biome, a dependency security audit, TypeScript, Vitest, the production CLI/MCP
-smoke test, and npm package metadata checks.
+Before opening a pull request, run:
+
+```bash
+pnpm validate
+```
+
+`pnpm validate` runs Biome, a dependency security audit, TypeScript checks, coverage-gated Vitest,
+production CLI and MCP smoke tests, the static landing build, public API checks, and npm package and
+release-artifact checks.
 
 To smoke-test the library API against your local build while developing Ragmir Core, run
 `pnpm example` (see
@@ -54,8 +61,8 @@ pnpm audit:security
 
 - Branch from `develop` for normal feature work, using `feature/<short-name>`.
 - Open feature pull requests against `develop`.
-- Use `release/<version-or-topic>` branches from `develop` when preparing a production release, then
-  open the release pull request against `main`.
+- Maintainers prepare `release/<version-or-topic>` from `main`, apply the validated `develop` tree,
+  and open the release pull request against `main`.
 - Use `hotfix/<short-name>` branches from `main` for urgent production fixes, then back-merge the fix
   into `develop`.
 - Keep changes focused and include tests or smoke coverage for behavior changes.
@@ -63,8 +70,9 @@ pnpm audit:security
   files, tokens, credentials, or interview notes.
 - Use conventional commit messages such as `feat: add source parser` or
   `fix: handle empty index`.
-- Non-release branches run CI only. npm publishing is restricted to the protected semantic-release
-  workflow from `main`; versions are derived from Conventional Commits, not manual package bumps.
+- Non-release branches run CI only. npm publishing of Core, Chat, and TTS is restricted to the
+  protected semantic-release workflow from `main`; versions come from Conventional Commits, not
+  manual package bumps.
 
 ## Security
 

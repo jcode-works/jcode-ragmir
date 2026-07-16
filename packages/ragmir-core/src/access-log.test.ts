@@ -2,7 +2,12 @@ import { appendFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/prom
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { accessLogUsageReport, recordAccess, recordMcpOutput } from "./access-log.js"
+import {
+  accessLogUsageReport,
+  MAX_USAGE_REPORT_DAYS,
+  recordAccess,
+  recordMcpOutput,
+} from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { initProject } from "./init.js"
 
@@ -15,6 +20,15 @@ afterEach(async () => {
 })
 
 describe("accessLogUsageReport", () => {
+  it("should stop before reading the access log when the signal is already aborted", async () => {
+    const controller = new AbortController()
+    controller.abort("cancelled by caller")
+
+    await expect(
+      accessLogUsageReport({ cwd: process.cwd(), signal: controller.signal }),
+    ).rejects.toMatchObject({ code: "ABORTED", retryable: true })
+  })
+
   it("summarizes metadata-only usage without exposing raw queries", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-log-"))
     tempDirs.push(root)
@@ -49,14 +63,19 @@ describe("accessLogUsageReport", () => {
     expect(serializedReport).not.toContain(config.accessLogPath)
   })
 
-  it("rejects invalid usage windows", async () => {
+  it("should reject usage windows when outside the supported range", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-log-"))
     tempDirs.push(root)
     await initProject(root)
 
-    await expect(accessLogUsageReport({ cwd: root, days: 0 })).rejects.toThrow(
-      "usage-report days must be a positive integer.",
-    )
+    await expect(
+      accessLogUsageReport({ cwd: root, days: MAX_USAGE_REPORT_DAYS }),
+    ).resolves.toMatchObject({ accessLogEnabled: true })
+    for (const days of [0, MAX_USAGE_REPORT_DAYS + 1, Number.NaN]) {
+      await expect(accessLogUsageReport({ cwd: root, days })).rejects.toThrow(
+        `usage-report days must be an integer between 1 and ${MAX_USAGE_REPORT_DAYS}.`,
+      )
+    }
   })
 
   it("separates query result averages from ingestion chunk counts", async () => {
@@ -166,6 +185,44 @@ describe("recordAccess retention", () => {
     const sizeAfter = (await stat(config.accessLogPath)).size
     expect(sizeAfter).toBeLessThan(sizeBefore)
     expect(sizeAfter).toBeLessThan(10 * 1024 * 1024)
+  })
+
+  it("should preserve concurrent events when retention and appends overlap", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-log-concurrent-trim-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const config = await loadConfig(root)
+    const fillerLine = '{"action":"ingest","timestamp":"2024-01-01T00:00:00.000Z"}'
+    const fillerCount = Math.ceil((11 * 1024 * 1024) / (fillerLine.length + 1))
+    await writeFile(
+      config.accessLogPath,
+      `${Array(fillerCount).fill(fillerLine).join("\n")}\n`,
+      "utf8",
+    )
+
+    await Promise.all([
+      ...Array.from({ length: 4 }, (_value, index) =>
+        recordAccess(config, {
+          action: "search",
+          query: `concurrent query ${index}`,
+          resultCount: 1,
+        }),
+      ),
+      ...Array.from({ length: 4 }, () =>
+        recordMcpOutput(config, {
+          tool: "ragmir_search",
+          retrievedBytes: 2,
+          returnedBytes: 1,
+          compacted: true,
+          truncated: false,
+        }),
+      ),
+    ])
+
+    const report = await accessLogUsageReport({ cwd: root, days: 7 })
+    expect(report.totalEvents).toBe(8)
+    expect(report.uniqueQueryHashes).toBe(4)
+    expect(report.mcpOutput.responses).toBe(4)
   })
 
   it("salts query hashes per project and hardens local files", async () => {

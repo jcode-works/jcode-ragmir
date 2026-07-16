@@ -1,8 +1,10 @@
-import { readFile } from "node:fs/promises"
+import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
 import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
+import { RagmirError } from "./errors.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
 import { search } from "./query.js"
 import type {
   EvaluationCaseResult,
@@ -11,12 +13,24 @@ import type {
   GoldenQuery,
 } from "./types.js"
 
+export const MAX_GOLDEN_FILE_BYTES = 1_048_576
+export const MAX_GOLDEN_CASES = 100
+export const MAX_GOLDEN_QUERY_CHARACTERS = 20_000
+export const MAX_GOLDEN_EXPECTED_VALUES = 100
+export const MAX_GOLDEN_EXPECTED_VALUE_CHARACTERS = 500
+
+const expectedValueSchema = z.string().min(1).max(MAX_GOLDEN_EXPECTED_VALUE_CHARACTERS)
+
 const goldenQuerySchema = z
   .object({
     id: z.string().min(1).optional(),
-    query: z.string().min(1),
-    expectedPaths: z.array(z.string().min(1)).min(1),
-    expectedCitations: z.array(z.string().min(1)).min(1).optional(),
+    query: z.string().min(1).max(MAX_GOLDEN_QUERY_CHARACTERS),
+    expectedPaths: z.array(expectedValueSchema).min(1).max(MAX_GOLDEN_EXPECTED_VALUES),
+    expectedCitations: z
+      .array(expectedValueSchema)
+      .min(1)
+      .max(MAX_GOLDEN_EXPECTED_VALUES)
+      .optional(),
     includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     contextPaths: z.array(z.string().min(1).max(500)).max(20).optional(),
@@ -25,33 +39,40 @@ const goldenQuerySchema = z
   .strict()
 
 const goldenFileSchema = z.union([
-  z.array(goldenQuerySchema).min(1),
+  z.array(goldenQuerySchema).min(1).max(MAX_GOLDEN_CASES),
   z
     .object({
       topK: z.number().int().positive().optional(),
-      queries: z.array(goldenQuerySchema).min(1),
+      queries: z.array(goldenQuerySchema).min(1).max(MAX_GOLDEN_CASES),
     })
     .strict(),
 ])
 
 export async function evaluateGoldenQueries(options: EvaluationOptions): Promise<EvaluationResult> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const cwd = path.resolve(String(options.cwd ?? process.cwd()))
   const config = await loadConfig(cwd)
+  throwIfAborted(signal)
   const goldenPath = path.resolve(cwd, String(options.goldenPath))
-  const goldenFile = await readGoldenFile(goldenPath)
+  const goldenFile = await readGoldenFile(goldenPath, signal)
+  throwIfAborted(signal)
   const defaultTopK = boundedTopK(options.topK ?? goldenFile.topK ?? 3, options.maxTopK)
   const cases: EvaluationCaseResult[] = []
 
   for (const goldenQuery of goldenFile.queries) {
+    throwIfAborted(signal)
     const topK = boundedTopK(goldenQuery.topK ?? defaultTopK, options.maxTopK)
     const startedAt = performance.now()
     const results = await search(goldenQuery.query, {
       cwd,
       topK,
+      ...(signal === undefined ? {} : { signal }),
       ...(goldenQuery.includePaths === undefined ? {} : { includePaths: goldenQuery.includePaths }),
       ...(goldenQuery.excludePaths === undefined ? {} : { excludePaths: goldenQuery.excludePaths }),
       ...(goldenQuery.contextPaths === undefined ? {} : { contextPaths: goldenQuery.contextPaths }),
     })
+    throwIfAborted(signal)
     const latencyMs = performance.now() - startedAt
     const returnedPaths = results.map((result) => result.relativePath)
     const returnedCitations = results.map(citationForResult)
@@ -113,11 +134,13 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
 
   const hits = cases.filter((result) => result.hit).length
   const latencies = cases.map((result) => result.latencyMs).sort((a, b) => a - b)
+  throwIfAborted(signal)
   await recordAccess(config, {
     action: "evaluate",
     topK: defaultTopK,
     resultCount: cases.length,
   })
+  throwIfAborted(signal)
   return {
     goldenPath,
     embeddingProvider: config.embeddingProvider,
@@ -139,8 +162,31 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
 
 async function readGoldenFile(
   goldenPath: string,
+  signal: AbortSignal | undefined,
 ): Promise<{ topK?: number; queries: GoldenQuery[] }> {
-  const raw = await readFile(goldenPath, "utf8")
+  let size: number
+  try {
+    size = (await stat(goldenPath)).size
+  } catch (error) {
+    throwIfAborted(signal)
+    throw error
+  }
+  throwIfAborted(signal)
+  if (size > MAX_GOLDEN_FILE_BYTES) {
+    throw new RagmirError(
+      "INVALID_ARGUMENT",
+      `Golden file must not exceed ${MAX_GOLDEN_FILE_BYTES} bytes.`,
+    )
+  }
+
+  let raw: string
+  try {
+    raw = await readFile(goldenPath, { encoding: "utf8", signal })
+  } catch (error) {
+    throwIfAborted(signal)
+    throw error
+  }
+  throwIfAborted(signal)
   const parsed = goldenFileSchema.parse(JSON.parse(raw))
 
   if (Array.isArray(parsed)) {
