@@ -198,6 +198,32 @@ describe("serveChat", () => {
       }),
     )
   })
+
+  it("should dispose the runtime when writing a response fails", async () => {
+    const input = new PassThrough()
+    const dispose = vi.fn(async () => undefined)
+    const runtime: ChatRuntime = {
+      generate: async () => ({
+        answer: "Visible answer [1].",
+        stopReason: "eogToken",
+        thoughtTokens: 0,
+      }),
+      cancel: vi.fn(),
+      dispose,
+    }
+    const server = serveChat({
+      input,
+      writeLine: () => {
+        throw new Error("writer failed")
+      },
+      createRuntime: async () => runtime,
+    })
+
+    input.end(`${JSON.stringify(generateRequest("turn-writer-failure"))}\n`)
+
+    await expect(server).rejects.toThrow("writer failed")
+    expect(dispose).toHaveBeenCalledOnce()
+  })
 })
 
 describe("parseChatServerRequest", () => {
@@ -221,6 +247,19 @@ describe("parseChatServerRequest", () => {
       ok: false,
       id: "turn-history",
       message: "Generate request `history` is invalid.",
+    })
+  })
+
+  it("should reject oversized requests before parsing private content", () => {
+    const oversized = JSON.stringify({
+      ...generateRequest("turn-oversized"),
+      question: "q".repeat(1_048_576),
+    })
+
+    expect(parseChatServerRequest(oversized)).toEqual({
+      ok: false,
+      id: "unknown",
+      message: "Request must not exceed 1048576 bytes.",
     })
   })
 })

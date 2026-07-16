@@ -88,6 +88,28 @@ describe("RagmirClient", () => {
     await expect(client.search("approval", { timeoutMs: 0 })).rejects.toMatchObject({
       code: "INVALID_ARGUMENT",
     } satisfies Partial<RagmirError>)
+    await expect(client.search("approval", { topK: 0 })).rejects.toMatchObject({
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    } satisfies Partial<RagmirError>)
+
+    await client.close()
+  })
+
+  it("should cancel status and source diagnostics through the client", async () => {
+    const root = await projectWithEvidence("ragmir-client-diagnostics-abort-")
+    const client = await createRagmirClient({ cwd: root })
+    const controller = new AbortController()
+    controller.abort("cancelled by caller")
+
+    await expect(client.status({ signal: controller.signal })).rejects.toMatchObject({
+      code: "ABORTED",
+      retryable: true,
+    } satisfies Partial<RagmirError>)
+    await expect(client.sources({ signal: controller.signal })).rejects.toMatchObject({
+      code: "ABORTED",
+      retryable: true,
+    } satisfies Partial<RagmirError>)
 
     await client.close()
   })

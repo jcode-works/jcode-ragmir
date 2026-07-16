@@ -15,6 +15,15 @@ afterEach(async () => {
 })
 
 describe("securityAudit", () => {
+  it("should stop security checks when the signal is already aborted", async () => {
+    const controller = new AbortController()
+    controller.abort("cancelled by caller")
+
+    await expect(securityAudit(process.cwd(), { signal: controller.signal })).rejects.toMatchObject(
+      { code: "ABORTED", retryable: true },
+    )
+  })
+
   it("warns when remote Transformers.js model loading is enabled", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-"))
     tempDirs.push(root)

@@ -11,7 +11,10 @@ export const DEFAULT_TTS_ENGINE = "transformers"
 export const DEFAULT_TTS_ALLOW_REMOTE_MODELS = false
 export const DEFAULT_EDGE_VOICE = "fr-FR-DeniseNeural"
 export const DEFAULT_EDGE_RATE = "+0%"
+export const DEFAULT_EDGE_TTS_TIMEOUT_MS = 120_000
 export const DEFAULT_TTS_LANGUAGE: TtsLanguage = "fr"
+const MAX_EDGE_TTS_STDERR_BYTES = 65_536
+const EDGE_TTS_KILL_GRACE_MS = 1_000
 
 export type TtsEngine = "auto" | "edge" | "transformers"
 export type OutputFormat = "mp3" | "wav"
@@ -52,6 +55,15 @@ export type TextToAudioSynthesizer = (
   options?: TextToAudioOptions,
 ) => Promise<TextToAudioOutputLike>
 
+interface DisposableTextToAudioSynthesizer {
+  (text: string, options?: TextToAudioOptions): Promise<TextToAudioOutputLike>
+  dispose?: () => Promise<void>
+}
+
+declare global {
+  var __ragmirTransformersEnvironmentQueue: Promise<void> | undefined
+}
+
 export interface TextToAudioOptions {
   speaker_embeddings?: string
   speed?: number
@@ -74,6 +86,8 @@ export interface RenderSpeechOptions {
   synthesizer?: TextToAudioSynthesizer
   edgeRenderer?: EdgeTtsRenderer
   edgeAvailable?: () => boolean
+  signal?: AbortSignal
+  edgeTimeoutMs?: number
 }
 
 export interface RenderSpeechResult {
@@ -115,11 +129,15 @@ export interface EdgeTtsRenderOptions {
   outputPath: string
   voice: string
   rate: string
+  timeoutMs: number
+  signal?: AbortSignal
 }
 
 export async function renderSpeech(options: RenderSpeechOptions): Promise<RenderSpeechResult> {
+  throwIfAborted(options.signal)
   const cwd = path.resolve(options.cwd ?? process.cwd())
   const text = await readInputText(options, cwd)
+  throwIfAborted(options.signal)
   const engine = resolveEngine(options)
   const language = resolveLanguage(options)
   const modelPath = resolveFromCwd(
@@ -150,7 +168,19 @@ export async function renderSpeech(options: RenderSpeechOptions): Promise<Render
         "edge-tts is required for the Edge engine. Install it with `pipx install edge-tts`.",
       )
     }
-    await renderer({ text, outputPath, voice, rate })
+    const edgeOptions: EdgeTtsRenderOptions = {
+      text,
+      outputPath,
+      voice,
+      rate,
+      timeoutMs: positiveInteger(
+        options.edgeTimeoutMs ?? DEFAULT_EDGE_TTS_TIMEOUT_MS,
+        "edgeTimeoutMs",
+      ),
+    }
+    if (options.signal !== undefined) edgeOptions.signal = options.signal
+    await renderer(edgeOptions)
+    throwIfAborted(options.signal)
 
     return {
       outputPath,
@@ -169,10 +199,21 @@ export async function renderSpeech(options: RenderSpeechOptions): Promise<Render
 
   validateOutputFormat(outputPath, "wav")
   const model = options.model ?? process.env.RAGMIR_TTS_MODEL ?? mmsModelForLanguage(language)
-  const synthesizer =
+  const synthesizer: DisposableTextToAudioSynthesizer =
     options.synthesizer ?? (await transformerSynthesizer(model, modelPath, allowRemoteModels))
-  const output = await synthesizer(text, textToAudioOptions(options))
-  await output.save(outputPath)
+  const ownsSynthesizer = options.synthesizer === undefined
+  let output: TextToAudioOutputLike
+  try {
+    throwIfAborted(options.signal)
+    output = await synthesizer(text, textToAudioOptions(options))
+    throwIfAborted(options.signal)
+    await output.save(outputPath)
+    throwIfAborted(options.signal)
+  } finally {
+    if (ownsSynthesizer) {
+      await synthesizer.dispose?.()
+    }
+  }
 
   return {
     outputPath,
@@ -248,13 +289,39 @@ async function transformerSynthesizer(
   model: string,
   modelPath: string,
   allowRemoteModels: boolean,
-): Promise<TextToAudioSynthesizer> {
-  const transformers = await import("@huggingface/transformers")
-  transformers.env.localModelPath = modelPath
-  transformers.env.cacheDir = modelPath
-  transformers.env.allowRemoteModels = allowRemoteModels
+): Promise<DisposableTextToAudioSynthesizer> {
+  return withTransformersEnvironment(async () => {
+    const transformers = await import("@huggingface/transformers")
+    const previous = {
+      localModelPath: transformers.env.localModelPath,
+      cacheDir: transformers.env.cacheDir,
+      allowRemoteModels: transformers.env.allowRemoteModels,
+    }
+    transformers.env.localModelPath = modelPath
+    transformers.env.cacheDir = modelPath
+    transformers.env.allowRemoteModels = allowRemoteModels
+    try {
+      return (await transformers.pipeline(
+        "text-to-speech",
+        model,
+      )) as DisposableTextToAudioSynthesizer
+    } finally {
+      transformers.env.localModelPath = previous.localModelPath
+      transformers.env.cacheDir = previous.cacheDir
+      transformers.env.allowRemoteModels = previous.allowRemoteModels
+    }
+  })
+}
 
-  return (await transformers.pipeline("text-to-speech", model)) as TextToAudioSynthesizer
+function withTransformersEnvironment<T>(operation: () => Promise<T>): Promise<T> {
+  const queued = (globalThis.__ragmirTransformersEnvironmentQueue ?? Promise.resolve()).then(
+    operation,
+  )
+  globalThis.__ragmirTransformersEnvironmentQueue = queued.then(
+    () => undefined,
+    () => undefined,
+  )
+  return queued
 }
 
 function resolveEngine(options: RenderSpeechOptions): Exclude<TtsEngine, "auto"> {
@@ -352,39 +419,103 @@ async function edgeCliRenderer(options: EdgeTtsRenderOptions): Promise<void> {
   await writeFile(textFile, options.text, "utf8")
 
   try {
-    await runEdgeTts([
-      "--file",
-      textFile,
-      "--voice",
-      options.voice,
-      `--rate=${options.rate}`,
-      "--write-media",
-      options.outputPath,
-    ])
+    await runEdgeTts(
+      [
+        "--file",
+        textFile,
+        "--voice",
+        options.voice,
+        `--rate=${options.rate}`,
+        "--write-media",
+        options.outputPath,
+      ],
+      options.timeoutMs,
+      options.signal,
+    )
   } finally {
     await rm(tempDir, { recursive: true, force: true })
   }
 }
 
-async function runEdgeTts(args: string[]): Promise<void> {
+async function runEdgeTts(args: string[], timeoutMs: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal)
   const child = spawn("edge-tts", args, {
     stdio: ["ignore", "ignore", "pipe"],
   })
   const stderr: Buffer[] = []
-  child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk))
-
-  const code = await new Promise<number | null>((resolve, reject) => {
-    child.on("error", reject)
-    child.on("close", resolve)
+  let stderrBytes = 0
+  let stderrTruncated = false
+  child.stderr.on("data", (chunk: Buffer) => {
+    const remaining = MAX_EDGE_TTS_STDERR_BYTES - stderrBytes
+    if (remaining > 0) {
+      const captured = chunk.subarray(0, remaining)
+      stderr.push(captured)
+      stderrBytes += captured.length
+    }
+    if (chunk.length > remaining) stderrTruncated = true
   })
 
+  let timedOut = false
+  let aborted = false
+  let terminationStarted = false
+  let killTimer: ReturnType<typeof setTimeout> | undefined
+  const terminate = (): void => {
+    if (terminationStarted || child.exitCode !== null || child.signalCode !== null) return
+    terminationStarted = true
+    child.kill("SIGTERM")
+    killTimer = setTimeout(() => child.kill("SIGKILL"), EDGE_TTS_KILL_GRACE_MS)
+    killTimer.unref()
+  }
+  const timeout = setTimeout(() => {
+    timedOut = true
+    terminate()
+  }, timeoutMs)
+  timeout.unref()
+  const abort = (): void => {
+    aborted = true
+    terminate()
+  }
+  signal?.addEventListener("abort", abort, { once: true })
+
+  let code: number | null
+  try {
+    code = await new Promise<number | null>((resolve, reject) => {
+      child.on("error", reject)
+      child.on("close", resolve)
+    })
+  } finally {
+    clearTimeout(timeout)
+    if (killTimer !== undefined) clearTimeout(killTimer)
+    signal?.removeEventListener("abort", abort)
+  }
+
+  if (aborted) {
+    throw new Error("edge-tts was aborted.")
+  }
+  if (timedOut) {
+    throw new Error(`edge-tts timed out after ${timeoutMs} ms.`)
+  }
   if (code !== 0) {
     const detail = Buffer.concat(stderr).toString("utf8").trim()
+    const suffix = stderrTruncated ? " [stderr truncated]" : ""
     throw new Error(
       detail
-        ? `edge-tts failed with exit code ${code}: ${detail}`
+        ? `edge-tts failed with exit code ${code}: ${detail}${suffix}`
         : `edge-tts failed with exit code ${code}.`,
     )
+  }
+}
+
+function positiveInteger(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer.`)
+  }
+  return value
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new Error("Speech rendering was aborted.")
   }
 }
 

@@ -6,6 +6,8 @@ ignored `.ragmir/` state, and retrieves source-backed passages offline by defaul
 TypeScript API, or local read-focused MCP server. Core does not upload source documents to a hosted
 RAG service.
 
+Public subtagline: **Stop sending confidential documents directly to the cloud.**
+
 ## Product boundary
 
 - `@jcode.labs/ragmir` is retrieval-first. Core does not call an LLM or write generated answers.
@@ -22,6 +24,16 @@ RAG service.
 - `@jcode.labs/ragmir-tts` adds optional local audio or explicitly selected online speech.
 - Ragmir is not a hosted document store, cloud-sync service, agent-memory replacement, or universal
   code-search replacement.
+
+## Team use
+
+- Ragmir has no built-in cloud sync. Teams synchronize one source-of-truth folder with an existing
+  tool such as Google Drive or a team script, then build a separate local index per developer.
+- Keep the Ragmir version, configuration, embedding provider, and model aligned. Sync before
+  ingestion and run `rgr audit` afterwards; missing, partial, or extra source files create different
+  local indexes.
+- The TypeScript API can automate local setup and ingestion. Ragmir remains the retrieval layer,
+  not the source-file synchronization layer.
 
 ## Privacy boundary
 

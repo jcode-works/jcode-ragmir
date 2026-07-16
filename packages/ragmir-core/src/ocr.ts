@@ -1,13 +1,13 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { findProjectConfig, loadConfig } from "./config.js"
-import { isRecord } from "./guards.js"
 import { initProject } from "./init.js"
 import { MAX_EXTERNAL_TEXT_STDIO_BYTES } from "./limits.js"
 import { rgrCommand } from "./package-manager.js"
 import { hardenPrivateFile } from "./permissions.js"
+import { mutateProjectConfig } from "./project-config-file.js"
 
 const OCR_COMMAND_TIMEOUT_MS = 120_000
 const OCR_PROBE_TIMEOUT_MS = 10_000
@@ -155,16 +155,10 @@ export async function configurePdfOcr(
   ])
   const pdfOcrCommand = [configuredCommand.command, ...configuredCommand.args]
   const projectConfig = findProjectConfig(config.projectRoot)
-  const raw: unknown = JSON.parse(await readFile(projectConfig.configPath, "utf8"))
-  if (!isRecord(raw)) {
-    throw new Error(`${projectConfig.configPath} must contain a JSON object.`)
-  }
-  const nextConfig = {
-    ...raw,
-    pdfOcrCommand,
-    pdfOcrTimeoutMs: timeoutMs,
-  }
-  await writeFile(projectConfig.configPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8")
+  await mutateProjectConfig(projectConfig, (raw) => {
+    Object.assign(raw, { pdfOcrCommand, pdfOcrTimeoutMs: timeoutMs })
+    return { changed: true, value: undefined }
+  })
   await hardenPrivateFile(projectConfig.configPath)
 
   return {

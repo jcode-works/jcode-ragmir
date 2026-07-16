@@ -10,11 +10,19 @@ import {
   LEGACY_PRIVATE_GITIGNORE_ENTRY,
   RAGMIR_GITIGNORE_ENTRY,
 } from "./defaults.js"
-import type { SecurityAuditReport } from "./types.js"
+import { operationSignal, throwIfAborted } from "./operation.js"
+import type { OperationOptions, SecurityAuditReport } from "./types.js"
 
-export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditReport> {
+export async function securityAudit(
+  cwd = process.cwd(),
+  options: OperationOptions = {},
+): Promise<SecurityAuditReport> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
   const config = await loadConfig(cwd)
-  const gitignore = await readGitignore(config.projectRoot)
+  throwIfAborted(signal)
+  const gitignore = await readGitignore(config.projectRoot, signal)
+  throwIfAborted(signal)
   const warnings: string[] = []
 
   const usesLegacyKb = [config.storageDir, config.sourcesFile, config.accessLogPath].some(
@@ -36,26 +44,34 @@ export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditR
       config.projectRoot,
       path.join(config.projectRoot, LEGACY_KB_GITIGNORE_ENTRY),
       gitignore,
+      signal,
     ),
     isPathIgnored(
       config.projectRoot,
       path.join(config.projectRoot, RAGMIR_GITIGNORE_ENTRY),
       gitignore,
+      signal,
     ),
     isPathIgnored(
       config.projectRoot,
       path.join(config.projectRoot, LEGACY_PRIVATE_GITIGNORE_ENTRY),
       gitignore,
+      signal,
     ),
-    isPathIgnored(config.projectRoot, config.storageDir, gitignore),
-    isPathIgnored(config.projectRoot, config.accessLogPath, gitignore),
+    isPathIgnored(config.projectRoot, config.storageDir, gitignore, signal),
+    isPathIgnored(config.projectRoot, config.accessLogPath, gitignore, signal),
   ])
-  const permissions = await inspectPermissions({
-    configPath: findProjectConfig(cwd).configPath,
-    rawDir: config.rawDir,
-    storageDir: config.storageDir,
-    accessLogPath: config.accessLogPath,
-  })
+  throwIfAborted(signal)
+  const permissions = await inspectPermissions(
+    {
+      configPath: findProjectConfig(cwd).configPath,
+      rawDir: config.rawDir,
+      storageDir: config.storageDir,
+      accessLogPath: config.accessLogPath,
+    },
+    signal,
+  )
+  throwIfAborted(signal)
 
   if (
     config.privacyProfile !== "trusted" &&
@@ -91,6 +107,7 @@ export async function securityAudit(cwd = process.cwd()): Promise<SecurityAuditR
     addPermissionWarning(warnings, permissions.accessLogPrivate, "access log")
   }
 
+  throwIfAborted(signal)
   return {
     projectRoot: config.projectRoot,
     zeroTelemetry: true,
@@ -149,7 +166,9 @@ interface PermissionPaths {
 
 async function inspectPermissions(
   paths: PermissionPaths,
+  signal: AbortSignal | undefined,
 ): Promise<SecurityAuditReport["permissions"]> {
+  throwIfAborted(signal)
   if (process.platform === "win32") {
     return {
       checked: false,
@@ -160,11 +179,12 @@ async function inspectPermissions(
     }
   }
   const [configPrivate, rawDirPrivate, storageDirPrivate, accessLogPrivate] = await Promise.all([
-    isPrivatePath(paths.configPath),
-    isPrivatePath(paths.rawDir),
-    isPrivatePath(paths.storageDir),
-    isPrivatePath(paths.accessLogPath),
+    isPrivatePath(paths.configPath, signal),
+    isPrivatePath(paths.rawDir, signal),
+    isPrivatePath(paths.storageDir, signal),
+    isPrivatePath(paths.accessLogPath, signal),
   ])
+  throwIfAborted(signal)
   return {
     checked: true,
     configPrivate,
@@ -174,11 +194,17 @@ async function inspectPermissions(
   }
 }
 
-async function isPrivatePath(filePath: string): Promise<boolean | null> {
+async function isPrivatePath(
+  filePath: string,
+  signal: AbortSignal | undefined,
+): Promise<boolean | null> {
+  throwIfAborted(signal)
   try {
     const mode = (await stat(filePath)).mode & 0o777
+    throwIfAborted(signal)
     return (mode & 0o077) === 0
   } catch (error) {
+    throwIfAborted(signal)
     if (isNodeError(error) && error.code === "ENOENT") {
       return null
     }
@@ -202,14 +228,26 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error
 }
 
-async function readGitignore(projectRoot: string): Promise<Set<string>> {
+async function readGitignore(
+  projectRoot: string,
+  signal: AbortSignal | undefined,
+): Promise<Set<string>> {
+  throwIfAborted(signal)
   const gitignorePath = path.join(projectRoot, ".gitignore")
   if (!existsSync(gitignorePath)) {
     return new Set()
   }
 
+  let content: string
+  try {
+    content = await readFile(gitignorePath, { encoding: "utf8", signal })
+  } catch (error) {
+    throwIfAborted(signal)
+    throw error
+  }
+  throwIfAborted(signal)
   return new Set(
-    (await readFile(gitignorePath, "utf8"))
+    content
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean),
@@ -225,13 +263,22 @@ async function isPathIgnored(
   projectRoot: string,
   filePath: string,
   lines: Set<string>,
+  signal: AbortSignal | undefined,
 ): Promise<boolean> {
+  throwIfAborted(signal)
   const relativePath = normalizeRelativePath(projectRoot, filePath)
   if (isOutsideProject(relativePath)) {
     return false
   }
 
-  const gitResult = await checkGitIgnored(projectRoot, relativePath)
+  let gitResult: boolean | null
+  try {
+    gitResult = await checkGitIgnored(projectRoot, relativePath, signal)
+  } catch (error) {
+    throwIfAborted(signal)
+    throw error
+  }
+  throwIfAborted(signal)
   if (gitResult !== null) {
     return gitResult
   }
@@ -239,15 +286,23 @@ async function isPathIgnored(
   return isPathIgnoredByEntries(relativePath, lines)
 }
 
-function checkGitIgnored(projectRoot: string, relativePath: string): Promise<boolean | null> {
-  return new Promise((resolve) => {
+function checkGitIgnored(
+  projectRoot: string,
+  relativePath: string,
+  signal: AbortSignal | undefined,
+): Promise<boolean | null> {
+  return new Promise((resolve, reject) => {
     execFile(
       "git",
       ["check-ignore", "--quiet", "--", relativePath],
-      { cwd: projectRoot, windowsHide: true },
+      { cwd: projectRoot, windowsHide: true, signal },
       (error) => {
         if (!error) {
           resolve(true)
+          return
+        }
+        if (signal?.aborted) {
+          reject(error)
           return
         }
         if (error.code === 1) {

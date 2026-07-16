@@ -17,6 +17,7 @@ import {
   MAX_PDF_PAGES,
   MAX_PDF_TEXT_CHARACTERS,
 } from "./limits.js"
+import { throwIfAborted } from "./operation.js"
 import type { ParsedDocument, ParsedPage, SourceFile } from "./types.js"
 
 const EXTERNAL_COMMAND_KILL_GRACE_MS = 2_000
@@ -38,12 +39,14 @@ export interface ParseFileOptions {
   imageOcrTimeoutMs?: number
   legacyWordCommand?: string[]
   legacyWordTimeoutMs?: number
+  signal?: AbortSignal
 }
 
 export async function parseFile(
   file: SourceFile,
   options: ParseFileOptions = {},
 ): Promise<ParsedDocument> {
+  throwIfAborted(options.signal)
   let text: string
   let pages: ParsedPage[] | undefined
 
@@ -103,6 +106,7 @@ export async function parseFile(
       text = await readFile(file.absolutePath, "utf8")
   }
 
+  throwIfAborted(options.signal)
   const document: ParsedDocument = { file, text: normalizeText(text) }
   if (pages) {
     document.pages = pages
@@ -111,7 +115,9 @@ export async function parseFile(
 }
 
 async function parseDocx(filePath: string): Promise<string> {
-  const result = await mammoth.extractRawText({ path: filePath })
+  const buffer = await readFile(filePath)
+  unzipOfficeFile(buffer)
+  const result = await mammoth.extractRawText({ buffer })
   return result.value
 }
 
@@ -124,7 +130,9 @@ async function parsePptx(filePath: string): Promise<string> {
 }
 
 async function parseXlsx(filePath: string): Promise<string> {
-  const workbook = await readExcelFile(filePath, { trim: false })
+  const buffer = await readFile(filePath)
+  unzipOfficeFile(buffer)
+  const workbook = await readExcelFile(buffer, { trim: false })
   const sheets: string[] = []
 
   for (const sheet of workbook) {
@@ -155,6 +163,7 @@ async function parseImage(
     label: "OCR command",
     timeoutMs: options.imageOcrTimeoutMs ?? 120_000,
     pathEnvName: "RAGMIR_IMAGE_PATH",
+    ...(options.signal ? { signal: options.signal } : {}),
   })
 }
 
@@ -168,6 +177,7 @@ async function parseLegacyWord(filePath: string, options: ParseFileOptions): Pro
     label: "legacy Word command",
     timeoutMs: options.legacyWordTimeoutMs ?? 120_000,
     pathEnvName: "RAGMIR_LEGACY_WORD_PATH",
+    ...(options.signal ? { signal: options.signal } : {}),
   })
 }
 
@@ -344,6 +354,7 @@ async function parsePdf(
             timeoutMs: options.pdfOcrTimeoutMs ?? 120_000,
             pathEnvName: "RAGMIR_PDF_PATH",
             pageNumber,
+            ...(options.signal ? { signal: options.signal } : {}),
           }),
         )
       }
@@ -391,12 +402,14 @@ interface ExternalTextCommandOptions {
   timeoutMs: number
   pathEnvName: "RAGMIR_IMAGE_PATH" | "RAGMIR_LEGACY_WORD_PATH" | "RAGMIR_PDF_PATH"
   pageNumber?: number
+  signal?: AbortSignal
 }
 
 async function runExternalTextCommand(
   filePath: string,
   options: ExternalTextCommandOptions,
 ): Promise<string> {
+  throwIfAborted(options.signal)
   const command = options.command ?? []
   const [executable, ...configuredArgs] = command
   if (!executable) {
@@ -424,12 +437,38 @@ async function runExternalTextCommand(
       },
       stdio: ["ignore", "pipe", "pipe"],
     })
-    let stdout = ""
-    let stderr = ""
+    const stdoutChunks: Buffer[] = []
+    const stderrChunks: Buffer[] = []
+    let capturedBytes = 0
     let didTimeout = false
+    let didAbort = false
     let outputTooLarge = false
+    let terminationStarted = false
+    let settled = false
     let forceKillTimeout: ReturnType<typeof setTimeout> | undefined
+    let abortListener: (() => void) | undefined
+    const cleanup = (): void => {
+      clearTimeout(timeout)
+      if (forceKillTimeout) {
+        clearTimeout(forceKillTimeout)
+      }
+      if (abortListener) {
+        options.signal?.removeEventListener("abort", abortListener)
+      }
+    }
+    const rejectOnce = (error: Error): void => {
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanup()
+      reject(error)
+    }
     const terminateWithEscalation = (): void => {
+      if (terminationStarted) {
+        return
+      }
+      terminationStarted = true
       terminateChild(child, "SIGTERM")
       forceKillTimeout = setTimeout(
         () => terminateChild(child, "SIGKILL"),
@@ -440,50 +479,70 @@ async function runExternalTextCommand(
       didTimeout = true
       terminateWithEscalation()
     }, options.timeoutMs)
+    abortListener = () => {
+      didAbort = true
+      terminateWithEscalation()
+    }
+    if (options.signal?.aborted) {
+      abortListener()
+    } else {
+      options.signal?.addEventListener("abort", abortListener, { once: true })
+    }
 
-    child.stdout.setEncoding("utf8")
-    child.stderr.setEncoding("utf8")
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk
-      if (Buffer.byteLength(stdout, "utf8") > MAX_EXTERNAL_TEXT_STDIO_BYTES) {
-        outputTooLarge = true
-        terminateWithEscalation()
+    const captureOutput = (chunk: Buffer, chunks: Buffer[]): void => {
+      if (outputTooLarge) {
+        return
       }
-    })
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk
-      if (Buffer.byteLength(stderr, "utf8") > MAX_EXTERNAL_TEXT_STDIO_BYTES) {
+      const remainingBytes = MAX_EXTERNAL_TEXT_STDIO_BYTES - capturedBytes
+      if (chunk.byteLength > remainingBytes) {
+        if (remainingBytes > 0) {
+          chunks.push(chunk.subarray(0, remainingBytes))
+          capturedBytes += remainingBytes
+        }
         outputTooLarge = true
+        clearTimeout(timeout)
         terminateWithEscalation()
+        return
       }
-    })
+      chunks.push(chunk)
+      capturedBytes += chunk.byteLength
+    }
+    child.stdout.on("data", (chunk: Buffer) => captureOutput(chunk, stdoutChunks))
+    child.stderr.on("data", (chunk: Buffer) => captureOutput(chunk, stderrChunks))
     child.on("error", (error) => {
-      clearTimeout(timeout)
-      if (forceKillTimeout) {
-        clearTimeout(forceKillTimeout)
-      }
-      reject(new Error(`${options.label} failed to start: ${error.message}`))
+      rejectOnce(new Error(`${options.label} failed to start: ${error.message}`))
     })
     child.on("close", (code) => {
-      clearTimeout(timeout)
-      if (forceKillTimeout) {
-        clearTimeout(forceKillTimeout)
+      if (settled) {
+        return
+      }
+      const stdout = Buffer.concat(stdoutChunks).toString("utf8")
+      const stderr = Buffer.concat(stderrChunks).toString("utf8")
+      if (didAbort) {
+        try {
+          throwIfAborted(options.signal)
+        } catch (error) {
+          rejectOnce(error instanceof Error ? error : new Error(`${options.label} was aborted.`))
+        }
+        return
       }
       if (didTimeout) {
-        reject(new Error(`${options.label} timed out.`))
+        rejectOnce(new Error(`${options.label} timed out.`))
         return
       }
       if (outputTooLarge) {
-        reject(new Error(`${options.label} produced too much output.`))
+        rejectOnce(new Error(`${options.label} produced too much output.`))
         return
       }
       if (code !== 0) {
         const detail = stderr.trim()
-        reject(
+        rejectOnce(
           new Error(detail ? `${options.label} failed: ${detail}` : `${options.label} failed.`),
         )
         return
       }
+      settled = true
+      cleanup()
       resolve(stdout)
     })
   })

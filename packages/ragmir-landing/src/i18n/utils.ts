@@ -42,10 +42,6 @@ export async function useTranslations(locale: string): Promise<{
   }
 }
 
-export function getLocale(astro: { params?: { locale?: string }; currentLocale?: string }): Locale {
-  return normalizeLocale(astro.params?.locale ?? astro.currentLocale ?? defaultLang)
-}
-
 export function getLocalizedUrl(path: string, locale: string): string {
   if (/^[a-z]+:/iu.test(path)) {
     return path

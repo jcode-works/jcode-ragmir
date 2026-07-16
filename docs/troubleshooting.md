@@ -26,6 +26,10 @@ the indexing policy changed, Ragmir starts a new safe run instead.
 An interrupted `rgr ingest --rebuild` leaves the previous complete index active. Re-run the rebuild
 to continue its isolated generation.
 
+If the durable ingestion state is invalid or inconsistent with the current configuration, Ragmir
+ignores it and starts a new safe run. It does not resume from untrusted table names or staged
+manifest paths.
+
 ## A PDF or image has no text
 
 `rgr ingest --json` reports `emptyTextFiles`. For scanned PDFs, run:
@@ -41,6 +45,13 @@ OCR is local and opt-in. Images and legacy `.doc` files need explicitly configur
 ## Search is weak
 
 First confirm source coverage with `rgr audit`. Then try a specific query, `--context-radius 1`, or a higher `--top-k`. For semantic retrieval, run `rgr models pull --enable` followed by `rgr ingest --rebuild`.
+
+## Team members get different results
+
+Confirm the shared source folder finished synchronizing, then compare the Ragmir version,
+configuration, embedding provider, model, and `rgr sources list` output. Missing, partial, or extra
+files create different local indexes. Run `rgr ingest` and `rgr audit` after synchronization; do not
+share an actively written `.ragmir/storage/` directory.
 
 ## Strict audit fails
 

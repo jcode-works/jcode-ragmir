@@ -28,7 +28,6 @@ The landing owns its UI primitives. There is no separate `ragmir-ui` package.
 - Astro 7 with static output and locale-aware routing;
 - React 19 for interactive islands;
 - Tailwind CSS 4 for styling;
-- GSAP for focused motion;
 - Radix primitives where accessible interaction behavior is needed;
 - TypeScript, Astro Check, and the repository's Biome configuration.
 
@@ -62,6 +61,8 @@ artifact.
 | Command | Purpose |
 | --- | --- |
 | `pnpm --filter @jcode.labs/ragmir-landing dev` | Start the local Astro development server |
+| `pnpm --filter @jcode.labs/ragmir-landing test` | Test public copy and build-time helpers |
+| `pnpm --filter @jcode.labs/ragmir-landing test:coverage` | Run landing tests with coverage thresholds |
 | `pnpm --filter @jcode.labs/ragmir-landing check` | Run Astro type and content checks |
 | `pnpm --filter @jcode.labs/ragmir-landing build` | Check and build the static site with telemetry disabled |
 | `pnpm --filter @jcode.labs/ragmir-landing preview` | Serve the generated static output locally |
@@ -73,7 +74,7 @@ The repository-wide `pnpm validate` command also covers the landing check and bu
 
 | Variable | Use |
 | --- | --- |
-| `PUBLIC_RAGMIR_LANDING_URL` | Canonical site URL; defaults to `https://ragmir.com` |
+| `PUBLIC_RAGMIR_LANDING_URL` | Canonical site URL; defaults to `https://ragmir.com` for production |
 | `PUBLIC_RAGMIR_VERSION` | Version shown in navigation and footer when provided |
 | `RAGMIR_NPM_DOWNLOADS` | Deterministic download-count override for builds and tests |
 | `INDEXNOW_API_KEY` | Secret used only by the explicit IndexNow submission script |
@@ -82,6 +83,13 @@ The repository-wide `pnpm validate` command also covers the landing check and bu
 
 Keep secrets in the environment. Never commit them or expose them through `PUBLIC_` variables.
 
+Every non-production build must set `PUBLIC_RAGMIR_LANDING_URL` to its public environment URL. The
+layout then emits that host in canonical, Open Graph, hreflang, and page-specific structured-data
+URLs and applies `noindex` robots directives because the host is not `ragmir.com`. Non-production
+builds omit the production sitemap and its discovery link. Stable Ragmir organization and product
+entity identifiers remain production identifiers. Never deploy a staging build that fell back to
+the production URL.
+
 ## Public-copy rules
 
 - Keep English and French messages aligned whenever visible copy changes.
@@ -89,6 +97,8 @@ Keep secrets in the environment. Never commit them or expose them through `PUBLI
 - Position Core as confidential local RAG for coding agents and scripts without implying that Core
   calls a model.
 - Keep Core retrieval separate from optional Chat and TTS generation.
+- State that team workflows synchronize source files outside Ragmir and build separate local
+  indexes; never imply that Ragmir provides cloud sync or a shared database.
 - Lead with model-agnostic Core and present the user's preferred agent and a fully local consumer as
   equal choices.
 - Name Qwen and Gemma only in Chat-specific technical copy. They are profiles, not Core or MCP

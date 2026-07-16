@@ -153,6 +153,62 @@ describe("generateChatAnswer", () => {
     expect(received?.thinking).toBe("off")
     expect(received?.maxNewTokens).toBe(512)
   })
+
+  it("should return only the source text that fits the grounded context budget", async () => {
+    const runtime = fakeRuntime(async () => generationResult("Bounded answer [1]."))
+    const privateTail = "PRIVATE_TAIL_MUST_NOT_BE_RETURNED"
+
+    const result = await generateChatAnswer({
+      question: "What is bounded?",
+      sources: [
+        {
+          relativePath: "review.md",
+          chunkIndex: 0,
+          text: `${"evidence ".repeat(100)}${privateTail}`,
+        },
+      ],
+      contextCharLimit: 240,
+      runtime,
+    })
+
+    expect(result.sources).toHaveLength(1)
+    expect(result.sources[0]?.text).toContain("[truncated]")
+    expect(result.sources[0]?.text).not.toContain(privateTail)
+    expect(result.sources[0]?.text.length).toBeLessThan(240)
+  })
+
+  it("should reject oversized chat inputs before loading a runtime", async () => {
+    const runtime = fakeRuntime(async () => generationResult("unused"))
+
+    await expect(
+      generateChatAnswer({ question: "q".repeat(16_385), sources: [], runtime }),
+    ).rejects.toThrow("question must not exceed")
+    await expect(
+      generateChatAnswer({
+        question: "Question?",
+        sources: Array.from({ length: 129 }, (_, chunkIndex) => ({
+          relativePath: "review.md",
+          chunkIndex,
+          text: "Evidence.",
+        })),
+        runtime,
+      }),
+    ).rejects.toThrow("sources must contain at most")
+    await expect(
+      generateChatAnswer({
+        question: "Question?",
+        sources: [
+          {
+            source: "s".repeat(1_025),
+            relativePath: "review.md",
+            chunkIndex: 0,
+            text: "Evidence.",
+          },
+        ],
+        runtime,
+      }),
+    ).rejects.toThrow("sources contains an invalid entry")
+  })
 })
 
 describe("buildChatMessages", () => {
@@ -170,9 +226,37 @@ describe("buildChatMessages", () => {
     expect(messages[1]?.content).toContain("same sentence as the answer")
     expect(messages[1]?.content).toContain("Never output citation markers without answer text")
   })
+
+  it("should bound visible history while prioritizing the latest turns", () => {
+    const messages = buildChatMessages({
+      question: "Summarize.",
+      history: Array.from({ length: 12 }, (_, index) => ({
+        role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
+        content: `${index}: ${"x".repeat(10_000)}`,
+      })),
+      sources: [{ relativePath: "evidence.md", chunkIndex: 0, text: "Evidence." }],
+    })
+    const history = messages.slice(1, -1)
+
+    expect(
+      history.reduce((total, message) => total + message.content.length, 0),
+    ).toBeLessThanOrEqual(32_768)
+    expect(history.at(-1)?.content).toContain("11:")
+  })
 })
 
 describe("formatSources", () => {
+  it("should keep truncated XML evidence blocks well formed", () => {
+    const formatted = formatSources(
+      [{ relativePath: "evidence.md", chunkIndex: 0, text: "&".repeat(100) }],
+      140,
+    )
+
+    expect(formatted).toContain("&amp;")
+    expect(formatted).toContain("[truncated]")
+    expect(formatted).toContain("</ragmir_source>")
+    expect(formatted).not.toMatch(/&(?!amp;|lt;|gt;|quot;|apos;)/u)
+  })
   it("should delimit and truncate untrusted evidence within the configured limit", () => {
     const formatted = formatSources(
       [{ relativePath: "raw/long.md", chunkIndex: 0, text: "alpha ".repeat(200) }],

@@ -96,9 +96,10 @@ export async function researchWithConfig(
     throw new Error("Research query must not be empty.")
   }
   const topK = options.topK ?? config.topK
+  const operationOptions = signal ? { signal } : {}
   const [auditReport, securityReport] = await Promise.all([
-    audit(config.projectRoot),
-    securityAudit(config.projectRoot),
+    audit(config.projectRoot, operationOptions),
+    securityAudit(config.projectRoot, operationOptions),
   ])
   throwIfAborted(signal)
   const generatedQueries = researchQueries(normalizedQuery)

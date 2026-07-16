@@ -3,7 +3,14 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
-import { evaluateGoldenQueries } from "./evaluate.js"
+import {
+  evaluateGoldenQueries,
+  MAX_GOLDEN_CASES,
+  MAX_GOLDEN_EXPECTED_VALUE_CHARACTERS,
+  MAX_GOLDEN_EXPECTED_VALUES,
+  MAX_GOLDEN_FILE_BYTES,
+  MAX_GOLDEN_QUERY_CHARACTERS,
+} from "./evaluate.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 
@@ -17,6 +24,137 @@ afterEach(async () => {
 })
 
 describe("evaluateGoldenQueries", () => {
+  it("should stop before reading a golden file when the signal is already aborted", async () => {
+    const controller = new AbortController()
+    controller.abort("cancelled by caller")
+
+    await expect(
+      evaluateGoldenQueries({
+        cwd: process.cwd(),
+        goldenPath: "missing-golden.json",
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ code: "ABORTED", retryable: true })
+  })
+
+  it("should reject a golden file when it exceeds the byte limit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-file-limit-"))
+    tempDirs.push(root)
+    const goldenPath = path.join(root, "oversized-golden.json")
+    await writeFile(goldenPath, Buffer.alloc(MAX_GOLDEN_FILE_BYTES + 1))
+
+    await expect(evaluateGoldenQueries({ cwd: root, goldenPath })).rejects.toMatchObject({
+      code: "INVALID_ARGUMENT",
+    })
+  })
+
+  it("should reject a golden file when it declares too many cases", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-case-limit-"))
+    tempDirs.push(root)
+    const goldenPath = path.join(root, "too-many-cases.json")
+    const goldenCase = { query: "bounded query", expectedPaths: ["raw/source.md"] }
+    await writeFile(
+      goldenPath,
+      JSON.stringify(Array(MAX_GOLDEN_CASES + 1).fill(goldenCase)),
+      "utf8",
+    )
+
+    await expect(evaluateGoldenQueries({ cwd: root, goldenPath })).rejects.toThrow()
+  })
+
+  it("should reject a wrapped golden file when it declares too many cases", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-wrapped-case-limit-"))
+    tempDirs.push(root)
+    const goldenPath = path.join(root, "too-many-wrapped-cases.json")
+    const goldenCase = { query: "bounded query", expectedPaths: ["raw/source.md"] }
+    await writeFile(
+      goldenPath,
+      JSON.stringify({ queries: Array(MAX_GOLDEN_CASES + 1).fill(goldenCase) }),
+      "utf8",
+    )
+
+    await expect(evaluateGoldenQueries({ cwd: root, goldenPath })).rejects.toThrow()
+  })
+
+  it("should reject a golden case when its query exceeds the character limit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-query-limit-"))
+    tempDirs.push(root)
+    const goldenPath = path.join(root, "oversized-query.json")
+    await writeFile(
+      goldenPath,
+      JSON.stringify([
+        {
+          query: "q".repeat(MAX_GOLDEN_QUERY_CHARACTERS + 1),
+          expectedPaths: ["raw/source.md"],
+        },
+      ]),
+      "utf8",
+    )
+
+    await expect(evaluateGoldenQueries({ cwd: root, goldenPath })).rejects.toThrow()
+  })
+
+  it("should reject a golden case when it declares too many expected values", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-expected-count-limit-"))
+    tempDirs.push(root)
+    const goldenPath = path.join(root, "too-many-expected-values.json")
+    await writeFile(
+      goldenPath,
+      JSON.stringify([
+        {
+          query: "bounded query",
+          expectedPaths: Array.from(
+            { length: MAX_GOLDEN_EXPECTED_VALUES + 1 },
+            (_value, index) => `raw/source-${index}.md`,
+          ),
+        },
+      ]),
+      "utf8",
+    )
+
+    await expect(evaluateGoldenQueries({ cwd: root, goldenPath })).rejects.toThrow()
+  })
+
+  it("should reject a golden case when it declares too many expected citations", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-citation-count-limit-"))
+    tempDirs.push(root)
+    const goldenPath = path.join(root, "too-many-expected-citations.json")
+    await writeFile(
+      goldenPath,
+      JSON.stringify([
+        {
+          query: "bounded query",
+          expectedPaths: ["raw/source.md"],
+          expectedCitations: Array.from(
+            { length: MAX_GOLDEN_EXPECTED_VALUES + 1 },
+            (_value, index) => `raw/source.md:L${index + 1}-L${index + 1}#0`,
+          ),
+        },
+      ]),
+      "utf8",
+    )
+
+    await expect(evaluateGoldenQueries({ cwd: root, goldenPath })).rejects.toThrow()
+  })
+
+  it("should reject a golden case when an expected value exceeds the character limit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-expected-length-limit-"))
+    tempDirs.push(root)
+    const goldenPath = path.join(root, "oversized-expected-value.json")
+    await writeFile(
+      goldenPath,
+      JSON.stringify([
+        {
+          query: "bounded query",
+          expectedPaths: ["p".repeat(MAX_GOLDEN_EXPECTED_VALUE_CHARACTERS + 1)],
+        },
+      ]),
+      "utf8",
+    )
+
+    await expect(evaluateGoldenQueries({ cwd: root, goldenPath })).rejects.toThrow()
+  })
+
   it("measures recall against the sovereign RAG demo golden file", async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-"))
     tempDirs.push(parent)

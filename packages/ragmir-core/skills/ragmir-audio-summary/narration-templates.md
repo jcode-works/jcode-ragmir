@@ -6,7 +6,7 @@ tables, SSML, or XML tags. The skeletons below only shape how you order and conn
 write the spoken text.
 
 Pick the format chosen in the skill, then fill the skeleton with the evidence that serves the user's
-intent. Drop anything that does not serve the intent — that is how you avoid superfluous data.
+intent. Drop anything that does not serve the intent. That is how you avoid superfluous data.
 
 ## Format Selection Recap
 
@@ -24,11 +24,11 @@ Length follows relevant material. Never pad.
 
 Spoken-prose shape (write it as one flowing passage, not as headings):
 
-1. **Hook + intent** — one sentence naming the subject and why the listener asked.
-2. **Key idea** — the single thing to remember, stated up front (primacy).
-3. **Evidence** — one short, plain-language reason or fact that supports it.
-4. **Uncertainty / caveat** — one sentence if the evidence is partial or stale; omit only if solid.
-5. **Recap + recall** — restate the key idea in other words, then ask one active-recall question,
+1. **Hook + intent**: one sentence naming the subject and why the listener asked.
+2. **Key idea**: the single thing to remember, stated up front (primacy).
+3. **Evidence**: one short, plain-language reason or fact that supports it.
+4. **Uncertainty / caveat**: one sentence if the evidence is partial or stale; omit only if solid.
+5. **Recap + recall**: restate the key idea in other words, then ask one active-recall question,
    pause with `…`, and give the answer.
 
 Abstract example (do not copy the words, follow the shape):
@@ -46,16 +46,16 @@ Abstract example (do not copy the words, follow the shape):
 The standard brief follows Barbara Minto's pyramid: answer first, then supporting points, then
 recap. Wrap it in a short Situation-Complication-Question-Answer opening.
 
-1. **Situation** — one or two sentences framing the context the listener already shares.
-2. **Complication** — the tension, change, or question that prompted the summary.
-3. **Question** — the explicit question the summary answers.
-4. **Answer (the key message)** — the one-to-three points to retain, stated first (primacy).
-5. **Developed points** — each of the two-to-four points expanded in plain speech, grouped with
+1. **Situation**: one or two sentences framing the context the listener already shares.
+2. **Complication**: the tension, change, or question that prompted the summary.
+3. **Question**: the explicit question the summary answers.
+4. **Answer (the key message)**: the one-to-three points to retain, stated first (primacy).
+5. **Developed points**: each of the two-to-four points expanded in plain speech, grouped with
    signposting ("D'abord…, Ensuite…, Enfin…"). Proven facts only; separate from inference.
-6. **Uncertainty, risks, decisions, missing documents** — a short passage on what is not yet
+6. **Uncertainty, risks, decisions, missing documents**: a short passage on what is not yet
    settled or needs action.
-7. **Recap** — restate the two-to-four key points in compressed form (recency).
-8. **Active recall** — two or three recall questions, each followed by a `…` pause and the answer.
+7. **Recap**: restate the two-to-four key points in compressed form (recency).
+8. **Active recall**: two or three recall questions, each followed by a `…` pause and the answer.
 
 Abstract example (shape only):
 
@@ -75,17 +75,17 @@ Abstract example (shape only):
 Use only when the material genuinely has several distinct facets. Each chapter is a self-contained
 mini-brief with its own mini-recap, so a listener can step away and come back.
 
-1. **Promise** — what the whole audio covers and the three-to-five landmarks to listen for. State
+1. **Promise**: what the whole audio covers and the three-to-five landmarks to listen for. State
    the key message of the whole dossier up front.
-2. **Chapter 1** — signpost the chapter ("Premier point: …"). Give its mini pyramid
+2. **Chapter 1**: signpost the chapter ("Premier point: …"). Give its mini pyramid
    (answer → evidence → caveat), then a one-sentence mini-recap.
-3. **Chapter 2** — same shape, explicit transition ("Deuxième point: …").
+3. **Chapter 2**: same shape, explicit transition ("Deuxième point: …").
 4. **Continue** for each facet. Keep chapters balanced in length; merge thin ones.
-5. **Global recap** — compress the key message of every chapter into one flowing passage (recency).
-6. **Active recall** — three to five recall questions across the chapters, each with a `…` pause
+5. **Global recap**: compress the key message of every chapter into one flowing passage (recency).
+6. **Active recall**: three to five recall questions across the chapters, each with a `…` pause
    and the answer. Spread the questions across chapters, not only the last one.
 
-Transitions between chapters are essential in long audio — see the signposting catalogue below.
+Transitions between chapters are essential in long audio. See the signposting catalogue below.
 
 Abstract shape:
 
@@ -117,7 +117,7 @@ transitions instead of lists or headings.
 | Recall question | "Question: …? … [answer]" |
 
 When enumerating, say the count first ("trois points") then speak each one with "D'abord / Ensuite /
-Enfin" — never read a literal list.
+Enfin". Never read a literal list.
 
 ---
 
@@ -144,7 +144,7 @@ choice, no "est-ce que c'est X?" with the answer embedded).
 - After the question mark, insert `…` so the TTS pause gives the listener a beat to answer silently,
   then state the answer in the fewest words possible.
 - Do not reveal the answer inside the question. "Le préavis est-il de trente jours?" leaks the
-  answer — prefer "Quelle est la durée du préavis?".
+  answer. Prefer "Quelle est la durée du préavis?".
 
 ---
 

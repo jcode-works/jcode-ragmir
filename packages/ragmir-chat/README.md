@@ -5,61 +5,18 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 [![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-chat)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-**Optional local answers for your coding-agent RAG workflow.**
+Optional cited answer generation with a verified local GGUF model.
 
-Ragmir Core is a confidential local RAG for coding agents. It indexes selected project files on your
-machine and retrieves cited evidence offline by default, without uploading the source corpus to a
-hosted RAG service. `@jcode.labs/ragmir-chat` adds an optional answer step on the same machine: it
-runs a verified local model, limits generation to the retrieved passages, and validates the source
-markers in the visible answer.
+*Stop sending confidential documents directly to the cloud.*
 
-Core does not require Chat or any generative model. Use this package only when the answer itself,
-not just retrieval, must stay on the workstation.
+Ragmir Chat accepts passages retrieved by Core, generates on the workstation, and validates the
+visible citation markers. It does not discover or index project files by itself.
 
-[Ragmir overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
-[Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
+[Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [Offline chat guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-chat-preload.md) ·
-[Core package](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md#chat-cited-local-generation)
 
-## Where Chat fits
-
-| It does | It does not |
-| --- | --- |
-| Generate from source passages supplied by the caller | Discover or index project documents by itself |
-| Run inference from a local GGUF model | Call a hosted chat API |
-| Verify downloaded model size and SHA-256 | Download a model during normal answer generation |
-| Report citation validity and model metadata | Guarantee that a small local model is factually correct |
-
-Use Ragmir Core for ingestion, search, MCP, and agent helpers. Use Chat only when you want a local
-synthesis step after retrieval.
-
-## Add local answers to a coding agent
-
-```bash
-npm install --save-dev @jcode.labs/ragmir @jcode.labs/ragmir-chat
-npx rgr setup --agents codex,claude,kimi,opencode,cline
-npx rgr sources add "README.md" "docs/**/*.md"
-npx rgr ingest
-npx rgr chat setup --profile fast
-```
-
-Then ask the selected agent:
-
-```text
-Use Ragmir to answer the release question with the local Chat profile. Verify the citation status
-and expand the cited source before you recommend an action.
-```
-
-The agent can run `npx rgr chat "What changed in the release policy?" --profile fast --offline`.
-Core retrieves the passages first, then Chat generates from those passages and validates the visible
-source markers. For a fully local workflow, use a local agent or automation runner. A hosted agent
-still receives the final answer it displays under that provider's data policy.
-
-For a local script, CI job, or shell worker, add `--json` so the next step can branch on
-`emptyContext` and `citationStatus`. Do not auto-approve a high-impact action unless the status is
-`valid` and the workflow has checked the returned sources.
-
-## First cited local answer
+## Use Chat with Ragmir Core
 
 Requires Node.js 20 or later and enough disk and memory for the selected model.
 
@@ -72,51 +29,19 @@ npx rgr chat setup --profile fast
 npx rgr chat "What evidence supports this decision?" --profile fast --offline
 ```
 
-`rgr chat setup` downloads and verifies one model under `.ragmir/models/chat/<profile>`. Normal chat
-commands require that prepared local file and never enable remote model resolution.
+`rgr chat setup` downloads and verifies one model under `.ragmir/models/chat/<profile>`. Normal
+generation uses that local file and rejects remote model resolution.
 
-## Choose a profile
-
-Profiles are implementation choices for this optional package. They are not requirements of
-Ragmir Core, the CLI, the TypeScript API, or the MCP server.
-
-| Profile | Model family | Choose it for |
-| --- | --- | --- |
-| `lite` | Qwen2.5 0.5B | Lower-memory machines and short evidence summaries |
-| `fast` | Gemma 4 E2B | Default balance of local quality and resource use |
-| `quality` | Gemma 4 E4B | Larger local model, enabled only when explicitly selected |
-
-Inspect and verify a prepared profile before relying on it offline:
-
-```bash
-npx rgr chat doctor --profile fast --verify
-```
-
-The runtime selects an available Metal, CUDA, Vulkan, or CPU backend. `doctor` reports the selected
-backend and whether hardware acceleration is available.
-
-## Use the standalone CLI
-
-Applications that already own their retrieval layer can provide a context file directly:
-
-```bash
-npm install --save-dev @jcode.labs/ragmir-chat
-npx rgr-chat setup --profile lite
-npx rgr-chat answer "What changed?" --context ./retrieved-context.txt --profile lite
-```
-
-Standalone commands:
-
-| Command | Purpose |
+| Profile | Intended use |
 | --- | --- |
-| `rgr-chat setup` | Download and verify a selected model |
-| `rgr-chat doctor` | Inspect runtime, model, manifest, size, and optional hash validity |
-| `rgr-chat answer` | Generate from a supplied context file |
-| `rgr-chat serve` | Start the local line-delimited JSON chat server |
+| `lite` | Smaller Qwen2.5 profile for lower-memory machines |
+| `fast` | Default Gemma 4 profile for balanced local use |
+| `quality` | Larger Gemma 4 profile, enabled explicitly |
+
+These are Chat profiles, not requirements of Ragmir Core, the CLI, API, or MCP server. Verify a
+prepared profile with `npx rgr chat doctor --profile fast --verify` before offline use.
 
 ## TypeScript API
-
-Prepare the profile once, then pass retrieved passages to `generateChatAnswer`:
 
 ```ts
 import { generateChatAnswer, setupChatModel } from "@jcode.labs/ragmir-chat"
@@ -135,49 +60,26 @@ const result = await generateChatAnswer({
   ],
 })
 
-console.log(result.answer)
-console.log(result.citationStatus)
+console.log(result.answer, result.citationStatus)
 ```
 
-The result includes the answer, sources, profile, model path, citation status, cited source numbers,
-invalid citations, stop reason, and thought-token count. Raw model thought is never returned.
+If no usable source is supplied, the package returns an insufficient-context result without loading
+a model. The result reports citation validity and model metadata; raw model thought is never
+returned or persisted. Model output still needs human review for high-impact decisions.
 
-## Citation behavior
+Applications with their own retrieval layer can use `rgr-chat answer --context <file>`. The
+standalone `rgr-chat serve` command exposes a local line-delimited JSON process, not an HTTP server.
 
-The system prompt treats source blocks as untrusted evidence. Instructions found inside retrieved
-documents are not followed. The model is asked to cite claims with bracketed source numbers such as
-`[1]`, and the package validates those markers after generation.
+## Privacy boundary
 
-If no usable source passage is supplied, the package returns an insufficient-context answer without
-loading a model. If evidence is incomplete, callers should retrieve better sources instead of asking
-the model to guess.
+Normal generation sends retrieved passages only to the local model process. The explicit setup step
+may download public model weights, never project documents. Keep model state and generated output
+under ignored `.ragmir/` paths. A hosted agent that displays or consumes the answer remains subject
+to that provider's data policy.
 
-## Offline and air-gapped use
-
-1. Run `rgr chat setup --profile <profile>` on a connected machine.
-2. Verify it with `rgr chat doctor --profile <profile> --verify`.
-3. Copy the complete profile directory into `.ragmir/models/chat/<profile>` on the target machine.
-4. Run the same verification command before using `--offline`.
-
-Normal generation is local and rejects `allowRemoteModels: true`. The only intended network boundary
-is the explicit setup step on a connected machine.
-
-## Privacy notes
-
-- Retrieved passages are passed to the local model process on the same machine.
-- Visible answers keep citation markers; raw model thought is not shown, logged, or stored.
-- Model manifests pin source, revision, file name, size, license, and SHA-256.
-- Model output still needs human review when decisions are high stakes.
-
-## Further reading
-
-- [Project documentation](https://github.com/jcode-works/jcode-ragmir/wiki)
-- [Complete TypeScript API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md#chat-cited-local-generation)
-- [Offline chat preparation](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-chat-preload.md)
-- [Ragmir configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
-- [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
-- [Ragmir Core on npm](https://www.npmjs.com/package/@jcode.labs/ragmir)
-- [Ragmir TTS on npm](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
+Read the [project documentation](https://github.com/jcode-works/jcode-ragmir/wiki) and
+[troubleshooting guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
+for the complete workflow.
 
 Ragmir Chat is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
-The selected GGUF models have their own pinned Apache 2.0 license metadata.
+Selected GGUF models carry their own pinned license metadata.

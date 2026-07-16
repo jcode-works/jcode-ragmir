@@ -38,15 +38,15 @@ If the relevant material does not fill the budget, stop earlier. Padding makes a
 
 Punctuation is the only cue a TTS engine has for pausing. Use it deliberately.
 
-- **Comma** `,` — short micro-pause. Use it to separate clauses and ease breathing points.
-- **Period** `.` — full pause. End sentences here. Favour periods over commas when in doubt.
-- **Ellipsis** `…` — deliberate longer pause. Use it before the answer in an active-recall question,
+- **Comma** `,`: short micro-pause. Use it to separate clauses and ease breathing points.
+- **Period** `.`: full pause. End sentences here. Favour periods over commas when in doubt.
+- **Ellipsis** `…`: deliberate longer pause. Use it before the answer in an active-recall question,
   so the listener gets a beat to think (about three seconds).
-- **Colon** `:` — read as a mild pause; acceptable when introducing a short enumeration spoken as
+- **Colon** `:`: read as a mild pause; acceptable when introducing a short enumeration spoken as
   prose, but prefer rephrasing into a plain sentence.
-- **Semicolon** `;` — avoid. Engines hesitate inconsistently. Split into two sentences.
-- **Exclamation** `!` — avoid for TTS. It can trigger an unnatural spike in pitch.
-- **Question mark** `?` — use it for the active-recall questions; the engine raises intonation
+- **Semicolon** `;`: avoid. Engines hesitate inconsistently. Split into two sentences.
+- **Exclamation** `!`: avoid for TTS. It can trigger an unnatural spike in pitch.
+- **Question mark** `?`: use it for the active-recall questions; the engine raises intonation
   naturally.
 
 ## Pronounceability
@@ -56,7 +56,7 @@ Anything the engine might misread must be rewritten for the ear.
 - **Acronyms**: expand on first use, then use the short form if it is pronounceable. "Le RGPD, le
   Règlement Général sur la Protection des Données, ..."
 - **Numbers**: write them the way they should be read. "1500" can read as "mille cinq cents" or
-  "quinze cents" — write the intended form. For money, spell the currency: "douze mille euros".
+  "quinze cents". Write the intended form. For money, spell the currency: "douze mille euros".
 - **Symbols**: rewrite in words. `&` becomes "et", `%` becomes "pour cent", `->` becomes "mène à".
 - **Dates and times**: write them fully. "Le quinze mars deux mille vingt-cinq", not "2025-03-15".
 - **URLs, paths, code**: never read them aloud. Paraphrase: "le fichier de configuration du
@@ -65,7 +65,7 @@ Anything the engine might misread must be rewritten for the ear.
 
 ## Anti-Patterns
 
-Avoid these — they are the main causes of "imbuvable" audio.
+Avoid these. They are the main causes of "imbuvable" audio.
 
 - **Jargon without setup.** If a technical term is needed, define it in one short clause first.
 - **Spoken bullet lists.** Enumerations read aloud are exhausting. Convert lists into flowing
@@ -79,8 +79,8 @@ Avoid these — they are the main causes of "imbuvable" audio.
 
 ## Language
 
-- Write the narration in the same language passed to `--lang` (`fr` default, `en`, `es`, `ja`, `th`,
-  `zh`).
+- Write the narration in the same language passed to `--lang` (`fr` by default; `en`, `es`, `ja`,
+  `th`, and `zh` are also supported).
 - Match the working language the user used when asking for the summary when it is one of the
   supported languages.
 - Keep numerals, units, and proper nouns pronounceable in the target language.

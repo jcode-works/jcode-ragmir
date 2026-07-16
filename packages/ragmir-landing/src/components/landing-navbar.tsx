@@ -105,6 +105,7 @@ export function LandingNavbar({
   localizedTeamUrl,
 }: LandingNavbarProps): React.JSX.Element {
   const t = (key: string): string => translations[key] ?? key
+  const version = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
   const [hasScrolled, setHasScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
@@ -197,14 +198,16 @@ export function LandingNavbar({
             >
               <RagmirLogo />
             </a>
-            <a
-              href="https://www.npmjs.com/package/@jcode.labs/ragmir"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
-            >
-              v{import.meta.env.PUBLIC_RAGMIR_VERSION}
-            </a>
+            {version && (
+              <a
+                href="https://www.npmjs.com/package/@jcode.labs/ragmir"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
+              >
+                v{version}
+              </a>
+            )}
           </div>
 
           <div className="hidden items-center gap-7 md:flex">
@@ -311,15 +314,17 @@ export function LandingNavbar({
                 {t("nav_github")}
               </a>
             </Button>
-            <a
-              href="https://www.npmjs.com/package/@jcode.labs/ragmir"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 block text-center text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
-              tabIndex={menuOpen ? 0 : -1}
-            >
-              v{import.meta.env.PUBLIC_RAGMIR_VERSION}
-            </a>
+            {version && (
+              <a
+                href="https://www.npmjs.com/package/@jcode.labs/ragmir"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 block text-center text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
+                tabIndex={menuOpen ? 0 : -1}
+              >
+                v{version}
+              </a>
+            )}
           </div>
         </div>
       </div>

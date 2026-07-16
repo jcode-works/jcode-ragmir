@@ -1,6 +1,20 @@
 import type { PathLike } from "node:fs"
 import type { PackageManager } from "./package-manager.js"
-import type { AgentIntegrationReport } from "./skill.js"
+
+export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
+export type RagmirRunnerMode = "local-bin" | "workspace" | "installed-package" | "npm-cache"
+
+export interface AgentIntegrationReport {
+  runnerPath: string
+  runnerReady: boolean
+  runnerMode: RagmirRunnerMode | null
+  runnerRequiresDownload: boolean
+  projectAgents: AgentTarget[]
+  userAgents: AgentTarget[]
+  nativeAgents: AgentTarget[]
+  ready: boolean
+  warnings: string[]
+}
 
 export interface Config {
   projectRoot: string
@@ -49,7 +63,7 @@ export type AccessLogAction =
   | "evaluate"
   | "destroy-index"
 
-export interface AccessLogUsageOptions {
+export interface AccessLogUsageOptions extends OperationOptions {
   cwd?: PathLike
   days?: number
 }
@@ -564,7 +578,7 @@ export interface GoldenQuery {
   topK?: number
 }
 
-export interface EvaluationOptions {
+export interface EvaluationOptions extends OperationOptions {
   cwd?: PathLike
   goldenPath: PathLike
   topK?: number

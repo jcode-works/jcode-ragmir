@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
+import type { RagmirError } from "./errors.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { ask, expandCitation, search, vectorCandidateLimit } from "./query.js"
@@ -17,6 +18,28 @@ afterEach(async () => {
 })
 
 describe("search", () => {
+  it("should reject invalid numeric options at the library boundary", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-options-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "policy.md"), "Policy evidence.\n")
+    await ingest({ cwd: root })
+
+    for (const topK of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(search("policy", { cwd: root, topK })).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+        message: "topK must be a positive integer.",
+      } satisfies Partial<RagmirError>)
+    }
+    for (const contextRadius of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(search("policy", { cwd: root, contextRadius })).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+        message: "contextRadius must be a non-negative integer.",
+      } satisfies Partial<RagmirError>)
+    }
+  })
+
   it("keeps a broad vector candidate pool for small result sets", () => {
     expect(vectorCandidateLimit(1)).toBe(80)
     expect(vectorCandidateLimit(5)).toBe(80)

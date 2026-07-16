@@ -13,8 +13,16 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze TypeScript
+    name: Analyze ${{ matrix.label }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            label: TypeScript
+          - language: python
+            label: Python
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -22,7 +30,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: javascript-typescript
+          languages: ${{ matrix.language }}
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4

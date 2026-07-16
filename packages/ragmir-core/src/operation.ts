@@ -1,6 +1,8 @@
 import { RagmirError } from "./errors.js"
 import type { OperationOptions } from "./types.js"
 
+const MAX_OPERATION_TIMEOUT_MS = 2_147_483_647
+
 export function operationSignal(options: OperationOptions): AbortSignal | undefined {
   const timeoutSignal = timeoutSignalFor(options.timeoutMs)
   if (options.signal && timeoutSignal) {
@@ -53,8 +55,11 @@ function timeoutSignalFor(timeoutMs: number | undefined): AbortSignal | undefine
   if (timeoutMs === undefined) {
     return undefined
   }
-  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-    throw new RagmirError("INVALID_ARGUMENT", "timeoutMs must be a positive integer.")
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_OPERATION_TIMEOUT_MS) {
+    throw new RagmirError(
+      "INVALID_ARGUMENT",
+      `timeoutMs must be a positive integer no greater than ${MAX_OPERATION_TIMEOUT_MS}.`,
+    )
   }
   return AbortSignal.timeout(timeoutMs)
 }
