@@ -32,14 +32,16 @@ npx rgr chat "What evidence supports this decision?" --profile fast --offline
 `rgr chat setup` downloads and verifies one model under `.ragmir/models/chat/<profile>`. Normal
 generation uses that local file and rejects remote model resolution.
 
-| Profile | Intended use |
-| --- | --- |
-| `lite` | Smaller Qwen2.5 profile for lower-memory machines |
-| `fast` | Default Gemma 4 profile for balanced local use |
-| `quality` | Larger Gemma 4 profile, enabled explicitly |
+| Profile | Pinned model | Download | Thinking | Choose it when |
+| --- | --- | --- | --- | --- |
+| `lite` | Qwen2.5 0.5B Q4_K_M | ~0.49 GB | Off | Memory and startup time matter most |
+| `fast` | Gemma 4 E2B Q4_0 | ~3.35 GB | Standard or deep | You want the balanced default |
+| `quality` | Gemma 4 E4B Q4_0 | ~5.15 GB | Standard or deep | You accept a larger model for stronger answers |
 
-These are Chat profiles, not requirements of Ragmir Core, the CLI, API, or MCP server. Verify a
-prepared profile with `npx rgr chat doctor --profile fast --verify` before offline use.
+Use the same profile for `setup`, `doctor`, and each answer. The `fast` profile is the default;
+`lite` always disables thinking. These are Chat profiles, not requirements of Ragmir Core, the CLI,
+API, or MCP server. Verify a prepared profile with
+`npx rgr chat doctor --profile fast --verify` before offline use.
 
 ## TypeScript API
 

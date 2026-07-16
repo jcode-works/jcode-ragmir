@@ -231,12 +231,12 @@ Usage:
 
 Options:
   --engine <engine>             transformers, edge, or auto. Default is transformers.
-  --lang <language>            en, es, fr, ja, th, or zh. Selects the language. Default fr.
+  --lang <language>            Offline: en, es, fr. Edge also: ja, th, zh. Default fr.
   --model <id>                 Transformers.js TTS model ID.
   --model-path <path>          Local model/cache path. Defaults to .ragmir/models/tts.
   --offline                    Force the Transformers.js local/offline WAV path.
   --allow-remote-models        Explicitly allow remote model downloads.
-  --voice <voice>              Edge voice. Defaults to fr-FR-DeniseNeural.
+  --voice <voice>              Edge voice override. Default matches --lang.
   --rate <rate>                Edge rate. Defaults to +0%.
   --speaker-embeddings <path>  Optional model-specific speaker embedding path or URL.
   --speed <number>             Optional model-specific speech speed.
