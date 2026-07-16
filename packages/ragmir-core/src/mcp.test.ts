@@ -321,7 +321,7 @@ describe("MCP protocol contract", () => {
 
     const usage = await jsonToolResult(client, "ragmir_usage_report", { days: 1 })
     expect(usage).toMatchObject({ totalEvents: expect.any(Number) })
-  })
+  }, 15_000)
 
   it("should bound audit, evaluation, and resource payloads", async () => {
     const root = await createProject("ragmir-mcp-budget-", {

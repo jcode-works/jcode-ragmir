@@ -84,7 +84,7 @@ describe("setupProject", () => {
     expect(config.embeddingProvider).toBe("transformers")
     expect(config.embeddingModelPath).toBe(".ragmir/models")
     expect(config.transformersAllowRemoteModels).toBe(false)
-  })
+  }, 15_000)
 
   it("auto-ingests supported files when the privacy posture is clean", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-"))

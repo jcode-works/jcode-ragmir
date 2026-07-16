@@ -76,6 +76,28 @@ try {
     "ragmir-tts",
     "TTS help should not advertise the previous command alias",
   )
+  assertIncludes(
+    ttsHelp.stdout,
+    "Offline: en, es, fr. Edge also: ja, th, zh.",
+    "TTS help should distinguish offline and Edge language support",
+  )
+  assertIncludes(
+    ttsHelp.stdout,
+    "Default matches --lang.",
+    "TTS help should explain automatic Edge voice selection",
+  )
+
+  const audioHelp = await runKb(["audio", "--help"], tempRoot)
+  assertIncludes(
+    audioHelp.stdout,
+    "Offline: en, es, fr.",
+    "Core audio help should list offline language support",
+  )
+  assertIncludes(
+    audioHelp.stdout,
+    "th, zh. Default: fr.",
+    "Core audio help should list the remaining Edge languages and default",
+  )
 
   const deprecatedTtsCliPath = path.join(tempRoot, "ragmir-tts")
   await symlink(ttsCliPath, deprecatedTtsCliPath)
@@ -101,6 +123,21 @@ try {
     chatHelp.stdout,
     "ragmir-chat",
     "chat help should not advertise the previous command alias",
+  )
+  assertIncludes(
+    chatHelp.stdout,
+    "lite (Qwen2.5 0.5B)",
+    "chat help should identify the lightweight Qwen profile",
+  )
+  assertIncludes(
+    chatHelp.stdout,
+    "fast (Gemma 4 E2B, default)",
+    "chat help should identify the default Gemma profile",
+  )
+  assertIncludes(
+    chatHelp.stdout,
+    "Lite always uses off.",
+    "chat help should explain the lite thinking boundary",
   )
 
   const deprecatedChatCliPath = path.join(tempRoot, "ragmir-chat")

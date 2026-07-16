@@ -272,6 +272,8 @@ Redaction reduces accidental exposure but is not a compliance certification. Rev
 | [`@jcode.labs/ragmir-tts`](./packages/ragmir-tts/README.md) | Optional local audio or explicit online voice rendering |
 
 Installing Core does not install Chat or TTS. Add only the optional package needed by the workflow.
+Choose Chat with `--profile lite`, `fast`, or `quality`; choose offline TTS with `--lang en`, `fr`,
+or `es`. The package guides explain the model sizes, preload step, and online boundaries.
 
 ## Runnable examples
 
