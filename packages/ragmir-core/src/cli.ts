@@ -1209,16 +1209,19 @@ program
 
 program
   .command("audio")
-  .description("Render a narration text file to local speech audio with Ragmir TTS.")
+  .description("Render narration as offline WAV or explicitly selected online Edge MP3.")
   .argument("[text-file]", "Narration text file to render.")
   .option("-o, --out <path>", "Output MP3 or WAV path.")
   .option("--engine <engine>", "TTS engine: auto, edge, or transformers.")
-  .option("--lang <language>", "TTS language: en, es, fr, ja, th, or zh.")
+  .option(
+    "--lang <language>",
+    "TTS language. Offline: en, es, fr. Edge also: ja, th, zh. Default: fr.",
+  )
   .option("--model <id>", "Transformers.js TTS model ID.")
   .option("--model-path <path>", "Local model/cache path.")
   .option("--offline", "Force the Transformers.js local/offline WAV path.")
   .option("--allow-remote-models", "Explicitly allow remote model downloads.")
-  .option("--voice <voice>", "Edge voice. Defaults to fr-FR-DeniseNeural.")
+  .option("--voice <voice>", "Edge voice override. Default matches --lang.")
   .option("--rate <rate>", "Edge rate. Defaults to +0%.")
   .option("--speaker-embeddings <path>", "Optional model-specific speaker embedding path or URL.")
   .option("--speed <number>", "Optional model-specific speech speed.", parseNumber)

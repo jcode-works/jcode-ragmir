@@ -98,6 +98,12 @@ rgr audio /tmp/ragmir-tts-preload.txt --lang en --allow-remote-models --out .rag
 rgr audio ./brief.md --lang en --offline --out .ragmir/audio/brief.wav
 ```
 
+Keep the same Chat profile across `setup`, `doctor`, and answers: `lite` is the ~0.49 GB Qwen option,
+`fast` is the default ~3.35 GB Gemma option, and `quality` is the explicit ~5.15 GB Gemma option.
+For offline TTS, keep the same `--lang` across preload and render: `en`, `fr`, and `es` select their
+own local model automatically. Edge additionally supports `ja`, `th`, and `zh` when explicitly
+selected.
+
 | Command | Purpose |
 | --- | --- |
 | `models pull [--enable]` | Preload the configured embedding model and optionally enable semantic retrieval. |
@@ -109,6 +115,7 @@ OCR runs only for PDF pages without embedded text. The strict privacy profile di
 extractors. The first audio command above explicitly downloads the model from non-sensitive text;
 the second uses the prepared cache and does not download anything. See the
 [offline TTS guide](./offline-tts-preload.md) for model paths and verification.
+See [offline Chat](./offline-chat-preload.md) for profile selection and air-gapped preparation.
 
 ## Agents, maintenance, and JSON
 

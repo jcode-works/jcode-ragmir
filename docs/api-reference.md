@@ -256,6 +256,10 @@ const result = await generateChatAnswer({
 console.log(result.answer, result.citationStatus)
 ```
 
+`profile` accepts `lite` (Qwen2.5 0.5B, ~0.49 GB, thinking off), `fast` (default Gemma 4 E2B,
+~3.35 GB), or `quality` (Gemma 4 E4B, ~5.15 GB). Setup, doctor, and generation should use the same
+profile.
+
 ### Recommended Chat exports
 
 | Export | Purpose |
@@ -337,6 +341,10 @@ TTS renders text supplied by the caller. It does not retrieve evidence or write 
 first call explicitly preloads the local model from non-sensitive text. Later calls can keep
 `allowRemoteModels: false` for confidential content. The Edge path is explicit and sends narration
 text to the external service.
+
+The local Transformers.js path supports `language: "en"`, `"fr"`, and `"es"`, each with its own
+automatically selected MMS model. Edge additionally supports `"ja"`, `"th"`, and `"zh"`. French is
+the default when no language is provided.
 
 `RenderSpeechOptions.signal` stops before subsequent render or write phases. The Edge CLI is also
 terminated when cancelled and defaults to a 120-second bound; override it with `edgeTimeoutMs` when

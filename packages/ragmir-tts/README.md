@@ -38,6 +38,21 @@ npx rgr-tts render ./brief.md --lang en --offline --out .ragmir/audio/brief.wav
 When Core is installed too, `npx rgr audio` delegates to the same package. TTS reads the text
 provided by the caller; it does not retrieve evidence or write a summary.
 
+## Choose a language
+
+Use the same `--lang` code for preload and offline rendering. Ragmir selects the matching model;
+French is the default only when `--lang` is omitted.
+
+| Code | Language | Offline model selected automatically |
+| --- | --- | --- |
+| `en` | English | `Xenova/mms-tts-eng` |
+| `fr` | French | `Xenova/mms-tts-fra` |
+| `es` | Spanish | `Xenova/mms-tts-spa` |
+
+Run `npx rgr-tts doctor --json` to inspect `offlineLanguages` and `edgeLanguages`. Japanese (`ja`),
+Thai (`th`), and Chinese (`zh`) are available only through the explicitly selected online Edge
+engine unless you supply a compatible Transformers.js model yourself.
+
 ## TypeScript API
 
 ```ts
@@ -76,7 +91,7 @@ npx rgr-tts render ./public-announcement.md \
 
 | Path | Output | Languages | Network boundary |
 | --- | --- | --- | --- |
-| Transformers.js | WAV | English, Spanish, French | Model preload is explicit; rendering can then stay offline |
+| Transformers.js | WAV | English, French, Spanish | Model preload is explicit; rendering can then stay offline |
 | Edge | MP3 | English, Spanish, French, Japanese, Thai, Chinese | Narration text is sent to the external service |
 
 There is no silent fallback from local rendering to Edge. Keep model state and generated audio
