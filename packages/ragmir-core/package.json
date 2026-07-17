@@ -64,6 +64,7 @@
   "scripts": {
     "bench:compare": "node benchmarks/compare.mjs",
     "bench:ingest-memory": "pnpm build && node benchmarks/ingest-memory.mjs",
+    "bench:ingestion-metadata": "pnpm build && node benchmarks/ingestion-metadata.mjs",
     "bench:quality": "pnpm build && node benchmarks/quality.mjs",
     "bench:scale": "pnpm build && node benchmarks/run.mjs --profile scale",
     "bench:smoke": "pnpm build && node benchmarks/verify.mjs && node benchmarks/run.mjs --profile smoke",

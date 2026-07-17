@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -330,6 +330,41 @@ describe("index manifest", () => {
     const manifest = await readIndexManifest(config)
 
     expect(manifest).toEqual(sampleManifest)
+  })
+
+  it("should keep the activation manifest compact while streaming file metadata", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-index-manifest-files-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const indexedFiles = [
+      { relativePath: "raw/a.md", checksum: "a".repeat(64), chunkCount: 1 },
+      { relativePath: "raw/b.md", checksum: "b".repeat(64), chunkCount: 2 },
+    ]
+    const manifest: IndexManifest = {
+      ...sampleManifest,
+      fileCount: indexedFiles.length,
+      chunkCount: 3,
+      indexedFiles,
+    }
+
+    await writeIndexManifest(manifest, config)
+
+    const header = JSON.parse(
+      await readFile(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), "utf8"),
+    ) as { indexedFiles?: unknown; indexedFilesSnapshot?: string }
+    expect(header.indexedFiles).toBeUndefined()
+    expect(header.indexedFilesSnapshot).toMatch(/^index-manifest\.files\..+\.jsonl$/u)
+    expect(
+      await readFile(path.join(config.storageDir, header.indexedFilesSnapshot ?? ""), "utf8"),
+    ).toContain("raw/b.md")
+    await expect(readIndexManifest(config)).resolves.toEqual(manifest)
+
+    await writeIndexManifest(manifest, config)
+    expect(
+      (await readdir(config.storageDir)).filter((entry) =>
+        entry.startsWith("index-manifest.files."),
+      ),
+    ).toHaveLength(1)
   })
 
   it("returns null when the manifest is missing", async () => {

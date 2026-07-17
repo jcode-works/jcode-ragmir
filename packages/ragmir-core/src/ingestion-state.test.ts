@@ -1,12 +1,14 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   createIngestionRunState,
   generationTableName,
+  ingestionProgress,
   readIngestionState,
   removeStagedIndexManifest,
+  updateIngestionFile,
   writeIngestionState,
 } from "./ingestion-state.js"
 import { testConfig } from "./test-support/config.js"
@@ -162,6 +164,82 @@ describe("ingestion state", () => {
 
     await writeIngestionState(state, config)
 
+    await expect(readIngestionState(config)).resolves.toEqual(state)
+  })
+
+  it("should persist one file update as a bounded journal delta", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-state-journal-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const files = Array.from({ length: 100 }, (_entry, index) => ({
+      ...sourceFile(root),
+      absolutePath: path.join(root, `.ragmir/raw/evidence-${index}.md`),
+      relativePath: `.ragmir/raw/evidence-${index}.md`,
+      checksum: index.toString(16).padStart(64, "0"),
+    }))
+    const state = createIngestionRunState({
+      mode: "incremental",
+      tableName: config.tableName,
+      previousTableName: null,
+      policyFingerprint: "test-policy",
+      batchSize: 25,
+      files,
+      reusablePaths: new Set(),
+      reusableChunkCounts: new Map(),
+    })
+    await writeIngestionState(state, config)
+    const snapshotPath = path.join(config.storageDir, "ingestion-state.json")
+    const snapshotBefore = await readFile(snapshotPath, "utf8")
+    const snapshotHeader = JSON.parse(snapshotBefore) as {
+      fileSnapshot?: string
+      fileCount?: number
+      files?: unknown
+    }
+    const filesReference = state.files
+
+    expect(snapshotHeader.files).toBeUndefined()
+    expect(snapshotHeader.fileCount).toBe(100)
+    expect(snapshotHeader.fileSnapshot).toMatch(/^ingestion-state\.files\..+\.jsonl$/u)
+    expect(Buffer.byteLength(snapshotBefore)).toBeLessThan(1_024)
+    const fileSnapshotBefore = await readFile(
+      path.join(config.storageDir, snapshotHeader.fileSnapshot ?? ""),
+      "utf8",
+    )
+    expect(fileSnapshotBefore).toContain("evidence-99.md")
+
+    updateIngestionFile(state, files[37]?.relativePath ?? "", {
+      state: "indexed",
+      chunkCount: 10,
+      lastGoodChecksum: files[37]?.checksum ?? null,
+      lastGoodChunkCount: 10,
+      lastGoodBytes: files[37]?.bytes ?? null,
+      lastGoodMtimeMs: files[37]?.mtimeMs ?? null,
+      staleLastKnownGood: false,
+    })
+    await writeIngestionState(state, config)
+
+    const snapshotAfter = await readFile(snapshotPath, "utf8")
+    const journal = await readFile(
+      path.join(config.storageDir, "ingestion-state.journal.jsonl"),
+      "utf8",
+    )
+    expect(state.files).toBe(filesReference)
+    expect(snapshotAfter).toBe(snapshotBefore)
+    expect(Buffer.byteLength(journal)).toBeLessThan(Buffer.byteLength(fileSnapshotBefore) / 10)
+    expect(journal).toContain("evidence-37.md")
+    expect(journal).not.toContain("evidence-36.md")
+    expect(ingestionProgress(state)).toMatchObject({
+      indexedFiles: 1,
+      pendingFiles: 99,
+      chunksIndexed: 10,
+    })
+    await expect(readIngestionState(config)).resolves.toEqual(state)
+
+    await appendFile(
+      path.join(config.storageDir, "ingestion-state.journal.jsonl"),
+      '{"version":1,"type":"file"',
+      "utf8",
+    )
     await expect(readIngestionState(config)).resolves.toEqual(state)
   })
 

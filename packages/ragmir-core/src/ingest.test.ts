@@ -596,6 +596,32 @@ describe("ingest", () => {
     expect(versionAfter).toBe(versionBefore)
   })
 
+  it("should stream final validation and audit without materializing all rows", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-stream-validation-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "alpha.md"), "Alpha evidence.\n")
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const table = await openRowsTable(config)
+    if (!table) {
+      throw new Error("Expected an index table for streaming validation.")
+    }
+    const queryPrototype = Object.getPrototypeOf(table.query()) as {
+      toArray: () => Promise<unknown[]>
+    }
+    const toArray = vi.spyOn(queryPrototype, "toArray")
+
+    await ingest({ cwd: root })
+    expect(toArray).toHaveBeenCalledTimes(1)
+
+    toArray.mockClear()
+    const report = await audit(root)
+    expect(report.totalChunks).toBe(1)
+    expect(toArray).not.toHaveBeenCalled()
+  })
+
   it("rebuilds every file when the content policy changes", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-policy-rebuild-"))
     tempDirs.push(root)

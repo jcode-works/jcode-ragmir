@@ -67,6 +67,8 @@ concurrency, embedding-batch and file-batch ceilings.
 
 Maintainers can reproduce the 25-file, 50-MB-per-file memory gate with
 `pnpm bench:ingest-memory -- --stress` from the repository root.
+The metadata gate for 100,000 files and one million chunks is
+`pnpm bench:ingestion-metadata -- --stress`; it enforces a 256-MiB peak RSS budget.
 
 Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
 text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and

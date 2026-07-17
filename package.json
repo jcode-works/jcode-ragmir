@@ -35,6 +35,7 @@
     "bootstrap": "mise install && pnpm install",
     "bench:compare": "pnpm --filter @jcode.labs/ragmir bench:compare",
     "bench:ingest-memory": "pnpm --filter @jcode.labs/ragmir bench:ingest-memory",
+    "bench:ingestion-metadata": "pnpm --filter @jcode.labs/ragmir bench:ingestion-metadata",
     "bench:quality": "pnpm --filter @jcode.labs/ragmir bench:quality",
     "bench:scale": "pnpm --filter @jcode.labs/ragmir bench:scale",
     "bench:smoke": "pnpm --filter @jcode.labs/ragmir bench:smoke",

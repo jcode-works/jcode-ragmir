@@ -1,14 +1,30 @@
 import { randomUUID } from "node:crypto"
-import { readFile, rename, rm, writeFile } from "node:fs/promises"
+import { createReadStream } from "node:fs"
+import { open as openFile, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import * as lancedb from "@lancedb/lancedb"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
 import { isRecord } from "./guards.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import { isIndexQualityReport } from "./quality-report.js"
-import type { Config, IndexManifest, SourceLocationKind, VectorRow } from "./types.js"
+import type {
+  Config,
+  IndexManifest,
+  IndexManifestFile,
+  SourceLocationKind,
+  VectorRow,
+} from "./types.js"
 
 const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json"
+const INDEX_FILES_PREFIX = "index-manifest.files."
+const INDEX_FILES_SUFFIX = ".jsonl"
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
+const STREAM_WRITE_BYTES = 64 * 1_024
+
+type PersistedIndexManifest = Omit<IndexManifest, "indexedFiles" | "qualityReport"> & {
+  indexedFilesSnapshot?: string
+  qualityReport?: unknown
+}
 
 export interface EmptyTextFileRecord {
   relativePath: string
@@ -137,24 +153,49 @@ async function ensureLexicalIndex(table: lancedb.Table): Promise<EnsureVectorInd
   }
 }
 
-export async function writeIndexManifest(manifest: IndexManifest, config: Config): Promise<void> {
+export async function writeIndexManifest(
+  manifest: IndexManifest,
+  config: Config,
+  indexedFiles: Iterable<IndexManifestFile> | undefined = manifest.indexedFiles,
+): Promise<void> {
   const manifestPath = path.join(config.storageDir, INDEX_MANIFEST_FILENAME)
-  await writePrivateJsonAtomic(manifestPath, manifest, config.storageDir)
+  const { indexedFiles: _indexedFiles, ...manifestHeader } = manifest
+  let persistedManifest: PersistedIndexManifest = manifestHeader
+  let currentSnapshot: string | null = null
+  if (indexedFiles) {
+    currentSnapshot = indexFilesSnapshotFilename(randomUUID())
+    const writtenFiles = await writePrivateJsonLinesAtomic(
+      path.join(config.storageDir, currentSnapshot),
+      indexedFiles,
+      config.storageDir,
+    )
+    if (writtenFiles !== manifest.fileCount) {
+      await rm(path.join(config.storageDir, currentSnapshot), { force: true })
+      throw new Error(
+        `Index manifest expected ${manifest.fileCount} files but received ${writtenFiles}.`,
+      )
+    }
+    persistedManifest = { ...manifestHeader, indexedFilesSnapshot: currentSnapshot }
+  }
+  await writePrivateJsonAtomic(manifestPath, persistedManifest, config.storageDir)
+  await removeStaleIndexFileSnapshots(currentSnapshot, config)
 }
 
 export async function readIndexManifest(config: Config): Promise<IndexManifest | null> {
   try {
-    const raw = JSON.parse(
-      await readFile(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), "utf8"),
-    ) as unknown
-    if (!isRecord(raw)) {
-      return null
-    }
+    const raw = await readRawIndexManifest(config)
     if (!isIndexManifest(raw)) {
       return null
     }
-    const { qualityReport, ...manifest } = raw
-    return isIndexQualityReport(qualityReport) ? { ...manifest, qualityReport } : manifest
+    const { indexedFilesSnapshot, qualityReport, ...manifest } = raw
+    const indexedFiles = indexedFilesSnapshot
+      ? await readIndexFileSnapshot(indexedFilesSnapshot, config)
+      : raw.indexedFiles
+    if (indexedFilesSnapshot && (!indexedFiles || indexedFiles.length !== raw.fileCount)) {
+      return null
+    }
+    const hydrated = indexedFiles ? { ...manifest, indexedFiles } : manifest
+    return isIndexQualityReport(qualityReport) ? { ...hydrated, qualityReport } : hydrated
   } catch (error) {
     // The manifest is purely diagnostic. A missing file (pre-manifest index) or
     // a corrupt/unreadable file should surface as "no freshness info" rather
@@ -169,9 +210,36 @@ export async function readIndexManifest(config: Config): Promise<IndexManifest |
   }
 }
 
+async function readIndexManifestHeader(config: Config): Promise<IndexManifest | null> {
+  try {
+    const raw = await readRawIndexManifest(config)
+    if (!isIndexManifest(raw)) {
+      return null
+    }
+    const {
+      indexedFiles: _files,
+      indexedFilesSnapshot: _snapshot,
+      qualityReport,
+      ...manifest
+    } = raw
+    return isIndexQualityReport(qualityReport) ? { ...manifest, qualityReport } : manifest
+  } catch (error) {
+    if (error instanceof SyntaxError || (isNodeError(error) && error.code === "ENOENT")) {
+      return null
+    }
+    throw error
+  }
+}
+
+async function readRawIndexManifest(config: Config): Promise<unknown> {
+  return JSON.parse(
+    await readFile(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), "utf8"),
+  ) as unknown
+}
+
 function isIndexManifest(
   value: unknown,
-): value is Omit<IndexManifest, "qualityReport"> & { qualityReport?: unknown } {
+): value is Omit<IndexManifest, "qualityReport"> & PersistedIndexManifest {
   if (!isRecord(value)) {
     return false
   }
@@ -191,12 +259,15 @@ function isIndexManifest(
     (!("tableName" in value) || typeof value.tableName === "string") &&
     (!("indexedFiles" in value) ||
       (Array.isArray(value.indexedFiles) && value.indexedFiles.every(isIndexManifestFile))) &&
+    (!("indexedFilesSnapshot" in value) ||
+      isIndexFilesSnapshotFilename(value.indexedFilesSnapshot)) &&
+    !("indexedFiles" in value && "indexedFilesSnapshot" in value) &&
     (!("staleFiles" in value) ||
       (Array.isArray(value.staleFiles) && value.staleFiles.every(isIndexManifestStaleFile)))
   )
 }
 
-function isIndexManifestFile(value: unknown): boolean {
+function isIndexManifestFile(value: unknown): value is IndexManifestFile {
   return (
     isRecord(value) &&
     typeof value.relativePath === "string" &&
@@ -275,7 +346,7 @@ export async function openRowsTableByName(
 }
 
 export async function activeIndexTableName(config: Config): Promise<string> {
-  return (await readIndexManifest(config))?.tableName ?? config.tableName
+  return (await readIndexManifestHeader(config))?.tableName ?? config.tableName
 }
 
 export async function dropRowsTable(
@@ -471,4 +542,131 @@ async function writePrivateJsonAtomic(
   } finally {
     await rm(temporaryPath, { force: true })
   }
+}
+
+async function writePrivateJsonLinesAtomic(
+  targetPath: string,
+  values: Iterable<IndexManifestFile>,
+  directory: string,
+): Promise<number> {
+  await ensurePrivateDirectory(directory)
+  const temporaryPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`
+  try {
+    const handle = await openFile(temporaryPath, "wx", 0o600)
+    let count = 0
+    let previousKey: string | null = null
+    let buffered = ""
+    try {
+      for (const value of values) {
+        if (!isIndexManifestFile(value)) {
+          throw new Error("Index manifest contains invalid file metadata.")
+        }
+        const key = `${value.relativePath}\0${value.checksum}`
+        if (previousKey !== null && key <= previousKey) {
+          throw new Error("Index manifest file metadata must be unique and sorted.")
+        }
+        previousKey = key
+        count += 1
+        buffered += `${JSON.stringify(value)}\n`
+        if (Buffer.byteLength(buffered) >= STREAM_WRITE_BYTES) {
+          await handle.writeFile(buffered, "utf8")
+          buffered = ""
+        }
+      }
+      if (buffered) {
+        await handle.writeFile(buffered, "utf8")
+      }
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    await hardenPrivateFile(temporaryPath)
+    await rename(temporaryPath, targetPath)
+    return count
+  } finally {
+    await rm(temporaryPath, { force: true })
+  }
+}
+
+async function readIndexFileSnapshot(
+  filename: string,
+  config: Config,
+): Promise<IndexManifestFile[] | null> {
+  if (!isIndexFilesSnapshotFilename(filename)) {
+    return null
+  }
+  const values: IndexManifestFile[] = []
+  const stream = createReadStream(path.join(config.storageDir, filename))
+  stream.setEncoding("utf8")
+  let buffered = ""
+  let previousKey: string | null = null
+  const applyLine = (line: string): boolean => {
+    let value: unknown
+    try {
+      value = JSON.parse(line) as unknown
+    } catch {
+      return false
+    }
+    if (!isIndexManifestFile(value)) {
+      return false
+    }
+    const key = `${value.relativePath}\0${value.checksum}`
+    if (previousKey !== null && key <= previousKey) {
+      return false
+    }
+    previousKey = key
+    values.push(value)
+    return true
+  }
+  try {
+    for await (const chunk of stream) {
+      buffered += typeof chunk === "string" ? chunk : chunk.toString("utf8")
+      let lineEnd = buffered.indexOf("\n")
+      while (lineEnd >= 0) {
+        const line = buffered.slice(0, lineEnd)
+        buffered = buffered.slice(lineEnd + 1)
+        if (!line || !applyLine(line)) {
+          return null
+        }
+        lineEnd = buffered.indexOf("\n")
+      }
+    }
+    if (buffered && !applyLine(buffered)) {
+      return null
+    }
+    return values
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return null
+    }
+    throw error
+  }
+}
+
+function indexFilesSnapshotFilename(id: string): string {
+  if (!UUID_V4_PATTERN.test(id)) {
+    throw new Error("Index file snapshot id must be a valid UUID v4.")
+  }
+  return `${INDEX_FILES_PREFIX}${id}${INDEX_FILES_SUFFIX}`
+}
+
+function isIndexFilesSnapshotFilename(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.startsWith(INDEX_FILES_PREFIX) &&
+    value.endsWith(INDEX_FILES_SUFFIX) &&
+    UUID_V4_PATTERN.test(value.slice(INDEX_FILES_PREFIX.length, -INDEX_FILES_SUFFIX.length))
+  )
+}
+
+async function removeStaleIndexFileSnapshots(
+  currentFilename: string | null,
+  config: Config,
+): Promise<void> {
+  const entries = await readdir(config.storageDir)
+  await Promise.all(
+    entries
+      .filter((entry) => entry !== currentFilename && isIndexFilesSnapshotFilename(entry))
+      .map((entry) => rm(path.join(config.storageDir, entry), { force: true })),
+  )
 }

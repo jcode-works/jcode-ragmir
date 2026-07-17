@@ -23,16 +23,17 @@ import { withIndexWriteLock } from "./index-write-lock.js"
 import type { IngestionRunState } from "./ingestion-state.js"
 import {
   canResumeIngestion,
+  compactIngestionState,
   createIngestionRunState,
   finishIngestionState,
   generationTableName,
   ingestionProgress,
   readIngestionState,
+  reconcileIngestionFile,
   removeStagedIndexManifest,
   resumeIngestionState,
   updateIngestionFile,
   writeIngestionState,
-  writeStagedIndexManifest,
 } from "./ingestion-state.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
@@ -187,16 +188,7 @@ async function ingestUnlocked(
         ...(mode === "incremental" ? { previousFiles } : {}),
       })
       if (mode === "rebuild") {
-        state = {
-          ...state,
-          tableName: generationTableName(config.tableName, state.runId),
-          files: state.files.map((file) => ({
-            ...file,
-            state: "pending",
-            chunkCount: 0,
-            reused: false,
-          })),
-        }
+        state.tableName = generationTableName(config.tableName, state.runId)
       }
     }
 
@@ -292,7 +284,6 @@ async function ingestUnlocked(
             staleLastKnownGood: false,
           })
         }
-        await writeProgressManifest(state, config, connection)
         await persistIngestionProgress(state, config, options)
         parsed.chunks.length = 0
         throwIfAborted(signal)
@@ -313,13 +304,12 @@ async function ingestUnlocked(
     const manifest = await manifestForState(state, config, connection)
     await validateIngestionTable(state, manifest, config, connection)
     await writeEmptyTextFiles(emptyTextRecords(state), config)
-    await writeIndexManifest(manifest, config)
+    await writeIndexManifest(manifest, config, indexedFilesFromState(state))
     await removeStagedIndexManifest(state.runId, config)
     const errors = ingestionErrors(state)
     state = finishIngestionState(state, errors.length > 0 ? "completed_with_errors" : "completed")
-    await persistIngestionProgress(state, config, options)
+    await persistIngestionProgress(state, config, options, true)
 
-    const indexedFiles = manifest.indexedFiles ?? []
     const emptyTextFiles = emptyTextRecords(state).map((file) => file.relativePath)
     const redactions = state.files.reduce((sum, file) => sum + file.redactions, 0)
     await recordAccess(config, {
@@ -332,7 +322,7 @@ async function ingestUnlocked(
       runId: state.runId,
       resumed: state.resumed,
       batchSize: state.batchSize,
-      indexedFiles: indexedFiles.length,
+      indexedFiles: manifest.fileCount,
       rebuiltFiles: state.files.filter(
         (file) => file.state === "indexed" && file.chunkCount > 0 && !file.reused,
       ).length,
@@ -381,17 +371,6 @@ async function reconcileCommittedFiles(
   }
 
   const table = await openRowsTableByName(state.tableName, config, connection)
-  const rows = table
-    ? ((await table.query().select(["relativePath", "checksum"]).toArray()) as Array<{
-        relativePath: string
-        checksum: string
-      }>)
-    : []
-  const rowCounts = new Map<string, number>()
-  for (const row of rows) {
-    const key = `${row.relativePath}\0${row.checksum}`
-    rowCounts.set(key, (rowCounts.get(key) ?? 0) + 1)
-  }
   const committedEmptyFiles =
     state.mode === "incremental"
       ? new Set(
@@ -401,29 +380,29 @@ async function reconcileCommittedFiles(
         )
       : new Set<string>()
 
-  return {
-    ...state,
-    files: state.files.map((file) => {
-      if (file.state === "indexed" || file.state === "error") {
-        return file
-      }
-      const key = `${file.relativePath}\0${file.checksum}`
-      const committed =
-        file.chunkCount > 0 ? rowCounts.get(key) === file.chunkCount : committedEmptyFiles.has(key)
-      return committed
-        ? {
-            ...file,
-            state: "indexed",
-            lastGoodChecksum: file.checksum,
-            lastGoodChunkCount: file.chunkCount,
-            lastGoodBytes: file.bytes,
-            lastGoodMtimeMs: file.mtimeMs,
-            staleLastKnownGood: false,
-            error: null,
-          }
-        : file
-    }),
+  for (const file of filesToReconcile) {
+    const key = `${file.relativePath}\0${file.checksum}`
+    const committedRows =
+      file.chunkCount > 0 && table
+        ? await table.countRows(
+            `relativePath = ${sqlString(file.relativePath)} AND checksum = ${sqlString(file.checksum)}`,
+          )
+        : 0
+    const committed =
+      file.chunkCount > 0 ? committedRows === file.chunkCount : committedEmptyFiles.has(key)
+    if (committed) {
+      reconcileIngestionFile(state, file.relativePath, {
+        state: "indexed",
+        lastGoodChecksum: file.checksum,
+        lastGoodChunkCount: file.chunkCount,
+        lastGoodBytes: file.bytes,
+        lastGoodMtimeMs: file.mtimeMs,
+        staleLastKnownGood: false,
+        error: null,
+      })
+    }
   }
+  return state
 }
 
 interface ParsedSourceFile {
@@ -499,23 +478,14 @@ async function persistIngestionProgress(
   state: IngestionRunState,
   config: Config,
   options: IngestOptions,
+  compact = false,
 ): Promise<void> {
-  await writeIngestionState(state, config)
-  await options.onProgress?.(ingestionProgress(state))
-}
-
-async function writeProgressManifest(
-  state: IngestionRunState,
-  config: Config,
-  connection: Connection | undefined,
-): Promise<void> {
-  const manifest = await manifestForState(state, config, connection)
-  if (state.mode === "rebuild") {
-    await writeStagedIndexManifest(manifest, state.runId, config)
-    return
+  if (compact) {
+    await compactIngestionState(state, config)
+  } else {
+    await writeIngestionState(state, config)
   }
-  await writeEmptyTextFiles(emptyTextRecords(state), config)
-  await writeIndexManifest(manifest, config)
+  await options.onProgress?.(ingestionProgress(state))
 }
 
 async function manifestForState(
@@ -523,7 +493,12 @@ async function manifestForState(
   config: Config,
   connection: Connection | undefined,
 ): Promise<IndexManifest> {
-  const indexedFiles = indexedFilesFromState(state)
+  let fileCount = 0
+  let chunkCount = 0
+  for (const file of indexedFilesFromState(state)) {
+    fileCount += 1
+    chunkCount += file.chunkCount
+  }
   const staleFiles = state.files
     .flatMap((file) =>
       file.staleLastKnownGood && file.lastGoodChecksum !== null && file.error !== null
@@ -539,7 +514,6 @@ async function manifestForState(
         : [],
     )
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
-  const chunkCount = indexedFiles.reduce((sum, file) => sum + file.chunkCount, 0)
   const table = await openRowsTableByName(state.tableName, config, connection)
   const [firstRow] = table ? ((await table.query().limit(1).toArray()) as VectorRow[]) : []
   if (chunkCount > 0 && !firstRow) {
@@ -556,46 +530,37 @@ async function manifestForState(
     vectorDistanceMetric: VECTOR_DISTANCE_METRIC,
     chunkSize: config.chunkSize,
     chunkOverlap: config.chunkOverlap,
-    fileCount: indexedFiles.length,
+    fileCount,
     chunkCount,
     tableName: state.tableName,
-    indexedFiles,
     ...(staleFiles.length > 0 ? { staleFiles } : {}),
   }
 }
 
-function indexedFilesFromState(state: IngestionRunState): IndexManifestFile[] {
-  return state.files
-    .flatMap((file) => {
-      if (file.state === "indexed" && file.chunkCount > 0) {
-        return [
-          {
-            relativePath: file.relativePath,
-            checksum: file.checksum,
-            chunkCount: file.chunkCount,
-            bytes: file.bytes,
-            mtimeMs: file.mtimeMs,
-          },
-        ]
+function* indexedFilesFromState(state: IngestionRunState): Generator<IndexManifestFile> {
+  for (const file of state.files) {
+    if (file.state === "indexed" && file.chunkCount > 0) {
+      yield {
+        relativePath: file.relativePath,
+        checksum: file.checksum,
+        chunkCount: file.chunkCount,
+        bytes: file.bytes,
+        mtimeMs: file.mtimeMs,
       }
-      if (
-        file.staleLastKnownGood &&
-        file.lastGoodChecksum !== null &&
-        file.lastGoodChunkCount > 0
-      ) {
-        return [
-          {
-            relativePath: file.relativePath,
-            checksum: file.lastGoodChecksum,
-            chunkCount: file.lastGoodChunkCount,
-            ...(file.lastGoodBytes === null ? {} : { bytes: file.lastGoodBytes }),
-            ...(file.lastGoodMtimeMs === null ? {} : { mtimeMs: file.lastGoodMtimeMs }),
-          },
-        ]
+    } else if (
+      file.staleLastKnownGood &&
+      file.lastGoodChecksum !== null &&
+      file.lastGoodChunkCount > 0
+    ) {
+      yield {
+        relativePath: file.relativePath,
+        checksum: file.lastGoodChecksum,
+        chunkCount: file.lastGoodChunkCount,
+        ...(file.lastGoodBytes === null ? {} : { bytes: file.lastGoodBytes }),
+        ...(file.lastGoodMtimeMs === null ? {} : { mtimeMs: file.lastGoodMtimeMs }),
       }
-      return []
-    })
-    .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+    }
+  }
 }
 
 function emptyTextRecords(state: IngestionRunState): Array<{
@@ -656,36 +621,123 @@ async function validateIngestionTable(
     }
     throw new Error("Ingestion validation failed because the generated table is missing.")
   }
-  const rows = (await table.query().select(["id", "relativePath", "checksum"]).toArray()) as Array<{
-    id: string
-    relativePath: string
-    checksum: string
-  }>
-  if (rows.length !== manifest.chunkCount) {
+  const rowCount = await table.countRows()
+  await validateIngestionMetadata({
+    expectedChunkCount: manifest.chunkCount,
+    actualChunkCount: rowCount,
+    expectedFiles: indexedFilesFromState(state),
+    idRows: streamQueryRows(
+      table.query().select(["id"]).orderBy({ columnName: "id", ascending: true }),
+    ),
+    fileRows: streamQueryRows(
+      table
+        .query()
+        .select(["relativePath", "checksum"])
+        .orderBy([
+          { columnName: "relativePath", ascending: true },
+          { columnName: "checksum", ascending: true },
+        ]),
+    ),
+  })
+}
+
+export interface IngestionMetadataValidationOptions {
+  expectedChunkCount: number
+  actualChunkCount: number
+  expectedFiles: Iterable<IndexManifestFile>
+  idRows: AsyncIterable<unknown>
+  fileRows: AsyncIterable<unknown>
+}
+
+export async function validateIngestionMetadata(
+  options: IngestionMetadataValidationOptions,
+): Promise<void> {
+  if (options.actualChunkCount !== options.expectedChunkCount) {
     throw new Error(
-      `Ingestion validation expected ${manifest.chunkCount} rows but found ${rows.length}.`,
+      `Ingestion validation expected ${options.expectedChunkCount} rows but found ${options.actualChunkCount}.`,
     )
   }
-  if (new Set(rows.map((row) => row.id)).size !== rows.length) {
-    throw new Error("Ingestion validation found duplicate chunk identifiers.")
+
+  let previousId: string | null = null
+  for await (const row of options.idRows) {
+    const id = requiredStringField(row, "id", "Ingestion validation found an invalid chunk id.")
+    if (id === previousId) {
+      throw new Error("Ingestion validation found duplicate chunk identifiers.")
+    }
+    previousId = id
   }
-  const expectedFiles = new Map(
-    (manifest.indexedFiles ?? []).map((file) => [
-      `${file.relativePath}\0${file.checksum}`,
-      file.chunkCount,
-    ]),
-  )
-  const actualFiles = new Map<string, number>()
-  for (const row of rows) {
-    const key = `${row.relativePath}\0${row.checksum}`
-    actualFiles.set(key, (actualFiles.get(key) ?? 0) + 1)
+
+  const expectedFiles = options.expectedFiles[Symbol.iterator]()
+  let expectedFile = expectedFiles.next()
+  let actualKey: string | null = null
+  let actualCount = 0
+  const validateActualFile = (): void => {
+    if (actualKey === null) {
+      return
+    }
+    if (
+      expectedFile.done ||
+      `${expectedFile.value.relativePath}\0${expectedFile.value.checksum}` !== actualKey ||
+      expectedFile.value.chunkCount !== actualCount
+    ) {
+      throw new Error("Ingestion validation found rows that do not match the generated manifest.")
+    }
+    expectedFile = expectedFiles.next()
   }
-  if (
-    expectedFiles.size !== actualFiles.size ||
-    [...expectedFiles].some(([key, count]) => actualFiles.get(key) !== count)
-  ) {
+
+  for await (const row of options.fileRows) {
+    const relativePath = requiredStringField(
+      row,
+      "relativePath",
+      "Ingestion validation found an invalid source path.",
+    )
+    const checksum = requiredStringField(
+      row,
+      "checksum",
+      "Ingestion validation found an invalid source checksum.",
+    )
+    const key = `${relativePath}\0${checksum}`
+    if (actualKey !== key) {
+      validateActualFile()
+      actualKey = key
+      actualCount = 0
+    }
+    actualCount += 1
+  }
+  validateActualFile()
+  if (!expectedFile.done) {
     throw new Error("Ingestion validation found rows that do not match the generated manifest.")
   }
+}
+
+interface StreamedRowBatch {
+  numRows: number
+  get(index: number): unknown
+}
+
+async function* streamQueryRows(query: AsyncIterable<StreamedRowBatch>): AsyncGenerator<unknown> {
+  for await (const batch of query) {
+    for (let index = 0; index < batch.numRows; index += 1) {
+      yield batch.get(index)
+    }
+  }
+}
+
+function requiredStringField(
+  row: unknown,
+  key: string,
+  message: string,
+  allowEmpty = false,
+): string {
+  const value = tableRowField(row, key)
+  if (typeof value !== "string" || (!allowEmpty && value.length === 0)) {
+    throw new Error(message)
+  }
+  return value
+}
+
+function tableRowField(row: unknown, key: string): unknown {
+  return typeof row === "object" && row !== null ? Reflect.get(row, key) : undefined
 }
 
 function ingestFileBatchSize(value: number | undefined): number {
@@ -697,6 +749,10 @@ function ingestFileBatchSize(value: number | undefined): number {
     throw new Error(`batchSize must be at most ${MAX_INGEST_FILE_BATCH_SIZE}.`)
   }
   return batchSize
+}
+
+function sqlString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
 }
 
 function incrementalFailurePolicy(
@@ -789,26 +845,33 @@ export async function audit(
     }
   }
 
-  const rows = (await table
-    .query()
-    .select(["relativePath", "checksum", "contextPath", "text"])
-    .toArray()) as Array<{
-    relativePath: string
-    checksum?: string
-    contextPath: string
-    text: string
-  }>
-  throwIfAborted(signal)
   const counts = new Map<string, number>()
   const checksums = new Map<string, Set<string>>()
-  for (const row of rows) {
+  const chunkStats = createAuditChunkStatsAccumulator()
+  for await (const row of streamQueryRows(
+    table.query().select(["relativePath", "checksum", "contextPath", "text"]),
+  )) {
     throwIfAborted(signal)
-    counts.set(row.relativePath, (counts.get(row.relativePath) ?? 0) + 1)
-    if (row.checksum) {
-      const fileChecksums = checksums.get(row.relativePath) ?? new Set<string>()
-      fileChecksums.add(row.checksum)
-      checksums.set(row.relativePath, fileChecksums)
+    const relativePath = requiredStringField(
+      row,
+      "relativePath",
+      "Audit found an invalid source path.",
+    )
+    const checksum = tableRowField(row, "checksum")
+    const contextPath = requiredStringField(
+      row,
+      "contextPath",
+      "Audit found an invalid chunk context.",
+      true,
+    )
+    const text = requiredStringField(row, "text", "Audit found invalid chunk text.")
+    counts.set(relativePath, (counts.get(relativePath) ?? 0) + 1)
+    if (typeof checksum === "string" && checksum.length > 0) {
+      const fileChecksums = checksums.get(relativePath) ?? new Set<string>()
+      fileChecksums.add(checksum)
+      checksums.set(relativePath, fileChecksums)
     }
+    recordAuditChunkStats(chunkStats, text.length, contextPath.trim().length > 0)
   }
 
   const supportedSet = new Set(supportedFiles)
@@ -841,9 +904,75 @@ export async function audit(
         return !currentChecksum || !indexedChecksums?.has(currentChecksum)
       })
       .sort(),
-    totalChunks: rows.length,
-    chunkStats: summarizeChunkStats(rows),
+    totalChunks: chunkStats.count,
+    chunkStats: finishAuditChunkStats(chunkStats),
   }
+}
+
+interface AuditChunkStatsAccumulator {
+  count: number
+  totalChars: number
+  minChars: number
+  maxChars: number
+  contextualChunks: number
+  lengthHistogram: Map<number, number>
+}
+
+function createAuditChunkStatsAccumulator(): AuditChunkStatsAccumulator {
+  return {
+    count: 0,
+    totalChars: 0,
+    minChars: Number.POSITIVE_INFINITY,
+    maxChars: 0,
+    contextualChunks: 0,
+    lengthHistogram: new Map(),
+  }
+}
+
+function recordAuditChunkStats(
+  stats: AuditChunkStatsAccumulator,
+  characters: number,
+  contextual: boolean,
+): void {
+  stats.count += 1
+  stats.totalChars += characters
+  stats.minChars = Math.min(stats.minChars, characters)
+  stats.maxChars = Math.max(stats.maxChars, characters)
+  stats.contextualChunks += contextual ? 1 : 0
+  stats.lengthHistogram.set(characters, (stats.lengthHistogram.get(characters) ?? 0) + 1)
+}
+
+function finishAuditChunkStats(stats: AuditChunkStatsAccumulator): AuditReport["chunkStats"] {
+  if (stats.count === 0) {
+    return summarizeChunkStats([])
+  }
+  const sortedHistogram = [...stats.lengthHistogram].sort(([left], [right]) => left - right)
+  return {
+    count: stats.count,
+    minChars: stats.minChars,
+    averageChars: stats.totalChars / stats.count,
+    p50Chars: histogramPercentile(sortedHistogram, stats.count, 0.5),
+    p95Chars: histogramPercentile(sortedHistogram, stats.count, 0.95),
+    maxChars: stats.maxChars,
+    contextualChunks: stats.contextualChunks,
+    contextualRatio: stats.contextualChunks / stats.count,
+  }
+}
+
+function histogramPercentile(
+  histogram: Array<[number, number]>,
+  count: number,
+  quantile: number,
+): number {
+  const target = Math.max(1, Math.ceil(count * quantile))
+  let cumulative = 0
+  for (const [value, occurrences] of histogram) {
+    cumulative += occurrences
+    if (cumulative >= target) {
+      return value
+    }
+  }
+  return histogram.at(-1)?.[0] ?? 0
 }
 
 function sourceInventoryMetrics(files: SourceFile[]): {
