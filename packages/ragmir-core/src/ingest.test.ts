@@ -99,6 +99,20 @@ describe("ingest", () => {
     expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length)
   })
 
+  it("should validate indexed files when locale and storage path orders differ", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-ingest-path-order-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "Zebra.md"), "Uppercase evidence.\n")
+    await writeFile(path.join(root, ".ragmir", "raw", "alpha.md"), "Lowercase evidence.\n")
+
+    const result = await ingest({ cwd: root, rebuild: true })
+
+    expect(result.indexedFiles).toBe(2)
+    expect(result.chunks).toBe(2)
+  })
+
   it("should preserve and mark the last known good rows after an incremental parse failure", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-last-good-"))
     tempDirs.push(root)

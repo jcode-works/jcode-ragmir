@@ -307,6 +307,7 @@ async function ingestUnlocked(
       lexicalIndexWarning ??= writeResult.lexicalIndexWarning
     }
 
+    sortIngestionFilesForStorage(state)
     let manifest = await manifestForState(state, config, connection)
     const maintenance = await maintainStorageTable(state.tableName, config, connection, {
       additionalMutations: storageMutations,
@@ -597,6 +598,30 @@ function* indexedFilesFromState(state: IngestionRunState): Generator<IndexManife
       }
     }
   }
+}
+
+function sortIngestionFilesForStorage(state: IngestionRunState): void {
+  state.files.sort((left, right) =>
+    compareUnicodeScalarValues(left.relativePath, right.relativePath),
+  )
+}
+
+function compareUnicodeScalarValues(left: string, right: string): number {
+  let leftIndex = 0
+  let rightIndex = 0
+  while (leftIndex < left.length && rightIndex < right.length) {
+    const leftCodePoint = left.codePointAt(leftIndex)
+    const rightCodePoint = right.codePointAt(rightIndex)
+    if (leftCodePoint === undefined || rightCodePoint === undefined) {
+      break
+    }
+    if (leftCodePoint !== rightCodePoint) {
+      return leftCodePoint - rightCodePoint
+    }
+    leftIndex += leftCodePoint > 0xffff ? 2 : 1
+    rightIndex += rightCodePoint > 0xffff ? 2 : 1
+  }
+  return left.length - right.length
 }
 
 function emptyTextRecords(state: IngestionRunState): Array<{
