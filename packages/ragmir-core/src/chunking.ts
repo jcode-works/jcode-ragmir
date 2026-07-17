@@ -8,10 +8,15 @@ const LINE_BREAK_MIN_RATIO = 0.65
 const WHITESPACE_BREAK_MIN_RATIO = 0.75
 const SENTENCE_BOUNDARIES = [". ", "? ", "! ", "。", "？", "！"]
 
+export interface ChunkDocumentOptions {
+  maxChunks?: number
+}
+
 export function chunkDocument(
   document: ParsedDocument,
   chunkSize: number,
   chunkOverlap: number,
+  options: ChunkDocumentOptions = {},
 ): TextChunk[] {
   if (!document.text) {
     return []
@@ -43,6 +48,11 @@ export function chunkDocument(
       const span = trimmedSpan(document.text, cursor, end)
 
       if (span.text) {
+        if (options.maxChunks !== undefined && chunks.length >= options.maxChunks) {
+          throw new Error(
+            `Chunk limit of ${options.maxChunks} exceeded for ${document.file.relativePath}. Increase chunkSize or split the source file.`,
+          )
+        }
         const id = createHash("sha256")
           .update(`${document.file.relativePath}:${chunkIndex}:${region.contextPath}:${span.text}`)
           .digest("hex")

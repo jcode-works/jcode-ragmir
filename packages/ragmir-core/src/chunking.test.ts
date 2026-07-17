@@ -24,6 +24,23 @@ describe("chunkDocument", () => {
     expect(chunks.every((chunk) => chunk.text.length > 0)).toBe(true)
   })
 
+  it("should stop chunk allocation when the configured window is exhausted", () => {
+    const doc: ParsedDocument = {
+      file: {
+        absolutePath: "/tmp/bounded.md",
+        relativePath: ".ragmir/raw/bounded.md",
+        source: "bounded.md",
+        extension: ".md",
+        bytes: 100,
+        mtimeMs: 1,
+        checksum: "bounded",
+      },
+      text: "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda",
+    }
+
+    expect(() => chunkDocument(doc, 12, 0, { maxChunks: 2 })).toThrow("Chunk limit of 2 exceeded")
+  })
+
   it("records character and line spans for each chunk", () => {
     const doc: ParsedDocument = {
       file: {

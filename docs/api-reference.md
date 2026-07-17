@@ -123,10 +123,12 @@ authentication, authorization, rate limits, and transport security.
 
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
 `contextPaths`, `explain`, `signal`, and `timeoutMs`. `IngestOptions` also accepts `rebuild`, a
-positive `batchSize` that defaults to 25 files, `incrementalFailurePolicy`, and an optional
-`onProgress` callback. The default `preserve-last-good` policy keeps prior rows searchable and marks
+positive `batchSize` that defaults to 25 files and is capped at 128, `incrementalFailurePolicy`, and
+an optional `onProgress` callback. The default `preserve-last-good` policy keeps prior rows searchable and marks
 them stale when a changed file fails; `remove-stale` deletes them. Its durable progress contains the
 run ID, resume flag, last activity, chunk count, stale count, and per-stage file counts.
+Parsing windows are independently bounded by source bytes and estimated chunks. Embeddings are
+bounded by batch size and vector bytes, while each file remains the atomic durable commit unit.
 `IngestOptions`, `ResearchOptions`, `ExpandCitationOptions`, `EvaluationOptions`, and
 `AccessLogUsageOptions` accept `signal` and `timeoutMs`. Diagnostic functions that take a separate
 `options` argument use the same `OperationOptions` contract. When explanation is enabled, each

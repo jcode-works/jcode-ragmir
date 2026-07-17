@@ -252,6 +252,10 @@ Core also exports `previewChunks`, `audit`, `doctor`, `securityAudit`, bounded c
 closeable MCP construction helpers, and setup helpers. See the [API reference](./docs/api-reference.md)
 for the complete public surface.
 
+Ingestion applies backpressure with independent source-byte, chunk, vector, concurrency and batch
+ceilings. It commits one file at a time, so cancellation or restart repeats at most one bounded
+unit. Run `rgr limits` to inspect the effective limits.
+
 ## Privacy boundaries
 
 | Capability | Default behavior | Network boundary |

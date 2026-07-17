@@ -31,7 +31,8 @@ npx rgr search "Which decision changed the rollout?"
 
 Setup keeps configuration, the index, helpers, reports, and metadata-only access logs under ignored
 `.ragmir/` state. Ingestion is incremental, resumable, and serialized across local writer
-processes. Failed changed files keep explicitly stale last-known-good rows by default; repair or
+processes. Source, chunk, vector, concurrency, and batch windows are bounded, with durable progress
+committed per file. Failed changed files keep explicitly stale last-known-good rows by default; repair or
 source deletion reconciles them deterministically.
 Run `npx rgr audit --unsupported` to compare the selected files with the index and see what was
 skipped.

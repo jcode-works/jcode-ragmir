@@ -360,6 +360,93 @@ describe("ingest", () => {
     })
   })
 
+  it("should reject an ingest file batch above the safe maximum", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-ingest-batch-limit-"))
+    tempDirs.push(root)
+    await initProject(root)
+
+    await expect(ingest({ cwd: root, batchSize: 1_000_000 })).rejects.toThrow(/batchSize.*at most/i)
+  })
+
+  it("should persist one bounded commit before cancellation when the file batch is larger", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-bounded-commit-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    for (const name of ["alpha", "beta", "gamma"]) {
+      await writeFile(path.join(root, ".ragmir", "raw", `${name}.md`), `${name} evidence.\n`)
+    }
+
+    const controller = new AbortController()
+    await expect(
+      ingest({
+        cwd: root,
+        batchSize: 3,
+        signal: controller.signal,
+        onProgress(progress) {
+          if (progress.indexedFiles === 1) {
+            controller.abort("bounded commit observed")
+          }
+        },
+      }),
+    ).rejects.toMatchObject({ code: "ABORTED" })
+
+    const config = await loadConfig(root)
+    await expect(readIngestionState(config)).resolves.toMatchObject({
+      status: "interrupted",
+      files: expect.arrayContaining([expect.objectContaining({ state: "indexed" })]),
+    })
+    expect(await readRows(config)).toHaveLength(1)
+  })
+
+  it("should preserve rows ranking and citations across ingestion window sizes", async () => {
+    const roots = await Promise.all(
+      ["single", "windowed"].map(async (label) => {
+        const root = await mkdtemp(path.join(os.tmpdir(), `ragmir-ingest-equivalence-${label}-`))
+        tempDirs.push(root)
+        await initProject(root)
+        await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+        for (const [name, text] of [
+          ["alpha", "Alpha contains the exact launch token ORBIT-ALPHA."],
+          ["beta", "Beta contains unrelated deployment background."],
+          ["gamma", "Gamma confirms ORBIT-ALPHA is the approved launch token."],
+        ] as const) {
+          await writeFile(path.join(root, ".ragmir", "raw", `${name}.md`), `${text}\n`)
+        }
+        return root
+      }),
+    )
+    const [singleRoot, windowedRoot] = roots
+    if (!singleRoot || !windowedRoot) {
+      throw new Error("Expected two equivalence fixtures.")
+    }
+
+    await ingest({ cwd: singleRoot, batchSize: 1 })
+    await ingest({ cwd: windowedRoot, batchSize: 3 })
+    const comparableRows = async (root: string) =>
+      (await readRows(await loadConfig(root)))
+        .map((row) => ({
+          id: row.id,
+          relativePath: row.relativePath,
+          chunkIndex: row.chunkIndex,
+          text: row.text,
+          vector: row.vector,
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id))
+    expect(await comparableRows(windowedRoot)).toEqual(await comparableRows(singleRoot))
+
+    const comparableResults = async (root: string) =>
+      (await search("What is the approved launch token ORBIT-ALPHA?", { cwd: root, topK: 3 })).map(
+        (result) => ({
+          relativePath: result.relativePath,
+          chunkIndex: result.chunkIndex,
+          citation: result.citation,
+          text: result.text,
+        }),
+      )
+    expect(await comparableResults(windowedRoot)).toEqual(await comparableResults(singleRoot))
+  })
+
   it("keeps the active healthy index when a staged rebuild is interrupted", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-rebuild-rollback-"))
     tempDirs.push(root)

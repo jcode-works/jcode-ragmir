@@ -958,8 +958,16 @@ program
     }
 
     console.log(`maxFileBytes=${report.maxFileBytes}`)
+    console.log(`hardMaxFileBytes=${report.hardMaxFileBytes}`)
     console.log(`maxFiles=${report.maxFiles ?? "unbounded"}`)
     console.log(`maxCorpusBytes=${report.maxCorpusBytes ?? "unbounded"}`)
+    console.log(`maxFileBatchSize=${report.maxFileBatchSize}`)
+    console.log(`maxIngestConcurrency=${report.maxIngestConcurrency}`)
+    console.log(`maxEmbeddingBatchSize=${report.maxEmbeddingBatchSize}`)
+    console.log(`maxSourceWindowBytes=${report.maxSourceWindowBytes}`)
+    console.log(`maxChunkWindow=${report.maxChunkWindow}`)
+    console.log(`maxChunksPerFile=${report.maxChunksPerFile}`)
+    console.log(`maxVectorBytesPerFile=${report.maxVectorBytesPerFile}`)
     console.log(`maxPdfPages=${report.maxPdfPages}`)
     console.log(`maxPdfTextCharacters=${report.maxPdfTextCharacters}`)
     console.log(`maxOfficeTextEntries=${report.maxOfficeTextEntries}`)

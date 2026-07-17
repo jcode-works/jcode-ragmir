@@ -7,6 +7,9 @@ import {
   DEFAULT_CONFIG,
   LEGACY_CONFIG_PATH,
   LEGACY_DEFAULT_CONFIG,
+  MAX_CONFIGURED_FILE_BYTES,
+  MAX_EMBEDDING_BATCH_SIZE,
+  MAX_INGEST_CONCURRENCY,
 } from "./defaults.js"
 import { isRecord } from "./guards.js"
 import type { Config } from "./types.js"
@@ -135,6 +138,10 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
   const withEnv = applyEnv(withProfile)
   const effective = applyPrivacyFloor(withEnv)
 
+  assertAtMost("maxFileBytes", effective.maxFileBytes, MAX_CONFIGURED_FILE_BYTES)
+  assertAtMost("ingestConcurrency", effective.ingestConcurrency, MAX_INGEST_CONCURRENCY)
+  assertAtMost("embeddingBatchSize", effective.embeddingBatchSize, MAX_EMBEDDING_BATCH_SIZE)
+
   if (effective.chunkOverlap >= effective.chunkSize) {
     throw new Error("chunkOverlap must be lower than chunkSize.")
   }
@@ -174,6 +181,12 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     imageOcrTimeoutMs: effective.imageOcrTimeoutMs,
     legacyWordCommand: effective.legacyWordCommand,
     legacyWordTimeoutMs: effective.legacyWordTimeoutMs,
+  }
+}
+
+function assertAtMost(name: string, value: number, maximum: number): void {
+  if (value > maximum) {
+    throw new Error(`${name} must be at most ${maximum}.`)
   }
 }
 

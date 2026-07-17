@@ -98,8 +98,16 @@ export interface McpOutputUsageReport {
 
 export interface IngestionLimitsReport {
   maxFileBytes: number
+  hardMaxFileBytes: number
   maxFiles: null
   maxCorpusBytes: null
+  maxFileBatchSize: number
+  maxIngestConcurrency: number
+  maxEmbeddingBatchSize: number
+  maxSourceWindowBytes: number
+  maxChunkWindow: number
+  maxChunksPerFile: number
+  maxVectorBytesPerFile: number
   maxPdfPages: number
   maxPdfTextCharacters: number
   maxOfficeTextEntries: number

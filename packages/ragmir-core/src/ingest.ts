@@ -3,7 +3,14 @@ import { recordAccess } from "./access-log.js"
 import { summarizeChunkStats } from "./chunk-stats.js"
 import { chunkDocument, chunkSearchText } from "./chunking.js"
 import { loadConfig } from "./config.js"
-import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
+import {
+  MAX_INGEST_CHUNK_WINDOW,
+  MAX_INGEST_CHUNKS_PER_FILE,
+  MAX_INGEST_FILE_BATCH_SIZE,
+  MAX_INGEST_SOURCE_WINDOW_BYTES,
+  MAX_INGEST_VECTOR_BYTES_PER_FILE,
+  VECTOR_DISTANCE_METRIC,
+} from "./defaults.js"
 import { embedTexts } from "./embeddings.js"
 import {
   countSkippedByReason,
@@ -212,15 +219,15 @@ async function ingestUnlocked(
     let lexicalIndexWarning: string | null = null
     const failurePolicy = incrementalFailurePolicy(options, config)
 
-    for (const fileBatch of valueBatches(pendingFiles, state.batchSize)) {
+    for (const fileWindow of ingestionWindows(pendingFiles, state.batchSize, config)) {
       throwIfAborted(signal)
-      const parsedBatch = await mapLimit(
-        fileBatch,
+      const parsedWindow = await mapLimit(
+        fileWindow,
         config.ingestConcurrency,
         signal,
         async (file) => parseSourceFile(file, config, signal),
       )
-      for (const parsed of parsedBatch) {
+      for (const parsed of parsedWindow) {
         state = updateIngestionFile(
           state,
           parsed.file.relativePath,
@@ -237,44 +244,45 @@ async function ingestUnlocked(
       await persistIngestionProgress(state, config, options)
       throwIfAborted(signal)
 
-      const successfulFiles = parsedBatch.filter((parsed) => parsed.error === null)
-      const failedFiles = parsedBatch.filter((parsed) => parsed.error !== null)
-      const allChunks = successfulFiles.flatMap((parsed) => parsed.chunks)
-      const rows = await vectorRowsForChunks(allChunks, config, signal)
-      for (const parsed of successfulFiles) {
-        state = updateIngestionFile(state, parsed.file.relativePath, { state: "embedded" })
-      }
-      await persistIngestionProgress(state, config, options)
-      throwIfAborted(signal)
+      for (const parsed of parsedWindow) {
+        throwIfAborted(signal)
+        const successful = parsed.error === null
+        const chunkCount = parsed.chunks.length
+        const rows = successful ? await vectorRowsForChunks(parsed.chunks, config, signal) : []
+        if (successful) {
+          state = updateIngestionFile(state, parsed.file.relativePath, { state: "embedded" })
+          await persistIngestionProgress(state, config, options)
+          throwIfAborted(signal)
+        }
 
-      const replacePaths = [
-        ...successfulFiles.map((parsed) => parsed.file.relativePath),
-        ...(state.mode === "incremental" && failurePolicy === "remove-stale"
-          ? failedFiles.map((parsed) => parsed.file.relativePath)
-          : []),
-        ...(!removalApplied ? removedPaths : []),
-      ]
-      const writeResult = await updateRowsInTable(
-        rows,
-        replacePaths,
-        state.tableName,
-        config,
-        connection,
-      )
-      removalApplied = true
-      lexicalIndexWarning ??= writeResult.lexicalIndexWarning
-      for (const parsed of successfulFiles) {
-        state = updateIngestionFile(state, parsed.file.relativePath, {
-          state: "indexed",
-          lastGoodChecksum: parsed.file.checksum,
-          lastGoodChunkCount: parsed.chunks.length,
-          lastGoodBytes: parsed.file.bytes,
-          lastGoodMtimeMs: parsed.file.mtimeMs,
-          staleLastKnownGood: false,
-        })
-      }
-      if (state.mode === "incremental" && failurePolicy === "remove-stale") {
-        for (const parsed of failedFiles) {
+        const replacePaths = [
+          ...(successful || (state.mode === "incremental" && failurePolicy === "remove-stale")
+            ? [parsed.file.relativePath]
+            : []),
+          ...(!removalApplied ? removedPaths : []),
+        ]
+        if (rows.length > 0 || replacePaths.length > 0) {
+          const writeResult = await updateRowsInTable(
+            rows,
+            replacePaths,
+            state.tableName,
+            config,
+            connection,
+          )
+          removalApplied = true
+          lexicalIndexWarning ??= writeResult.lexicalIndexWarning
+        }
+
+        if (successful) {
+          state = updateIngestionFile(state, parsed.file.relativePath, {
+            state: "indexed",
+            lastGoodChecksum: parsed.file.checksum,
+            lastGoodChunkCount: chunkCount,
+            lastGoodBytes: parsed.file.bytes,
+            lastGoodMtimeMs: parsed.file.mtimeMs,
+            staleLastKnownGood: false,
+          })
+        } else if (state.mode === "incremental" && failurePolicy === "remove-stale") {
           state = updateIngestionFile(state, parsed.file.relativePath, {
             chunkCount: 0,
             lastGoodChecksum: null,
@@ -284,10 +292,11 @@ async function ingestUnlocked(
             staleLastKnownGood: false,
           })
         }
+        await writeProgressManifest(state, config, connection)
+        await persistIngestionProgress(state, config, options)
+        parsed.chunks.length = 0
+        throwIfAborted(signal)
       }
-      await writeProgressManifest(state, config, connection)
-      await persistIngestionProgress(state, config, options)
-      throwIfAborted(signal)
     }
 
     if (!removalApplied && removedPaths.length > 0) {
@@ -439,6 +448,7 @@ async function parseSourceFile(
         { ...parsed, text: redacted.text },
         config.chunkSize,
         config.chunkOverlap,
+        { maxChunks: MAX_INGEST_CHUNKS_PER_FILE },
       ),
       redactions: totalRedactions(redacted.counts),
       error: null,
@@ -460,6 +470,7 @@ async function vectorRowsForChunks(
   signal: AbortSignal | undefined,
 ): Promise<VectorRow[]> {
   const rows: VectorRow[] = []
+  let vectorBytes = 0
   for (const batch of valueBatches(chunks, config.embeddingBatchSize)) {
     throwIfAborted(signal)
     const embeddings = await embedTexts(batch.map(chunkSearchText), config)
@@ -468,6 +479,12 @@ async function vectorRowsForChunks(
       const vector = embeddings[index]
       if (!vector) {
         throw new Error(`Missing embedding for chunk ${chunk.relativePath}#${chunk.chunkIndex}.`)
+      }
+      vectorBytes += vector.length * Float64Array.BYTES_PER_ELEMENT
+      if (vectorBytes > MAX_INGEST_VECTOR_BYTES_PER_FILE) {
+        throw new Error(
+          `Vector memory limit of ${MAX_INGEST_VECTOR_BYTES_PER_FILE} bytes exceeded for ${chunk.relativePath}. Increase chunkSize, split the source file, or use a smaller embedding model.`,
+        )
       }
       rows.push({
         ...chunk,
@@ -679,6 +696,9 @@ function ingestFileBatchSize(value: number | undefined): number {
   if (!Number.isInteger(batchSize) || batchSize <= 0) {
     throw new Error("batchSize must be a positive integer.")
   }
+  if (batchSize > MAX_INGEST_FILE_BATCH_SIZE) {
+    throw new Error(`batchSize must be at most ${MAX_INGEST_FILE_BATCH_SIZE}.`)
+  }
   return batchSize
 }
 
@@ -701,6 +721,39 @@ function valueBatches<T>(values: T[], batchSize: number): T[][] {
     batches.push(values.slice(index, index + batchSize))
   }
   return batches
+}
+
+function ingestionWindows(files: SourceFile[], maxFiles: number, config: Config): SourceFile[][] {
+  const windows: SourceFile[][] = []
+  let current: SourceFile[] = []
+  let currentBytes = 0
+  let currentChunks = 0
+  for (const file of files) {
+    const estimatedChunks = estimatedChunkCount(file, config)
+    const exceedsWindow =
+      current.length > 0 &&
+      (current.length >= maxFiles ||
+        currentBytes + file.bytes > MAX_INGEST_SOURCE_WINDOW_BYTES ||
+        currentChunks + estimatedChunks > MAX_INGEST_CHUNK_WINDOW)
+    if (exceedsWindow) {
+      windows.push(current)
+      current = []
+      currentBytes = 0
+      currentChunks = 0
+    }
+    current.push(file)
+    currentBytes += file.bytes
+    currentChunks += estimatedChunks
+  }
+  if (current.length > 0) {
+    windows.push(current)
+  }
+  return windows
+}
+
+function estimatedChunkCount(file: SourceFile, config: Config): number {
+  const step = Math.max(1, config.chunkSize - config.chunkOverlap)
+  return Math.max(1, Math.ceil(file.bytes / step))
 }
 
 export async function audit(

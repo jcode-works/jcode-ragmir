@@ -23,7 +23,9 @@ edit JSON only for a real need.
 | `topK` | `8` | Change the default number of returned passages. |
 | `mcpMaxOutputBytes` | `32768` | Cap variable-size MCP tool and resource JSON; the server also enforces an absolute 1 MiB ceiling. |
 | `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. |
-| `maxFileBytes` | `50000000` | Raise only when the target corpus justifies it. |
+| `maxFileBytes` | `50000000` | Lower the per-file parser budget; 50 MB is the hard ceiling. |
+| `ingestConcurrency` | `4` | Bound concurrent parsers; values above `8` are rejected. |
+| `embeddingBatchSize` | `32` | Bound one model call; values above `128` are rejected. |
 | `incrementalFailurePolicy` | `preserve-last-good` | Use `remove-stale` only when failed changed files must disappear immediately. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
 
@@ -92,4 +94,7 @@ Run `rgr limits` to inspect the fixed parser ceilings. Office archives, includin
 allow at most 512 text entries, 25 MB per entry, and 50 MB of expanded text in total. PDF extraction
 is capped at 1,000 pages and 25 million text characters. Combined stdout and stderr from a local
 external extractor are capped at 25 MB. Files above `maxFileBytes` are skipped and reported instead
-of being partially indexed.
+of being partially indexed. Ingestion also caps a parse window at 50 MB and 8,192 estimated chunks,
+one file at 65,536 chunks and 256 MiB of vectors, the CLI file batch at 128, parser concurrency at
+8, and embedding batches at 128. Each file is committed separately, so restart repeats at most one
+bounded commit.

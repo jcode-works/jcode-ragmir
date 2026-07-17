@@ -489,6 +489,28 @@ describe("loadConfig", () => {
     )
   })
 
+  it("should reject ingestion settings above the safe maxima", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-ingest-maxima-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    const configPath = path.join(root, ".ragmir", "config.json")
+
+    await writeFile(configPath, JSON.stringify({ ingestConcurrency: 1_000_000 }))
+    await expect(loadConfig(root)).rejects.toThrow(/ingestConcurrency.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ embeddingBatchSize: 1_000_000 }))
+    await expect(loadConfig(root)).rejects.toThrow(/embeddingBatchSize.*at most/i)
+
+    await writeFile(configPath, "{}\n")
+    const original = process.env.RAGMIR_INGEST_CONCURRENCY
+    process.env.RAGMIR_INGEST_CONCURRENCY = "1000000"
+    try {
+      await expect(loadConfig(root)).rejects.toThrow(/ingestConcurrency.*at most/i)
+    } finally {
+      restoreEnv("RAGMIR_INGEST_CONCURRENCY", original)
+    }
+  })
+
   it("rejects a config file that is not a JSON object", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-not-object-"))
     tempDirs.push(root)

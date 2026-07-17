@@ -54,14 +54,19 @@ rgr status --json
 rgr ingest --batch-size 10
 ```
 
-The default batch contains 25 files. After each batch, Ragmir atomically records per-file state and
-the current manifest under `.ragmir/storage/`. Starting `rgr ingest` again resumes a compatible
+The default file window contains up to 25 files, within stricter source-byte and estimated-chunk
+budgets. After each file commit, Ragmir atomically records per-file state and the current manifest
+under `.ragmir/storage/`. Starting `rgr ingest` again resumes a compatible
 interrupted run and processes only pending, failed, or changed files. Files already committed to
 the index are not parsed or embedded again.
 
 Every inventory pass recalculates each file's SHA-256, so a content change is detected even when a
-sync tool preserves both file size and modification time. A committed batch atomically replaces the
-changed source's chunks.
+sync tool preserves both file size and modification time. A committed file atomically replaces that
+changed source's chunks. Run `rgr limits` for the active 50-MB parse window, chunk, vector,
+concurrency, embedding-batch and file-batch ceilings.
+
+Maintainers can reproduce the 25-file, 50-MB-per-file memory gate with
+`pnpm bench:ingest-memory -- --stress` from the repository root.
 
 If a changed file fails during parsing, embedding, or its LanceDB write, incremental ingestion keeps
 the previous rows searchable and records the current error, last-good checksum, and stale state.
