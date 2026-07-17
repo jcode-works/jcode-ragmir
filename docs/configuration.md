@@ -82,8 +82,9 @@ and extractor commands. Run `rgr status --json` to inspect the effective result.
 
 For a long-running process that hosts more than one isolated project workflow, create one
 `RagmirClient` per project root and keep process-wide environment overrides stable after startup.
-Close every client during shutdown. If several OS processes can ingest the same storage directory,
-the host must coordinate a single writer.
+Close every client during shutdown. Ragmir serializes writers across local OS processes with a
+private heartbeat lock under `storageDir`; readers stay available. This is not a distributed lock,
+so do not place one writable index on a shared network filesystem.
 
 ## Parser safety limits
 

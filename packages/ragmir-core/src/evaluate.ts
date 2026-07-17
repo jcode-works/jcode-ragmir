@@ -5,6 +5,7 @@ import { z } from "zod"
 import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { RagmirError } from "./errors.js"
+import { withIndexWriteLock } from "./index-write-lock.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { fingerprintIndexManifest, fingerprintQualityReport } from "./quality-report.js"
 import { search } from "./query.js"
@@ -217,6 +218,7 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
           metrics,
           thresholds: requiredThresholdSet,
           total: cases.length,
+          signal,
         })
       : null
 
@@ -605,49 +607,52 @@ async function persistQualityReport(input: {
   metrics: EvaluationMetrics
   thresholds: Required<QualityMetricThresholds>
   total: number
+  signal: AbortSignal | undefined
 }): Promise<IndexQualityReport | null> {
-  const activeManifest = await readIndexManifest(input.config)
-  if (
-    !activeManifest ||
-    fingerprintIndexManifest(activeManifest) !== input.indexFingerprint ||
-    input.metrics.exactCitationRate === null ||
-    input.metrics.falsePositiveRate === null
-  ) {
-    return null
-  }
-  const unsignedReport: Omit<IndexQualityReport, "qualityReportFingerprint"> = {
-    schemaVersion: 1,
-    createdAt: new Date().toISOString(),
-    goldenPath: input.goldenPath,
-    goldenFingerprint: input.goldenFingerprint,
-    indexFingerprint: input.indexFingerprint,
-    indexPolicyFingerprint: activeManifest.indexPolicyFingerprint ?? "",
-    embeddingProvider: input.config.embeddingProvider,
-    embeddingModel: input.config.embeddingModel,
-    embeddingModelRevision: input.config.embeddingModelRevision,
-    retrievalProfile: input.config.retrievalProfile,
-    total: input.total,
-    metrics: {
-      recallAt1: input.metrics.recallAt1,
-      recallAt3: input.metrics.recallAt3,
-      recallAt5: input.metrics.recallAt5,
-      recallAt10: input.metrics.recallAt10,
-      precisionAt5: input.metrics.precisionAt5,
-      meanReciprocalRankAt10: input.metrics.meanReciprocalRankAt10,
-      ndcgAt10: input.metrics.ndcgAt10,
-      exactCitationRate: input.metrics.exactCitationRate,
-      falsePositiveRate: input.metrics.falsePositiveRate,
-    },
-    thresholds: input.thresholds,
-    passed: true,
-    verificationEligible: true,
-  }
-  const qualityReport: IndexQualityReport = {
-    ...unsignedReport,
-    qualityReportFingerprint: fingerprintQualityReport(unsignedReport),
-  }
-  await writeIndexManifest({ ...activeManifest, qualityReport }, input.config)
-  return qualityReport
+  return withIndexWriteLock(input.config.storageDir, input.signal, async () => {
+    const activeManifest = await readIndexManifest(input.config)
+    if (
+      !activeManifest ||
+      fingerprintIndexManifest(activeManifest) !== input.indexFingerprint ||
+      input.metrics.exactCitationRate === null ||
+      input.metrics.falsePositiveRate === null
+    ) {
+      return null
+    }
+    const unsignedReport: Omit<IndexQualityReport, "qualityReportFingerprint"> = {
+      schemaVersion: 1,
+      createdAt: new Date().toISOString(),
+      goldenPath: input.goldenPath,
+      goldenFingerprint: input.goldenFingerprint,
+      indexFingerprint: input.indexFingerprint,
+      indexPolicyFingerprint: activeManifest.indexPolicyFingerprint ?? "",
+      embeddingProvider: input.config.embeddingProvider,
+      embeddingModel: input.config.embeddingModel,
+      embeddingModelRevision: input.config.embeddingModelRevision,
+      retrievalProfile: input.config.retrievalProfile,
+      total: input.total,
+      metrics: {
+        recallAt1: input.metrics.recallAt1,
+        recallAt3: input.metrics.recallAt3,
+        recallAt5: input.metrics.recallAt5,
+        recallAt10: input.metrics.recallAt10,
+        precisionAt5: input.metrics.precisionAt5,
+        meanReciprocalRankAt10: input.metrics.meanReciprocalRankAt10,
+        ndcgAt10: input.metrics.ndcgAt10,
+        exactCitationRate: input.metrics.exactCitationRate,
+        falsePositiveRate: input.metrics.falsePositiveRate,
+      },
+      thresholds: input.thresholds,
+      passed: true,
+      verificationEligible: true,
+    }
+    const qualityReport: IndexQualityReport = {
+      ...unsignedReport,
+      qualityReportFingerprint: fingerprintQualityReport(unsignedReport),
+    }
+    await writeIndexManifest({ ...activeManifest, qualityReport }, input.config)
+    return qualityReport
+  })
 }
 
 function groupResults(

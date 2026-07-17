@@ -1,6 +1,7 @@
 export type RagmirErrorCode =
   | "ABORTED"
   | "CLIENT_CLOSED"
+  | "INDEX_BUSY"
   | "INTERNAL"
   | "INVALID_ARGUMENT"
   | "TIMEOUT"

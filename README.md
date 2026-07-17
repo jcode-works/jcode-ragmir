@@ -244,9 +244,9 @@ try {
 ```
 
 Reuse one client per project root in a long-running process. It keeps one local LanceDB connection,
-serializes ingestion for the same index inside that process, accepts `AbortSignal` and `timeoutMs`,
-and waits for active operations during `close()`. One-shot `ingest`, `search`, `ask`, and `research`
-functions remain available for short scripts.
+accepts `AbortSignal` and `timeoutMs`, and waits for active operations during `close()`. A private
+heartbeat lock serializes index writers across local OS processes while readers remain available.
+One-shot `ingest`, `search`, `ask`, and `research` functions remain available for short scripts.
 
 Core also exports `previewChunks`, `audit`, `doctor`, `securityAudit`, bounded context helpers,
 closeable MCP construction helpers, and setup helpers. See the [API reference](./docs/api-reference.md)

@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { destroyIndex } from "./destroy.js"
+import { withIndexWriteLock } from "./index-write-lock.js"
 import { createIngestionRunState, writeIngestionState } from "./ingestion-state.js"
 import { testConfig } from "./test-support/config.js"
 
@@ -71,6 +72,36 @@ describe("destroyIndex", () => {
     await destroyIndex(root)
 
     expect(existsSync(config.accessLogPath)).toBe(true)
+  })
+
+  it("should wait for the active writer before destroying index storage", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-locked-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await mkdir(config.storageDir, { recursive: true })
+    await writeFile(path.join(config.storageDir, "index-manifest.json"), "{}", "utf8")
+    let releaseWriter: (() => void) | undefined
+    const writerFinished = new Promise<void>((resolve) => {
+      releaseWriter = resolve
+    })
+    let markWriterStarted: (() => void) | undefined
+    const writerStarted = new Promise<void>((resolve) => {
+      markWriterStarted = resolve
+    })
+    const active = withIndexWriteLock(config.storageDir, undefined, async () => {
+      markWriterStarted?.()
+      await writerFinished
+    })
+    await writerStarted
+
+    const destruction = destroyIndex(root)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(existsSync(config.storageDir)).toBe(true)
+
+    releaseWriter?.()
+    await active
+    await expect(destruction).resolves.toMatchObject({ removed: true })
+    expect(existsSync(config.storageDir)).toBe(false)
   })
 
   it("refuses to remove the project root when storageDir points to it", async () => {

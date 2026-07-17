@@ -79,6 +79,11 @@ final atomic manifest replacement activates the generation. Re-run the command a
 to resume the staged generation. Older generated tables remain available for searches that already
 opened them; `rgr destroy-index` removes all generated index storage.
 
+Ingestion, generation activation, quality-report persistence, and index destruction share one
+private local writer lock. Concurrent readers remain available. Contention waits for a bounded
+period and then returns retryable `INDEX_BUSY`; a dead owner is recovered from its PID and heartbeat.
+The lock coordinates processes on one machine only, not hosts sharing a network filesystem.
+
 ## Monorepos
 
 ```bash

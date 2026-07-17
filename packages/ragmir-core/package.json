@@ -70,7 +70,7 @@
     "check": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && tsc -p tsconfig.json --noEmit",
     "mcp:smoke": "pnpm build && node scripts/mcp-smoke.mjs",
     "package:check": "publint",
-    "test": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && vitest run",
+    "test": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm build && vitest run",
     "test:coverage": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && vitest run --coverage"
   },
   "dependencies": {

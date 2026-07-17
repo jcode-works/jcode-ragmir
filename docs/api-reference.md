@@ -71,17 +71,21 @@ try {
 and an idempotent `close`. Every data operation accepts `signal` and `timeoutMs` through its options.
 `close()` takes no options, rejects new work, waits for active operations, then closes the shared
 connection.
-Ingestion targeting the same storage directory is serialized inside one Node.js process.
+Index writes targeting the same storage directory are serialized across local OS processes. The
+private lock records its PID, run ID, owner token, start time, and heartbeat; readers do not acquire
+it. A dead local owner is recovered automatically, while bounded contention returns the retryable
+`INDEX_BUSY` error.
 Cancellation is cooperative between filesystem, parsing, embedding, storage, retrieval, and
 diagnostic phases.
 
-`RagmirError.code` is one of `ABORTED`, `CLIENT_CLOSED`, `INTERNAL`, `INVALID_ARGUMENT`, or
-`TIMEOUT`. `retryable` is true for cancellation and timeout errors. `isRagmirError(error)` narrows
+`RagmirError.code` is one of `ABORTED`, `CLIENT_CLOSED`, `INDEX_BUSY`, `INTERNAL`,
+`INVALID_ARGUMENT`, or `TIMEOUT`. `retryable` is true for cancellation, timeout, and busy-index
+errors. `isRagmirError(error)` narrows
 unknown failures, while `normalizeRagmirError(error)` preserves Ragmir errors and converts other
 failures into an `INTERNAL` `RagmirError` with the original cause.
 
-The writer queue coordinates clients inside one Node.js process. If several OS processes can ingest
-the same storage directory, the host must elect one writer or serialize those ingestion jobs.
+The lock is local-machine coordination, not a distributed lock. Do not share one writable index
+directory across hosts or a network filesystem; build one local index per machine instead.
 
 This API targets stateful Node.js processes with a local filesystem. It is not an edge or stateless
 serverless API, and Ragmir does not provide an HTTP listener. A network-facing application owns
