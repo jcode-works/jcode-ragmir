@@ -578,10 +578,12 @@ async function parseSourceFile(
       ? metrics.measure("chunking", () =>
           chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap, {
             maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
+            ...(signal ? { signal } : {}),
           }),
         )
       : chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap, {
           maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
+          ...(signal ? { signal } : {}),
         })
     return {
       file,

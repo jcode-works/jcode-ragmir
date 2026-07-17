@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import { strFromU8, unzipSync } from "fflate"
+import { strFromU8, type UnzipFileInfo, unzipSync } from "fflate"
 import { htmlToText } from "html-to-text"
 import readExcelFile from "read-excel-file/node"
 
@@ -78,13 +78,13 @@ export async function parseFile(
       text = await parseLegacyWord(file.absolutePath, options)
       break
     case ".docx":
-      text = await parseDocx(file.absolutePath)
+      text = await parseDocx(file.absolutePath, options.signal)
       break
     case ".pptx":
-      ;({ text, regions } = await parsePptx(file.absolutePath))
+      ;({ text, regions } = await parsePptx(file.absolutePath, options.signal))
       break
     case ".xlsx":
-      ;({ text, regions } = await parseXlsx(file.absolutePath))
+      ;({ text, regions } = await parseXlsx(file.absolutePath, options.signal))
       break
     case ".avif":
     case ".bmp":
@@ -102,10 +102,10 @@ export async function parseFile(
     case ".odt":
     case ".ods":
     case ".odp":
-      text = await parseOpenDocument(file.absolutePath)
+      text = await parseOpenDocument(file.absolutePath, options.signal)
       break
     case ".epub":
-      ;({ text, regions } = await parseEpub(file.absolutePath))
+      ;({ text, regions } = await parseEpub(file.absolutePath, options.signal))
       break
     case ".html":
     case ".htm":
@@ -147,41 +147,45 @@ export async function parseFile(
   return document
 }
 
-async function parseDocx(filePath: string): Promise<string> {
+async function parseDocx(filePath: string, signal: AbortSignal | undefined): Promise<string> {
   const buffer = await readFile(filePath)
-  unzipOfficeFile(buffer)
+  throwIfAborted(signal)
+  validateOfficeArchive(buffer, signal)
   const result = await mammoth.extractRawText({ buffer })
+  throwIfAborted(signal)
   return result.value
 }
 
-async function parsePptx(filePath: string): Promise<{ text: string; regions: ParsedRegion[] }> {
-  const entries = unzipOfficeFile(await readFile(filePath))
-  const slides = orderedPresentationSlides(entries)
+async function parsePptx(
+  filePath: string,
+  signal: AbortSignal | undefined,
+): Promise<{ text: string; regions: ParsedRegion[] }> {
+  const entries = unzipOfficeFile(await readFile(filePath), signal)
+  const slides = orderedPresentationSlides(entries, signal)
   const notes = new Map(
-    numberedOfficeParts(entries, /^ppt\/notesSlides\/notesSlide(\d+)\.xml$/u).map((part) => [
-      part.number,
-      part.text,
-    ]),
+    numberedOfficeParts(entries, /^ppt\/notesSlides\/notesSlide(\d+)\.xml$/u, signal).map(
+      (part) => [part.number, part.text],
+    ),
   )
-  const parts = slides.flatMap((slide, index) => {
+  const parts: Array<{ text: string; contextPath: string; location: SourceLocation }> = []
+  for (const [index, slide] of slides.entries()) {
+    throwIfAborted(signal)
     const noteText = presentationSlideNotes(entries, slide.number) ?? notes.get(slide.number) ?? ""
     const text = [slide.text, noteText].filter(Boolean).join("\n\n")
     const slideNumber = index + 1
-    return text
-      ? [
-          {
-            text,
-            contextPath: `Slide ${slideNumber}`,
-            location: {
-              kind: "slide" as const,
-              start: slideNumber,
-              end: slideNumber,
-            },
-          },
-        ]
-      : []
-  })
-  return joinLocatedParts(parts)
+    if (text) {
+      parts.push({
+        text,
+        contextPath: `Slide ${slideNumber}`,
+        location: {
+          kind: "slide",
+          start: slideNumber,
+          end: slideNumber,
+        },
+      })
+    }
+  }
+  return joinLocatedParts(parts, signal)
 }
 
 function presentationSlideNotes(entries: Map<string, string>, slideNumber: number): string | null {
@@ -207,15 +211,22 @@ function presentationSlideNotes(entries: Map<string, string>, slideNumber: numbe
   return null
 }
 
-async function parseXlsx(filePath: string): Promise<{ text: string; regions: ParsedRegion[] }> {
+async function parseXlsx(
+  filePath: string,
+  signal: AbortSignal | undefined,
+): Promise<{ text: string; regions: ParsedRegion[] }> {
   const buffer = await readFile(filePath)
-  unzipOfficeFile(buffer)
+  throwIfAborted(signal)
+  validateOfficeArchive(buffer, signal)
   const workbook = await readExcelFile(buffer, { trim: false })
+  throwIfAborted(signal)
   const parts: Array<{ text: string; contextPath: string; location: SourceLocation }> = []
 
   for (const [sheetIndex, sheet] of workbook.entries()) {
+    throwIfAborted(signal)
     let firstRow = true
     for (const [rowIndex, rawRow] of sheet.data.entries()) {
+      throwIfAborted(signal)
       const row = spreadsheetRowToText(rawRow)
       const firstColumn = row.findIndex(Boolean)
       if (firstColumn < 0) {
@@ -239,7 +250,7 @@ async function parseXlsx(filePath: string): Promise<{ text: string; regions: Par
     }
   }
 
-  return joinLocatedParts(parts)
+  return joinLocatedParts(parts, signal)
 }
 
 async function parseImage(
@@ -277,56 +288,67 @@ async function parseLegacyWord(filePath: string, options: ParseFileOptions): Pro
   })
 }
 
-async function parseOpenDocument(filePath: string): Promise<string> {
-  const entries = unzipOfficeFile(await readFile(filePath))
-  return xmlEntriesToText(entries, [/^content\.xml$/u, /^meta\.xml$/u])
+async function parseOpenDocument(
+  filePath: string,
+  signal: AbortSignal | undefined,
+): Promise<string> {
+  const entries = unzipOfficeFile(await readFile(filePath), signal)
+  return xmlEntriesToText(entries, [/^content\.xml$/u, /^meta\.xml$/u], signal)
 }
 
-async function parseEpub(filePath: string): Promise<{ text: string; regions: ParsedRegion[] }> {
-  const entries = unzipOfficeFile(await readFile(filePath))
-  const orderedEntries = epubReadingOrder(entries)
-  const parts = orderedEntries.flatMap((name, index) => {
+async function parseEpub(
+  filePath: string,
+  signal: AbortSignal | undefined,
+): Promise<{ text: string; regions: ParsedRegion[] }> {
+  const entries = unzipOfficeFile(await readFile(filePath), signal)
+  const orderedEntries = epubReadingOrder(entries, signal)
+  const parts: Array<{ text: string; contextPath: string; location: SourceLocation }> = []
+  for (const [index, name] of orderedEntries.entries()) {
+    throwIfAborted(signal)
     const content = entries.get(name)
     if (content === undefined) {
-      return []
+      continue
     }
     const text = htmlToText(content, HTML_TO_TEXT_OPTIONS)
-    return text.trim()
-      ? [
-          {
-            text,
-            contextPath: `EPUB: ${name}`,
-            location: {
-              kind: "epub" as const,
-              start: index + 1,
-              end: index + 1,
-              label: name,
-            },
-          },
-        ]
-      : []
-  })
-  return joinLocatedParts(parts)
+    if (text.trim()) {
+      parts.push({
+        text,
+        contextPath: `EPUB: ${name}`,
+        location: {
+          kind: "epub",
+          start: index + 1,
+          end: index + 1,
+          label: name,
+        },
+      })
+    }
+  }
+  return joinLocatedParts(parts, signal)
 }
 
 function numberedOfficeParts(
   entries: Map<string, string>,
   pattern: RegExp,
+  signal: AbortSignal | undefined,
 ): Array<{ number: number; text: string }> {
-  return [...entries.entries()]
-    .flatMap(([name, xml]) => {
-      const match = pattern.exec(name)
-      const number = Number(match?.[1])
-      const text = match && Number.isSafeInteger(number) && number > 0 ? xmlToText(xml) : ""
-      return text ? [{ number, text }] : []
-    })
-    .sort((left, right) => left.number - right.number)
+  const parts: Array<{ number: number; text: string }> = []
+  for (const [name, xml] of entries) {
+    throwIfAborted(signal)
+    const match = pattern.exec(name)
+    const number = Number(match?.[1])
+    const text = match && Number.isSafeInteger(number) && number > 0 ? xmlToText(xml) : ""
+    if (text) {
+      parts.push({ number, text })
+    }
+  }
+  return parts.sort((left, right) => left.number - right.number)
 }
 
 function orderedPresentationSlides(
   entries: Map<string, string>,
+  signal: AbortSignal | undefined,
 ): Array<{ number: number; text: string }> {
-  const natural = numberedOfficeParts(entries, /^ppt\/slides\/slide(\d+)\.xml$/u)
+  const natural = numberedOfficeParts(entries, /^ppt\/slides\/slide(\d+)\.xml$/u, signal)
   const presentation = entries.get("ppt/presentation.xml")
   const relationships = entries.get("ppt/_rels/presentation.xml.rels")
   if (!presentation || !relationships) {
@@ -335,6 +357,7 @@ function orderedPresentationSlides(
 
   const targets = new Map<string, string>()
   for (const relationship of xmlStartTags(relationships, "Relationship")) {
+    throwIfAborted(signal)
     const id = xmlAttribute(relationship, "Id")
     const target = xmlAttribute(relationship, "Target")
     if (id && target) {
@@ -342,27 +365,31 @@ function orderedPresentationSlides(
     }
   }
   const byNumber = new Map(natural.map((slide) => [slide.number, slide]))
-  const ordered = xmlStartTags(presentation, "sldId").flatMap((slide) => {
+  const ordered: Array<{ number: number; text: string }> = []
+  for (const slide of xmlStartTags(presentation, "sldId")) {
+    throwIfAborted(signal)
     const relationshipId = xmlAttribute(slide, "r:id")
     const target = relationshipId ? targets.get(relationshipId) : undefined
     const match = target ? /^ppt\/slides\/slide(\d+)\.xml$/u.exec(target) : null
     const number = Number(match?.[1])
     const part = Number.isSafeInteger(number) ? byNumber.get(number) : undefined
     if (!part) {
-      return []
+      continue
     }
     byNumber.delete(number)
-    return [part]
-  })
+    ordered.push(part)
+  }
   return ordered.length > 0 ? [...ordered, ...byNumber.values()] : natural
 }
 
 function joinLocatedParts(
   parts: Array<{ text: string; contextPath: string; location: SourceLocation }>,
+  signal: AbortSignal | undefined,
 ): { text: string; regions: ParsedRegion[] } {
   let text = ""
   const regions: ParsedRegion[] = []
   for (const part of parts) {
+    throwIfAborted(signal)
     const normalized = normalizeText(part.text)
     if (!normalized) {
       continue
@@ -382,10 +409,15 @@ function joinLocatedParts(
   return { text, regions }
 }
 
-function epubReadingOrder(entries: Map<string, string>): string[] {
-  const htmlEntries = [...entries.keys()]
-    .filter((name) => /\.(?:xhtml|html|htm)$/iu.test(name))
-    .sort((left, right) => NATURAL_PATH_ORDER.compare(left, right))
+function epubReadingOrder(entries: Map<string, string>, signal: AbortSignal | undefined): string[] {
+  const htmlEntries: string[] = []
+  for (const name of entries.keys()) {
+    throwIfAborted(signal)
+    if (/\.(?:xhtml|html|htm)$/iu.test(name)) {
+      htmlEntries.push(name)
+    }
+  }
+  htmlEntries.sort((left, right) => NATURAL_PATH_ORDER.compare(left, right))
   const containerPath = [...entries.keys()].find(
     (name) => name.toLowerCase() === "meta-inf/container.xml",
   )
@@ -399,17 +431,22 @@ function epubReadingOrder(entries: Map<string, string>): string[] {
   const packageDirectory = path.posix.dirname(packagePath)
   const manifest = new Map<string, string>()
   for (const element of xmlStartTags(packageXml, "item")) {
+    throwIfAborted(signal)
     const id = xmlAttribute(element, "id")
     const href = xmlAttribute(element, "href")
     if (id && href) {
       manifest.set(id, resolveEpubEntry(packageDirectory, href))
     }
   }
-  const spine = xmlStartTags(packageXml, "itemref").flatMap((element) => {
+  const spine: string[] = []
+  for (const element of xmlStartTags(packageXml, "itemref")) {
+    throwIfAborted(signal)
     const id = xmlAttribute(element, "idref")
     const entry = id ? manifest.get(id) : undefined
-    return entry && entries.has(entry) ? [entry] : []
-  })
+    if (entry && entries.has(entry)) {
+      spine.push(entry)
+    }
+  }
   return spine.length > 0 ? [...new Set(spine)] : htmlEntries
 }
 
@@ -440,45 +477,80 @@ function xmlAttribute(element: string, name: string): string | null {
   return match?.[2] ? decodeXmlEntities(match[2]) : null
 }
 
-function unzipOfficeFile(buffer: Buffer): Map<string, string> {
-  let textEntryCount = 0
-  let totalTextBytes = 0
-  let rejectedForSafetyLimit = false
-  const unzipped = unzipSync(new Uint8Array(buffer), {
+interface OfficeArchiveLimitsState {
+  textEntryCount: number
+  totalTextBytes: number
+  rejected: boolean
+}
+
+function validateOfficeArchive(buffer: Buffer, signal: AbortSignal | undefined): void {
+  const state = officeArchiveLimitsState()
+  unzipSync(new Uint8Array(buffer), {
     filter: (file) => {
-      if (!OFFICE_TEXT_ENTRY_PATTERN.test(file.name)) {
-        return false
-      }
-      if (file.originalSize > MAX_OFFICE_XML_ENTRY_BYTES) {
-        rejectedForSafetyLimit = true
-        return false
-      }
-      textEntryCount += 1
-      totalTextBytes += file.originalSize
-      if (
-        textEntryCount > MAX_OFFICE_TEXT_ENTRY_COUNT ||
-        totalTextBytes > MAX_OFFICE_XML_TOTAL_BYTES
-      ) {
-        rejectedForSafetyLimit = true
-        return false
-      }
-      return true
+      throwIfAborted(signal)
+      includeOfficeTextEntry(file, state)
+      return false
     },
   })
-  if (rejectedForSafetyLimit) {
-    throw new Error("Archive text payload exceeds Ragmir safety limits.")
-  }
+  assertOfficeArchiveLimits(state)
+}
+
+function unzipOfficeFile(buffer: Buffer, signal: AbortSignal | undefined): Map<string, string> {
+  const state = officeArchiveLimitsState()
+  const unzipped = unzipSync(new Uint8Array(buffer), {
+    filter: (file) => {
+      throwIfAborted(signal)
+      return includeOfficeTextEntry(file, state)
+    },
+  })
+  assertOfficeArchiveLimits(state)
 
   const entries = new Map<string, string>()
   for (const [name, content] of Object.entries(unzipped)) {
+    throwIfAborted(signal)
     entries.set(name, strFromU8(content))
   }
   return entries
 }
 
-function xmlEntriesToText(entries: Map<string, string>, patterns: RegExp[]): string {
+function officeArchiveLimitsState(): OfficeArchiveLimitsState {
+  return { textEntryCount: 0, totalTextBytes: 0, rejected: false }
+}
+
+function includeOfficeTextEntry(file: UnzipFileInfo, state: OfficeArchiveLimitsState): boolean {
+  if (!OFFICE_TEXT_ENTRY_PATTERN.test(file.name)) {
+    return false
+  }
+  if (file.originalSize > MAX_OFFICE_XML_ENTRY_BYTES) {
+    state.rejected = true
+    return false
+  }
+  state.textEntryCount += 1
+  state.totalTextBytes += file.originalSize
+  if (
+    state.textEntryCount > MAX_OFFICE_TEXT_ENTRY_COUNT ||
+    state.totalTextBytes > MAX_OFFICE_XML_TOTAL_BYTES
+  ) {
+    state.rejected = true
+    return false
+  }
+  return true
+}
+
+function assertOfficeArchiveLimits(state: OfficeArchiveLimitsState): void {
+  if (state.rejected) {
+    throw new Error("Archive text payload exceeds Ragmir safety limits.")
+  }
+}
+
+function xmlEntriesToText(
+  entries: Map<string, string>,
+  patterns: RegExp[],
+  signal: AbortSignal | undefined,
+): string {
   const parts: string[] = []
   for (const [name, xml] of [...entries.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    throwIfAborted(signal)
     if (patterns.some((pattern) => pattern.test(name))) {
       const text = xmlToText(xml)
       if (text) {

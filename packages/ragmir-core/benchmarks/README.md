@@ -12,6 +12,8 @@ pnpm bench:quality -- --size XS --profile fast
 pnpm bench:scale -- --size M
 pnpm bench:vector-index -- --sizes S,M,L
 pnpm bench:observability
+pnpm bench:parsers
+pnpm bench:parsers -- --stress
 pnpm bench:compare -- --baseline baseline.json --current current.json
 ```
 
@@ -35,6 +37,10 @@ coverage, or misses the M/L latency gate. `--quick` is for calibration and is no
 `bench:observability` verifies privacy-safe ingestion diagnostics, complete phase attribution,
 throughput counters, and the disabled hot-path probe. It fails when diagnostics expose a project
 root, source path, or source text, or when the inactive probe exceeds 100 ns per call.
+
+`bench:parsers` measures DOCX, XLSX, PPTX, EPUB, and PDF throughput, peak RSS, chunk citation
+coordinates, and malformed-input rejection in isolated processes. The `--stress` profile uses
+source fixtures between 45 MB and 50 MB and enforces the 768 MiB ingestion memory budget.
 
 Use `--provider transformers` only when the configured model is already present locally. Remote
 model downloads remain disabled. Pass its cache with `--model-path /absolute/path/to/models` when

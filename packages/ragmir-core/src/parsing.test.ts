@@ -162,6 +162,28 @@ describe("parseFile", () => {
     )
   })
 
+  it("should cancel XLSX parsing between rows", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-xlsx-cancel-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "large.xlsx")
+    await writeFile(
+      filePath,
+      createXlsxPackage([
+        {
+          name: "Evidence",
+          rows: Array.from({ length: 100 }, (_entry, index) => [
+            `PARSER-ROW-${index}`,
+            "bounded evidence",
+          ]),
+        },
+      ]),
+    )
+
+    await expect(
+      parseFile(sourceFile(root, filePath, ".xlsx"), { signal: abortAfterChecks(10) }),
+    ).rejects.toMatchObject({ code: "ABORTED" })
+  })
+
   it("extracts text from pptx slides and speaker notes", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pptx-"))
     tempDirs.push(root)
@@ -551,6 +573,23 @@ function sourceFile(root: string, absolutePath: string, extension: string): Sour
     mtimeMs: 0,
     checksum: "test",
   }
+}
+
+function abortAfterChecks(checksBeforeAbort: number): AbortSignal {
+  const signal = new AbortController().signal
+  let checks = 0
+  return new Proxy(signal, {
+    get(target, property) {
+      if (property === "aborted") {
+        checks += 1
+        return checks > checksBeforeAbort
+      }
+      if (property === "reason") {
+        return new Error("Cooperative parser cancellation test.")
+      }
+      return Reflect.get(target, property, target)
+    },
+  })
 }
 
 function createDocxPackage(documentXml: string): Uint8Array {

@@ -70,6 +70,7 @@
     "bench:local-hash-runtime": "pnpm build && node benchmarks/local-hash-runtime.mjs",
     "bench:model-lifecycle": "pnpm build && node benchmarks/model-lifecycle.mjs",
     "bench:observability": "pnpm build && node benchmarks/observability.mjs",
+    "bench:parsers": "pnpm build && node benchmarks/parsers.mjs",
     "bench:runtime": "pnpm build && node benchmarks/runtime-reuse.mjs",
     "bench:ocr": "pnpm build && node benchmarks/ocr-cache.mjs",
     "bench:generations": "pnpm build && node benchmarks/generation-retention.mjs",

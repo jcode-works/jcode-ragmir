@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { markdownFenceSpans, structuralSpans } from "./document-structure.js"
-import type { ParsedDocument, TextChunk } from "./types.js"
+import { throwIfAborted } from "./operation.js"
+import type { ParsedDocument, ParsedPage, ParsedRegion, TextChunk } from "./types.js"
 
 const PARAGRAPH_BREAK_MIN_RATIO = 0.45
 const SENTENCE_BREAK_MIN_RATIO = 0.55
@@ -10,6 +11,7 @@ const SENTENCE_BOUNDARIES = [". ", "? ", "! ", "。", "？", "！"]
 
 export interface ChunkDocumentOptions {
   maxChunks?: number
+  signal?: AbortSignal
 }
 
 export function chunkDocument(
@@ -18,19 +20,22 @@ export function chunkDocument(
   chunkOverlap: number,
   options: ChunkDocumentOptions = {},
 ): TextChunk[] {
+  throwIfAborted(options.signal)
   if (!document.text) {
     return []
   }
 
   const chunks: TextChunk[] = []
-  const lineStarts = lineStartOffsets(document.text)
-  const sourceRegions = document.regions?.map((region) => ({
+  const lineStarts = lineStartOffsets(document.text, options.signal)
+  const locationRegions = sortedCharacterIntervals(document.regions ?? [])
+  const pages = sortedCharacterIntervals(document.pages ?? [])
+  const sourceRegions = locationRegions.map((region) => ({
     charStart: region.charStart,
     charEnd: region.charEnd,
     contextPath: region.contextPath,
   }))
   const structured =
-    sourceRegions && sourceRegions.length > 0
+    sourceRegions.length > 0
       ? sourceRegions
       : structuralSpans(document.text, document.file.extension, chunkSize)
   const regions =
@@ -47,11 +52,14 @@ export function chunkDocument(
   const fences = [".md", ".mdx", ".markdown"].includes(document.file.extension)
     ? markdownFenceSpans(document.text)
     : []
+  const fenceStarts = new Set(fences.map((fence) => fence.start))
   let chunkIndex = 0
 
   for (const region of regions) {
+    throwIfAborted(options.signal)
     let cursor = region.charStart
     while (cursor < region.charEnd) {
+      throwIfAborted(options.signal)
       const end = chooseChunkEnd(document.text, cursor, chunkSize, region.charEnd, fences)
       const span = trimmedSpan(document.text, cursor, end)
 
@@ -81,8 +89,8 @@ export function chunkDocument(
           charStart: span.start,
           charEnd: span.end,
           ...lineCoordinates,
-          ...pageRangeForSpan(document, span.start, span.end),
-          ...sourceLocationForSpan(document, span.start, span.end),
+          ...pageRangeForSpan(pages, span.start, span.end),
+          ...sourceLocationForSpan(locationRegions, span.start, span.end),
           checksum: document.file.checksum,
           bytes: document.file.bytes,
           mtimeMs: document.file.mtimeMs,
@@ -93,7 +101,7 @@ export function chunkDocument(
       if (end >= region.charEnd) {
         break
       }
-      cursor = fences.some((fence) => fence.start === end)
+      cursor = fenceStarts.has(end)
         ? end
         : Math.max(end - chunkOverlap, cursor + 1, region.charStart)
     }
@@ -103,17 +111,15 @@ export function chunkDocument(
 }
 
 function sourceLocationForSpan(
-  document: ParsedDocument,
+  regions: readonly ParsedRegion[],
   start: number,
   end: number,
 ): Pick<
   TextChunk,
   "locationKind" | "locationStart" | "locationEnd" | "locationLabel" | "cellStart" | "cellEnd"
 > {
-  const region = document.regions?.find(
-    (candidate) => candidate.charStart < end && candidate.charEnd > start,
-  )
-  if (!region) {
+  const region = regions[firstIntervalEndingAfter(regions, start)]
+  if (!region || region.charStart >= end) {
     return {}
   }
   return {
@@ -131,17 +137,27 @@ export function chunkSearchText(chunk: Pick<TextChunk, "contextPath" | "text">):
 }
 
 function pageRangeForSpan(
-  document: ParsedDocument,
+  pages: readonly ParsedPage[],
   start: number,
   end: number,
 ): { pageStart?: number; pageEnd?: number } {
-  if (!document.pages || document.pages.length === 0) {
+  if (pages.length === 0) {
     return {}
   }
-  const overlapping = document.pages.filter((page) => page.charStart < end && page.charEnd > start)
-  const first = overlapping[0]
-  const last = overlapping.at(-1)
-  return first && last ? { pageStart: first.pageNumber, pageEnd: last.pageNumber } : {}
+  const firstIndex = firstIntervalEndingAfter(pages, start)
+  const first = pages[firstIndex]
+  if (!first || first.charStart >= end) {
+    return {}
+  }
+  let last = first
+  for (let index = firstIndex + 1; index < pages.length; index += 1) {
+    const page = pages[index]
+    if (!page || page.charStart >= end) {
+      break
+    }
+    last = page
+  }
+  return { pageStart: first.pageNumber, pageEnd: last.pageNumber }
 }
 
 function chooseChunkEnd(
@@ -156,10 +172,12 @@ function chooseChunkEnd(
     return hardEnd
   }
 
-  const intersectedFence = fences.find(
-    (fence) => fence.start < hardEnd && fence.end > hardEnd && fence.end <= regionEnd,
-  )
-  if (intersectedFence && intersectedFence.end - intersectedFence.start <= chunkSize) {
+  const intersectedFence = fenceAtOffset(fences, hardEnd)
+  if (
+    intersectedFence &&
+    intersectedFence.end <= regionEnd &&
+    intersectedFence.end - intersectedFence.start <= chunkSize
+  ) {
     return intersectedFence.start > cursor ? intersectedFence.start : intersectedFence.end
   }
 
@@ -220,14 +238,65 @@ function trimmedSpan(text: string, start: number, end: number): TextSpan {
   }
 }
 
-function lineStartOffsets(text: string): number[] {
+function lineStartOffsets(text: string, signal: AbortSignal | undefined): number[] {
   const starts = [0]
   for (let index = 0; index < text.length; index += 1) {
+    if (signal && index % 16_384 === 0) {
+      throwIfAborted(signal)
+    }
     if (text[index] === "\n" && index + 1 < text.length) {
       starts.push(index + 1)
     }
   }
   return starts
+}
+
+interface CharacterInterval {
+  charStart: number
+  charEnd: number
+}
+
+function sortedCharacterIntervals<T extends CharacterInterval>(intervals: readonly T[]): T[] {
+  return [...intervals].sort(
+    (left, right) => left.charEnd - right.charEnd || left.charStart - right.charStart,
+  )
+}
+
+function firstIntervalEndingAfter<T extends CharacterInterval>(
+  intervals: readonly T[],
+  offset: number,
+): number {
+  let low = 0
+  let high = intervals.length
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    const interval = intervals[mid]
+    if (interval && interval.charEnd <= offset) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+  return low
+}
+
+function fenceAtOffset(
+  fences: ReadonlyArray<{ start: number; end: number }>,
+  offset: number,
+): { start: number; end: number } | undefined {
+  let low = 0
+  let high = fences.length
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    const fence = fences[mid]
+    if (fence && fence.end <= offset) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+  const fence = fences[low]
+  return fence && fence.start < offset && fence.end > offset ? fence : undefined
 }
 
 function lineNumberForOffset(lineStarts: number[], offset: number): number {
