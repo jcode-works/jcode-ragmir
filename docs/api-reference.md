@@ -126,7 +126,9 @@ authentication, authorization, rate limits, and transport security.
 | `evaluateGoldenQueries(options)` | Score Recall@1/3/5/10, Precision@5, MRR@10, graded nDCG@10, exact citations, and abstention against a local golden-query file. |
 
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
-`contextPaths`, `explain`, `signal`, and `timeoutMs`. `IngestOptions` also accepts `rebuild`, a
+`contextPaths`, `explain`, `vectorSearchMode`, `signal`, and `timeoutMs`. Set
+`vectorSearchMode: "exact"` to bypass ANN for diagnostic comparison; the default `"adaptive"`
+uses the compatible strategy recorded in the manifest. `IngestOptions` also accepts `rebuild`, a
 positive `batchSize` that defaults to 25 files and is capped at 128, `incrementalFailurePolicy`, and
 an optional `onProgress` callback. The default `preserve-last-good` policy keeps prior rows searchable and marks
 them stale when a changed file fails; `remove-stale` deletes them. Its durable progress contains the
@@ -155,7 +157,7 @@ selection without changing the exact text, offsets, or citations returned to the
 | `securityAudit(cwd?, options?)` | Report local privacy, redaction, permissions, and MCP posture. |
 | `ingestionLimits(config)` | Read active parser safety limits. |
 | `accessLogUsageReport(options?)` | Summarize metadata-only local access logs. |
-| `optimizeStorage(options?)` | Inspect or force fragment compaction, old-version pruning, and complete FTS coverage under the local writer lock. |
+| `optimizeStorage(options?)` | Inspect or force fragment compaction, old-version pruning, and complete FTS, adaptive-vector, and scalar-index coverage under the local writer lock. |
 | `collectGenerationGarbage(options?)` | Inspect generation roles or reclaim expired, unleased tables under the local writer lock. |
 | `destroyIndex(cwd?)` | Remove generated index data without deleting source files. |
 | `redactText(input, config)` | Apply configured redaction before custom processing. |
@@ -228,12 +230,12 @@ types that callers commonly compose explicitly.
 | Area | Exported types |
 | --- | --- |
 | Configuration | `Config`, `PrivacyProfile`, `RetrievalProfile` |
-| Ingestion | `IngestOptions`, `IngestResult`, `IncrementalFailurePolicy`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexManifestFile`, `IndexManifestStaleFile`, `ParsedPage` |
+| Ingestion | `IngestOptions`, `IngestResult`, `IncrementalFailurePolicy`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexManifestFile`, `IndexManifestStaleFile`, `VectorIndexManifest`, `VectorIndexParameters`, `VectorIndexStrategy`, `ParsedPage` |
 | Preview | `PreviewChunksOptions`, `PreviewReport`, `PreviewFile`, `PreviewChunk` |
 | Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
 | Research and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
 | Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
-| Operations | `RagmirClientOptions`, `OperationOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
+| Operations | `RagmirClientOptions`, `OperationOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
 | Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
 | Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |

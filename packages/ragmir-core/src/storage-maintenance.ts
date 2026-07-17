@@ -10,6 +10,7 @@ import { operationSignal } from "./operation.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import { activeIndexTableName, openRowsTableByName } from "./store.js"
 import type { Config, OperationOptions } from "./types.js"
+import { type AdaptiveIndexMaintenanceReport, maintainAdaptiveIndices } from "./vector-index.js"
 
 const FULL_TEXT_INDEX_NAME = "searchText_idx"
 const MAINTENANCE_STATE_FILENAME = "storage-maintenance.json"
@@ -35,6 +36,7 @@ export interface StorageMaintenanceOptions {
   additionalMutations?: number
   dryRun?: boolean
   force?: boolean
+  vectorDimension?: number
 }
 
 export interface OptimizeStorageOptions extends OperationOptions {
@@ -62,6 +64,7 @@ export interface StorageMaintenanceReport {
     unindexedRows: number
     complete: boolean
   }
+  adaptiveIndices: AdaptiveIndexMaintenanceReport | null
   reasons: StorageMaintenanceReason[]
   plannedActions: StorageMaintenanceAction[]
   completedActions: StorageMaintenanceAction[]
@@ -76,6 +79,7 @@ interface StorageMaintenanceState {
   tableVersion: number
   updatedAt: string
   lastOptimizedAt?: string
+  vectorIndexPolicySignature?: string
 }
 
 interface TableHealth {
@@ -134,9 +138,21 @@ export async function maintainOpenStorageTable(
   const plannedActions = maintenanceActions(before, mutationsSinceOptimization, forced)
 
   if (dryRun) {
+    const adaptiveIndices = await maintainAdaptiveIndices(table, config, {
+      dryRun: true,
+      ...(previousState?.tableName === tableName && previousState.vectorIndexPolicySignature
+        ? { previousPolicySignature: previousState.vectorIndexPolicySignature }
+        : {}),
+      ...(options.vectorDimension === undefined
+        ? {}
+        : { vectorDimension: options.vectorDimension }),
+    })
     return reportForHealth({
       tableName,
-      status: plannedActions.length > 0 ? "needed" : "healthy",
+      status:
+        plannedActions.length > 0 || adaptiveIndices.plannedActions.length > 0
+          ? "needed"
+          : "healthy",
       dryRun,
       forced,
       health: before,
@@ -145,6 +161,7 @@ export async function maintainOpenStorageTable(
       plannedActions,
       completedActions: [],
       optimizeStats: null,
+      adaptiveIndices,
       warning: null,
     })
   }
@@ -186,8 +203,21 @@ export async function maintainOpenStorageTable(
     }
   }
 
+  const adaptiveIndices = await maintainAdaptiveIndices(table, config, {
+    ...(previousState?.tableName === tableName && previousState.vectorIndexPolicySignature
+      ? { previousPolicySignature: previousState.vectorIndexPolicySignature }
+      : {}),
+    ...(options.vectorDimension === undefined ? {} : { vectorDimension: options.vectorDimension }),
+  })
+
   const after = await inspectTableHealth(table)
   const remainingMutations = optimized ? 0 : mutationsSinceOptimization
+  const vectorIndexPolicySignature =
+    adaptiveIndices.vectorIndex.strategy === adaptiveIndices.desiredVectorStrategy
+      ? adaptiveIndices.policySignature
+      : previousState?.tableName === tableName
+        ? previousState.vectorIndexPolicySignature
+        : undefined
   try {
     await writeMaintenanceState(
       {
@@ -196,6 +226,7 @@ export async function maintainOpenStorageTable(
         mutationsSinceOptimization: remainingMutations,
         tableVersion: after.tableVersion,
         updatedAt: new Date().toISOString(),
+        ...(vectorIndexPolicySignature ? { vectorIndexPolicySignature } : {}),
         ...(optimized ? { lastOptimizedAt: new Date().toISOString() } : {}),
       },
       config,
@@ -206,7 +237,12 @@ export async function maintainOpenStorageTable(
 
   return reportForHealth({
     tableName,
-    status: warnings.length > 0 ? "warning" : plannedActions.length > 0 ? "completed" : "healthy",
+    status:
+      warnings.length > 0 || adaptiveIndices.warning
+        ? "warning"
+        : plannedActions.length > 0 || adaptiveIndices.completedActions.length > 0
+          ? "completed"
+          : "healthy",
     dryRun,
     forced,
     health: after,
@@ -215,6 +251,7 @@ export async function maintainOpenStorageTable(
     plannedActions,
     completedActions,
     optimizeStats,
+    adaptiveIndices,
     warning: warnings.length > 0 ? warnings.join(" ") : null,
   })
 }
@@ -325,6 +362,7 @@ function reportForHealth(input: {
   plannedActions: StorageMaintenanceAction[]
   completedActions: StorageMaintenanceAction[]
   optimizeStats: OptimizeStats | null
+  adaptiveIndices: AdaptiveIndexMaintenanceReport | null
   warning: string | null
 }): StorageMaintenanceReport {
   return {
@@ -342,6 +380,7 @@ function reportForHealth(input: {
     plannedActions: input.plannedActions,
     completedActions: input.completedActions,
     optimizeStats: input.optimizeStats,
+    adaptiveIndices: input.adaptiveIndices,
     warning: input.warning,
   }
 }
@@ -361,6 +400,7 @@ function missingTableReport(
     mutationsSinceOptimization: 0,
     fragments: { total: 0, small: 0, smallRatio: 0 },
     fullTextIndex: { present: false, indexedRows: 0, unindexedRows: 0, complete: false },
+    adaptiveIndices: null,
     reasons: [],
     plannedActions: [],
     completedActions: [],
@@ -409,7 +449,9 @@ function isMaintenanceState(value: unknown): value is StorageMaintenanceState {
     typeof value.tableVersion === "number" &&
     Number.isInteger(value.tableVersion) &&
     typeof value.updatedAt === "string" &&
-    (!("lastOptimizedAt" in value) || typeof value.lastOptimizedAt === "string")
+    (!("lastOptimizedAt" in value) || typeof value.lastOptimizedAt === "string") &&
+    (!("vectorIndexPolicySignature" in value) ||
+      typeof value.vectorIndexPolicySignature === "string")
   )
 }
 

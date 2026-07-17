@@ -21,7 +21,9 @@ import type {
   SearchOptions,
   SearchResult,
   SourceLocationKind,
+  VectorIndexManifest,
 } from "./types.js"
+import { configureAdaptiveVectorQuery, vectorIndexManifestCompatible } from "./vector-index.js"
 
 type RowsTable = NonNullable<Awaited<ReturnType<typeof openRowsTableByName>>>
 
@@ -162,8 +164,12 @@ async function searchWithinGeneration(
     lexicalCandidateRows(table, sanitized.query, config.hybridTextScanLimit, retrievalPredicate),
   ])
   throwIfAborted(signal)
-  await assertVectorIndexCompatibility(config, vector.length)
-  const vectorQuery = table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS)
+  const manifest = await assertVectorIndexCompatibility(config, vector.length)
+  const vectorQuery = configureAdaptiveVectorQuery(
+    table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
+    manifest.vectorIndex,
+    options.vectorSearchMode === "exact",
+  )
   const vectorRows = (await (retrievalPredicate
     ? vectorQuery.where(retrievalPredicate)
     : vectorQuery
@@ -605,7 +611,7 @@ async function contextChunksByRow(
 async function assertVectorIndexCompatibility(
   config: Awaited<ReturnType<typeof loadConfig>>,
   vectorDimension: number,
-): Promise<void> {
+): Promise<IndexManifestWithVectorIndex> {
   const manifest = await readIndexManifest(config)
   if (!manifest) {
     throw new Error(
@@ -629,6 +635,21 @@ async function assertVectorIndexCompatibility(
       `Index vector distance metric is ${manifest.vectorDistanceMetric} but Ragmir expects ${VECTOR_DISTANCE_METRIC}. Rebuild with \`rgr ingest --rebuild\`.`,
     )
   }
+  if (!manifest.vectorIndex) {
+    throw new Error(
+      "Index vector strategy metadata is missing. Rebuild with `rgr ingest --rebuild`.",
+    )
+  }
+  if (!vectorIndexManifestCompatible(manifest.vectorIndex, config, vectorDimension)) {
+    throw new Error(
+      "Index vector strategy is incompatible or incomplete. Rebuild with `rgr ingest --rebuild` or repair coverage with `rgr storage optimize`.",
+    )
+  }
+  return { ...manifest, vectorIndex: manifest.vectorIndex }
+}
+
+type IndexManifestWithVectorIndex = NonNullable<Awaited<ReturnType<typeof readIndexManifest>>> & {
+  vectorIndex: VectorIndexManifest
 }
 
 function answerText(source: SearchResult): string {

@@ -19,6 +19,8 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   limits belong to the embedding application.
 - The default `local-hash` path works offline with no account, API key, or model download.
 - Semantic Transformers.js embeddings are an explicit opt-in and require a rebuilt index.
+- Vector search stays exhaustive below 100,000 rows. Larger tables use a benchmarked IVF-PQ policy
+  only with complete coverage, with an explicit exact diagnostic mode.
 - `@jcode.labs/ragmir-chat` adds optional local GGUF synthesis: `lite` uses Qwen, while default
   `fast` and explicit `quality` use Gemma.
 - `@jcode.labs/ragmir-tts` supports offline English, French, and Spanish; explicit online Edge mode

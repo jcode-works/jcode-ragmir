@@ -35,13 +35,15 @@ rgr preview --path docs --max-files 5 --max-chunks 3
 rgr search "migration" --top-k 5 --context-radius 1
 rgr search "migration" --include-path docs --exclude-path docs/archive
 rgr search "migration" --context-path "Guide > Migration" --explain
+rgr search "migration" --exact-vector-search
 ```
 
 `sources add` accepts paths, globs, and `!` exclusions. Search, ask, and research accept `--top-k`,
 `--include-path`, `--exclude-path`, and repeatable `--context-path`. Search and ask accept
 `--explain`; the optional score object reports RRF contributions, retriever ranks, raw backend
 scores, and matched query terms without changing ranking. Use `--compact` on search or research when
-agent context is limited.
+agent context is limited. Search and ask accept `--exact-vector-search` to bypass an active ANN
+index for diagnostics against exhaustive vector search.
 
 `preview` uses the active redaction and chunking configuration but never writes storage. `audit`
 reports min, mean, p50, p95, and max chunk sizes plus structural-context coverage.
@@ -75,6 +77,10 @@ FTS coverage, stable citations, bounded fragment/version growth, and at most 10%
 regression after 24 mutation batches.
 The generation-retention scorecard is `pnpm bench:generations`; ten generations must converge to
 three with active and rollback generations preserved and disk amplification at or below 3.5x.
+The adaptive-index scorecard is `pnpm bench:vector-index -- --sizes S,M,L`. It compares exact,
+IVF-PQ, HNSW-SQ, and `relativePath` BTree lookup with 10 warm-ups, 100 samples, and five measured
+repetitions. A production ANN candidate must improve p95 with less than 0.01 absolute Recall@10
+loss against exhaustive search.
 
 Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
 text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and
@@ -100,7 +106,11 @@ opened them; `rgr destroy-index` removes all generated index storage.
 Ragmir checks LanceDB maintenance after every completed ingestion. It refreshes an absent or
 incomplete `searchText_idx` before activation and runs compaction after 20 mutation batches or when
 at least eight fragments are 25% small fragments. Optional maintenance failures return a warning
-while the validated table remains readable. Operators can inspect or force the same process:
+while the validated table remains readable. It keeps exhaustive vector search below 100,000 rows,
+maintains IVF-PQ at and above that crossover, and creates a `relativePath` BTree from 10,000 rows.
+M uses 32 probes with refinement 10. L searches every partition with refinement 100 because lower
+settings did not meet the Recall@10 gate. A failed ANN refresh falls back to exact search. Operators
+can inspect or force the same process:
 
 ```bash
 rgr storage optimize --dry-run --json
@@ -108,8 +118,9 @@ rgr storage optimize --json
 ```
 
 The dry run acquires the local writer lock for a consistent report but creates no LanceDB version.
-The JSON report includes table version, pending mutation count, fragment health, indexed and
-unindexed FTS rows, reasons, planned actions, completed actions, and any retryable operator warning.
+The JSON report includes table version, pending mutation count, fragment health, FTS/vector/scalar
+coverage, index strategy, reasons, planned actions, completed actions, and any retryable operator
+warning.
 
 Rebuild generation cleanup uses a separate policy: active, resumable, rollback, and actively leased
 tables are never reclaimed. Other generations receive a five-minute reader grace period, then are

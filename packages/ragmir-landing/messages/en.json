@@ -101,7 +101,7 @@
   "features_install_label": "Install",
   "features_run_label": "Run",
   "features_core_title": "Ragmir Core",
-  "features_core_text": "Retrieve cited project evidence for agents, scripts, and Node.js workers.",
+  "features_core_text": "Retrieve cited project evidence with adaptive local indexing for agents, scripts, and Node.js workers.",
   "features_core_item_1": "Preview redacted chunks and explain retrieval rankings.",
   "features_core_item_2": "Reuse one persistent local client in a Node.js worker.",
   "features_core_item_3": "Return verifiable file, line, chunk, and PDF page citations.",

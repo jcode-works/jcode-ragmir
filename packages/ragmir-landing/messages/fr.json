@@ -101,7 +101,7 @@
   "features_install_label": "Installation",
   "features_run_label": "Commande",
   "features_core_title": "Ragmir Core",
-  "features_core_text": "Récupérez les preuves citées du projet pour les agents, scripts et processus Node.js.",
+  "features_core_text": "Récupérez les preuves citées du projet avec un index local adaptatif pour les agents, scripts et processus Node.js.",
   "features_core_item_1": "Prévisualisez les segments masqués et expliquez le classement.",
   "features_core_item_2": "Réutilisez un client local dans un processus Node.js persistant.",
   "features_core_item_3": "Obtenez des citations vérifiables vers le fichier, la ligne, le segment ou la page PDF.",

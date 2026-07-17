@@ -252,6 +252,7 @@ function isIndexManifest(
     (!("indexPolicyFingerprint" in value) || typeof value.indexPolicyFingerprint === "string") &&
     (!("vectorDimension" in value) || typeof value.vectorDimension === "number") &&
     (!("vectorDistanceMetric" in value) || typeof value.vectorDistanceMetric === "string") &&
+    (!("vectorIndex" in value) || isVectorIndexManifest(value.vectorIndex)) &&
     typeof value.chunkSize === "number" &&
     typeof value.chunkOverlap === "number" &&
     typeof value.fileCount === "number" &&
@@ -265,6 +266,41 @@ function isIndexManifest(
     (!("staleFiles" in value) ||
       (Array.isArray(value.staleFiles) && value.staleFiles.every(isIndexManifestStaleFile)))
   )
+}
+
+function isVectorIndexManifest(value: unknown): boolean {
+  if (!isRecord(value) || !isRecord(value.parameters)) {
+    return false
+  }
+  const parameters = value.parameters
+  return (
+    value.policyVersion === 1 &&
+    (value.strategy === "exact" || value.strategy === "ivf-pq" || value.strategy === "hnsw-sq") &&
+    (value.indexName === null || typeof value.indexName === "string") &&
+    (value.indexType === null || typeof value.indexType === "string") &&
+    value.column === "vector" &&
+    typeof value.distanceMetric === "string" &&
+    typeof value.dimension === "number" &&
+    Number.isInteger(value.dimension) &&
+    value.dimension >= 0 &&
+    typeof value.modelFingerprint === "string" &&
+    typeof value.indexedRows === "number" &&
+    Number.isInteger(value.indexedRows) &&
+    value.indexedRows >= 0 &&
+    typeof value.unindexedRows === "number" &&
+    Number.isInteger(value.unindexedRows) &&
+    value.unindexedRows >= 0 &&
+    typeof value.coverage === "number" &&
+    value.coverage >= 0 &&
+    value.coverage <= 1 &&
+    ["numPartitions", "numSubVectors", "nprobes", "refineFactor", "ef"].every(
+      (key) => !(key in parameters) || isPositiveInteger(parameters[key]),
+    )
+  )
+}
+
+function isPositiveInteger(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
 }
 
 function isIndexManifestFile(value: unknown): value is IndexManifestFile {

@@ -144,5 +144,13 @@ export type {
   SourceDiagnostics,
   SourceDuplicateCandidate,
   SourcePathCandidate,
+  VectorIndexManifest,
+  VectorIndexParameters,
+  VectorIndexStrategy,
 } from "./types.js"
+export type {
+  AdaptiveIndexAction,
+  AdaptiveIndexMaintenanceReport,
+  ScalarIndexStatus,
+} from "./vector-index.js"
 export { VERSION } from "./version.js"

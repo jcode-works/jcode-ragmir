@@ -121,6 +121,31 @@ export interface IngestionLimitsReport {
 
 export type EmbeddingProvider = "local-hash" | "transformers"
 
+export type VectorIndexStrategy = "exact" | "ivf-pq" | "hnsw-sq"
+
+export interface VectorIndexParameters {
+  numPartitions?: number
+  numSubVectors?: number
+  nprobes?: number
+  refineFactor?: number
+  ef?: number
+}
+
+export interface VectorIndexManifest {
+  policyVersion: 1
+  strategy: VectorIndexStrategy
+  indexName: string | null
+  indexType: string | null
+  column: "vector"
+  distanceMetric: string
+  dimension: number
+  modelFingerprint: string
+  indexedRows: number
+  unindexedRows: number
+  coverage: number
+  parameters: VectorIndexParameters
+}
+
 /**
  * Manifest written next to the LanceDB table at each ingest. It captures the
  * configuration that produced the indexed vectors so callers can detect a
@@ -136,6 +161,7 @@ export interface IndexManifest {
   indexPolicyFingerprint?: string
   vectorDimension?: number
   vectorDistanceMetric?: string
+  vectorIndex?: VectorIndexManifest
   chunkSize: number
   chunkOverlap: number
   fileCount: number
@@ -476,6 +502,7 @@ export interface SearchOptions extends OperationOptions {
   excludePaths?: string[]
   contextPaths?: string[]
   explain?: boolean
+  vectorSearchMode?: "adaptive" | "exact"
 }
 
 export interface SearchContextChunk {

@@ -307,10 +307,19 @@ async function ingestUnlocked(
       lexicalIndexWarning ??= writeResult.lexicalIndexWarning
     }
 
-    const manifest = await manifestForState(state, config, connection)
+    let manifest = await manifestForState(state, config, connection)
     const maintenance = await maintainStorageTable(state.tableName, config, connection, {
       additionalMutations: storageMutations,
+      ...(manifest.vectorDimension === undefined
+        ? {}
+        : { vectorDimension: manifest.vectorDimension }),
     })
+    if (manifest.chunkCount > 0 && !maintenance.adaptiveIndices) {
+      throw new Error("Cannot activate an index without adaptive vector index diagnostics.")
+    }
+    if (maintenance.adaptiveIndices) {
+      manifest = { ...manifest, vectorIndex: maintenance.adaptiveIndices.vectorIndex }
+    }
     storageWarning = combineWarnings(storageWarning, maintenance.warning)
     await validateIngestionTable(state, manifest, config, connection)
     await writeEmptyTextFiles(emptyTextRecords(state), config)
@@ -362,7 +371,7 @@ async function ingestUnlocked(
       emptyTextFiles,
       unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
       redactions,
-      vectorIndexWarning: null,
+      vectorIndexWarning: maintenance.adaptiveIndices?.warning ?? null,
       lexicalIndexWarning,
       storageWarning,
       errors,

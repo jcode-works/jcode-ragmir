@@ -540,6 +540,7 @@ program
     [],
   )
   .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
+  .option("--exact-vector-search", "Bypass ANN and use exhaustive vector search for diagnostics.")
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
@@ -552,6 +553,7 @@ program
         excludePath: string[]
         contextPath: string[]
         explain?: boolean
+        exactVectorSearch?: boolean
         compact?: boolean
         json?: boolean
       },
@@ -627,6 +629,7 @@ program
     [],
   )
   .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
+  .option("--exact-vector-search", "Bypass ANN and use exhaustive vector search for diagnostics.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -638,6 +641,7 @@ program
         excludePath: string[]
         contextPath: string[]
         explain?: boolean
+        exactVectorSearch?: boolean
         json?: boolean
       },
       command: Command,
@@ -1568,6 +1572,7 @@ function withSearchOptions(
     excludePath?: string[]
     contextPath?: string[]
     explain?: boolean
+    exactVectorSearch?: boolean
   },
 ): {
   cwd: string
@@ -1577,6 +1582,7 @@ function withSearchOptions(
   excludePaths?: string[]
   contextPaths?: string[]
   explain?: boolean
+  vectorSearchMode?: "exact"
 } {
   const result: {
     cwd: string
@@ -1586,11 +1592,15 @@ function withSearchOptions(
     excludePaths?: string[]
     contextPaths?: string[]
     explain?: boolean
+    vectorSearchMode?: "exact"
   } = { cwd }
   addOption(result, "topK", options.topK)
   addOption(result, "contextRadius", options.contextRadius)
   addPathFilters(result, options)
   addOption(result, "explain", options.explain)
+  if (options.exactVectorSearch) {
+    result.vectorSearchMode = "exact"
+  }
   return result
 }
 
@@ -1878,6 +1888,20 @@ function printStorageMaintenance(report: Awaited<ReturnType<typeof optimizeStora
   console.log(`fullTextIndex.indexedRows=${report.fullTextIndex.indexedRows}`)
   console.log(`fullTextIndex.unindexedRows=${report.fullTextIndex.unindexedRows}`)
   console.log(`fullTextIndex.complete=${report.fullTextIndex.complete}`)
+  if (report.adaptiveIndices) {
+    console.log(`vectorIndex.strategy=${report.adaptiveIndices.vectorIndex.strategy}`)
+    console.log(`vectorIndex.indexType=${report.adaptiveIndices.vectorIndex.indexType ?? "none"}`)
+    console.log(`vectorIndex.coverage=${report.adaptiveIndices.vectorIndex.coverage}`)
+    console.log(`vectorIndex.indexedRows=${report.adaptiveIndices.vectorIndex.indexedRows}`)
+    console.log(`vectorIndex.unindexedRows=${report.adaptiveIndices.vectorIndex.unindexedRows}`)
+    console.log(`relativePathIndex.present=${report.adaptiveIndices.relativePathIndex.present}`)
+    console.log(`relativePathIndex.coverage=${report.adaptiveIndices.relativePathIndex.coverage}`)
+    console.log(`adaptivePlannedActions=${report.adaptiveIndices.plannedActions.join(",")}`)
+    console.log(`adaptiveCompletedActions=${report.adaptiveIndices.completedActions.join(",")}`)
+    if (report.adaptiveIndices.warning) {
+      console.log(pc.yellow(`vectorIndex.warning: ${report.adaptiveIndices.warning}`))
+    }
+  }
   console.log(`reasons=${report.reasons.join(",")}`)
   console.log(`plannedActions=${report.plannedActions.join(",")}`)
   console.log(`completedActions=${report.completedActions.join(",")}`)

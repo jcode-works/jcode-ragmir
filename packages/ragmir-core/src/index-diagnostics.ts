@@ -2,6 +2,7 @@ import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { readIndexManifest } from "./store.js"
 import type { Config } from "./types.js"
+import { vectorModelFingerprint } from "./vector-index.js"
 
 /**
  * Bumped when the index layout or manifest meaning changes in a way that
@@ -9,7 +10,7 @@ import type { Config } from "./types.js"
  * required metadata). A stored manifest with a lower schemaVersion means the
  * index predates the current code and should be rebuilt.
  */
-export const INDEX_SCHEMA_VERSION = 8
+export const INDEX_SCHEMA_VERSION = 9
 
 /**
  * Detect a stale or incompatible index without re-scanning every source file.
@@ -45,6 +46,25 @@ export async function getIndexFreshnessWarning(config: Config): Promise<string |
     manifest.vectorDistanceMetric !== VECTOR_DISTANCE_METRIC
   ) {
     return `Index was built with vector distance metric "${manifest.vectorDistanceMetric}" but the active code uses "${VECTOR_DISTANCE_METRIC}". Rebuild with \`rgr ingest --rebuild\`.`
+  }
+
+  if (manifest.chunkCount > 0 && !manifest.vectorIndex) {
+    return "Index vector strategy metadata is missing. Rebuild with `rgr ingest --rebuild`."
+  }
+
+  if (manifest.vectorIndex) {
+    if (
+      manifest.vectorDimension === undefined ||
+      manifest.vectorIndex.dimension !== manifest.vectorDimension ||
+      manifest.vectorIndex.distanceMetric !== VECTOR_DISTANCE_METRIC ||
+      manifest.vectorIndex.modelFingerprint !==
+        vectorModelFingerprint(config, manifest.vectorIndex.dimension)
+    ) {
+      return "Index vector strategy is incompatible with the active model, dimension, or metric. Rebuild with `rgr ingest --rebuild`."
+    }
+    if (manifest.vectorIndex.coverage < 1 || manifest.vectorIndex.unindexedRows > 0) {
+      return "Active vector index coverage is incomplete. Run `rgr storage optimize` before searching."
+    }
   }
 
   if (manifest.chunkSize !== config.chunkSize || manifest.chunkOverlap !== config.chunkOverlap) {
