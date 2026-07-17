@@ -58,6 +58,10 @@ The default `local-hash` provider needs no model download. It is lexical/hash re
 semantic embeddings. Enable local Transformers.js embeddings explicitly with `rgr setup --semantic`
 and rebuild the index.
 
+Hybrid retrieval has stable source-and-chunk tie-breaks and provider-aware abstention. Pass
+`explain: true` to inspect vector and lexical contributions plus the active ranking-policy
+fingerprint. An empty result means every candidate failed the evidence threshold.
+
 ## TypeScript API
 
 ```ts

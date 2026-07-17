@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { isRecord } from "./guards.js"
+import { rankingPolicyFingerprint, rankingPolicyFor } from "./ranking.js"
 import type { Config, IndexManifest, IndexQualityReport, QualityMetricThresholds } from "./types.js"
 
 export function fingerprintIndexManifest(manifest: IndexManifest): string {
@@ -50,7 +51,9 @@ export async function isCompatibleQualityReport(
     report.embeddingProvider !== config.embeddingProvider ||
     report.embeddingModel !== config.embeddingModel ||
     report.embeddingModelRevision !== config.embeddingModelRevision ||
-    report.retrievalProfile !== config.retrievalProfile
+    report.retrievalProfile !== config.retrievalProfile ||
+    report.rankingPolicyFingerprint !==
+      rankingPolicyFingerprint(rankingPolicyFor(config.embeddingProvider, config.retrievalProfile))
   ) {
     return false
   }
@@ -80,7 +83,7 @@ export async function isCompatibleQualityReport(
 export function isIndexQualityReport(value: unknown): value is IndexQualityReport {
   return (
     isRecord(value) &&
-    value.schemaVersion === 1 &&
+    value.schemaVersion === 2 &&
     typeof value.createdAt === "string" &&
     typeof value.goldenPath === "string" &&
     typeof value.goldenFingerprint === "string" &&
@@ -93,6 +96,7 @@ export function isIndexQualityReport(value: unknown): value is IndexQualityRepor
       value.retrievalProfile === "balanced" ||
       value.retrievalProfile === "quality" ||
       value.retrievalProfile === "custom") &&
+    typeof value.rankingPolicyFingerprint === "string" &&
     typeof value.total === "number" &&
     isQualityMetrics(value.metrics) &&
     isRequiredThresholds(value.thresholds) &&

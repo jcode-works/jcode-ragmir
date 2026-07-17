@@ -545,6 +545,7 @@ export interface SearchScoreExplanation {
   lexicalRank: number | null
   vectorDistance: number | null
   lexicalBackendScore: number | null
+  rankingPolicyFingerprint: string
   matchedTerms: string[]
 }
 
@@ -752,6 +753,7 @@ export interface EvaluationResult {
   embeddingModel: string
   embeddingModelRevision: string
   retrievalProfile: RetrievalProfile
+  rankingPolicyFingerprint: string
   indexFingerprint: string
   goldenFingerprint: string
   topK: number
@@ -786,7 +788,7 @@ export interface EvaluationResult {
 }
 
 export interface IndexQualityReport {
-  schemaVersion: 1
+  schemaVersion: 2
   createdAt: string
   goldenPath: string
   goldenFingerprint: string
@@ -796,6 +798,7 @@ export interface IndexQualityReport {
   embeddingModel: string
   embeddingModelRevision: string
   retrievalProfile: RetrievalProfile
+  rankingPolicyFingerprint: string
   total: number
   metrics: {
     recallAt1: number

@@ -46,6 +46,11 @@ agent context is limited. Search and ask accept `--exact-vector-search` to bypas
 index for diagnostics against exhaustive vector search. `--top-k` is limited to 100 and
 `--context-radius` is clamped to three chunks.
 
+The explanation also contains a ranking-policy fingerprint so a stored quality report can be tied
+to the exact provider, profile, fusion, and abstention settings. Equal backend scores have a stable
+source-and-chunk tie-break. Search returns no result when all candidates fail the provider-aware
+evidence threshold; it does not force a low-confidence passage into the response.
+
 `preview` uses the active redaction and chunking configuration but never writes storage. `audit`
 reports min, mean, p50, p95, and max chunk sizes plus structural-context coverage.
 

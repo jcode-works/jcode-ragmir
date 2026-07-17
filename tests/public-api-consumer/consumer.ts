@@ -65,7 +65,11 @@ const speechOptions = {
 } satisfies RenderSpeechOptions
 
 void ingest(ingestOptions)
-void search("What changed?", searchOptions)
+void search("What changed?", searchOptions).then((results) => {
+  const rankingPolicyFingerprint: string | undefined =
+    results[0]?.score?.rankingPolicyFingerprint
+  void rankingPolicyFingerprint
+})
 void createRagmirClient({ cwd }).then(async (client: RagmirClient) => {
   await client.search("What changed?", operationOptions)
   await client.status(operationOptions)

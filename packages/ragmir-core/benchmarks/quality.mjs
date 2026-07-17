@@ -18,6 +18,10 @@ if (provider !== "local-hash" && provider !== "transformers") {
 const seed = String(options.seed ?? "ragmir-benchmark-v1")
 const model = String(options.model ?? "intfloat/multilingual-e5-small")
 const modelRevision = String(options.modelRevision ?? "main")
+const retrievalProfile = String(options.profile ?? "balanced")
+if (!["fast", "balanced", "quality", "custom"].includes(retrievalProfile)) {
+  throw new Error(`Unknown retrieval profile: ${retrievalProfile}`)
+}
 const modelPath = path.resolve(
   options.modelPath ?? path.join(invocationRoot, ".ragmir", "models"),
 )
@@ -33,12 +37,13 @@ try {
   const second = await runCleanEvaluation("second")
   const reproducible =
     first.corpusHash === second.corpusHash &&
-    first.qualityFingerprint === second.qualityFingerprint
+    first.qualityFingerprint === second.qualityFingerprint &&
+    first.rankingVariantsFingerprint === second.rankingVariantsFingerprint
   const result = {
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
     environment: environmentMetadata(),
-    configuration: { size, provider, model, modelRevision, seed },
+    configuration: { size, provider, model, modelRevision, retrievalProfile, seed },
     reproducible,
     first,
     second,
@@ -72,28 +77,144 @@ async function runCleanEvaluation(label) {
     modelRevision,
     modelPath,
     goldenCount: 100,
+    retrievalProfile,
   })
   const client = await createRagmirClient({ cwd: root })
   let ingest
+  let evaluation
+  let rankingVariants
   try {
     ingest = await client.ingest({ rebuild: true })
+    evaluation = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: corpus.goldenPath,
+      topK: 10,
+    })
+    rankingVariants = await evaluateRankingVariants(client, corpus.goldenQueries)
   } finally {
     await client.close()
   }
-  const evaluation = await evaluateGoldenQueries({
-    cwd: root,
-    goldenPath: corpus.goldenPath,
-    topK: 10,
-  })
+  if (!ingest || !evaluation || !rankingVariants) {
+    throw new Error("Quality evaluation did not complete.")
+  }
   const quality = reproducibleQuality(evaluation)
   return {
     corpusHash: corpus.corpusHash,
     goldenFingerprint: evaluation.goldenFingerprint,
     actualChunks: ingest.chunks,
     files: ingest.indexedFiles,
+    latency: {
+      p50Ms: evaluation.p50LatencyMs,
+      p95Ms: evaluation.p95LatencyMs,
+    },
     qualityFingerprint: sha256(stableJson(quality)),
+    rankingVariantsFingerprint: sha256(stableJson(rankingVariants)),
+    rankingVariants,
     quality,
   }
+}
+
+async function evaluateRankingVariants(client, goldenQueries) {
+  const variants = {
+    "vector-only": [],
+    "lexical-only": [],
+    hybrid: [],
+    "hybrid-lexical-1.25": [],
+    "hybrid-lexical-1.5": [],
+    "hybrid-lexical-2": [],
+  }
+  for (const testCase of goldenQueries) {
+    const rows = await client.search(testCase.query, {
+      topK: 100,
+      explain: true,
+      ...(testCase.includePaths === undefined ? {} : { includePaths: testCase.includePaths }),
+      ...(testCase.excludePaths === undefined ? {} : { excludePaths: testCase.excludePaths }),
+      ...(testCase.contextPaths === undefined ? {} : { contextPaths: testCase.contextPaths }),
+    })
+    const stableRows = (compare, eligible = () => true) =>
+      [...rows]
+        .filter((row) => row.score !== undefined && eligible(row))
+        .sort(
+          (left, right) =>
+            compare(left, right) ||
+            left.relativePath.localeCompare(right.relativePath) ||
+            left.chunkIndex - right.chunkIndex,
+        )
+        .slice(0, 10)
+    variants["vector-only"].push(
+      scoreVariantCase(
+        testCase,
+        stableRows(
+          (left, right) =>
+            (left.score?.vectorRank ?? Number.POSITIVE_INFINITY) -
+            (right.score?.vectorRank ?? Number.POSITIVE_INFINITY),
+          (row) => row.score?.vectorRank !== null,
+        ),
+      ),
+    )
+    variants["lexical-only"].push(
+      scoreVariantCase(
+        testCase,
+        stableRows(
+          (left, right) =>
+            (left.score?.lexicalRank ?? Number.POSITIVE_INFINITY) -
+            (right.score?.lexicalRank ?? Number.POSITIVE_INFINITY),
+          (row) => row.score?.lexicalRank !== null,
+        ),
+      ),
+    )
+    variants.hybrid.push(scoreVariantCase(testCase, rows.slice(0, 10)))
+    for (const [name, lexicalWeight] of [
+      ["hybrid-lexical-1.25", 1.25],
+      ["hybrid-lexical-1.5", 1.5],
+      ["hybrid-lexical-2", 2],
+    ]) {
+      variants[name].push(
+        scoreVariantCase(
+          testCase,
+          stableRows(
+            (left, right) =>
+              (right.score?.vectorContribution ?? 0) +
+              (right.score?.lexicalContribution ?? 0) * lexicalWeight -
+              ((left.score?.vectorContribution ?? 0) +
+                (left.score?.lexicalContribution ?? 0) * lexicalWeight),
+          ),
+        ),
+      )
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(variants).map(([name, cases]) => {
+      const answerable = cases.filter((testCase) => testCase.answerable)
+      const unanswerable = cases.filter((testCase) => !testCase.answerable)
+      return [
+        name,
+        {
+          recallAt10: mean(answerable.map((testCase) => testCase.recall)),
+          falsePositiveRate: mean(unanswerable.map((testCase) => Number(testCase.returned > 0))),
+        },
+      ]
+    }),
+  )
+}
+
+function scoreVariantCase(testCase, rows) {
+  const expectedPaths = testCase.expectedPaths ?? []
+  const returnedPaths = new Set(rows.map((row) => row.relativePath))
+  const answerable = testCase.answerable !== false && expectedPaths.length > 0
+  return {
+    answerable,
+    recall:
+      expectedPaths.length === 0
+        ? Number(rows.length === 0)
+        : expectedPaths.filter((expectedPath) => returnedPaths.has(expectedPath)).length /
+          expectedPaths.length,
+    returned: rows.length,
+  }
+}
+
+function mean(values) {
+  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length
 }
 
 function reproducibleQuality(result) {
@@ -113,6 +234,7 @@ function reproducibleQuality(result) {
     groups: result.groups,
     passed: result.passed,
     verificationEligible: result.verificationEligible,
+    rankingPolicyFingerprint: result.rankingPolicyFingerprint,
     cases: result.cases.map((testCase) => ({
       id: testCase.id,
       category: testCase.category,

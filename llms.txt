@@ -37,8 +37,9 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - OCR boundary: embedded PDF text comes first; a configured local executable runs only for blank
   pages. Ragmir has no cloud OCR integration.
 - Retrieval inspection: preview redacted chunks without writing storage; optionally expose RRF
-  contributions, filter by source or structural context, or force exact vector search for ANN
-  diagnostics.
+  contributions and the ranking-policy fingerprint, filter by source or structural context, or
+  force exact vector search for ANN diagnostics. Equal scores use stable source-and-chunk
+  tie-breaks, and provider-aware abstention can return no passage instead of weak evidence.
 - Adaptive indexing: exhaustive vector search stays active below 100,000 rows. Larger tables use a
   benchmarked IVF-PQ policy only with complete coverage; storage maintenance reports and repairs
   vector, full-text, and relative-path index coverage.

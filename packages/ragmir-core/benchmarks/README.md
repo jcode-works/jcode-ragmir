@@ -8,6 +8,7 @@ corpora and raw results are deliberately excluded from Git.
 ```bash
 pnpm bench:smoke
 pnpm bench:quality
+pnpm bench:quality -- --size XS --profile fast
 pnpm bench:scale -- --size M
 pnpm bench:vector-index -- --sizes S,M,L
 pnpm bench:compare -- --baseline baseline.json --current current.json
@@ -15,8 +16,12 @@ pnpm bench:compare -- --baseline baseline.json --current current.json
 
 `bench:smoke` is a fast functional check and is not eligible for product claims. `bench:quality`
 evaluates two clean S indexes and fails unless their corpus and quality fingerprints match and all
-quality gates pass. `bench:scale` accepts `S`, `M`, or `L`; the default is `S` and uses the full
-warm-up and repetition policy.
+quality gates pass. It accepts `fast`, `balanced`, `quality`, or `custom` with `--profile`, records
+p50/p95 latency separately from its deterministic quality fingerprint, and reports Recall@10 plus
+false positives for vector-only, lexical-only, current hybrid, and experimental lexical weights.
+Variant comparisons rerank the bounded, post-abstention candidate pool returned by a top-100
+search; they are diagnostic evidence, not an automatic production-policy change. `bench:scale`
+accepts `S`, `M`, or `L`; the default is `S` and uses the full warm-up and repetition policy.
 
 `bench:vector-index` builds deterministic 384-dimensional S/M/L tables and compares exhaustive
 search, IVF-PQ, HNSW-SQ, and `relativePath` BTree lookup. It records build time, p50/p95/p99,

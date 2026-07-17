@@ -9,6 +9,7 @@ import { withIndexWriteLock } from "./index-write-lock.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { fingerprintIndexManifest, fingerprintQualityReport } from "./quality-report.js"
 import { search } from "./query.js"
+import { rankingPolicyFingerprint, rankingPolicyFor } from "./ranking.js"
 import { readIndexManifest, writeIndexManifest } from "./store.js"
 import type {
   EvaluationCaseResult,
@@ -142,6 +143,9 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
   throwIfAborted(signal)
   const cwd = path.resolve(String(options.cwd ?? process.cwd()))
   const config = await loadConfig(cwd)
+  const activeRankingPolicyFingerprint = rankingPolicyFingerprint(
+    rankingPolicyFor(config.embeddingProvider, config.retrievalProfile),
+  )
   throwIfAborted(signal)
   const goldenPath = path.resolve(cwd, String(options.goldenPath))
   const [goldenFile, initialManifest] = await Promise.all([
@@ -215,6 +219,7 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
           indexFingerprint,
           goldenPath: relativeGoldenPath,
           goldenFingerprint: goldenFile.fingerprint,
+          rankingPolicyFingerprint: activeRankingPolicyFingerprint,
           metrics,
           thresholds: requiredThresholdSet,
           total: cases.length,
@@ -246,6 +251,7 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
     embeddingModel: config.embeddingModel,
     embeddingModelRevision: config.embeddingModelRevision,
     retrievalProfile: config.retrievalProfile,
+    rankingPolicyFingerprint: activeRankingPolicyFingerprint,
     indexFingerprint,
     goldenFingerprint: goldenFile.fingerprint,
     topK: defaultTopK,
@@ -604,6 +610,7 @@ async function persistQualityReport(input: {
   indexFingerprint: string
   goldenPath: string
   goldenFingerprint: string
+  rankingPolicyFingerprint: string
   metrics: EvaluationMetrics
   thresholds: Required<QualityMetricThresholds>
   total: number
@@ -620,7 +627,7 @@ async function persistQualityReport(input: {
       return null
     }
     const unsignedReport: Omit<IndexQualityReport, "qualityReportFingerprint"> = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       createdAt: new Date().toISOString(),
       goldenPath: input.goldenPath,
       goldenFingerprint: input.goldenFingerprint,
@@ -630,6 +637,7 @@ async function persistQualityReport(input: {
       embeddingModel: input.config.embeddingModel,
       embeddingModelRevision: input.config.embeddingModelRevision,
       retrievalProfile: input.config.retrievalProfile,
+      rankingPolicyFingerprint: input.rankingPolicyFingerprint,
       total: input.total,
       metrics: {
         recallAt1: input.metrics.recallAt1,

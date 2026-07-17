@@ -560,6 +560,7 @@ function summarizeQuality(result) {
     exactCitationRate: result.exactCitationRate,
     falsePositiveRate: result.falsePositiveRate,
     abstentionAccuracy: result.abstentionAccuracy,
+    rankingPolicyFingerprint: result.rankingPolicyFingerprint,
     thresholds: result.thresholds,
     gates: result.gates,
     passed: result.passed,

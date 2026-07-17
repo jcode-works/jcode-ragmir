@@ -28,6 +28,7 @@ export async function generateCorpus({
   modelRevision,
   modelPath,
   goldenCount,
+  retrievalProfile = "balanced",
 }) {
   await initProject(root)
   const rawDir = path.join(root, ".ragmir", "raw", "documents")
@@ -40,6 +41,7 @@ export async function generateCorpus({
     embeddingModelPath: modelPath,
     transformersAllowRemoteModels: false,
     accessLog: false,
+    retrievalProfile,
     chunkSize: 800,
     chunkOverlap: 100,
     ingestConcurrency: 4,

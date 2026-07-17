@@ -41,6 +41,13 @@ Citation strings also encode PPTX slides, XLSX sheet and cell ranges, and EPUB s
 When parsing or redaction invalidates a source-line mapping, `lineStart` and `lineEnd` are `null`
 instead of presenting an unverifiable line claim.
 
+With `explain: true`, `score` includes the vector and lexical ranks, their reciprocal-rank-fusion
+contributions, matched terms, backend scores, and `rankingPolicyFingerprint`. The fingerprint
+identifies the provider, retrieval profile, fusion parameters, and abstention threshold used by
+the result. Equal scores are ordered by stable source and chunk keys, so identical indexes return
+the same order regardless of backend row order. Search returns an empty array when every candidate
+fails the active provider's evidence threshold.
+
 ### Persistent client for Node.js workers
 
 Use one client per project root when a stateful Node.js process performs repeated retrieval. The

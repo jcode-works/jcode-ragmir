@@ -10,6 +10,15 @@ import { acquireGenerationReadLease } from "./generation-retention.js"
 import { indexFreshnessWarning } from "./index-diagnostics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
+import type { RankedRow } from "./ranking.js"
+import {
+  candidatePassesAbstention,
+  queryEvidence,
+  rankHybridRows,
+  rankingPolicyFingerprint,
+  rankingPolicyFor,
+  tokensAreLexicallyRelated,
+} from "./ranking.js"
 import type { IndexReadSnapshot } from "./store.js"
 import { loadIndexReadSnapshot } from "./store.js"
 import { tokenize } from "./text.js"
@@ -53,16 +62,6 @@ interface SearchRow {
   _score?: number
 }
 
-interface RankedRow {
-  row: SearchRow
-  vectorScore: number
-  lexicalScore: number
-  combinedScore: number
-  vectorRank: number | null
-  lexicalRank: number | null
-  lexicalBackendScore: number | null
-}
-
 const VECTOR_CANDIDATE_POLICY: Record<
   RetrievalProfile,
   { minimum: number; multiplier: number; maxChunksPerSource: number }
@@ -79,27 +78,10 @@ const LEXICAL_CANDIDATE_POLICY: Record<RetrievalProfile, { minimum: number; mult
     quality: { minimum: 500, multiplier: 40 },
     custom: { minimum: 250, multiplier: 20 },
   }
-/**
- * Reciprocal Rank Fusion (Cormack et al. 2009). Each candidate scores
- * `weight / (RRF_K + rank)` per retriever it appears in, summed across
- * retrievers. Rank-only fusion removes the score-calibration problem of
- * weighted-sum fusion: the BM25 and vector score distributions never need to
- * be normalized against each other.
- *
- * Equal weights let exact lexical evidence rescue a relevant document that is
- * absent from the bounded vector candidate pool.
- */
-const RRF_K = 60
-const RRF_VECTOR_WEIGHT = 1
-const RRF_LEXICAL_WEIGHT = 1
-const BM25_K1 = 1.2
-const BM25_B = 0.75
 const MAX_CONTEXT_RADIUS = 3
 const MAX_VECTOR_CANDIDATES = 1_000
 export const QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL = "ragmir:query-explanation"
 const queryExplanationDiagnostics = channel(QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL)
-const MIN_FUZZY_TOKEN_LENGTH = 7
-const MIN_TRIGRAM_DICE_SIMILARITY = 0.5
 const SEARCH_COLUMNS = [
   "source",
   "relativePath",
@@ -167,7 +149,8 @@ async function searchWithinGeneration(
   assertIndexFreshness(config, snapshot.manifest)
 
   const sanitized = sanitizeRetrievalQuery(query)
-  const queryTokens = tokenize(sanitized.query)
+  const evidence = queryEvidence(sanitized.query)
+  const queryTokens = evidence.tokens
   if (!sanitized.query || queryTokens.length === 0) {
     return []
   }
@@ -200,11 +183,11 @@ async function searchWithinGeneration(
     .limit(vectorCandidateLimit(topK, config.retrievalProfile))
     .toArray()) as SearchRow[]
   throwIfAborted(signal)
-  const rankedRows = rankHybridRows(sanitized.query, vectorRows, textRows)
-  const relevantRows =
-    config.embeddingProvider === "local-hash"
-      ? rankedRows.filter((ranked) => hasLexicalOverlap(queryTokens, ranked.row.searchText))
-      : rankedRows
+  const rankingPolicy = rankingPolicyFor(config.embeddingProvider, config.retrievalProfile)
+  const rankedRows = rankHybridRows(sanitized.query, vectorRows, textRows, rankingPolicy)
+  const relevantRows = rankedRows.filter((ranked) =>
+    candidatePassesAbstention(evidence, ranked.row, rankingPolicy),
+  )
   const rows = diversifyRows(relevantRows, topK, config.retrievalProfile)
   const contextByRow = await contextChunksByRow(table, rows, contextRadius)
   throwIfAborted(signal)
@@ -237,6 +220,7 @@ async function searchWithinGeneration(
               lexicalRank: row.lexicalRank,
               vectorDistance,
               lexicalBackendScore: row.lexicalBackendScore,
+              rankingPolicyFingerprint: rankingPolicyFingerprint(rankingPolicy),
               matchedTerms: matchedQueryTerms(config.projectRoot, queryTokens, row.row.searchText),
             },
           }
@@ -252,8 +236,12 @@ async function searchWithinGeneration(
   return results
 }
 
-function diversifyRows(rows: RankedRow[], topK: number, profile: RetrievalProfile): RankedRow[] {
-  const uniqueRows: RankedRow[] = []
+function diversifyRows(
+  rows: Array<RankedRow<SearchRow>>,
+  topK: number,
+  profile: RetrievalProfile,
+): Array<RankedRow<SearchRow>> {
+  const uniqueRows: Array<RankedRow<SearchRow>> = []
   const textIndexes = new Map<string, number>()
 
   for (const row of rows) {
@@ -270,7 +258,7 @@ function diversifyRows(rows: RankedRow[], topK: number, profile: RetrievalProfil
     }
   }
 
-  const selected: RankedRow[] = []
+  const selected: Array<RankedRow<SearchRow>> = []
   const perSource = new Map<string, number>()
   const maxChunksPerSource = VECTOR_CANDIDATE_POLICY[profile].maxChunksPerSource
 
@@ -314,63 +302,6 @@ function preferCanonicalPath(candidate: string, current: string): boolean {
     candidateDepth < currentDepth ||
     (candidateDepth === currentDepth && candidate.length < current.length)
   )
-}
-
-function hasLexicalOverlap(queryTokens: string[], text: string): boolean {
-  const textTokens = tokenize(text)
-  return queryTokens.some((queryToken) =>
-    textTokens.some((textToken) => tokensAreLexicallyRelated(queryToken, textToken)),
-  )
-}
-
-function tokensAreLexicallyRelated(queryToken: string, textToken: string): boolean {
-  if (queryToken === textToken) {
-    return true
-  }
-  if (
-    queryToken.length >= 4 &&
-    textToken.length >= 4 &&
-    sharedPrefixLength(queryToken, textToken) >= 4
-  ) {
-    return true
-  }
-  if (
-    queryToken.length < MIN_FUZZY_TOKEN_LENGTH ||
-    textToken.length < MIN_FUZZY_TOKEN_LENGTH ||
-    Math.abs(queryToken.length - textToken.length) > 1 ||
-    !/^[a-z0-9_-]+$/u.test(queryToken) ||
-    !/^[a-z0-9_-]+$/u.test(textToken)
-  ) {
-    return false
-  }
-  return trigramDiceSimilarity(queryToken, textToken) >= MIN_TRIGRAM_DICE_SIMILARITY
-}
-
-function trigramDiceSimilarity(left: string, right: string): number {
-  const leftTrigrams = tokenTrigrams(left)
-  const rightTrigrams = tokenTrigrams(right)
-  let shared = 0
-  for (const trigram of leftTrigrams) {
-    if (rightTrigrams.has(trigram)) {
-      shared += 1
-    }
-  }
-  return (2 * shared) / (leftTrigrams.size + rightTrigrams.size)
-}
-
-function tokenTrigrams(token: string): Set<string> {
-  return new Set(
-    Array.from({ length: token.length - 2 }, (_value, index) => token.slice(index, index + 3)),
-  )
-}
-
-function sharedPrefixLength(left: string, right: string): number {
-  const limit = Math.min(left.length, right.length)
-  let index = 0
-  while (index < limit && left[index] === right[index]) {
-    index += 1
-  }
-  return index
 }
 
 export function vectorCandidateLimit(topK: number, profile: RetrievalProfile = "balanced"): number {
@@ -611,7 +542,7 @@ function contextPathPredicate(prefix: string): string {
 
 async function contextChunksByRow(
   table: RowsTable,
-  rows: RankedRow[],
+  rows: Array<RankedRow<SearchRow>>,
   requestedRadius: number,
 ): Promise<Map<string, SearchContextChunk[]>> {
   const radius = Math.min(MAX_CONTEXT_RADIUS, Math.max(0, requestedRadius))
@@ -650,10 +581,10 @@ async function contextChunksByRow(
 }
 
 function contextRangesByPath(
-  rows: RankedRow[],
+  rows: Array<RankedRow<SearchRow>>,
   radius: number,
 ): Map<string, Array<{ minimum: number; maximum: number }>> {
-  const rangesByPath = new Map<string, RankedRow[]>()
+  const rangesByPath = new Map<string, Array<RankedRow<SearchRow>>>()
   for (const rankedRow of rows) {
     const pathRows = rangesByPath.get(rankedRow.row.relativePath) ?? []
     pathRows.push(rankedRow)
@@ -743,92 +674,6 @@ function contextChunkForRow(row: SearchRow): SearchContextChunk {
   }
 }
 
-/**
- * Reciprocal Rank Fusion of vector and lexical retrievers. Rank-only: each
- * candidate scores `1/(RRF_K + rank)` per retriever it appears in, summed.
- * This removes the score-calibration problem of weighted-sum fusion (the BM25
- * and vector score distributions have nothing in common) and is the standard
- * hybrid retrieval approach.
- *
- * Ranks are 0-based internally; a candidate absent from a retriever contributes
- * nothing from that retriever. Tie-breaks keep the result deterministic.
- */
-function rankHybridRows(
-  query: string,
-  vectorRows: SearchRow[],
-  textRows: SearchRow[],
-): RankedRow[] {
-  const queryTokens = tokenize(query)
-  const rows = mergeRows(vectorRows, textRows)
-
-  // Vector ranks: lower _distance is better, so sort ascending then assign rank 0..
-  const vectorRanked = [...vectorRows]
-    .filter((row) => Number.isFinite(rowDistance(row)))
-    .sort((a, b) => rowDistance(a) - rowDistance(b))
-  const vectorRanks = new Map<string, number>()
-  vectorRanked.forEach((row, index) => {
-    vectorRanks.set(rowKey(row), index)
-  })
-
-  // LanceDB FTS already returns BM25-ranked rows. The fallback scan computes
-  // BM25 locally when an older index has no text index.
-  const ftsRows = textRows.filter((row) => typeof row._score === "number")
-  const lexicalRanked: Array<[string, number]> =
-    ftsRows.length > 0
-      ? ftsRows
-          .sort((a, b) => (b._score ?? 0) - (a._score ?? 0))
-          .map((row) => [rowKey(row), row._score ?? 0])
-      : [...bm25Scores(queryTokens, rows).entries()]
-          .filter(([, score]) => score > 0)
-          .sort((a, b) => b[1] - a[1])
-  const lexicalRanks = new Map<string, number>()
-  lexicalRanked.forEach(([key], index) => {
-    lexicalRanks.set(key, index)
-  })
-  const lexicalScores = new Map(lexicalRanked)
-
-  return rows
-    .map((row) => {
-      const key = rowKey(row)
-      const vectorRank = vectorRanks.get(key)
-      const lexicalRank = lexicalRanks.get(key)
-      let combinedScore = 0
-      let vectorScore = 0
-      let lexicalScore = 0
-      if (vectorRank !== undefined) {
-        vectorScore = RRF_VECTOR_WEIGHT / (RRF_K + vectorRank)
-        combinedScore += vectorScore
-      }
-      if (lexicalRank !== undefined) {
-        lexicalScore = RRF_LEXICAL_WEIGHT / (RRF_K + lexicalRank)
-        combinedScore += lexicalScore
-      }
-      return {
-        row,
-        vectorScore,
-        lexicalScore,
-        combinedScore,
-        vectorRank: vectorRank === undefined ? null : vectorRank + 1,
-        lexicalRank: lexicalRank === undefined ? null : lexicalRank + 1,
-        lexicalBackendScore: lexicalScores.get(key) ?? null,
-      }
-    })
-    .filter((ranked) => ranked.combinedScore > 0)
-    .sort((a, b) => {
-      const scoreDelta = b.combinedScore - a.combinedScore
-      if (scoreDelta !== 0) {
-        return scoreDelta
-      }
-      const distanceDelta = rowDistance(a.row) - rowDistance(b.row)
-      if (Number.isFinite(distanceDelta) && distanceDelta !== 0) {
-        return distanceDelta
-      }
-      return (
-        a.row.relativePath.localeCompare(b.row.relativePath) || a.row.chunkIndex - b.row.chunkIndex
-      )
-    })
-}
-
 function matchedQueryTerms(projectRoot: string, queryTokens: string[], text: string): string[] {
   if (queryExplanationDiagnostics.hasSubscribers) {
     queryExplanationDiagnostics.publish({ projectRoot })
@@ -837,81 +682,6 @@ function matchedQueryTerms(projectRoot: string, queryTokens: string[], text: str
   return [...new Set(queryTokens)].filter((queryToken) =>
     textTokens.some((textToken) => tokensAreLexicallyRelated(queryToken, textToken)),
   )
-}
-
-function mergeRows(vectorRows: SearchRow[], textRows: SearchRow[]): SearchRow[] {
-  const rows = new Map<string, SearchRow>()
-  for (const row of textRows) {
-    rows.set(rowKey(row), row)
-  }
-  for (const row of vectorRows) {
-    const existing = rows.get(rowKey(row))
-    if (!existing) {
-      rows.set(rowKey(row), row)
-      continue
-    }
-    const merged: SearchRow = { ...existing, ...row }
-    if (existing._score !== undefined) {
-      merged._score = existing._score
-    }
-    rows.set(rowKey(row), merged)
-  }
-  return [...rows.values()]
-}
-
-function bm25Scores(queryTokens: string[], rows: SearchRow[]): Map<string, number> {
-  const scores = new Map<string, number>()
-  if (queryTokens.length === 0 || rows.length === 0) {
-    return scores
-  }
-
-  const uniqueQueryTokens = [...new Set(queryTokens)]
-  const documents = rows.map((row) => {
-    const tokens = tokenize(row.searchText)
-    const frequencies = new Map<string, number>()
-    for (const token of tokens) {
-      frequencies.set(token, (frequencies.get(token) ?? 0) + 1)
-    }
-    return { row, tokens, frequencies }
-  })
-  const averageLength =
-    documents.reduce((sum, document) => sum + document.tokens.length, 0) / documents.length || 1
-  const documentFrequencies = new Map<string, number>()
-
-  for (const token of uniqueQueryTokens) {
-    documentFrequencies.set(
-      token,
-      documents.filter((document) => document.frequencies.has(token)).length,
-    )
-  }
-
-  for (const document of documents) {
-    let score = 0
-    for (const token of uniqueQueryTokens) {
-      const frequency = document.frequencies.get(token) ?? 0
-      if (frequency === 0) {
-        continue
-      }
-      const documentFrequency = documentFrequencies.get(token) ?? 0
-      const inverseDocumentFrequency = Math.log(
-        1 + (documents.length - documentFrequency + 0.5) / (documentFrequency + 0.5),
-      )
-      const denominator =
-        frequency + BM25_K1 * (1 - BM25_B + BM25_B * (document.tokens.length / averageLength))
-      score += inverseDocumentFrequency * ((frequency * (BM25_K1 + 1)) / denominator)
-    }
-    if (score > 0) {
-      scores.set(rowKey(document.row), score)
-    }
-  }
-
-  return scores
-}
-
-function rowDistance(row: SearchRow): number {
-  return typeof row._distance === "number" && row._distance >= 0
-    ? row._distance
-    : Number.POSITIVE_INFINITY
 }
 
 function assertIndexFreshness(

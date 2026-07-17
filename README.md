@@ -167,7 +167,9 @@ pnpm exec rgr search "release approval" --exact-vector-search
 ```
 
 Explanations expose reciprocal-rank-fusion contributions, vector and lexical ranks, backend scores,
-and matched terms without changing default ranking. Structural filters can target Markdown heading
+matched terms, and the active ranking-policy fingerprint without changing default ranking. Equal
+scores use stable source and chunk tie-breaks, and provider-aware abstention can return no passage
+instead of forcing weak evidence. Structural filters can target Markdown heading
 paths or JSON paths before candidate retrieval. Ragmir keeps exact vector search below 100,000
 rows, then maintains a quality-gated IVF-PQ index with complete coverage. The exact-search flag
 bypasses that index for diagnostics and result comparison.

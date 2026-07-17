@@ -513,9 +513,11 @@ describe("evaluateGoldenQueries", () => {
     expect(report.falsePositiveRate).toBe(0)
     expect(report.groups.categories["hard-negative"]?.falsePositiveRate).toBe(0)
     const config = await loadConfig(root)
-    expect((await readIndexManifest(config))?.qualityReport?.qualityReportFingerprint).toBe(
-      report.qualityReportFingerprint,
-    )
+    expect((await readIndexManifest(config))?.qualityReport).toMatchObject({
+      schemaVersion: 2,
+      qualityReportFingerprint: report.qualityReportFingerprint,
+      rankingPolicyFingerprint: report.rankingPolicyFingerprint,
+    })
     expect((await doctor(root)).readiness.retrievalQualityVerified).toBe(true)
 
     const manifest = await readIndexManifest(config)
