@@ -24,6 +24,7 @@ import { doctor } from "./doctor.js"
 import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
+import { collectGenerationGarbage } from "./generation-retention.js"
 import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
@@ -423,6 +424,9 @@ program
       }
       if (result.lexicalIndexWarning) {
         console.log(pc.yellow(result.lexicalIndexWarning))
+      }
+      if (result.storageWarning) {
+        console.log(pc.yellow(result.storageWarning))
       }
       if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
         const auditCommand = await rgrCommand(cwd, ["audit", "--unsupported"])
@@ -1146,6 +1150,45 @@ storageCommand
     }
   })
 
+storageCommand
+  .command("gc")
+  .description("Inspect or reclaim expired local index generations.")
+  .option("--dry-run", "Report generation roles and reclaimable bytes without deleting tables.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { dryRun?: boolean; json?: boolean }, command: Command) => {
+    const report = await collectGenerationGarbage({
+      cwd: projectRoot(command),
+      ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+    })
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2))
+    } else {
+      printGenerationGarbageCollection(report)
+    }
+    if (report.warning) {
+      process.exitCode = 1
+    }
+  })
+
+storageCommand
+  .command("generations")
+  .description("Show active, resumable, rollback, leased, retained, and orphaned generations.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }, command: Command) => {
+    const report = await collectGenerationGarbage({
+      cwd: projectRoot(command),
+      dryRun: true,
+    })
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2))
+    } else {
+      printGenerationGarbageCollection(report)
+    }
+    if (report.warning) {
+      process.exitCode = 1
+    }
+  })
+
 program
   .command("destroy-index")
   .description("Remove the generated local vector index from Ragmir storage.")
@@ -1838,6 +1881,26 @@ function printStorageMaintenance(report: Awaited<ReturnType<typeof optimizeStora
   console.log(`reasons=${report.reasons.join(",")}`)
   console.log(`plannedActions=${report.plannedActions.join(",")}`)
   console.log(`completedActions=${report.completedActions.join(",")}`)
+  if (report.warning) {
+    console.log(pc.yellow(`warning: ${report.warning}`))
+  }
+}
+
+function printGenerationGarbageCollection(
+  report: Awaited<ReturnType<typeof collectGenerationGarbage>>,
+): void {
+  console.log(`activeTableName=${report.activeTableName}`)
+  console.log(`resumableTableName=${report.resumableTableName ?? "none"}`)
+  console.log(`rollbackTableName=${report.rollbackTableName ?? "none"}`)
+  console.log(`generations=${report.generations.length}`)
+  console.log(`reclaimableBytes=${report.reclaimableBytes}`)
+  console.log(`reclaimedBytes=${report.reclaimedBytes}`)
+  console.log(`deletedTables=${report.deletedTables.join(",")}`)
+  for (const generation of report.generations) {
+    console.log(
+      `generation=${generation.tableName} role=${generation.role} bytes=${generation.bytes} ageMs=${generation.ageMs} leased=${generation.leased} reclaimable=${generation.reclaimable} deleted=${generation.deleted}`,
+    )
+  }
   if (report.warning) {
     console.log(pc.yellow(`warning: ${report.warning}`))
   }

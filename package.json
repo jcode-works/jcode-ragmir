@@ -37,6 +37,7 @@
     "bench:discovery": "pnpm --filter @jcode.labs/ragmir bench:discovery",
     "bench:ingest-memory": "pnpm --filter @jcode.labs/ragmir bench:ingest-memory",
     "bench:ingestion-metadata": "pnpm --filter @jcode.labs/ragmir bench:ingestion-metadata",
+    "bench:generations": "pnpm --filter @jcode.labs/ragmir bench:generations",
     "bench:quality": "pnpm --filter @jcode.labs/ragmir bench:quality",
     "bench:scale": "pnpm --filter @jcode.labs/ragmir bench:scale",
     "bench:smoke": "pnpm --filter @jcode.labs/ragmir bench:smoke",

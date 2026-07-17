@@ -5,10 +5,11 @@ import { loadConfig } from "./config.js"
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { embedText } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
+import { withActiveGenerationReadLease } from "./generation-retention.js"
 import { getIndexFreshnessWarning } from "./index-diagnostics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
-import { openRowsTable, readIndexManifest } from "./store.js"
+import { openRowsTableByName, readIndexManifest } from "./store.js"
 import { tokenize } from "./text.js"
 import type {
   AskResult,
@@ -22,7 +23,7 @@ import type {
   SourceLocationKind,
 } from "./types.js"
 
-type RowsTable = NonNullable<Awaited<ReturnType<typeof openRowsTable>>>
+type RowsTable = NonNullable<Awaited<ReturnType<typeof openRowsTableByName>>>
 
 interface SearchRow {
   source: string
@@ -120,12 +121,25 @@ export async function searchWithConfig(
   connection?: Connection,
   activeSignal?: AbortSignal,
 ): Promise<SearchResult[]> {
+  return withActiveGenerationReadLease(config, (tableName) =>
+    searchWithinGeneration(query, options, config, tableName, connection, activeSignal),
+  )
+}
+
+async function searchWithinGeneration(
+  query: string,
+  options: SearchOptions,
+  config: Config,
+  tableName: string,
+  connection?: Connection,
+  activeSignal?: AbortSignal,
+): Promise<SearchResult[]> {
   const signal = activeSignal ?? operationSignal(options)
   const topK = normalizeTopK(options.topK ?? config.topK)
   const defaultContextRadius = config.retrievalProfile === "quality" ? 1 : 0
   const contextRadius = normalizeContextRadius(options.contextRadius ?? defaultContextRadius)
   throwIfAborted(signal)
-  const table = await openRowsTable(config, connection)
+  const table = await openRowsTableByName(tableName, config, connection)
   throwIfAborted(signal)
   if (!table) {
     return []
@@ -388,12 +402,24 @@ export async function expandCitationWithConfig(
   config: Config,
   connection?: Connection,
 ): Promise<ExpandedCitation> {
+  return withActiveGenerationReadLease(config, (tableName) =>
+    expandCitationWithinGeneration(citation, options, config, tableName, connection),
+  )
+}
+
+async function expandCitationWithinGeneration(
+  citation: string,
+  options: ExpandCitationOptions,
+  config: Config,
+  tableName: string,
+  connection?: Connection,
+): Promise<ExpandedCitation> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const requestedCitation = citation.trim()
   const target = parseCitationTarget(requestedCitation)
   const contextRadius = normalizeContextRadius(options.contextRadius)
-  const table = await openRowsTable(config, connection)
+  const table = await openRowsTableByName(tableName, config, connection)
   throwIfAborted(signal)
   if (!table) {
     return {

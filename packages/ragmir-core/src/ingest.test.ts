@@ -567,6 +567,7 @@ describe("ingest", () => {
 
     expect(result.vectorIndexWarning).toBeNull()
     expect(result.lexicalIndexWarning).toBeNull()
+    expect(result.storageWarning).toBeNull()
     const manifest = await readIndexManifest(await loadConfig(root))
     expect(manifest).not.toBeNull()
     expect(manifest?.embeddingProvider).toBe("local-hash")

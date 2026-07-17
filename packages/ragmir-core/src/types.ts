@@ -322,6 +322,7 @@ export interface IngestResult {
   redactions: number
   vectorIndexWarning: string | null
   lexicalIndexWarning: string | null
+  storageWarning: string | null
   errors: Array<{ path: string; message: string }>
 }
 

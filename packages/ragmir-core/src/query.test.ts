@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -18,6 +18,26 @@ afterEach(async () => {
 })
 
 describe("search", () => {
+  it("should release generation leases after search and citation expansion", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-generation-lease-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "policy.md"), "Policy evidence.\n")
+    await ingest({ cwd: root })
+
+    const [result] = await search("policy evidence", { cwd: root })
+    expect(result).toBeDefined()
+    if (!result) {
+      return
+    }
+    await expandCitation(result.citation, { cwd: root })
+
+    await expect(
+      readdir(path.join(root, ".ragmir", "storage", "generation-leases")),
+    ).resolves.toEqual([])
+  })
+
   it("should reject invalid numeric options at the library boundary", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-options-"))
     tempDirs.push(root)

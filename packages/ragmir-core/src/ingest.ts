@@ -17,6 +17,7 @@ import {
   inventorySourceFiles,
   summarizeUnsupportedExtensions,
 } from "./files.js"
+import { collectGenerationGarbageUnlocked } from "./generation-retention.js"
 import { INDEX_SCHEMA_VERSION } from "./index-diagnostics.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
@@ -210,6 +211,7 @@ async function ingestUnlocked(
       })
     let removalApplied = false
     let lexicalIndexWarning: string | null = null
+    let storageWarning: string | null = null
     let storageMutations = 0
     const failurePolicy = incrementalFailurePolicy(options, config)
 
@@ -309,10 +311,21 @@ async function ingestUnlocked(
     const maintenance = await maintainStorageTable(state.tableName, config, connection, {
       additionalMutations: storageMutations,
     })
-    lexicalIndexWarning ??= maintenance.warning
+    storageWarning = combineWarnings(storageWarning, maintenance.warning)
     await validateIngestionTable(state, manifest, config, connection)
     await writeEmptyTextFiles(emptyTextRecords(state), config)
     await writeIndexManifest(manifest, config, indexedFilesFromState(state))
+    try {
+      const garbageCollection = await collectGenerationGarbageUnlocked(config, connection, {
+        state,
+      })
+      storageWarning = combineWarnings(storageWarning, garbageCollection.warning)
+    } catch (error) {
+      storageWarning = combineWarnings(
+        storageWarning,
+        `Generation cleanup failed (${error instanceof Error ? error.message : String(error)}). The active index remains available.`,
+      )
+    }
     await removeStagedIndexManifest(state.runId, config)
     const errors = ingestionErrors(state)
     state = finishIngestionState(state, errors.length > 0 ? "completed_with_errors" : "completed")
@@ -351,6 +364,7 @@ async function ingestUnlocked(
       redactions,
       vectorIndexWarning: null,
       lexicalIndexWarning,
+      storageWarning,
       errors,
     }
   } catch (error) {
@@ -364,6 +378,11 @@ async function ingestUnlocked(
     }
     throw error
   }
+}
+
+function combineWarnings(...warnings: Array<string | null>): string | null {
+  const present = warnings.filter((warning): warning is string => warning !== null)
+  return present.length > 0 ? present.join(" ") : null
 }
 
 async function reconcileCommittedFiles(

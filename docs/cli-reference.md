@@ -73,6 +73,8 @@ The 100,000-file fast-fingerprint gate is `pnpm bench:discovery -- --stress`.
 The LanceDB maintenance gate is `pnpm bench:storage`; it verifies full
 FTS coverage, stable citations, bounded fragment/version growth, and at most 10% search p95
 regression after 24 mutation batches.
+The generation-retention scorecard is `pnpm bench:generations`; ten generations must converge to
+three with active and rollback generations preserved and disk amplification at or below 3.5x.
 
 Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
 text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and
@@ -108,6 +110,22 @@ rgr storage optimize --json
 The dry run acquires the local writer lock for a consistent report but creates no LanceDB version.
 The JSON report includes table version, pending mutation count, fragment health, indexed and
 unindexed FTS rows, reasons, planned actions, completed actions, and any retryable operator warning.
+
+Rebuild generation cleanup uses a separate policy: active, resumable, rollback, and actively leased
+tables are never reclaimed. Other generations receive a five-minute reader grace period, then are
+bounded to three tables and seven days. Search and citation expansion create private PID-bound
+leases and remove them in `finally`; dead or expired leases are ignored. Inspect the complete role
+inventory and estimated bytes before cleanup:
+
+```bash
+rgr storage generations --json
+rgr storage gc --dry-run --json
+rgr storage gc --json
+```
+
+Generation GC runs only under the local writer lock. A dry run never drops a table. Reports include
+active, resumable, rollback, leased, retained, and orphaned roles, plus reclaimable and reclaimed
+bytes. Protected generations can temporarily exceed the ordinary three-table bound.
 
 Ingestion, generation activation, quality-report persistence, and index destruction share one
 private local writer lock. Concurrent readers remain available. Contention waits for a bounded
@@ -166,6 +184,8 @@ rgr serve-mcp
 rgr evaluate --golden .ragmir/golden.json --fail-under 0.8
 rgr usage-report --days 30
 rgr storage optimize --dry-run --json
+rgr storage generations --json
+rgr storage gc --dry-run --json
 rgr destroy-index --yes
 ```
 
@@ -182,6 +202,7 @@ rgr destroy-index --yes
   every threshold stores a fingerprint in the active manifest. `rgr doctor` reports retrieval
   quality as verified only while that report still matches the golden file, corpus, model revision,
   retrieval profile, and index policy.
-- `usage-report --days` accepts an integer from 1 to 3650; `limits`, `storage optimize`, and
-  `destroy-index` expose the other local maintenance operations.
+- `usage-report --days` accepts an integer from 1 to 3650; `limits`, `storage optimize`,
+  `storage generations`, `storage gc`, and `destroy-index` expose the other local maintenance
+  operations.
 - Add `--json` to machine-readable commands. Do not parse human-readable output in automation.

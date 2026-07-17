@@ -13,6 +13,13 @@ export { clearTransformersCache, pullEmbeddingModel } from "./embeddings.js"
 export type { RagmirErrorCode } from "./errors.js"
 export { isRagmirError, normalizeRagmirError, RagmirError } from "./errors.js"
 export { evaluateGoldenQueries } from "./evaluate.js"
+export type {
+  CollectGenerationGarbageOptions,
+  GenerationGarbageCollectionReport,
+  GenerationInventoryItem,
+  GenerationRole,
+} from "./generation-retention.js"
+export { collectGenerationGarbage } from "./generation-retention.js"
 export {
   getIndexFreshnessWarning,
   getLexicalScanWarning,

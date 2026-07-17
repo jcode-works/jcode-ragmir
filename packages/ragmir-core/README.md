@@ -34,7 +34,9 @@ Setup keeps configuration, the index, helpers, reports, and metadata-only access
 processes. Source, chunk, vector, concurrency, and batch windows are bounded, with durable progress
 committed per file. Completed ingestion refreshes incomplete full-text coverage and runs bounded
 LanceDB maintenance when mutation or fragment thresholds are reached. Inspect it with
-`npx rgr storage optimize --dry-run --json`. Failed changed files keep explicitly stale
+`npx rgr storage optimize --dry-run --json`. Rebuild generations use private reader leases and
+bounded retention; inspect them with `npx rgr storage generations --json` before running
+`npx rgr storage gc --dry-run --json`. Failed changed files keep explicitly stale
 last-known-good rows by default; repair or source deletion reconciles them deterministically.
 Returned citations expose only verifiable coordinates: source lines for line-preserving text, PDF
 pages, PPTX slides, XLSX sheets and cells, and EPUB spine positions.
