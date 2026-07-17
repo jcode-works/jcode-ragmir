@@ -12,6 +12,8 @@ export function fingerprintIndexManifest(manifest: IndexManifest): string {
       ragmirVersion: manifest.ragmirVersion,
       embeddingProvider: manifest.embeddingProvider,
       embeddingModel: manifest.embeddingModel,
+      embeddingModelRevision: manifest.embeddingModelRevision ?? null,
+      embeddingModelDigest: manifest.embeddingModelDigest ?? null,
       indexPolicyFingerprint: manifest.indexPolicyFingerprint ?? null,
       vectorDimension: manifest.vectorDimension ?? null,
       vectorDistanceMetric: manifest.vectorDistanceMetric ?? null,
@@ -51,6 +53,7 @@ export async function isCompatibleQualityReport(
     report.embeddingProvider !== config.embeddingProvider ||
     report.embeddingModel !== config.embeddingModel ||
     report.embeddingModelRevision !== config.embeddingModelRevision ||
+    report.embeddingModelDigest !== config.embeddingModelDigest ||
     report.retrievalProfile !== config.retrievalProfile ||
     report.rankingPolicyFingerprint !==
       rankingPolicyFingerprint(rankingPolicyFor(config.embeddingProvider, config.retrievalProfile))
@@ -83,7 +86,7 @@ export async function isCompatibleQualityReport(
 export function isIndexQualityReport(value: unknown): value is IndexQualityReport {
   return (
     isRecord(value) &&
-    value.schemaVersion === 2 &&
+    value.schemaVersion === 3 &&
     typeof value.createdAt === "string" &&
     typeof value.goldenPath === "string" &&
     typeof value.goldenFingerprint === "string" &&
@@ -92,6 +95,7 @@ export function isIndexQualityReport(value: unknown): value is IndexQualityRepor
     (value.embeddingProvider === "local-hash" || value.embeddingProvider === "transformers") &&
     typeof value.embeddingModel === "string" &&
     typeof value.embeddingModelRevision === "string" &&
+    (value.embeddingModelDigest === null || typeof value.embeddingModelDigest === "string") &&
     (value.retrievalProfile === "fast" ||
       value.retrievalProfile === "balanced" ||
       value.retrievalProfile === "quality" ||

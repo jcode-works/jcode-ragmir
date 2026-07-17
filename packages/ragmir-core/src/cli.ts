@@ -88,7 +88,12 @@ modelsCommand
     const cwd = projectRoot(command)
     const config = await loadConfig(cwd)
     const result = await pullEmbeddingModel(config)
-    const semanticConfig = options.enable ? await enableSemanticEmbeddings(cwd) : null
+    const semanticConfig = options.enable
+      ? await enableSemanticEmbeddings(cwd, {
+          embeddingModelRevision: result.embeddingModelRevision,
+          embeddingModelDigest: result.embeddingModelDigest,
+        })
+      : null
     if (options.json) {
       console.log(JSON.stringify(semanticConfig ? { ...result, semanticConfig } : result, null, 2))
       return
@@ -96,6 +101,8 @@ modelsCommand
 
     console.log(pc.green("Embedding model ready."))
     console.log(`embeddingModel=${result.embeddingModel}`)
+    console.log(`embeddingModelRevision=${result.embeddingModelRevision}`)
+    console.log(`embeddingModelDigest=${result.embeddingModelDigest}`)
     console.log(`embeddingModelPath=${result.embeddingModelPath}`)
     if (semanticConfig) {
       console.log(`semanticConfig=${semanticConfig.configPath}`)

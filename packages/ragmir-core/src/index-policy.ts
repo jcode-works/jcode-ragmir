@@ -12,6 +12,7 @@ export function indexPolicyFingerprint(config: Config): string {
       provider: config.embeddingProvider,
       model: config.embeddingModel,
       revision: config.embeddingModelRevision,
+      digest: config.embeddingModelDigest,
     },
     chunking: {
       adapterVersion: CHUNKING_ADAPTER_VERSION,

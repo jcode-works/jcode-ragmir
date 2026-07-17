@@ -28,6 +28,7 @@ export function testConfig(
     embeddingProvider: DEFAULT_CONFIG.embeddingProvider,
     embeddingModel: DEFAULT_CONFIG.embeddingModel,
     embeddingModelRevision: DEFAULT_CONFIG.embeddingModelRevision,
+    embeddingModelDigest: DEFAULT_CONFIG.embeddingModelDigest,
     transformersAllowRemoteModels: DEFAULT_CONFIG.transformersAllowRemoteModels,
     redaction: {
       ...DEFAULT_CONFIG.redaction,

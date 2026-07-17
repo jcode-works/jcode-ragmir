@@ -199,7 +199,7 @@ selected.
 
 | Command | Purpose |
 | --- | --- |
-| `models pull [--enable]` | Preload the configured embedding model and optionally enable semantic retrieval. |
+| `models pull [--enable]` | Preload the configured embedding model, report its immutable revision and artifact digest, and optionally persist that identity while enabling semantic retrieval. |
 | `ocr doctor` / `ocr setup` | Detect and configure local page-aware PDF OCR. |
 | `chat setup|doctor|<question>` | Prepare, inspect, or use the optional local chat add-on. |
 | `audio <file>` | Render text with the optional TTS add-on. |
@@ -209,6 +209,11 @@ extractors. The first audio command above explicitly downloads the model from no
 the second uses the prepared cache and does not download anything. See the
 [offline TTS guide](./offline-tts-preload.md) for model paths and verification.
 See [offline Chat](./offline-chat-preload.md) for profile selection and air-gapped preparation.
+
+Bundled embedding profiles resolve to pinned model commits. `models pull --enable` hashes the local
+artifact tree and stores both `embeddingModelRevision` and `embeddingModelDigest`; rebuild the index
+afterward. For a custom model, configure a 40-character commit instead of mutable `main` when two
+installations must produce the same index policy and ranking.
 
 ## Agents, maintenance, and JSON
 

@@ -149,8 +149,11 @@ describe("adaptive vector indexing", () => {
     expect(adaptive.map((row) => row.id)).toEqual(exact.map((row) => row.id))
   })
 
-  it("should bind index compatibility to model revision, dimension, and metric", () => {
-    const config = testConfig(undefined, { embeddingModelRevision: "revision-a" })
+  it("should bind index compatibility to model revision, digest, dimension, and metric", () => {
+    const config = testConfig(undefined, {
+      embeddingModelRevision: "revision-a",
+      embeddingModelDigest: `sha256:${"a".repeat(64)}`,
+    })
     const fingerprint = vectorModelFingerprint(config, 384)
     const manifest = {
       policyVersion: 1 as const,
@@ -172,6 +175,16 @@ describe("adaptive vector indexing", () => {
       vectorIndexManifestCompatible(
         manifest,
         testConfig(undefined, { embeddingModelRevision: "revision-b" }),
+        384,
+      ),
+    ).toBe(false)
+    expect(
+      vectorIndexManifestCompatible(
+        manifest,
+        testConfig(undefined, {
+          embeddingModelRevision: "revision-a",
+          embeddingModelDigest: `sha256:${"b".repeat(64)}`,
+        }),
         384,
       ),
     ).toBe(false)

@@ -191,7 +191,10 @@ pnpm exec rgr ingest --rebuild
 ```
 
 The default `local-hash` provider is offline lexical/hash retrieval. Semantic mode uses
-Transformers.js and requires an explicit model download or a preloaded local model.
+Transformers.js and requires an explicit model download or a preloaded local model. Bundled model
+profiles use pinned commits, and setup records a canonical artifact digest so index and quality
+fingerprints identify the exact weights. The `local-hash` path never resolves Transformers.js,
+ONNX Runtime, or Sharp.
 
 ### Resume a long ingestion
 
@@ -269,7 +272,8 @@ try {
 
 Reuse one client per project root in a long-running process. It keeps one local LanceDB connection
 and one immutable read snapshot until atomic generation replacement, accepts `AbortSignal` and
-`timeoutMs`, and flushes access logs after active operations during `close()`. A private
+`timeoutMs`, and flushes access logs after active operations during `close()`. Closing the final
+client owner safely disposes its Transformers pipeline after active inference completes. A private
 heartbeat lock serializes index writers across local OS processes while readers remain available.
 One-shot `ingest`, `search`, `ask`, and `research` functions remain available for short scripts.
 

@@ -311,6 +311,10 @@ function isIndexManifest(
     typeof value.ragmirVersion === "string" &&
     (value.embeddingProvider === "local-hash" || value.embeddingProvider === "transformers") &&
     typeof value.embeddingModel === "string" &&
+    (!("embeddingModelRevision" in value) || typeof value.embeddingModelRevision === "string") &&
+    (!("embeddingModelDigest" in value) ||
+      value.embeddingModelDigest === null ||
+      typeof value.embeddingModelDigest === "string") &&
     (!("indexPolicyFingerprint" in value) || typeof value.indexPolicyFingerprint === "string") &&
     (!("vectorDimension" in value) || typeof value.vectorDimension === "number") &&
     (!("vectorDistanceMetric" in value) || typeof value.vectorDistanceMetric === "string") &&

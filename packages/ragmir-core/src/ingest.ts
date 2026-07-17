@@ -565,6 +565,8 @@ async function manifestForState(
     ragmirVersion: VERSION,
     embeddingProvider: config.embeddingProvider,
     embeddingModel: config.embeddingModel,
+    embeddingModelRevision: config.embeddingModelRevision,
+    embeddingModelDigest: config.embeddingModelDigest,
     indexPolicyFingerprint: state.policyFingerprint,
     ...(firstRow ? { vectorDimension: firstRow.vector.length } : {}),
     vectorDistanceMetric: VECTOR_DISTANCE_METRIC,

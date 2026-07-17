@@ -91,6 +91,7 @@ export function vectorModelFingerprint(config: Config, dimension: number): strin
         provider: config.embeddingProvider,
         model: config.embeddingModel,
         revision: config.embeddingModelRevision,
+        digest: config.embeddingModelDigest,
         dimension,
         metric: VECTOR_DISTANCE_METRIC,
       }),

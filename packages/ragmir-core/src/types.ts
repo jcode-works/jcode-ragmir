@@ -31,6 +31,7 @@ export interface Config {
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
   embeddingModelRevision: string
+  embeddingModelDigest: string | null
   transformersAllowRemoteModels: boolean
   redaction: RedactionConfig
   accessLog: boolean
@@ -168,6 +169,8 @@ export interface IndexManifest {
   ragmirVersion: string
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
+  embeddingModelRevision?: string
+  embeddingModelDigest?: string | null
   indexPolicyFingerprint?: string
   vectorDimension?: number
   vectorDistanceMetric?: string
@@ -794,6 +797,7 @@ export interface EvaluationResult {
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
   embeddingModelRevision: string
+  embeddingModelDigest: string | null
   retrievalProfile: RetrievalProfile
   rankingPolicyFingerprint: string
   indexFingerprint: string
@@ -830,7 +834,7 @@ export interface EvaluationResult {
 }
 
 export interface IndexQualityReport {
-  schemaVersion: 2
+  schemaVersion: 3
   createdAt: string
   goldenPath: string
   goldenFingerprint: string
@@ -839,6 +843,7 @@ export interface IndexQualityReport {
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
   embeddingModelRevision: string
+  embeddingModelDigest: string | null
   retrievalProfile: RetrievalProfile
   rankingPolicyFingerprint: string
   total: number
@@ -941,6 +946,7 @@ export interface SecurityAuditReport {
     embedding: EmbeddingProvider
     embeddingModel: string
     embeddingModelRevision: string
+    embeddingModelDigest: string | null
     embeddingModelPath: string
     transformersAllowRemoteModels: boolean
     llmGeneration: false

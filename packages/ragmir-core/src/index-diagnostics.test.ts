@@ -29,6 +29,8 @@ function baseManifest(overrides: Partial<IndexManifest> = {}): IndexManifest {
     ragmirVersion: "0.4.12",
     embeddingProvider: "local-hash",
     embeddingModel: "intfloat/multilingual-e5-small",
+    embeddingModelRevision: config.embeddingModelRevision,
+    embeddingModelDigest: config.embeddingModelDigest,
     indexPolicyFingerprint: indexPolicyFingerprint(config),
     vectorDimension: 384,
     vectorDistanceMetric: "l2",

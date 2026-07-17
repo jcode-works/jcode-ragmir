@@ -38,7 +38,8 @@ describe("loadConfig", () => {
     expect(config.retrievalProfile).toBe("balanced")
     expect(config.acceptedRisks).toEqual([])
     expect(config.embeddingModel).toBe("intfloat/multilingual-e5-small")
-    expect(config.embeddingModelRevision).toBe("main")
+    expect(config.embeddingModelRevision).toMatch(/^[0-9a-f]{40}$/u)
+    expect(config.embeddingModelDigest).toBeNull()
     expect(config.transformersAllowRemoteModels).toBe(false)
     expect(config.redaction.enabled).toBe(true)
     expect(config.accessLog).toBe(true)
@@ -205,6 +206,39 @@ describe("loadConfig", () => {
         delete process.env.RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS
       } else {
         process.env.RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS = originalRemoteModels
+      }
+    }
+  })
+
+  it("should validate and load a pinned embedding artifact digest", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-model-digest-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    const digest = `sha256:${"a".repeat(64)}`
+    await writeFile(
+      path.join(root, ".ragmir/config.json"),
+      JSON.stringify({ embeddingModelDigest: digest }),
+      "utf8",
+    )
+
+    await expect(loadConfig(root)).resolves.toMatchObject({ embeddingModelDigest: digest })
+    await writeFile(
+      path.join(root, ".ragmir/config.json"),
+      JSON.stringify({ embeddingModelDigest: "sha256:not-a-digest" }),
+      "utf8",
+    )
+    await expect(loadConfig(root)).rejects.toThrow()
+
+    await writeFile(path.join(root, ".ragmir/config.json"), JSON.stringify({}), "utf8")
+    const originalDigest = process.env.RAGMIR_EMBEDDING_MODEL_DIGEST
+    process.env.RAGMIR_EMBEDDING_MODEL_DIGEST = "sha256:not-an-env-digest"
+    try {
+      await expect(loadConfig(root)).rejects.toThrow()
+    } finally {
+      if (originalDigest === undefined) {
+        delete process.env.RAGMIR_EMBEDDING_MODEL_DIGEST
+      } else {
+        process.env.RAGMIR_EMBEDDING_MODEL_DIGEST = originalDigest
       }
     }
   })

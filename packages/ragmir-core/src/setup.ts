@@ -114,7 +114,10 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
 async function setupSemanticEmbeddings(cwd: string): Promise<SetupSemanticResult> {
   const config = await loadConfig(cwd)
   const model = await pullEmbeddingModel(config)
-  const semanticConfig = await enableSemanticEmbeddings(cwd)
+  const semanticConfig = await enableSemanticEmbeddings(cwd, {
+    embeddingModelRevision: model.embeddingModelRevision,
+    embeddingModelDigest: model.embeddingModelDigest,
+  })
   return {
     model,
     config: semanticConfig,

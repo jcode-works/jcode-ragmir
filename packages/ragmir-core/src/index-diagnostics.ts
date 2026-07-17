@@ -10,7 +10,7 @@ import { vectorModelFingerprint } from "./vector-index.js"
  * required metadata). A stored manifest with a lower schemaVersion means the
  * index predates the current code and should be rebuilt.
  */
-export const INDEX_SCHEMA_VERSION = 10
+export const INDEX_SCHEMA_VERSION = 11
 
 /**
  * Detect a stale or incompatible index without re-scanning every source file.
@@ -46,6 +46,14 @@ export function indexFreshnessWarning(
 
   if (manifest.embeddingModel !== config.embeddingModel) {
     return `Index was built with embedding model "${manifest.embeddingModel}" but the active config uses "${config.embeddingModel}". Rebuild with \`rgr ingest --rebuild\` to refresh vectors.`
+  }
+
+  if (manifest.embeddingModelRevision !== config.embeddingModelRevision) {
+    return `Index was built with embedding revision "${manifest.embeddingModelRevision ?? "unknown"}" but the active config uses "${config.embeddingModelRevision}". Rebuild with \`rgr ingest --rebuild\` to refresh vectors.`
+  }
+
+  if (manifest.embeddingModelDigest !== config.embeddingModelDigest) {
+    return "Index embedding artifact identity differs from the active config. Rebuild with `rgr ingest --rebuild`."
   }
 
   if (

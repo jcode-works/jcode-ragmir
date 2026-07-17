@@ -25,6 +25,16 @@ export const MAX_HYBRID_TEXT_SCAN_LIMIT = 10_000
 export const MAX_WORKLOAD_CONCURRENCY = 16
 export const MAX_WORKLOAD_QUEUE = 1_000
 export const MAX_WORKLOAD_QUEUE_TIMEOUT_MS = 900_000
+export const DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
+export const DEFAULT_EMBEDDING_MODEL_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
+export const KNOWN_EMBEDDING_MODEL_REVISIONS: Readonly<Record<string, string>> = {
+  [DEFAULT_EMBEDDING_MODEL]: DEFAULT_EMBEDDING_MODEL_REVISION,
+  "mixedbread-ai/mxbai-embed-xsmall-v1": "e6ac24e5d6efb8782b59de1647b3ececb4ece94e",
+}
+
+export function defaultEmbeddingModelRevision(model: string): string {
+  return KNOWN_EMBEDDING_MODEL_REVISIONS[model] ?? "main"
+}
 
 export const RAGMIR_GITIGNORE_ENTRY = `${RAGMIR_DIR}/`
 export const LEGACY_KB_GITIGNORE_ENTRY = `${LEGACY_KB_DIR}/`
@@ -43,8 +53,9 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   embeddingModelPath: `${RAGMIR_DIR}/models`,
   tableName: "chunks",
   embeddingProvider: "local-hash",
-  embeddingModel: "intfloat/multilingual-e5-small",
-  embeddingModelRevision: "main",
+  embeddingModel: DEFAULT_EMBEDDING_MODEL,
+  embeddingModelRevision: DEFAULT_EMBEDDING_MODEL_REVISION,
+  embeddingModelDigest: null,
   transformersAllowRemoteModels: false,
   redaction: {
     enabled: true,

@@ -250,6 +250,7 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
     embeddingProvider: config.embeddingProvider,
     embeddingModel: config.embeddingModel,
     embeddingModelRevision: config.embeddingModelRevision,
+    embeddingModelDigest: config.embeddingModelDigest,
     retrievalProfile: config.retrievalProfile,
     rankingPolicyFingerprint: activeRankingPolicyFingerprint,
     indexFingerprint,
@@ -627,7 +628,7 @@ async function persistQualityReport(input: {
       return null
     }
     const unsignedReport: Omit<IndexQualityReport, "qualityReportFingerprint"> = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       createdAt: new Date().toISOString(),
       goldenPath: input.goldenPath,
       goldenFingerprint: input.goldenFingerprint,
@@ -636,6 +637,7 @@ async function persistQualityReport(input: {
       embeddingProvider: input.config.embeddingProvider,
       embeddingModel: input.config.embeddingModel,
       embeddingModelRevision: input.config.embeddingModelRevision,
+      embeddingModelDigest: input.config.embeddingModelDigest,
       retrievalProfile: input.config.retrievalProfile,
       rankingPolicyFingerprint: input.rankingPolicyFingerprint,
       total: input.total,

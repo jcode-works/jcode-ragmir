@@ -22,11 +22,15 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   local consumer or optional Chat when no retrieved passage may leave the machine.
 - Persistent API: `createRagmirClient()` reuses one local connection and immutable read snapshot in
   a stateful Node.js worker, refreshes after atomic generation replacement, supports cancellation
-  and timeouts, and flushes metadata-only logs during close.
+  and timeouts, flushes metadata-only logs during close, and releases the model only after the final
+  owner and active inference lease finish.
 - Service boundary: Ragmir does not open an HTTP port. Network transports, authentication, and
   authorization belong to the embedding application.
-- Default retrieval: local-hash, with no model download. Semantic embeddings and local GGUF chat are
-  explicit opt-ins.
+- Default retrieval: local-hash, with no model download or Transformers.js, ONNX Runtime, or Sharp
+  resolution. Semantic embeddings and local GGUF chat are explicit opt-ins.
+- Embedding identity: bundled Transformers profiles use pinned model commits. Explicit model pull
+  records a canonical artifact digest, and model revision plus digest participate in index, vector,
+  and quality fingerprints. Changing either requires a rebuild.
 - Optional packages: `@jcode.labs/ragmir-chat` offers `lite` Qwen, default `fast` Gemma, and explicit
   `quality` Gemma profiles; `@jcode.labs/ragmir-tts` supports offline `en`, `fr`, and `es`, plus
   explicit online Edge voices for `ja`, `th`, and `zh`.

@@ -67,6 +67,8 @@
     "bench:discovery": "pnpm build && node benchmarks/discovery.mjs",
     "bench:ingest-memory": "pnpm build && node benchmarks/ingest-memory.mjs",
     "bench:ingestion-metadata": "pnpm build && node benchmarks/ingestion-metadata.mjs",
+    "bench:local-hash-runtime": "pnpm build && node benchmarks/local-hash-runtime.mjs",
+    "bench:model-lifecycle": "pnpm build && node benchmarks/model-lifecycle.mjs",
     "bench:generations": "pnpm build && node benchmarks/generation-retention.mjs",
     "bench:quality": "pnpm build && node benchmarks/quality.mjs",
     "bench:scale": "pnpm build && node benchmarks/run.mjs --profile scale",

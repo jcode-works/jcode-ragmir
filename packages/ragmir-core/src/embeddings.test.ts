@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   clearTransformersCache,
@@ -6,7 +9,10 @@ import {
   embedTexts,
   prepareEmbeddingText,
   pullEmbeddingModel,
+  retainEmbeddingModel,
+  transformersCacheSnapshotForTests,
 } from "./embeddings.js"
+import { indexPolicyFingerprint } from "./index-policy.js"
 import { testConfig } from "./test-support/config.js"
 import type { Config } from "./types.js"
 
@@ -18,6 +24,7 @@ const transformersMock = vi.hoisted(() => ({
   },
   pipeline: vi.fn(),
 }))
+const tempDirs: string[] = []
 
 vi.mock("@huggingface/transformers", () => transformersMock)
 
@@ -34,6 +41,9 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await disposeTransformersCache()
+  for (const directory of tempDirs.splice(0)) {
+    await rm(directory, { recursive: true, force: true })
+  }
 })
 
 describe("local hash embeddings", () => {
@@ -48,6 +58,7 @@ describe("local hash embeddings", () => {
     expect(second).toEqual(first)
     expect(batch).toHaveLength(2)
     expect(Math.round(vectorMagnitude(first) * 1000) / 1000).toBe(1)
+    expect(transformersMock.pipeline).not.toHaveBeenCalled()
   })
 
   it("returns an empty array for empty input without invoking a provider", async () => {
@@ -151,11 +162,13 @@ describe("embedding model adapters", () => {
       allowRemoteModelsDuringCreation = transformersMock.env.allowRemoteModels
       return async (texts: string[]) => ({ tolist: () => texts.map(() => [1, 0]) })
     })
-    const config = transformerConfig({ transformersAllowRemoteModels: false })
+    const config = await transformerArtifactConfig({ transformersAllowRemoteModels: false })
 
     await expect(pullEmbeddingModel(config)).resolves.toMatchObject({
       embeddingModel: "test/embedding-model",
-      embeddingModelPath: "/tmp/ragmir-embedding-model",
+      embeddingModelRevision: "test-revision",
+      embeddingModelDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      embeddingModelPath: config.embeddingModelPath,
     })
     expect(allowRemoteModelsDuringCreation).toBe(true)
     expect(transformersMock.env.allowRemoteModels).toBe(false)
@@ -181,30 +194,37 @@ describe("embedding model adapters", () => {
     expect(transformersMock.pipeline).toHaveBeenCalledTimes(1)
   })
 
-  it("should reject every waiter when the cache is cleared during pipeline loading", async () => {
-    let releaseCreation: (() => void) | undefined
-    const creationGate = new Promise<void>((resolve) => {
-      releaseCreation = resolve
+  it("should defer disposal until an active inference releases its lease", async () => {
+    let releaseInference: (() => void) | undefined
+    const inferenceGate = new Promise<void>((resolve) => {
+      releaseInference = resolve
+    })
+    let inferenceStarted: (() => void) | undefined
+    const started = new Promise<void>((resolve) => {
+      inferenceStarted = resolve
     })
     const dispose = vi.fn(async () => undefined)
     const extractor = Object.assign(
-      async (texts: string[]) => ({ tolist: () => texts.map(() => [1, 0]) }),
+      async (texts: string[]) => {
+        inferenceStarted?.()
+        await inferenceGate
+        return { tolist: () => texts.map(() => [1, 0]) }
+      },
       { dispose },
     )
-    transformersMock.pipeline.mockImplementation(async () => {
-      await creationGate
-      return extractor
-    })
+    transformersMock.pipeline.mockResolvedValue(extractor)
     const config = transformerConfig()
-    const first = embedTexts(["first"], config)
-    const second = embedTexts(["second"], config)
-    await vi.waitFor(() => expect(transformersMock.pipeline).toHaveBeenCalledOnce())
+    const inference = embedTexts(["first"], config)
+    await started
 
-    await disposeTransformersCache()
-    releaseCreation?.()
+    const disposal = disposeTransformersCache()
+    await Promise.resolve()
+    expect(dispose).not.toHaveBeenCalled()
+    expect(transformersCacheSnapshotForTests()).toMatchObject({ entries: 0 })
+    releaseInference?.()
 
-    const results = await Promise.allSettled([first, second])
-    expect(results.map((result) => result.status)).toEqual(["rejected", "rejected"])
+    await expect(inference).resolves.toEqual([[1, 0]])
+    await disposal
     expect(dispose).toHaveBeenCalledOnce()
   })
 
@@ -227,7 +247,7 @@ describe("embedding model adapters", () => {
       ),
     )
 
-    expect(disposals.filter((dispose) => dispose.mock.calls.length > 0)).toHaveLength(1)
+    expect(disposals.filter((dispose) => dispose.mock.calls.length > 0)).toHaveLength(3)
     await disposeTransformersCache()
     expect(disposals.every((dispose) => dispose.mock.calls.length === 1)).toBe(true)
   })
@@ -272,6 +292,51 @@ describe("embedding model adapters", () => {
     await disposeTransformersCache()
 
     expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it("should keep a shared pipeline until the final client owner closes", async () => {
+    const dispose = vi.fn(async () => undefined)
+    transformersMock.pipeline.mockResolvedValue(
+      Object.assign(async (texts: string[]) => ({ tolist: () => texts.map(() => [1, 0]) }), {
+        dispose,
+      }),
+    )
+    const config = transformerConfig()
+    const releaseFirst = retainEmbeddingModel(config)
+    const releaseSecond = retainEmbeddingModel(config)
+    await embedTexts(["query"], config)
+
+    await releaseFirst()
+    expect(dispose).not.toHaveBeenCalled()
+    await releaseSecond()
+
+    expect(dispose).toHaveBeenCalledOnce()
+    expect(transformersCacheSnapshotForTests()).toEqual({
+      entries: 0,
+      activeLeases: 0,
+      owners: 0,
+    })
+  })
+
+  it("should produce the same digest and policy fingerprint for identical clean artifacts", async () => {
+    const firstConfig = await transformerArtifactConfig()
+    const secondConfig = await transformerArtifactConfig()
+
+    const first = await pullEmbeddingModel(firstConfig)
+    const second = await pullEmbeddingModel(secondConfig)
+
+    expect(second.embeddingModelDigest).toBe(first.embeddingModelDigest)
+    expect(
+      indexPolicyFingerprint({
+        ...firstConfig,
+        embeddingModelDigest: first.embeddingModelDigest,
+      }),
+    ).toBe(
+      indexPolicyFingerprint({
+        ...secondConfig,
+        embeddingModelDigest: second.embeddingModelDigest,
+      }),
+    )
   })
 })
 
@@ -323,4 +388,18 @@ function transformerConfig(overrides: Partial<Config> = {}): Config {
     transformersAllowRemoteModels: false,
     ...overrides,
   })
+}
+
+async function transformerArtifactConfig(overrides: Partial<Config> = {}): Promise<Config> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-embedding-artifact-"))
+  tempDirs.push(root)
+  const embeddingModelPath = path.join(root, "models")
+  const modelRoot = path.join(embeddingModelPath, "test", "embedding-model")
+  await mkdir(path.join(modelRoot, "onnx"), { recursive: true })
+  await Promise.all([
+    writeFile(path.join(modelRoot, "config.json"), '{"model_type":"test"}\n'),
+    writeFile(path.join(modelRoot, "onnx", "model.onnx"), "deterministic-model"),
+    writeFile(path.join(modelRoot, "tokenizer.json"), '{"version":"1.0"}\n'),
+  ])
+  return transformerConfig({ embeddingModelPath, ...overrides })
 }

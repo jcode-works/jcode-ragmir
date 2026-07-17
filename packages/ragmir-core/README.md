@@ -56,7 +56,9 @@ skipped.
 
 The default `local-hash` provider needs no model download. It is lexical/hash retrieval, not
 semantic embeddings. Enable local Transformers.js embeddings explicitly with `rgr setup --semantic`
-and rebuild the index.
+and rebuild the index. Bundled profiles use pinned model commits, and setup stores the resolved
+artifact digest so persisted compatibility identifies the exact weights. `local-hash` does not
+resolve Transformers.js, ONNX Runtime, or Sharp.
 
 Hybrid retrieval has stable source-and-chunk tie-breaks, two-pass recall-safe diversification, and
 provider-aware abstention. Pass `explain: true` to inspect vector and lexical contributions, FTS or
@@ -93,7 +95,8 @@ try {
 
 Reuse one client per project root in long-running processes. It caches one immutable read snapshot
 until atomic generation replacement, and `close()` flushes metadata-only access logs before
-shutdown. Top-level
+releasing model ownership. The final owner disposes its Transformers pipeline only after active
+inference finishes. Top-level
 `ingest`, `search`, `ask`, and `research` functions remain available for one-shot scripts. `ask`
 returns cited retrieval context, not a generated answer.
 

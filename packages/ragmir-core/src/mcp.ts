@@ -323,6 +323,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         embeddingProvider: config.embeddingProvider,
         embeddingModel: strict ? privateMcpPath(config.embeddingModel) : config.embeddingModel,
         embeddingModelRevision: config.embeddingModelRevision,
+        embeddingModelDigest: config.embeddingModelDigest,
         embeddingModelPath: strict
           ? privateProjectPath(config.projectRoot, config.embeddingModelPath)
           : config.embeddingModelPath,

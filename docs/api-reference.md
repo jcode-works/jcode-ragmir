@@ -90,7 +90,9 @@ try {
 `RagmirClient` exposes `ingest`, `search`, `ask`, `research`, `expandCitation`, `status`, `sources`,
 and an idempotent `close`. Every data operation accepts `signal` and `timeoutMs` through its options.
 `close()` takes no options, rejects new work, waits for active operations, flushes the bounded
-metadata-only access-log writer, then closes the shared connection.
+metadata-only access-log writer, closes the shared connection, and releases the client's embedding
+model ownership. The final owner retires the matching Transformers pipeline only after active
+inference leases finish.
 Index writes targeting the same storage directory are serialized across local OS processes. The
 private lock records its PID, run ID, owner token, start time, and heartbeat; readers do not acquire
 it. A dead local owner is recovered automatically, while bounded contention returns the retryable
@@ -99,8 +101,8 @@ Cancellation is cooperative between filesystem, parsing, embedding, storage, ret
 diagnostic phases.
 
 `RagmirError.code` is one of `ABORTED`, `CLIENT_CLOSED`, `INDEX_BUSY`, `INTERNAL`,
-`INVALID_ARGUMENT`, or `TIMEOUT`. `retryable` is true for cancellation, timeout, and busy-index
-errors. `isRagmirError(error)` narrows
+`INVALID_ARGUMENT`, `OVERLOADED`, or `TIMEOUT`. `retryable` is true for cancellation, timeout,
+overload, and busy-index errors. `isRagmirError(error)` narrows
 unknown failures, while `normalizeRagmirError(error)` preserves Ragmir errors and converts other
 failures into an `INTERNAL` `RagmirError` with the original cause.
 
@@ -200,15 +202,20 @@ selection without changing the exact text, offsets, or citations returned to the
 
 | Export | Purpose |
 | --- | --- |
-| `enableSemanticEmbeddings(cwd?)` | Enable Transformers embeddings after validating local state. |
-| `pullEmbeddingModel(config)` | Download the configured embedding model explicitly. |
-| `clearTransformersCache()` | Clear the process-local Transformers pipeline cache. |
+| `enableSemanticEmbeddings(cwd?, artifact?)` | Enable Transformers embeddings and optionally persist a verified revision and artifact digest. |
+| `pullEmbeddingModel(config)` | Download the configured model explicitly and return its resolved revision, local path, and canonical artifact digest. |
+| `clearTransformersCache()` | Retire process-local Transformers pipelines without interrupting active inference. |
+| `disposeTransformersCache()` | Retire all cached pipelines and wait for their active leases and disposal. |
+| `disposeTransformersModel(config)` | Retire one exact model identity and wait for safe disposal. |
 | `inspectPdfOcr(cwd?)` | Detect configured local OCR tools and readiness. |
 | `configurePdfOcr(options?)` | Write a safe page-aware PDF OCR command. |
 | `extractPdfPage(options)` | Run the low-level local PDF page extractor. |
 
 Semantic embeddings and OCR are opt-in boundaries. Core never calls a cloud OCR service, and a
-model download must be explicitly enabled before local inference can use it.
+model download must be explicitly enabled before local inference can use it. The default
+`local-hash` path does not resolve Transformers.js, ONNX Runtime, or Sharp. Bundled embedding
+profiles use immutable model commits; the resolved artifact digest participates in persisted index
+and quality compatibility.
 
 ### MCP, skills, and command helpers
 

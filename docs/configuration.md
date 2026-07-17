@@ -20,6 +20,9 @@ edit JSON only for a real need.
 | `privacyProfile` | `private` | Use `strict` for the strongest local floor. |
 | `retrievalProfile` | `balanced` | Use `fast`, `quality`, or `custom` for different search budgets. |
 | `embeddingProvider` | `local-hash` | Set `transformers` only after an explicit preload. |
+| `embeddingModel` | `intfloat/multilingual-e5-small` | Select the local Transformers embedding model. Rebuild after changing it. |
+| `embeddingModelRevision` | Pinned commit for bundled profiles | Use an immutable 40-character commit for reproducible model artifacts. Unknown custom models default to the mutable `main` revision until explicitly pinned. |
+| `embeddingModelDigest` | `null` | `rgr models pull --enable` records a SHA-256 identity for the resolved local artifact tree. Do not set it by hand unless the local files were verified independently. |
 | `topK` | `8` | Change the default number of returned passages, up to the hard limit of 100. |
 | `mcpMaxTopK` | `10` | Bound MCP passage requests; values above 100 are rejected. |
 | `mcpMaxOutputBytes` | `32768` | Cap variable-size MCP tool and resource JSON; the server also enforces an absolute 1 MiB ceiling. |
@@ -78,7 +81,10 @@ quality corpus with `mixedbread-ai/mxbai-embed-xsmall-v1`; every other model and
 its own golden-query evaluation. The benchmark keeps experimental rank weights in its report and
 does not promote them automatically.
 
-Changing an embedding provider, model, or chunking field requires `rgr ingest --rebuild`.
+Changing an embedding provider, model, revision, digest, or chunking field requires
+`rgr ingest --rebuild`. Revision and artifact digest participate in the index, vector-index, and
+quality-report fingerprints, so an index built from different weights is never treated as
+compatible.
 Ragmir also preserves Markdown heading paths and JSON or JSONL structure as retrieval-only context.
 Rebuild indexes created by an older Ragmir version to populate that structural context.
 
@@ -111,7 +117,15 @@ rgr ingest --rebuild
 ```
 
 This preloads the configured Transformers model once and leaves normal remote model loading disabled.
-Use `rgr models pull --enable` for the same change after initial setup.
+Use `rgr models pull --enable` for the same change after initial setup. Both commands persist the
+resolved immutable revision and artifact digest. Bundled model profiles use pinned commits. Pin a
+custom model to a 40-character commit before relying on reproducible search results; `main` remains
+mutable and therefore unverified.
+
+`local-hash` never resolves Transformers.js, ONNX Runtime, or Sharp. In a long-running process,
+Transformers pipelines are shared per exact model identity and disposed when the final
+`RagmirClient` owner closes. Cache retirement waits for active inference leases, so a model switch
+or shutdown does not dispose a session still serving a request.
 
 ## Local extractors
 

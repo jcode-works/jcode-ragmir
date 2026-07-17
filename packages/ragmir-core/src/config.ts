@@ -5,6 +5,7 @@ import { z } from "zod"
 import {
   CONFIG_PATH,
   DEFAULT_CONFIG,
+  defaultEmbeddingModelRevision,
   LEGACY_CONFIG_PATH,
   LEGACY_DEFAULT_CONFIG,
   MAX_CONFIGURED_FILE_BYTES,
@@ -20,6 +21,10 @@ import { isRecord } from "./guards.js"
 import type { Config, WorkloadLimit } from "./types.js"
 
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
+const embeddingModelDigestSchema = z
+  .string()
+  .regex(/^sha256:[0-9a-f]{64}$/u)
+  .nullable()
 const privacyProfileSchema = z.enum(["strict", "private", "trusted", "custom"])
 const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
 const sourceFingerprintModeSchema = z.enum(["fast", "strict"])
@@ -59,6 +64,7 @@ const rawConfigSchema = z
     embeddingProvider: embeddingProviderSchema.default(DEFAULT_CONFIG.embeddingProvider),
     embeddingModel: z.string().default(DEFAULT_CONFIG.embeddingModel),
     embeddingModelRevision: z.string().min(1).default(DEFAULT_CONFIG.embeddingModelRevision),
+    embeddingModelDigest: embeddingModelDigestSchema.default(DEFAULT_CONFIG.embeddingModelDigest),
     transformersAllowRemoteModels: z
       .boolean()
       .default(DEFAULT_CONFIG.transformersAllowRemoteModels),
@@ -175,7 +181,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
   }
   const defaults = projectConfig.legacy ? LEGACY_DEFAULT_CONFIG : DEFAULT_CONFIG
 
-  const parsed = rawConfigSchema.parse({ ...defaults, ...raw })
+  const parsed = rawConfigSchema.parse(configWithModelIdentityDefaults(defaults, raw))
   const withProfile = applyRetrievalProfile(parsed, raw)
   const withEnv = applyEnv(withProfile)
   const effective = applyPrivacyFloor(withEnv)
@@ -206,6 +212,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     embeddingProvider: effective.embeddingProvider,
     embeddingModel: effective.embeddingModel,
     embeddingModelRevision: effective.embeddingModelRevision,
+    embeddingModelDigest: effective.embeddingModelDigest,
     transformersAllowRemoteModels: effective.transformersAllowRemoteModels,
     redaction: effective.redaction,
     accessLog: effective.accessLog,
@@ -234,6 +241,30 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
 function assertAtMost(name: string, value: number, maximum: number): void {
   if (value > maximum) {
     throw new Error(`${name} must be at most ${maximum}.`)
+  }
+}
+
+function configWithModelIdentityDefaults(
+  defaults: Omit<Config, "projectRoot">,
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const embeddingModel =
+    typeof raw.embeddingModel === "string" ? raw.embeddingModel : defaults.embeddingModel
+  const embeddingModelRevision =
+    typeof raw.embeddingModelRevision === "string"
+      ? raw.embeddingModelRevision
+      : defaultEmbeddingModelRevision(embeddingModel)
+  const modelIdentityChanged =
+    embeddingModel !== defaults.embeddingModel ||
+    embeddingModelRevision !== defaults.embeddingModelRevision
+  return {
+    ...defaults,
+    ...raw,
+    embeddingModelRevision,
+    embeddingModelDigest:
+      raw.embeddingModelDigest === undefined && modelIdentityChanged
+        ? null
+        : (raw.embeddingModelDigest ?? defaults.embeddingModelDigest),
   }
 }
 
@@ -278,6 +309,25 @@ function resolveFromRoot(projectRoot: string, input: string): string {
 }
 
 function applyEnv(config: RawConfig): RawConfig {
+  const embeddingModel = readStringEnv(
+    "RAGMIR_EMBEDDING_MODEL",
+    "KB_EMBEDDING_MODEL",
+    config.embeddingModel,
+  )
+  const embeddingModelRevision =
+    process.env.RAGMIR_EMBEDDING_MODEL_REVISION ??
+    process.env.KB_EMBEDDING_MODEL_REVISION ??
+    (embeddingModel === config.embeddingModel
+      ? config.embeddingModelRevision
+      : defaultEmbeddingModelRevision(embeddingModel))
+  const embeddingModelDigest = readEmbeddingModelDigestEnv(
+    "RAGMIR_EMBEDDING_MODEL_DIGEST",
+    "KB_EMBEDDING_MODEL_DIGEST",
+    embeddingModel === config.embeddingModel &&
+      embeddingModelRevision === config.embeddingModelRevision
+      ? config.embeddingModelDigest
+      : null,
+  )
   return {
     ...config,
     rawDir: readStringEnv("RAGMIR_RAW_DIR", "KB_RAW_DIR", config.rawDir),
@@ -293,16 +343,9 @@ function applyEnv(config: RawConfig): RawConfig {
       "KB_EMBEDDING_PROVIDER",
       config.embeddingProvider,
     ),
-    embeddingModel: readStringEnv(
-      "RAGMIR_EMBEDDING_MODEL",
-      "KB_EMBEDDING_MODEL",
-      config.embeddingModel,
-    ),
-    embeddingModelRevision: readStringEnv(
-      "RAGMIR_EMBEDDING_MODEL_REVISION",
-      "KB_EMBEDDING_MODEL_REVISION",
-      config.embeddingModelRevision,
-    ),
+    embeddingModel,
+    embeddingModelRevision,
+    embeddingModelDigest,
     embeddingModelPath: readStringEnv(
       "RAGMIR_EMBEDDING_MODEL_PATH",
       "KB_EMBEDDING_MODEL_PATH",
@@ -402,6 +445,18 @@ function applyEnv(config: RawConfig): RawConfig {
       config.legacyWordTimeoutMs,
     ),
   }
+}
+
+function readEmbeddingModelDigestEnv(
+  name: string,
+  legacyName: string,
+  fallback: string | null,
+): string | null {
+  const raw = process.env[name] ?? process.env[legacyName]
+  if (raw === undefined) {
+    return fallback
+  }
+  return embeddingModelDigestSchema.parse(raw)
 }
 
 function normalizeExtensions(extensions: string[]): string[] {

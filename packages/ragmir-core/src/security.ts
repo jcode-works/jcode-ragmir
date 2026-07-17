@@ -117,6 +117,7 @@ export async function securityAudit(
       embedding: config.embeddingProvider,
       embeddingModel: config.embeddingModel,
       embeddingModelRevision: config.embeddingModelRevision,
+      embeddingModelDigest: config.embeddingModelDigest,
       embeddingModelPath: config.embeddingModelPath,
       transformersAllowRemoteModels: config.transformersAllowRemoteModels,
       llmGeneration: false,

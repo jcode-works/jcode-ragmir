@@ -3,6 +3,7 @@ import type { Connection } from "@lancedb/lancedb"
 import { flushAccessLog } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { getKnowledgeBaseContext, getKnowledgeBaseSourceCatalog } from "./context-resources.js"
+import { retainEmbeddingModel } from "./embeddings.js"
 import { normalizeRagmirError, RagmirError } from "./errors.js"
 import { ingestWithConfig } from "./ingest.js"
 import { askWithConfig, expandCitationWithConfig, searchWithConfig } from "./query.js"
@@ -33,6 +34,7 @@ export class RagmirClient {
   readonly projectRoot: string
   private readonly config: Config
   private readonly connection: Connection
+  private readonly releaseEmbeddingModel: () => Promise<void>
   private readonly activeOperations = new Set<Promise<unknown>>()
   private indexSnapshot: IndexReadSnapshot | undefined
   private indexSnapshotLoad: Promise<IndexReadSnapshot> | undefined
@@ -44,6 +46,7 @@ export class RagmirClient {
     this.config = config
     this.connection = connection
     this.projectRoot = config.projectRoot
+    this.releaseEmbeddingModel = retainEmbeddingModel(config)
   }
 
   get isClosed(): boolean {
@@ -128,8 +131,15 @@ export class RagmirClient {
       this.closed = true
       this.closePromise = (async () => {
         await Promise.allSettled([...this.activeOperations])
-        await flushAccessLog(this.config)
-        this.connection.close()
+        try {
+          await flushAccessLog(this.config)
+        } finally {
+          try {
+            this.connection.close()
+          } finally {
+            await this.releaseEmbeddingModel()
+          }
+        }
       })()
     }
     await this.closePromise
