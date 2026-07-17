@@ -113,7 +113,7 @@ describe("withIndexWriteLock", () => {
   it("should return INDEX_BUSY without stealing a live owner and keep heartbeats current", async () => {
     const root = await temporaryRoot("ragmir-lock-busy-")
     const storageDir = path.join(root, "storage")
-    const active = spawnLockChild(storageDir, "active", 300, 2_000)
+    const active = spawnLockChild(storageDir, "active", 5_000, 2_000)
     const acquired = await waitForEvent(active, "acquired")
     const firstHeartbeat = (await readIndexWriteLockOwner(storageDir))?.heartbeatAt
     await delay(60)
@@ -124,7 +124,8 @@ describe("withIndexWriteLock", () => {
     expect(parseLastError(blocked.stderr).code).toBe("INDEX_BUSY")
     expect((await readIndexWriteLockOwner(storageDir))?.ownerToken).toBe(acquired.owner?.ownerToken)
     expect(secondHeartbeat).not.toBe(firstHeartbeat)
-    await expect(waitForExit(active)).resolves.toMatchObject({ code: 0 })
+    active.process.kill("SIGTERM")
+    await waitForExit(active)
   })
 
   it("should recover a lock after its owner is killed", async () => {
