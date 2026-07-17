@@ -66,3 +66,7 @@ integer-hash prototype. It gates throughput, explicit temporary allocations, rep
 retrieval quality, and citation accuracy against clean quality scorecards supplied through
 `--baseline` and `--candidate`. Capture both scorecards with `bench:quality` while each adapter is
 active; generated results remain excluded from release artifacts.
+
+`bench:reranker-experiment` evaluates a pinned, quantized local cross-encoder over the first 20
+retrieval candidates. It prepares the ignored model cache once, proves subsequent offline loading,
+and compares Recall@K, nDCG@10, citations, p50/p95/p99 latency, peak RSS, model size, and cold start.
