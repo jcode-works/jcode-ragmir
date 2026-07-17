@@ -36,7 +36,7 @@ import {
 } from "./ingestion-state.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
-import { redactText, totalRedactions } from "./redaction.js"
+import { redactDocument, totalRedactions } from "./redaction.js"
 import {
   activeIndexTableName,
   dropRowsTable,
@@ -441,15 +441,12 @@ async function parseSourceFile(
   try {
     const parsed = await parseFile(file, { ...config, ...(signal ? { signal } : {}) })
     throwIfAborted(signal)
-    const redacted = redactText(parsed.text, config)
+    const redacted = redactDocument(parsed, config)
     return {
       file,
-      chunks: chunkDocument(
-        { ...parsed, text: redacted.text },
-        config.chunkSize,
-        config.chunkOverlap,
-        { maxChunks: MAX_INGEST_CHUNKS_PER_FILE },
-      ),
+      chunks: chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap, {
+        maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
+      }),
       redactions: totalRedactions(redacted.counts),
       error: null,
     }

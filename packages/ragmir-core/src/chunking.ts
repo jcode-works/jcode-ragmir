@@ -24,7 +24,15 @@ export function chunkDocument(
 
   const chunks: TextChunk[] = []
   const lineStarts = lineStartOffsets(document.text)
-  const structured = structuralSpans(document.text, document.file.extension, chunkSize)
+  const sourceRegions = document.regions?.map((region) => ({
+    charStart: region.charStart,
+    charEnd: region.charEnd,
+    contextPath: region.contextPath,
+  }))
+  const structured =
+    sourceRegions && sourceRegions.length > 0
+      ? sourceRegions
+      : structuralSpans(document.text, document.file.extension, chunkSize)
   const regions =
     structured.length > 0
       ? structured
@@ -56,6 +64,13 @@ export function chunkDocument(
         const id = createHash("sha256")
           .update(`${document.file.relativePath}:${chunkIndex}:${region.contextPath}:${span.text}`)
           .digest("hex")
+        const lineCoordinates =
+          document.sourceLineCoordinates === false
+            ? {}
+            : {
+                lineStart: lineNumberForOffset(lineStarts, span.start),
+                lineEnd: lineNumberForOffset(lineStarts, Math.max(span.start, span.end - 1)),
+              }
         chunks.push({
           id,
           source: document.file.source,
@@ -65,9 +80,9 @@ export function chunkDocument(
           text: span.text,
           charStart: span.start,
           charEnd: span.end,
-          lineStart: lineNumberForOffset(lineStarts, span.start),
-          lineEnd: lineNumberForOffset(lineStarts, Math.max(span.start, span.end - 1)),
+          ...lineCoordinates,
           ...pageRangeForSpan(document, span.start, span.end),
+          ...sourceLocationForSpan(document, span.start, span.end),
           checksum: document.file.checksum,
           bytes: document.file.bytes,
           mtimeMs: document.file.mtimeMs,
@@ -85,6 +100,30 @@ export function chunkDocument(
   }
 
   return chunks
+}
+
+function sourceLocationForSpan(
+  document: ParsedDocument,
+  start: number,
+  end: number,
+): Pick<
+  TextChunk,
+  "locationKind" | "locationStart" | "locationEnd" | "locationLabel" | "cellStart" | "cellEnd"
+> {
+  const region = document.regions?.find(
+    (candidate) => candidate.charStart < end && candidate.charEnd > start,
+  )
+  if (!region) {
+    return {}
+  }
+  return {
+    locationKind: region.location.kind,
+    locationStart: region.location.start,
+    locationEnd: region.location.end,
+    ...(region.location.label ? { locationLabel: region.location.label } : {}),
+    ...(region.location.cellStart ? { cellStart: region.location.cellStart } : {}),
+    ...(region.location.cellEnd ? { cellEnd: region.location.cellEnd } : {}),
+  }
 }
 
 export function chunkSearchText(chunk: Pick<TextChunk, "contextPath" | "text">): string {

@@ -32,6 +32,20 @@ describe("landing public contract", () => {
     expect(findHeroDemoScenario("unknown")).toBe(HERO_DEMO_SCENARIOS[0])
   })
 
+  it("should show only verifiable coordinates in public citation examples", () => {
+    const citations = HERO_DEMO_SCENARIOS.flatMap((scenario) =>
+      scenario.lines.flatMap((line) => (line.kind === "citation" && line.text ? [line.text] : [])),
+    )
+
+    expect(citations.some((citation) => /\.(?:docx|xlsx).*:L\d+/u.test(citation))).toBe(false)
+    expect(citations.some((citation) => /\.pdf:p\d+:L\d+/u.test(citation))).toBe(false)
+    expect(
+      citations
+        .filter((citation) => citation.includes(".xlsx"))
+        .every((citation) => /:sheet=[^:]+:cells=[A-Z]+\d+(?:-[A-Z]+\d+)?#/u.test(citation)),
+    ).toBe(true)
+  })
+
   it("should normalize localized internal URLs and preserve external URLs", () => {
     expect([
       getLocalizedUrl("team", "en"),

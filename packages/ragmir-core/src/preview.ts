@@ -1,9 +1,10 @@
 import { summarizeChunkStats } from "./chunk-stats.js"
 import { chunkDocument } from "./chunking.js"
+import { citationForCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
 import { inventorySourceFiles } from "./files.js"
 import { parseFile } from "./parsing.js"
-import { redactText, totalRedactions } from "./redaction.js"
+import { redactDocument, totalRedactions } from "./redaction.js"
 import type {
   PreviewChunk,
   PreviewChunksOptions,
@@ -74,19 +75,15 @@ async function previewFile(
 ): Promise<{ file: PreviewFile } | { error: { path: string; message: string } }> {
   try {
     const parsed = await parseFile(file, config)
-    const redacted = redactText(parsed.text, config)
-    const chunks = chunkDocument(
-      { ...parsed, text: redacted.text },
-      config.chunkSize,
-      config.chunkOverlap,
-    )
+    const redacted = redactDocument(parsed, config)
+    const chunks = chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap)
     return {
       file: {
         source: file.source,
         relativePath: file.relativePath,
         extension: file.extension,
         bytes: file.bytes,
-        parsedChars: redacted.text.length,
+        parsedChars: redacted.document.text.length,
         redactions: totalRedactions(redacted.counts),
         chunkStats: summarizeChunkStats(chunks),
         chunks: chunks.slice(0, maxChunksPerFile).map(previewChunk),
@@ -111,19 +108,15 @@ function previewChunk(chunk: TextChunk): PreviewChunk {
     text: chunk.text,
     charStart: chunk.charStart,
     charEnd: chunk.charEnd,
-    lineStart: chunk.lineStart,
-    lineEnd: chunk.lineEnd,
+    lineStart: chunk.lineStart ?? null,
+    lineEnd: chunk.lineEnd ?? null,
     pageStart: chunk.pageStart ?? null,
     pageEnd: chunk.pageEnd ?? null,
   }
 }
 
 function citationForChunk(chunk: TextChunk): string {
-  const pageSegment =
-    chunk.pageStart === undefined
-      ? ""
-      : `:p${chunk.pageStart}${chunk.pageEnd !== undefined && chunk.pageEnd !== chunk.pageStart ? `-p${chunk.pageEnd}` : ""}`
-  return `${chunk.relativePath}${pageSegment}:L${chunk.lineStart}-L${chunk.lineEnd}#${chunk.chunkIndex}`
+  return citationForCoordinates(chunk)
 }
 
 function matchesAnyPath(file: SourceFile, prefixes: string[]): boolean {

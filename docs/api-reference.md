@@ -34,8 +34,12 @@ for (const result of results) {
 }
 ```
 
-Search results include `relativePath`, `citation`, `chunkIndex`, exact text, line ranges, page ranges
-when available, structural context, and optional score explanations.
+Search results include `relativePath`, `citation`, `chunkIndex`, exact indexed text, verified source
+line ranges when available, PDF page ranges, structural context, and optional score explanations.
+Citation strings also encode PPTX slides, XLSX sheet and cell ranges, and EPUB spine positions.
+`charStart` and `charEnd` always address the redacted indexed text, not the original source bytes.
+When parsing or redaction invalidates a source-line mapping, `lineStart` and `lineEnd` are `null`
+instead of presenting an unverifiable line claim.
 
 ### Persistent client for Node.js workers
 

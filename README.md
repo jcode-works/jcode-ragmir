@@ -45,10 +45,10 @@ citation before you propose an edit.
 ```
 
 `rgr setup` creates ignored local state under `.ragmir/`, installs project-scoped native skills,
-and writes local MCP helpers. `rgr ingest` is incremental and commits resumable batches of 25 files
-by default. Re-run the same command after an interruption to continue from the last committed
-batch. The agent receives bounded passages with the source path, excerpt, chunk, line range, and
-PDF page when one is available.
+and writes local MCP helpers. `rgr ingest` is incremental, uses bounded parse windows, and commits
+durable progress per file. Re-run the same command after an interruption to continue after the last
+committed file. The agent receives bounded passages with the source path, excerpt, chunk, verified
+source lines when available, PDF pages, PPTX slides, XLSX sheets and cells, or EPUB spine positions.
 
 Prefer a direct search? Run:
 
@@ -211,6 +211,7 @@ Ragmir handles common project and knowledge-base material, including:
 
 - Markdown, plain text, source code, configuration, logs, CSV, JSON, JSONL, and YAML;
 - PDF with page-aware citations, plus optional local OCR for blank pages;
+- PPTX slide, XLSX sheet and cell, and EPUB spine-aware citations;
 - DOCX, PPTX, XLSX, OpenDocument files, EPUB, HTML, RTF, email, and notebooks;
 - additional text extensions configured by the project.
 
@@ -288,7 +289,7 @@ or `es`. The package guides explain the model sizes, preload step, and online bo
 | --- | --- |
 | [Confidential local RAG demo](./packages/ragmir-core/examples/sovereign-rag-demo/README.md) | End-to-end CLI ingestion, retrieval, redaction, audit, and evaluation |
 | [Library API demo](./packages/ragmir-core/examples/library-api-demo/README.md) | The public TypeScript API against a synthetic local corpus |
-| [Document evidence benchmark](./packages/ragmir-core/examples/document-evidence-benchmark/README.md) | Deterministic recall and exact file, line, chunk, and PDF-page citations |
+| [Document evidence benchmark](./packages/ragmir-core/examples/document-evidence-benchmark/README.md) | Deterministic recall and exact verifiable file, line, chunk, and PDF-page citations |
 
 Every committed example uses fictional data. Keep private evaluation corpora and generated reports
 outside Git or under ignored local state.

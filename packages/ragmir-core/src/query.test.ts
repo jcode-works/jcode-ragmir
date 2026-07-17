@@ -448,7 +448,7 @@ describe("search", () => {
     ])
     const ttsEvidence = await search("What proves offline text-to-speech is required?", {
       cwd: root,
-      topK: 3,
+      topK: 5,
     })
     expect(
       ttsEvidence.filter((result) => result.relativePath === "raw/review-notes.evidence"),
@@ -475,7 +475,9 @@ describe("search", () => {
 
     expect(results[0]?.pageStart).toBe(1)
     expect(results[0]?.pageEnd).toBe(1)
-    expect(results[0]?.citation).toContain("brief.pdf:p1:L")
+    expect(results[0]?.citation).toContain("brief.pdf:p1#")
+    expect(results[0]?.lineStart).toBeNull()
+    expect(results[0]?.lineEnd).toBeNull()
 
     const expanded = await expandCitation(results[0]?.citation ?? "", { cwd: root })
     expect(expanded.found).toBe(true)

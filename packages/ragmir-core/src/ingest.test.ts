@@ -570,7 +570,7 @@ describe("ingest", () => {
     const manifest = await readIndexManifest(await loadConfig(root))
     expect(manifest).not.toBeNull()
     expect(manifest?.embeddingProvider).toBe("local-hash")
-    expect(manifest?.schemaVersion).toBe(7)
+    expect(manifest?.schemaVersion).toBe(8)
     expect(manifest?.indexPolicyFingerprint).toBe(indexPolicyFingerprint(await loadConfig(root)))
     expect(manifest?.vectorDimension).toBeGreaterThan(0)
     expect(manifest?.vectorDistanceMetric).toBe("l2")

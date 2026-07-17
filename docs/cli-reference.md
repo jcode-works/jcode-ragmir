@@ -17,7 +17,7 @@ rgr search "release decision"
 | `init` | Create basic local configuration only. |
 | `doctor [--fix]` | Check setup, index freshness, and safe repairs. |
 | `preview` | Parse, redact, and chunk selected sources without writing the index. |
-| `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY]` | Index configured sources in resumable batches; rebuild after provider or chunking changes. |
+| `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY]` | Index configured sources through bounded windows with per-file durable progress; rebuild after provider or chunking changes. |
 | `search <query>` | Return ranked cited passages. |
 | `ask <query>` | Return cited context without model synthesis. |
 | `research <query>` | Run an audit-backed multi-query retrieval pass. |
@@ -67,6 +67,11 @@ concurrency, embedding-batch and file-batch ceilings.
 
 Maintainers can reproduce the 25-file, 50-MB-per-file memory gate with
 `pnpm bench:ingest-memory -- --stress` from the repository root.
+
+Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
+text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and
+`:spine2` for EPUB. Character offsets refer to redacted indexed text. Transformed formats and files
+whose redaction changes line mapping omit line coordinates.
 
 If a changed file fails during parsing, embedding, or its LanceDB write, incremental ingestion keeps
 the previous rows searchable and records the current error, last-good checksum, and stale state.

@@ -1,5 +1,6 @@
 import type { Connection } from "@lancedb/lancedb"
 import { recordAccess } from "./access-log.js"
+import { citationForCoordinates, stripCitationCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { embedText } from "./embeddings.js"
@@ -18,6 +19,7 @@ import type {
   SearchContextChunk,
   SearchOptions,
   SearchResult,
+  SourceLocationKind,
 } from "./types.js"
 
 type RowsTable = NonNullable<Awaited<ReturnType<typeof openRowsTable>>>
@@ -35,6 +37,12 @@ interface SearchRow {
   lineEnd?: number
   pageStart?: number
   pageEnd?: number
+  locationKind?: SourceLocationKind
+  locationStart?: number
+  locationEnd?: number
+  locationLabel?: string
+  cellStart?: string
+  cellEnd?: string
   _distance?: number
   _score?: number
 }
@@ -90,6 +98,12 @@ const SEARCH_COLUMNS = [
   "lineEnd",
   "pageStart",
   "pageEnd",
+  "locationKind",
+  "locationStart",
+  "locationEnd",
+  "locationLabel",
+  "cellStart",
+  "cellEnd",
 ]
 const VECTOR_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_distance"]
 const FTS_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_score"]
@@ -164,8 +178,8 @@ export async function searchWithConfig(
       distance: vectorDistance,
       charStart: nullableNumber(row.row.charStart),
       charEnd: nullableNumber(row.row.charEnd),
-      lineStart: nullableNumber(row.row.lineStart),
-      lineEnd: nullableNumber(row.row.lineEnd),
+      lineStart: nullableLineNumber(row.row.lineStart),
+      lineEnd: nullableLineNumber(row.row.lineEnd),
       pageStart: nullablePageNumber(row.row.pageStart),
       pageEnd: nullablePageNumber(row.row.pageEnd),
       context: contextByRow.get(rowKey(row.row)) ?? [],
@@ -605,8 +619,8 @@ function contextChunkForRow(row: SearchRow): SearchContextChunk {
     text: row.text,
     charStart: nullableNumber(row.charStart),
     charEnd: nullableNumber(row.charEnd),
-    lineStart: nullableNumber(row.lineStart),
-    lineEnd: nullableNumber(row.lineEnd),
+    lineStart: nullableLineNumber(row.lineStart),
+    lineEnd: nullableLineNumber(row.lineEnd),
     pageStart: nullablePageNumber(row.pageStart),
     pageEnd: nullablePageNumber(row.pageEnd),
     citation: citationForRow(row),
@@ -808,8 +822,7 @@ function parseCitationTarget(citation: string): { relativePath: string; chunkInd
 
   const chunkIndex = Number.parseInt(chunkIndexText, 10)
   let relativePath = citation.slice(0, match.index)
-  relativePath = relativePath.replace(/:L\d+-L\d+$/u, "")
-  relativePath = relativePath.replace(/:p\d+(?:-p\d+)?$/u, "")
+  relativePath = stripCitationCoordinates(relativePath)
   if (!relativePath) {
     throw new Error("Citation must include a source path before its chunk suffix.")
   }
@@ -834,18 +847,7 @@ function normalizeTopK(topK: number): number {
 }
 
 function citationForRow(row: SearchRow): string {
-  const lineStart = nullableNumber(row.lineStart)
-  const lineEnd = nullableNumber(row.lineEnd)
-  const pageStart = nullablePageNumber(row.pageStart)
-  const pageEnd = nullablePageNumber(row.pageEnd)
-  const pageSegment =
-    pageStart === null
-      ? ""
-      : `:p${pageStart}${pageEnd !== null && pageEnd !== pageStart ? `-p${pageEnd}` : ""}`
-  if (lineStart === null || lineEnd === null) {
-    return `${row.relativePath}${pageSegment}#${row.chunkIndex}`
-  }
-  return `${row.relativePath}${pageSegment}:L${lineStart}-L${lineEnd}#${row.chunkIndex}`
+  return citationForCoordinates(row)
 }
 
 function lexicalQuery(query: string): string {
@@ -858,6 +860,10 @@ function compareChunkRows(a: SearchRow, b: SearchRow): number {
 
 function nullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function nullableLineNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null
 }
 
 function nullablePageNumber(value: unknown): number | null {

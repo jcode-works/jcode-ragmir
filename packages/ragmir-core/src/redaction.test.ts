@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { redactText } from "./redaction.js"
+import { chunkDocument } from "./chunking.js"
+import { redactDocument, redactText } from "./redaction.js"
 import { testConfig } from "./test-support/config.js"
+import type { ParsedDocument } from "./types.js"
 
 // Build the PEM header from a variable so the repo's public-surface secret scanner
 // (scripts/public-surface-smoke.mjs) does not flag this fixture as a real leaked key.
@@ -165,5 +167,58 @@ describe("redactText", () => {
     const result = redactText(obfuscated, config)
 
     expect(result.text).toBe(obfuscated)
+  })
+
+  it("should preserve page provenance when an earlier page changes length", () => {
+    const pageOne = "Contact first-page@example.com for access."
+    const pageTwo = "Page two contains the durable decision."
+    const text = `${pageOne}\n\n${pageTwo}`
+    const document: ParsedDocument = {
+      file: {
+        absolutePath: "/tmp/pages.pdf",
+        relativePath: "pages.pdf",
+        source: "pages.pdf",
+        extension: ".pdf",
+        bytes: text.length,
+        mtimeMs: 1,
+        checksum: "pages",
+      },
+      text,
+      sourceLineCoordinates: false,
+      pages: [
+        { pageNumber: 1, charStart: 0, charEnd: pageOne.length },
+        { pageNumber: 2, charStart: pageOne.length + 2, charEnd: text.length },
+      ],
+      regions: [
+        {
+          charStart: 0,
+          charEnd: pageOne.length,
+          contextPath: "Page 1",
+          location: { kind: "page", start: 1, end: 1 },
+        },
+        {
+          charStart: pageOne.length + 2,
+          charEnd: text.length,
+          contextPath: "Page 2",
+          location: { kind: "page", start: 2, end: 2 },
+        },
+      ],
+    }
+
+    const redacted = redactDocument(document, testConfig())
+    const chunks = chunkDocument(redacted.document, 80, 0)
+    const pageTwoChunk = chunks.find((chunk) => chunk.text.includes("durable decision"))
+
+    expect(redacted.counts).toContainEqual({ name: "email", count: 1 })
+    expect(pageTwoChunk).toEqual(
+      expect.objectContaining({
+        pageStart: 2,
+        pageEnd: 2,
+        locationKind: "page",
+        locationStart: 2,
+      }),
+    )
+    expect(pageTwoChunk?.lineStart).toBeUndefined()
+    expect(pageTwoChunk?.lineEnd).toBeUndefined()
   })
 })

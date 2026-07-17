@@ -210,13 +210,33 @@ export interface SourceInventory {
 export interface ParsedDocument {
   file: SourceFile
   text: string
+  sourceLineCoordinates?: boolean
   pages?: ParsedPage[]
+  regions?: ParsedRegion[]
 }
 
 export interface ParsedPage {
   pageNumber: number
   charStart: number
   charEnd: number
+}
+
+export type SourceLocationKind = "page" | "slide" | "sheet" | "epub"
+
+export interface SourceLocation {
+  kind: SourceLocationKind
+  start: number
+  end: number
+  label?: string
+  cellStart?: string
+  cellEnd?: string
+}
+
+export interface ParsedRegion {
+  charStart: number
+  charEnd: number
+  contextPath: string
+  location: SourceLocation
 }
 
 export interface TextChunk {
@@ -228,10 +248,16 @@ export interface TextChunk {
   text: string
   charStart: number
   charEnd: number
-  lineStart: number
-  lineEnd: number
+  lineStart?: number
+  lineEnd?: number
   pageStart?: number
   pageEnd?: number
+  locationKind?: SourceLocationKind
+  locationStart?: number
+  locationEnd?: number
+  locationLabel?: string
+  cellStart?: string
+  cellEnd?: string
   checksum: string
   bytes: number
   mtimeMs: number
@@ -336,8 +362,8 @@ export interface PreviewChunk {
   text: string
   charStart: number
   charEnd: number
-  lineStart: number
-  lineEnd: number
+  lineStart: number | null
+  lineEnd: number | null
   pageStart: number | null
   pageEnd: number | null
 }

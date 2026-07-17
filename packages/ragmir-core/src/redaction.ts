@@ -1,4 +1,10 @@
-import type { Config, RedactionCount, RedactionPattern } from "./types.js"
+import type {
+  Config,
+  ParsedDocument,
+  ParsedRegion,
+  RedactionCount,
+  RedactionPattern,
+} from "./types.js"
 
 const BUILT_IN_PATTERNS: RedactionPattern[] = [
   {
@@ -112,6 +118,86 @@ export function redactText(
   }
 
   return { text, counts }
+}
+
+export function redactDocument(
+  document: ParsedDocument,
+  config: Config,
+): { document: ParsedDocument; counts: RedactionCount[] } {
+  const sourceRegions = document.regions ?? pageRegions(document)
+  if (sourceRegions.length === 0) {
+    const redacted = redactText(document.text, config)
+    return {
+      document: {
+        ...document,
+        text: redacted.text,
+        sourceLineCoordinates:
+          document.sourceLineCoordinates === true && redacted.counts.length === 0,
+      },
+      counts: redacted.counts,
+    }
+  }
+
+  let text = ""
+  let cursor = 0
+  const regions: ParsedRegion[] = []
+  const counts = new Map<string, number>()
+  const appendRedacted = (value: string): void => {
+    const redacted = redactText(value, config)
+    text += redacted.text
+    for (const count of redacted.counts) {
+      counts.set(count.name, (counts.get(count.name) ?? 0) + count.count)
+    }
+  }
+
+  for (const region of [...sourceRegions].sort((left, right) => left.charStart - right.charStart)) {
+    if (region.charStart < cursor || region.charEnd < region.charStart) {
+      throw new Error("Parsed source regions must be ordered and non-overlapping.")
+    }
+    appendRedacted(document.text.slice(cursor, region.charStart))
+    const charStart = text.length
+    appendRedacted(document.text.slice(region.charStart, region.charEnd))
+    regions.push({ ...region, charStart, charEnd: text.length })
+    cursor = region.charEnd
+  }
+  appendRedacted(document.text.slice(cursor))
+
+  const redactionCounts = [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, count]) => ({ name, count }))
+  const pages = document.pages
+    ? regions.flatMap((region) =>
+        region.location.kind === "page"
+          ? [
+              {
+                pageNumber: region.location.start,
+                charStart: region.charStart,
+                charEnd: region.charEnd,
+              },
+            ]
+          : [],
+      )
+    : undefined
+  return {
+    document: {
+      ...document,
+      text,
+      regions,
+      ...(pages ? { pages } : {}),
+      sourceLineCoordinates:
+        document.sourceLineCoordinates === true && redactionCounts.length === 0,
+    },
+    counts: redactionCounts,
+  }
+}
+
+function pageRegions(document: ParsedDocument): ParsedRegion[] {
+  return (document.pages ?? []).map((page) => ({
+    charStart: page.charStart,
+    charEnd: page.charEnd,
+    contextPath: `Page ${page.pageNumber}`,
+    location: { kind: "page", start: page.pageNumber, end: page.pageNumber },
+  }))
 }
 
 /**

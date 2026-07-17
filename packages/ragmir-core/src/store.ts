@@ -6,7 +6,7 @@ import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
 import { isRecord } from "./guards.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import { isIndexQualityReport } from "./quality-report.js"
-import type { Config, IndexManifest, VectorRow } from "./types.js"
+import type { Config, IndexManifest, SourceLocationKind, VectorRow } from "./types.js"
 
 const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json"
 
@@ -303,28 +303,90 @@ export async function countRows(config: Config): Promise<number> {
   return table ? table.countRows() : 0
 }
 
-interface StoredVectorRow extends Omit<VectorRow, "vector" | "pageStart" | "pageEnd"> {
+interface StoredVectorRow
+  extends Omit<
+    VectorRow,
+    | "vector"
+    | "lineStart"
+    | "lineEnd"
+    | "pageStart"
+    | "pageEnd"
+    | "locationKind"
+    | "locationStart"
+    | "locationEnd"
+    | "locationLabel"
+    | "cellStart"
+    | "cellEnd"
+  > {
   vector: unknown
+  lineStart?: unknown
+  lineEnd?: unknown
   pageStart?: unknown
   pageEnd?: unknown
+  locationKind?: unknown
+  locationStart?: unknown
+  locationEnd?: unknown
+  locationLabel?: unknown
+  cellStart?: unknown
+  cellEnd?: unknown
 }
 
 function storedRows(rows: VectorRow[]): Array<Record<string, unknown>> {
   return rows.map((row) => ({
     ...row,
+    lineStart: row.lineStart ?? 0,
+    lineEnd: row.lineEnd ?? 0,
     pageStart: row.pageStart ?? 0,
     pageEnd: row.pageEnd ?? 0,
+    locationKind: row.locationKind ?? "",
+    locationStart: row.locationStart ?? 0,
+    locationEnd: row.locationEnd ?? 0,
+    locationLabel: row.locationLabel ?? "",
+    cellStart: row.cellStart ?? "",
+    cellEnd: row.cellEnd ?? "",
   }))
 }
 
 function vectorRowFromStored(row: StoredVectorRow): VectorRow {
-  const { pageStart, pageEnd, ...rest } = row
+  const {
+    lineStart,
+    lineEnd,
+    pageStart,
+    pageEnd,
+    locationKind,
+    locationStart,
+    locationEnd,
+    locationLabel,
+    cellStart,
+    cellEnd,
+    ...rest
+  } = row
   return {
     ...rest,
     vector: normalizeVector(row.vector),
+    ...(positiveStoredInteger(lineStart) ? { lineStart } : {}),
+    ...(positiveStoredInteger(lineEnd) ? { lineEnd } : {}),
     ...(typeof pageStart === "number" && pageStart > 0 ? { pageStart } : {}),
     ...(typeof pageEnd === "number" && pageEnd > 0 ? { pageEnd } : {}),
+    ...(isSourceLocationKind(locationKind) ? { locationKind } : {}),
+    ...(positiveStoredInteger(locationStart) ? { locationStart } : {}),
+    ...(positiveStoredInteger(locationEnd) ? { locationEnd } : {}),
+    ...(nonEmptyStoredString(locationLabel) ? { locationLabel } : {}),
+    ...(nonEmptyStoredString(cellStart) ? { cellStart } : {}),
+    ...(nonEmptyStoredString(cellEnd) ? { cellEnd } : {}),
   }
+}
+
+function positiveStoredInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+}
+
+function nonEmptyStoredString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0
+}
+
+function isSourceLocationKind(value: unknown): value is SourceLocationKind {
+  return value === "page" || value === "slide" || value === "sheet" || value === "epub"
 }
 
 function sqlString(value: string): string {

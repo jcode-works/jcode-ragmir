@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process"
 import { readFile } from "node:fs/promises"
+import path from "node:path"
 import { strFromU8, unzipSync } from "fflate"
 import { htmlToText } from "html-to-text"
 import readExcelFile from "read-excel-file/node"
@@ -18,11 +19,18 @@ import {
   MAX_PDF_TEXT_CHARACTERS,
 } from "./limits.js"
 import { throwIfAborted } from "./operation.js"
-import type { ParsedDocument, ParsedPage, SourceFile } from "./types.js"
+import type {
+  ParsedDocument,
+  ParsedPage,
+  ParsedRegion,
+  SourceFile,
+  SourceLocation,
+} from "./types.js"
 
 const EXTERNAL_COMMAND_KILL_GRACE_MS = 2_000
 const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu
-const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm)$/iu
+const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm|opf)$/iu
+const NATURAL_PATH_ORDER = new Intl.Collator("en", { numeric: true, sensitivity: "base" })
 const HTML_TO_TEXT_OPTIONS = {
   wordwrap: false,
   selectors: [
@@ -49,10 +57,12 @@ export async function parseFile(
   throwIfAborted(options.signal)
   let text: string
   let pages: ParsedPage[] | undefined
+  let regions: ParsedRegion[] | undefined
+  let sourceLineCoordinates = false
 
   switch (file.extension) {
     case ".pdf":
-      ;({ text, pages } = await parsePdf(file.absolutePath, options))
+      ;({ text, pages, regions } = await parsePdf(file.absolutePath, options))
       break
     case ".doc":
       text = await parseLegacyWord(file.absolutePath, options)
@@ -61,10 +71,10 @@ export async function parseFile(
       text = await parseDocx(file.absolutePath)
       break
     case ".pptx":
-      text = await parsePptx(file.absolutePath)
+      ;({ text, regions } = await parsePptx(file.absolutePath))
       break
     case ".xlsx":
-      text = await parseXlsx(file.absolutePath)
+      ;({ text, regions } = await parseXlsx(file.absolutePath))
       break
     case ".avif":
     case ".bmp":
@@ -85,31 +95,41 @@ export async function parseFile(
       text = await parseOpenDocument(file.absolutePath)
       break
     case ".epub":
-      text = await parseEpub(file.absolutePath)
+      ;({ text, regions } = await parseEpub(file.absolutePath))
       break
     case ".html":
     case ".htm":
       text = htmlToText(await readFile(file.absolutePath, "utf8"), HTML_TO_TEXT_OPTIONS)
       break
     case ".json":
-    case ".ipynb":
+    case ".ipynb": {
       text = JSON.stringify(JSON.parse(await readFile(file.absolutePath, "utf8")), null, 2)
       break
+    }
     case ".yaml":
-    case ".yml":
+    case ".yml": {
       text = YAML.stringify(YAML.parse(await readFile(file.absolutePath, "utf8")))
       break
+    }
     case ".rtf":
       text = stripRtf(await readFile(file.absolutePath, "utf8"))
       break
     default:
       text = await readFile(file.absolutePath, "utf8")
+      sourceLineCoordinates = true
   }
 
   throwIfAborted(options.signal)
-  const document: ParsedDocument = { file, text: normalizeText(text) }
+  const document: ParsedDocument = {
+    file,
+    text: regions ? text : normalizeText(text, sourceLineCoordinates),
+    sourceLineCoordinates,
+  }
   if (pages) {
     document.pages = pages
+  }
+  if (regions) {
+    document.regions = regions
   }
   return document
 }
@@ -121,29 +141,92 @@ async function parseDocx(filePath: string): Promise<string> {
   return result.value
 }
 
-async function parsePptx(filePath: string): Promise<string> {
+async function parsePptx(filePath: string): Promise<{ text: string; regions: ParsedRegion[] }> {
   const entries = unzipOfficeFile(await readFile(filePath))
-  return xmlEntriesToText(entries, [
-    /^ppt\/slides\/slide\d+\.xml$/u,
-    /^ppt\/notesSlides\/notesSlide\d+\.xml$/u,
-  ])
+  const slides = orderedPresentationSlides(entries)
+  const notes = new Map(
+    numberedOfficeParts(entries, /^ppt\/notesSlides\/notesSlide(\d+)\.xml$/u).map((part) => [
+      part.number,
+      part.text,
+    ]),
+  )
+  const parts = slides.flatMap((slide, index) => {
+    const noteText = presentationSlideNotes(entries, slide.number) ?? notes.get(slide.number) ?? ""
+    const text = [slide.text, noteText].filter(Boolean).join("\n\n")
+    const slideNumber = index + 1
+    return text
+      ? [
+          {
+            text,
+            contextPath: `Slide ${slideNumber}`,
+            location: {
+              kind: "slide" as const,
+              start: slideNumber,
+              end: slideNumber,
+            },
+          },
+        ]
+      : []
+  })
+  return joinLocatedParts(parts)
 }
 
-async function parseXlsx(filePath: string): Promise<string> {
+function presentationSlideNotes(entries: Map<string, string>, slideNumber: number): string | null {
+  const relationships = entries.get(`ppt/slides/_rels/slide${slideNumber}.xml.rels`)
+  if (!relationships) {
+    return null
+  }
+
+  for (const relationship of xmlStartTags(relationships, "Relationship")) {
+    const target = xmlAttribute(relationship, "Target")
+    if (!target) {
+      continue
+    }
+    const entry = path.posix.normalize(path.posix.join("ppt/slides", target))
+    if (!/^ppt\/notesSlides\/notesSlide\d+\.xml$/u.test(entry)) {
+      continue
+    }
+    const xml = entries.get(entry)
+    if (xml) {
+      return xmlToText(xml)
+    }
+  }
+  return null
+}
+
+async function parseXlsx(filePath: string): Promise<{ text: string; regions: ParsedRegion[] }> {
   const buffer = await readFile(filePath)
   unzipOfficeFile(buffer)
   const workbook = await readExcelFile(buffer, { trim: false })
-  const sheets: string[] = []
+  const parts: Array<{ text: string; contextPath: string; location: SourceLocation }> = []
 
-  for (const sheet of workbook) {
-    const rows = sheet.data.map(spreadsheetRowToText).filter((row) => row.some(Boolean))
-
-    if (rows.length > 0) {
-      sheets.push(`# ${sheet.sheet}`, rows.map((row) => row.join("\t")).join("\n"))
+  for (const [sheetIndex, sheet] of workbook.entries()) {
+    let firstRow = true
+    for (const [rowIndex, rawRow] of sheet.data.entries()) {
+      const row = spreadsheetRowToText(rawRow)
+      const firstColumn = row.findIndex(Boolean)
+      if (firstColumn < 0) {
+        continue
+      }
+      const lastColumn = lastNonEmptyIndex(row)
+      const rowNumber = rowIndex + 1
+      parts.push({
+        text: `${firstRow ? `# ${sheet.sheet}\n` : ""}${row.join("\t")}`,
+        contextPath: `Sheet: ${sheet.sheet}`,
+        location: {
+          kind: "sheet",
+          start: sheetIndex + 1,
+          end: sheetIndex + 1,
+          label: sheet.sheet,
+          cellStart: `${spreadsheetColumnName(firstColumn + 1)}${rowNumber}`,
+          cellEnd: `${spreadsheetColumnName(lastColumn + 1)}${rowNumber}`,
+        },
+      })
+      firstRow = false
     }
   }
 
-  return sheets.join("\n\n")
+  return joinLocatedParts(parts)
 }
 
 async function parseImage(
@@ -186,19 +269,162 @@ async function parseOpenDocument(filePath: string): Promise<string> {
   return xmlEntriesToText(entries, [/^content\.xml$/u, /^meta\.xml$/u])
 }
 
-async function parseEpub(filePath: string): Promise<string> {
+async function parseEpub(filePath: string): Promise<{ text: string; regions: ParsedRegion[] }> {
   const entries = unzipOfficeFile(await readFile(filePath))
-  const parts: string[] = []
-  for (const [name, content] of [...entries.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    if (!/\.(?:xhtml|html|htm|xml)$/iu.test(name)) {
-      continue
+  const orderedEntries = epubReadingOrder(entries)
+  const parts = orderedEntries.flatMap((name, index) => {
+    const content = entries.get(name)
+    if (content === undefined) {
+      return []
     }
     const text = htmlToText(content, HTML_TO_TEXT_OPTIONS)
-    if (text.trim()) {
-      parts.push(text)
+    return text.trim()
+      ? [
+          {
+            text,
+            contextPath: `EPUB: ${name}`,
+            location: {
+              kind: "epub" as const,
+              start: index + 1,
+              end: index + 1,
+              label: name,
+            },
+          },
+        ]
+      : []
+  })
+  return joinLocatedParts(parts)
+}
+
+function numberedOfficeParts(
+  entries: Map<string, string>,
+  pattern: RegExp,
+): Array<{ number: number; text: string }> {
+  return [...entries.entries()]
+    .flatMap(([name, xml]) => {
+      const match = pattern.exec(name)
+      const number = Number(match?.[1])
+      const text = match && Number.isSafeInteger(number) && number > 0 ? xmlToText(xml) : ""
+      return text ? [{ number, text }] : []
+    })
+    .sort((left, right) => left.number - right.number)
+}
+
+function orderedPresentationSlides(
+  entries: Map<string, string>,
+): Array<{ number: number; text: string }> {
+  const natural = numberedOfficeParts(entries, /^ppt\/slides\/slide(\d+)\.xml$/u)
+  const presentation = entries.get("ppt/presentation.xml")
+  const relationships = entries.get("ppt/_rels/presentation.xml.rels")
+  if (!presentation || !relationships) {
+    return natural
+  }
+
+  const targets = new Map<string, string>()
+  for (const relationship of xmlStartTags(relationships, "Relationship")) {
+    const id = xmlAttribute(relationship, "Id")
+    const target = xmlAttribute(relationship, "Target")
+    if (id && target) {
+      targets.set(id, path.posix.normalize(path.posix.join("ppt", target)))
     }
   }
-  return parts.join("\n\n")
+  const byNumber = new Map(natural.map((slide) => [slide.number, slide]))
+  const ordered = xmlStartTags(presentation, "sldId").flatMap((slide) => {
+    const relationshipId = xmlAttribute(slide, "r:id")
+    const target = relationshipId ? targets.get(relationshipId) : undefined
+    const match = target ? /^ppt\/slides\/slide(\d+)\.xml$/u.exec(target) : null
+    const number = Number(match?.[1])
+    const part = Number.isSafeInteger(number) ? byNumber.get(number) : undefined
+    if (!part) {
+      return []
+    }
+    byNumber.delete(number)
+    return [part]
+  })
+  return ordered.length > 0 ? [...ordered, ...byNumber.values()] : natural
+}
+
+function joinLocatedParts(
+  parts: Array<{ text: string; contextPath: string; location: SourceLocation }>,
+): { text: string; regions: ParsedRegion[] } {
+  let text = ""
+  const regions: ParsedRegion[] = []
+  for (const part of parts) {
+    const normalized = normalizeText(part.text)
+    if (!normalized) {
+      continue
+    }
+    if (text) {
+      text += "\n\n"
+    }
+    const charStart = text.length
+    text += normalized
+    regions.push({
+      charStart,
+      charEnd: text.length,
+      contextPath: part.contextPath,
+      location: part.location,
+    })
+  }
+  return { text, regions }
+}
+
+function epubReadingOrder(entries: Map<string, string>): string[] {
+  const htmlEntries = [...entries.keys()]
+    .filter((name) => /\.(?:xhtml|html|htm)$/iu.test(name))
+    .sort((left, right) => NATURAL_PATH_ORDER.compare(left, right))
+  const containerPath = [...entries.keys()].find(
+    (name) => name.toLowerCase() === "meta-inf/container.xml",
+  )
+  const container = containerPath ? entries.get(containerPath) : undefined
+  const packagePath = container ? firstXmlAttribute(container, "rootfile", "full-path") : null
+  const packageXml = packagePath ? entries.get(packagePath) : undefined
+  if (!packagePath || !packageXml) {
+    return htmlEntries
+  }
+
+  const packageDirectory = path.posix.dirname(packagePath)
+  const manifest = new Map<string, string>()
+  for (const element of xmlStartTags(packageXml, "item")) {
+    const id = xmlAttribute(element, "id")
+    const href = xmlAttribute(element, "href")
+    if (id && href) {
+      manifest.set(id, resolveEpubEntry(packageDirectory, href))
+    }
+  }
+  const spine = xmlStartTags(packageXml, "itemref").flatMap((element) => {
+    const id = xmlAttribute(element, "idref")
+    const entry = id ? manifest.get(id) : undefined
+    return entry && entries.has(entry) ? [entry] : []
+  })
+  return spine.length > 0 ? [...new Set(spine)] : htmlEntries
+}
+
+function resolveEpubEntry(packageDirectory: string, href: string): string {
+  const withoutFragment = href.split("#", 1)[0] ?? href
+  let decoded = withoutFragment
+  try {
+    decoded = decodeURIComponent(withoutFragment)
+  } catch {
+    // Keep the literal manifest path when percent encoding is malformed.
+  }
+  return path.posix.normalize(path.posix.join(packageDirectory, decoded))
+}
+
+function xmlStartTags(xml: string, localName: string): string[] {
+  return [...xml.matchAll(new RegExp(`<(?:[A-Za-z_][\\w.-]*:)?${localName}\\b[^>]*>`, "giu"))].map(
+    (match) => match[0],
+  )
+}
+
+function firstXmlAttribute(xml: string, element: string, attribute: string): string | null {
+  const tag = xmlStartTags(xml, element)[0]
+  return tag ? xmlAttribute(tag, attribute) : null
+}
+
+function xmlAttribute(element: string, name: string): string | null {
+  const match = new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, "iu").exec(element)
+  return match?.[2] ? decodeXmlEntities(match[2]) : null
 }
 
 function unzipOfficeFile(buffer: Buffer): Map<string, string> {
@@ -275,6 +501,26 @@ function spreadsheetCellToText(value: unknown): string {
   return JSON.stringify(value)
 }
 
+function spreadsheetColumnName(column: number): string {
+  let current = column
+  let name = ""
+  while (current > 0) {
+    current -= 1
+    name = String.fromCharCode(65 + (current % 26)) + name
+    current = Math.floor(current / 26)
+  }
+  return name
+}
+
+function lastNonEmptyIndex(values: string[]): number {
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    if (values[index]) {
+      return index
+    }
+  }
+  return -1
+}
+
 function xmlToText(xml: string): string {
   return normalizeText(
     decodeXmlEntities(
@@ -308,7 +554,7 @@ function decodeXmlEntities(input: string): string {
 async function parsePdf(
   filePath: string,
   options: ParseFileOptions,
-): Promise<{ text: string; pages: ParsedPage[] }> {
+): Promise<{ text: string; pages: ParsedPage[]; regions: ParsedRegion[] }> {
   const buffer = await readFile(filePath)
   let pdf: Awaited<ReturnType<typeof getDocumentProxy>>
   try {
@@ -381,18 +627,30 @@ function normalizePdfPageText(text: string): string {
   return normalizeText(text).replace(/([\p{L}\p{N}])-\n([\p{Ll}])/gu, "$1$2")
 }
 
-function joinPdfPages(pageTexts: string[]): { text: string; pages: ParsedPage[] } {
+function joinPdfPages(pageTexts: string[]): {
+  text: string
+  pages: ParsedPage[]
+  regions: ParsedRegion[]
+} {
   let text = ""
   const pages: ParsedPage[] = []
+  const regions: ParsedRegion[] = []
   for (const [index, pageText] of pageTexts.entries()) {
     if (index > 0) {
       text += "\n\n"
     }
     const charStart = text.length
     text += pageText
-    pages.push({ pageNumber: index + 1, charStart, charEnd: text.length })
+    const pageNumber = index + 1
+    pages.push({ pageNumber, charStart, charEnd: text.length })
+    regions.push({
+      charStart,
+      charEnd: text.length,
+      contextPath: `Page ${pageNumber}`,
+      location: { kind: "page", start: pageNumber, end: pageNumber },
+    })
   }
-  return { text, pages }
+  return { text, pages, regions }
 }
 
 interface ExternalTextCommandOptions {
@@ -570,10 +828,12 @@ function externalCommandEnvironment(): NodeJS.ProcessEnv {
   )
 }
 
-function normalizeText(input: string): string {
-  return input
-    .replace(LONG_BASE64_TEXT_PATTERN, " ")
-    .replace(/\r\n/g, "\n")
+function normalizeText(input: string, preserveSourceLines = false): string {
+  const normalized = input.replace(LONG_BASE64_TEXT_PATTERN, " ").replace(/\r\n?/gu, "\n")
+  if (preserveSourceLines) {
+    return normalized.replace(/[ \t]+\n/gu, "\n").trimEnd()
+  }
+  return normalized
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{4,}/g, "\n\n\n")
     .trim()

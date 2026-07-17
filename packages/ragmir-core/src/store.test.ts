@@ -59,7 +59,20 @@ describe("store", () => {
     tempDirs.push(root)
     const config = testConfig(root)
 
-    await writeRows([sampleRow(".ragmir/raw/evidence.md", 0, [0.1, 0.2, 0.3], config)], config)
+    await writeRows(
+      [
+        {
+          ...sampleRow(".ragmir/raw/evidence.md", 0, [0.1, 0.2, 0.3], config),
+          locationKind: "sheet" as const,
+          locationStart: 2,
+          locationEnd: 2,
+          locationLabel: "Finance & Ops",
+          cellStart: "A7",
+          cellEnd: "D7",
+        },
+      ],
+      config,
+    )
 
     const rows = await readRows(config)
 
@@ -71,6 +84,16 @@ describe("store", () => {
     expect(rows[0]?.embeddingProvider).toBe("local-hash")
     expect(rows[0]?.contextPath).toBe("Evidence")
     expect(rows[0]?.searchText).toBe("Evidence\ncontent 0")
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        locationKind: "sheet",
+        locationStart: 2,
+        locationEnd: 2,
+        locationLabel: "Finance & Ops",
+        cellStart: "A7",
+        cellEnd: "D7",
+      }),
+    )
   })
 
   it("drops the table when writing zero rows", async () => {
@@ -163,7 +186,7 @@ describe("store", () => {
 
     await writeIndexManifest(
       {
-        schemaVersion: 7,
+        schemaVersion: 8,
         createdAt: "2026-07-14T00:00:00.000Z",
         ragmirVersion: "test",
         embeddingProvider: config.embeddingProvider,
@@ -187,7 +210,7 @@ describe("store", () => {
     tempDirs.push(root)
     const config = testConfig(root)
     const manifest: IndexManifest = {
-      schemaVersion: 7,
+      schemaVersion: 8,
       createdAt: "2026-07-17T00:00:00.000Z",
       ragmirVersion: "test",
       embeddingProvider: config.embeddingProvider,

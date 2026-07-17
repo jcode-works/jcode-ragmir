@@ -27,6 +27,7 @@
 - Keep `.ragmir/` ignored. Use local-hash retrieval by default, redact before indexing, keep access logs metadata-only, and bound MCP retrieval.
 - Keep ingestion windows bounded independently by source bytes, estimated chunks, vector bytes, file count, and concurrency; commit durable progress per file.
 - External extraction remains opt-in. OCR only runs for blank PDF pages through a configured local command, never a shell or cloud service.
+- Emit line citations only when they map to source lines; use format-native page, slide, sheet/cell, and EPUB spine coordinates for transformed documents.
 - Do not claim universal binary support, blanket compliance, legal advice, or certification.
 
 ## Documentation
