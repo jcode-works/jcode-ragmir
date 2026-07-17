@@ -74,3 +74,7 @@ and compares Recall@K, nDCG@10, citations, p50/p95/p99 latency, peak RSS, model 
 `bench:index-compression-experiment` compares float32 and float16 vector storage against the same
 exact-search reference on M and L. It sweeps IVF-PQ query profiles and HNSW-SQ `ef`, prunes obsolete
 versions before measuring physical bytes, and retains only recall-safe Pareto improvements.
+
+`bench:content-dedup-experiment` compares duplicated source rows with canonical content plus source
+aliases on a mirror-heavy corpus. It gates physical storage, join latency, ranking, citations,
+single-source deletion, last-source deletion, and an injected stop between cross-table commits.
