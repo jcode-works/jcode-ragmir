@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { strToU8, zipSync } from "fflate"
@@ -343,6 +343,64 @@ describe("parseFile", () => {
     expect(parsed.pages?.[1]?.pageNumber).toBe(2)
   })
 
+  it("should batch and privately cache blank PDF pages by content and OCR policy", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pdf-ocr-cache-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "scan.pdf")
+    const counterPath = path.join(root, "ocr-calls.txt")
+    const ocrScriptPath = path.join(root, "ocr-batch-wrapper.mjs")
+    await writeFile(filePath, createBlankPdfPages(4))
+    await writeFile(
+      ocrScriptPath,
+      [
+        'import { appendFileSync } from "node:fs"',
+        `appendFileSync(${JSON.stringify(counterPath)}, process.env.RAGMIR_PDF_PAGES + "\\n")`,
+        'const pages = process.env.RAGMIR_PDF_PAGES.split(",").map(Number)',
+        'process.stdout.write(JSON.stringify({ subprocesses: 2, pages: pages.map((page) => ({ page, text: "Cached evidence page " + page })) }))',
+      ].join("\n"),
+    )
+    const file = sourceFile(root, filePath, ".pdf")
+    const options = {
+      projectRoot: root,
+      pdfOcrCommand: [process.execPath, ocrScriptPath, "--language", "eng", "{input}", "{pages}"],
+      pdfOcrTimeoutMs: 5_000,
+    }
+
+    const cold = await parseFile(file, options)
+    const warm = await parseFile(file, options)
+
+    expect(warm.text).toBe(cold.text)
+    expect(cold.ocr).toMatchObject({
+      pages: 4,
+      cacheHits: 0,
+      cacheMisses: 4,
+      batches: 1,
+      subprocesses: 3,
+    })
+    expect(warm.ocr).toMatchObject({
+      pages: 4,
+      cacheHits: 4,
+      cacheMisses: 0,
+      batches: 0,
+      subprocesses: 0,
+    })
+    const cacheRoot = path.join(root, ".ragmir", "ocr-cache")
+    const cacheEntries = (await readdir(cacheRoot, { recursive: true })).filter((entry) =>
+      entry.endsWith(".json"),
+    )
+    expect(cacheEntries).toHaveLength(4)
+    if (process.platform !== "win32") {
+      const firstEntry = cacheEntries[0]
+      if (!firstEntry) {
+        throw new Error("Expected a private OCR cache entry.")
+      }
+      expect((await stat(path.join(cacheRoot, firstEntry))).mode & 0o777).toBe(0o600)
+      expect((await stat(cacheRoot)).mode & 0o777).toBe(0o700)
+      expect((await stat(path.dirname(path.join(cacheRoot, firstEntry)))).mode & 0o777).toBe(0o700)
+    }
+    expect((await stat(counterPath)).size).toBeGreaterThan(0)
+  })
+
   it("uses an opt-in OCR command for image files", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-image-ocr-"))
     tempDirs.push(root)
@@ -678,6 +736,19 @@ trailer
 startxref
 190
 %%EOF`
+}
+
+function createBlankPdfPages(pageCount: number): string {
+  const pageObjects = Array.from(
+    { length: pageCount },
+    () => "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+  )
+  const pageReferences = pageObjects.map((_page, index) => `${index + 3} 0 R`).join(" ")
+  return createPdf([
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pageReferences}] /Count ${pageCount} >>`,
+    ...pageObjects,
+  ])
 }
 
 function createMixedPdf(): string {

@@ -60,6 +60,7 @@ import type {
   IngestOptions,
   IngestResult,
   OperationOptions,
+  PdfOcrMetrics,
   SourceDiagnostics,
   SourceFile,
   TextChunk,
@@ -216,6 +217,7 @@ async function ingestUnlocked(
     let lexicalIndexWarning: string | null = null
     let storageWarning: string | null = null
     let storageMutations = 0
+    const ocr = emptyPdfOcrMetrics()
     const failurePolicy = incrementalFailurePolicy(options, config)
 
     for (const fileWindow of ingestionWindows(pendingFiles, state.batchSize, config)) {
@@ -227,6 +229,7 @@ async function ingestUnlocked(
         async (file) => parseSourceFile(file, config, signal),
       )
       for (const parsed of parsedWindow) {
+        mergePdfOcrMetrics(ocr, parsed.ocr)
         state = updateIngestionFile(
           state,
           parsed.file.relativePath,
@@ -375,6 +378,7 @@ async function ingestUnlocked(
       emptyTextFiles,
       unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
       redactions,
+      ocr,
       vectorIndexWarning: maintenance.adaptiveIndices?.warning ?? null,
       lexicalIndexWarning,
       storageWarning,
@@ -396,6 +400,29 @@ async function ingestUnlocked(
 function combineWarnings(...warnings: Array<string | null>): string | null {
   const present = warnings.filter((warning): warning is string => warning !== null)
   return present.length > 0 ? present.join(" ") : null
+}
+
+function emptyPdfOcrMetrics(): PdfOcrMetrics {
+  return {
+    pages: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    batches: 0,
+    subprocesses: 0,
+    durationMs: 0,
+  }
+}
+
+function mergePdfOcrMetrics(target: PdfOcrMetrics, source: PdfOcrMetrics | null): void {
+  if (!source) {
+    return
+  }
+  target.pages += source.pages
+  target.cacheHits += source.cacheHits
+  target.cacheMisses += source.cacheMisses
+  target.batches += source.batches
+  target.subprocesses += source.subprocesses
+  target.durationMs = Math.round((target.durationMs + source.durationMs) * 1_000) / 1_000
 }
 
 async function reconcileCommittedFiles(
@@ -449,6 +476,7 @@ interface ParsedSourceFile {
   file: SourceFile
   chunks: TextChunk[]
   redactions: number
+  ocr: PdfOcrMetrics | null
   error: string | null
 }
 
@@ -467,6 +495,7 @@ async function parseSourceFile(
         maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
       }),
       redactions: totalRedactions(redacted.counts),
+      ocr: parsed.ocr ?? null,
       error: null,
     }
   } catch (error) {
@@ -475,6 +504,7 @@ async function parseSourceFile(
       file,
       chunks: [],
       redactions: 0,
+      ocr: null,
       error: error instanceof Error ? error.message : String(error),
     }
   }

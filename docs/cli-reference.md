@@ -200,12 +200,14 @@ selected.
 | Command | Purpose |
 | --- | --- |
 | `models pull [--enable]` | Preload the configured embedding model, report its immutable revision and artifact digest, and optionally persist that identity while enabling semantic retrieval. |
-| `ocr doctor` / `ocr setup` | Detect and configure local page-aware PDF OCR. |
+| `ocr doctor` / `ocr setup` | Detect and configure local batched, resumable PDF OCR. |
 | `chat setup|doctor|<question>` | Prepare, inspect, or use the optional local chat add-on. |
 | `audio <file>` | Render text with the optional TTS add-on. |
 
-OCR runs only for PDF pages without embedded text. The strict privacy profile disables external
-extractors. The first audio command above explicitly downloads the model from non-sensitive text;
+OCR runs only for PDF pages without embedded text. The generated command processes bounded page
+groups and stores private content-addressed page results, so interruption resumes only missing pages.
+Ingest and preview JSON expose OCR pages, cache hits, batches, subprocesses, and phase time without
+document content. The strict privacy profile disables external extractors. The first audio command above explicitly downloads the model from non-sensitive text;
 the second uses the prepared cache and does not download anything. See the
 [offline TTS guide](./offline-tts-preload.md) for model paths and verification.
 See [offline Chat](./offline-chat-preload.md) for profile selection and air-gapped preparation.

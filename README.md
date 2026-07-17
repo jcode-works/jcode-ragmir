@@ -229,7 +229,10 @@ pnpm exec rgr ingest --rebuild
 ```
 
 Embedded PDF text is always preferred. OCR runs only for blank pages, through a configured local
-executable. Ragmir does not use a cloud OCR service.
+executable. The generated configuration batches up to 16 pages, stores private content-addressed
+page results under `.ragmir/ocr-cache/`, and resumes only missing pages after interruption. Ingest
+and preview diagnostics report cache hits, batches, subprocesses, and OCR time without document
+content. Ragmir does not use a cloud OCR service.
 
 ## Supported content
 

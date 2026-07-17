@@ -1,10 +1,12 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { createHash } from "node:crypto"
+import { createReadStream } from "node:fs"
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { findProjectConfig, loadConfig } from "./config.js"
 import { initProject } from "./init.js"
-import { MAX_EXTERNAL_TEXT_STDIO_BYTES } from "./limits.js"
+import { MAX_EXTERNAL_TEXT_STDIO_BYTES, MAX_PDF_PAGES } from "./limits.js"
 import { rgrCommand } from "./package-manager.js"
 import { hardenPrivateFile } from "./permissions.js"
 import { mutateProjectConfig } from "./project-config-file.js"
@@ -12,7 +14,8 @@ import { mutateProjectConfig } from "./project-config-file.js"
 const OCR_COMMAND_TIMEOUT_MS = 120_000
 const OCR_PROBE_TIMEOUT_MS = 10_000
 const OCR_PROCESS_KILL_GRACE_MS = 1_000
-const OCR_RENDER_DPI = 300
+export const OCR_RENDER_DPI = 300
+export const MAX_OCR_BATCH_PAGES = 16
 const MINIMUM_OCRMYPDF_VERSION = { major: 12, minor: 6 }
 
 export type PdfOcrEngine = "ocrmypdf" | "tesseract"
@@ -58,6 +61,32 @@ export interface ExtractPdfPageOptions {
   timeoutMs?: number
 }
 
+export interface ExtractPdfPagesOptions {
+  engine: PdfOcrEngine
+  input: string
+  pages: number[]
+  language?: string
+  timeoutMs?: number
+}
+
+export interface ExtractPdfPagesResult {
+  engine: PdfOcrEngine
+  language: string
+  dpi: number
+  subprocesses: number
+  pages: Array<{ page: number; text: string }>
+}
+
+export interface PdfOcrCommandIdentity {
+  engine: string
+  engineVersion: string
+  language: string
+  dpi: number
+  commandFingerprint: string
+  supportsBatch: boolean
+  subprocesses: number
+}
+
 interface ProcessResult {
   stdout: string
   stderr: string
@@ -87,6 +116,11 @@ export function normalizeOcrLanguage(value = "eng"): string {
     throw new Error("OCR language must use Tesseract codes such as eng, fra, or eng+fra.")
   }
   return normalized
+}
+
+export function parsePdfOcrPages(value: string): number[] {
+  const pages = value.split(",").map((entry) => Number(entry.trim()))
+  return normalizePdfOcrPages(pages)
 }
 
 export async function inspectPdfOcr(cwd = process.cwd()): Promise<PdfOcrStatus> {
@@ -141,15 +175,15 @@ export async function configurePdfOcr(
 
   const configuredCommand = await rgrCommand(config.projectRoot, [
     "ocr",
-    "extract-page",
+    "extract-pages",
     "--engine",
     engine,
     "--language",
     language,
     "--input",
     "{input}",
-    "--page",
-    "{page}",
+    "--pages",
+    "{pages}",
     "--timeout-ms",
     String(timeoutMs),
   ])
@@ -171,8 +205,22 @@ export async function configurePdfOcr(
 }
 
 export async function extractPdfPage(options: ExtractPdfPageOptions): Promise<string> {
-  if (!Number.isInteger(options.page) || options.page <= 0) {
-    throw new Error("PDF page must be a positive integer.")
+  const result = await extractPdfPages({
+    engine: options.engine,
+    input: options.input,
+    pages: [options.page],
+    ...(options.language === undefined ? {} : { language: options.language }),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+  })
+  return result.pages[0]?.text ?? ""
+}
+
+export async function extractPdfPages(
+  options: ExtractPdfPagesOptions,
+): Promise<ExtractPdfPagesResult> {
+  const pages = normalizePdfOcrPages(options.pages)
+  if (pages.length > MAX_OCR_BATCH_PAGES) {
+    throw new Error(`One OCR batch cannot exceed ${MAX_OCR_BATCH_PAGES} pages.`)
   }
   const language = normalizeOcrLanguage(options.language)
   const timeoutMs = options.timeoutMs ?? OCR_COMMAND_TIMEOUT_MS
@@ -185,9 +233,27 @@ export async function extractPdfPage(options: ExtractPdfPageOptions): Promise<st
 
   try {
     if (engine === "ocrmypdf") {
-      return await extractWithOcrMyPdf({ input, page: options.page, language, timeoutMs, tempDir })
+      return {
+        engine,
+        language,
+        dpi: OCR_RENDER_DPI,
+        subprocesses: 1,
+        pages: pairOcrPageText(
+          pages,
+          await extractWithOcrMyPdf({ input, pages, language, timeoutMs, tempDir }),
+        ),
+      }
     }
-    return await extractWithTesseract({ input, page: options.page, language, timeoutMs, tempDir })
+    return {
+      engine,
+      language,
+      dpi: OCR_RENDER_DPI,
+      subprocesses: 2,
+      pages: pairOcrPageText(
+        pages,
+        await extractWithTesseract({ input, pages, language, timeoutMs, tempDir }),
+      ),
+    }
   } finally {
     await rm(tempDir, { recursive: true, force: true })
   }
@@ -226,19 +292,19 @@ function assertLanguagesAvailable(language: string, installed: string[]): void {
 
 async function extractWithOcrMyPdf(options: {
   input: string
-  page: number
+  pages: number[]
   language: string
   timeoutMs: number
   tempDir: string
 }): Promise<string> {
-  const sidecarPath = path.join(options.tempDir, "page.txt")
+  const sidecarPath = path.join(options.tempDir, "pages.txt")
   await runProcess(
     "ocrmypdf",
     [
       "--quiet",
       "--force-ocr",
       "--pages",
-      String(options.page),
+      options.pages.join(","),
       "--language",
       options.language,
       "--sidecar",
@@ -255,20 +321,24 @@ async function extractWithOcrMyPdf(options: {
 
 async function extractWithTesseract(options: {
   input: string
-  page: number
+  pages: number[]
   language: string
   timeoutMs: number
   tempDir: string
 }): Promise<string> {
-  const outputPrefix = path.join(options.tempDir, "page")
+  const firstPage = options.pages[0]
+  const lastPage = options.pages.at(-1)
+  if (firstPage === undefined || lastPage === undefined) {
+    throw new Error("At least one PDF page is required for OCR.")
+  }
+  const outputPrefix = path.join(options.tempDir, "rendered-page")
   await runProcess(
     "pdftoppm",
     [
       "-f",
-      String(options.page),
+      String(firstPage),
       "-l",
-      String(options.page),
-      "-singlefile",
+      String(lastPage),
       "-r",
       String(OCR_RENDER_DPI),
       "-gray",
@@ -278,11 +348,178 @@ async function extractWithTesseract(options: {
     ],
     { timeoutMs: options.timeoutMs },
   )
-  const result = await runProcess("tesseract", ["page.png", "stdout", "-l", options.language], {
+  const renderedPages = (await readdir(options.tempDir))
+    .filter((entry) => entry.startsWith("rendered-page-") && entry.endsWith(".png"))
+    .sort(naturalFilenameOrder)
+  const renderedCount = lastPage - firstPage + 1
+  if (renderedPages.length !== renderedCount) {
+    throw new Error(
+      `Poppler rendered ${renderedPages.length} pages, expected ${renderedCount} for OCR.`,
+    )
+  }
+  const selectedPages = options.pages.map((pageNumber) => {
+    const filename = renderedPages[pageNumber - firstPage]
+    if (!filename) {
+      throw new Error(`Poppler did not render requested PDF page ${pageNumber}.`)
+    }
+    return path.join(options.tempDir, filename)
+  })
+  const pageListPath = path.join(options.tempDir, "pages.txt")
+  await writeFile(pageListPath, `${selectedPages.join("\n")}\n`, "utf8")
+  const result = await runProcess("tesseract", [pageListPath, "stdout", "-l", options.language], {
     cwd: options.tempDir,
     timeoutMs: options.timeoutMs,
   })
   return result.stdout
+}
+
+function pairOcrPageText(pages: number[], output: string): Array<{ page: number; text: string }> {
+  const pageTexts = output.replace(/\r\n?/gu, "\n").split("\f")
+  if (pageTexts.at(-1) === "") {
+    pageTexts.pop()
+  }
+  if (pageTexts.length !== pages.length) {
+    throw new Error(
+      `OCR returned ${pageTexts.length} page payloads for ${pages.length} requested pages.`,
+    )
+  }
+  return pages.map((page, index) => ({ page, text: pageTexts[index] ?? "" }))
+}
+
+function normalizePdfOcrPages(pages: number[]): number[] {
+  if (pages.length === 0) {
+    throw new Error("At least one PDF page is required for OCR.")
+  }
+  const normalized = [...new Set(pages)].sort((left, right) => left - right)
+  if (
+    normalized.some(
+      (pageNumber) =>
+        !Number.isInteger(pageNumber) || pageNumber <= 0 || pageNumber > MAX_PDF_PAGES,
+    )
+  ) {
+    throw new Error(`PDF pages must be integers between 1 and ${MAX_PDF_PAGES}.`)
+  }
+  return normalized
+}
+
+function naturalFilenameOrder(left: string, right: string): number {
+  const leftPage = Number(left.match(/(\d+)\.png$/u)?.[1])
+  const rightPage = Number(right.match(/(\d+)\.png$/u)?.[1])
+  return leftPage - rightPage
+}
+
+export async function pdfOcrCommandIdentity(
+  command: string[],
+  cwd = process.cwd(),
+): Promise<PdfOcrCommandIdentity> {
+  const configuredEngine = commandOption(command, "--engine")
+  const engine =
+    configuredEngine === "ocrmypdf" || configuredEngine === "tesseract"
+      ? configuredEngine
+      : path.basename(command[0] ?? "custom")
+  const configuredLanguage = commandOption(command, "--language")?.trim().toLowerCase()
+  const language = configuredLanguage && configuredLanguage.length > 0 ? configuredLanguage : "eng"
+  const configuredDpi = Number(commandOption(command, "--dpi"))
+  const dpi = Number.isInteger(configuredDpi) && configuredDpi > 0 ? configuredDpi : OCR_RENDER_DPI
+  const commandFingerprint = await fingerprintOcrCommand(command, cwd)
+  let engineVersion = `command:${commandFingerprint}`
+  let subprocesses = 0
+
+  if (engine === "tesseract") {
+    const [tesseract, pdftoppm] = await Promise.all([
+      probeExecutable("tesseract", ["--version"]),
+      probeExecutable("pdftoppm", ["-v"]),
+    ])
+    engineVersion = `tesseract:${tesseract.version ?? "unavailable"};pdftoppm:${pdftoppm.version ?? "unavailable"}`
+    subprocesses = 2
+  } else if (engine === "ocrmypdf") {
+    const ocrmypdf = await probeExecutable("ocrmypdf", ["--version"])
+    engineVersion = `ocrmypdf:${ocrmypdf.version ?? "unavailable"}`
+    subprocesses = 1
+  }
+
+  return {
+    engine,
+    engineVersion,
+    language,
+    dpi,
+    commandFingerprint,
+    supportsBatch: command.some((part) => part.includes("{pages}")),
+    subprocesses,
+  }
+}
+
+function commandOption(command: string[], name: string): string | undefined {
+  const index = command.indexOf(name)
+  return index >= 0 ? command[index + 1] : undefined
+}
+
+async function fingerprintOcrCommand(command: string[], cwd: string): Promise<string> {
+  const fingerprint = createHash("sha256")
+  fingerprint.update(JSON.stringify(command))
+  for (const [index, part] of command.entries()) {
+    if (part.includes("{") || part.startsWith("--")) {
+      continue
+    }
+    const candidate = await commandFilePath(part, index === 0, cwd)
+    if (!candidate) {
+      continue
+    }
+    const metadata = await stat(candidate)
+    if (!metadata.isFile()) {
+      continue
+    }
+    fingerprint.update("\0")
+    fingerprint.update(String(index))
+    fingerprint.update("\0")
+    fingerprint.update(String(metadata.size))
+    fingerprint.update("\0")
+    if (candidate === process.execPath) {
+      fingerprint.update(process.version)
+      continue
+    }
+    for await (const chunk of createReadStream(candidate)) {
+      fingerprint.update(chunk)
+    }
+  }
+  return fingerprint.digest("hex")
+}
+
+async function commandFilePath(
+  value: string,
+  executable: boolean,
+  cwd: string,
+): Promise<string | null> {
+  const candidates = path.isAbsolute(value)
+    ? [value]
+    : value.includes(path.sep)
+      ? [path.resolve(cwd, value)]
+      : executable
+        ? executableCandidates(value)
+        : [path.resolve(cwd, value)]
+  for (const candidate of candidates) {
+    try {
+      if ((await stat(candidate)).isFile()) {
+        return candidate
+      }
+    } catch (error) {
+      if (!isNodeError(error) || error.code !== "ENOENT") {
+        throw error
+      }
+    }
+  }
+  return null
+}
+
+function executableCandidates(executable: string): string[] {
+  const extensions =
+    process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";") : [""]
+  return (process.env.PATH ?? "")
+    .split(path.delimiter)
+    .filter(Boolean)
+    .flatMap((directory) =>
+      extensions.map((extension) => path.join(directory, executable + extension)),
+    )
 }
 
 async function createOcrTempDirectory(): Promise<string> {
@@ -446,4 +683,8 @@ function externalCommandEnvironment(): NodeJS.ProcessEnv {
       return value === undefined ? [] : [[name, value]]
     }),
   )
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error
 }

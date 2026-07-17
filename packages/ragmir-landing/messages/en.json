@@ -207,7 +207,7 @@
   "faq_role_question": "Does Ragmir write the answers for me?",
   "faq_role_answer": "Ragmir Core returns cited passages from your local files; the agent or application you choose decides what to do with them. Optional rgr chat adds cited answer generation from a verified local profile when the response must also stay on the workstation.",
   "faq_formats_question": "Which file formats can Ragmir index?",
-  "faq_formats_answer": "Source code, text, Markdown, PDF, Office and OpenDocument, EPUB, HTML, CSV, JSON, and YAML, plus the custom text extensions you enable. Unsupported files are flagged explicitly, and scanned PDFs can use an optional OCR command.",
+  "faq_formats_answer": "Source code, text, Markdown, PDF, Office and OpenDocument, EPUB, HTML, CSV, JSON, and YAML, plus the custom text extensions you enable. Unsupported files are flagged explicitly. Scanned PDFs can use optional local OCR with bounded page batches and a private resumable cache.",
   "faq_server_question": "Does Ragmir run as a web server or use a fixed port?",
   "faq_server_answer": "No. Use the local stdio MCP server for coding agents or embed the TypeScript client in a stateful Node.js process. Ragmir opens no HTTP port; a network-facing application owns authentication, authorization, rate limits, and transport security.",
   "closing_eyebrow": "Start with the core",

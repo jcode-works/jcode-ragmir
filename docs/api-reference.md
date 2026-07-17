@@ -210,12 +210,14 @@ selection without changing the exact text, offsets, or citations returned to the
 | `inspectPdfOcr(cwd?)` | Detect configured local OCR tools and readiness. |
 | `configurePdfOcr(options?)` | Write a safe page-aware PDF OCR command. |
 | `extractPdfPage(options)` | Run the low-level local PDF page extractor. |
+| `extractPdfPages(options)` | Run one bounded local OCR batch and return ordered page text plus process diagnostics. |
 
 Semantic embeddings and OCR are opt-in boundaries. Core never calls a cloud OCR service, and a
 model download must be explicitly enabled before local inference can use it. The default
 `local-hash` path does not resolve Transformers.js, ONNX Runtime, or Sharp. Bundled embedding
 profiles use immutable model commits; the resolved artifact digest participates in persisted index
-and quality compatibility.
+and quality compatibility. PDF parsing exposes content-free `PdfOcrMetrics`; generated OCR setup
+batches pages and caches each result privately by content and runtime identity.
 
 ### MCP, skills, and command helpers
 
@@ -272,7 +274,7 @@ types that callers commonly compose explicitly.
 | Research and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
 | Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
 | Operations | `RagmirClientOptions`, `OperationOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
-| Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
+| Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `ExtractPdfPagesOptions`, `ExtractPdfPagesResult`, `PdfOcrMetrics`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
 | Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |
 

@@ -32,7 +32,14 @@ import { initProject } from "./init.js"
 import { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
-import { configurePdfOcr, extractPdfPage, inspectPdfOcr, parsePdfOcrEngine } from "./ocr.js"
+import {
+  configurePdfOcr,
+  extractPdfPage,
+  extractPdfPages,
+  inspectPdfOcr,
+  parsePdfOcrEngine,
+  parsePdfOcrPages,
+} from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
 import { previewChunks } from "./preview.js"
 import { routePrompt } from "./prompt-routing.js"
@@ -140,10 +147,10 @@ ocrCommand
 
 ocrCommand
   .command("setup")
-  .description("Detect a local PDF OCR engine and write a safe page-aware configuration.")
+  .description("Detect a local PDF OCR engine and write a safe batched-page configuration.")
   .option("--engine <engine>", "OCR engine: auto, ocrmypdf, or tesseract.", "auto")
   .option("--language <codes>", "Tesseract language codes such as eng, fra, or eng+fra.", "eng")
-  .option("--timeout-ms <number>", "Per-page OCR timeout in milliseconds.", parsePositiveInt)
+  .option("--timeout-ms <number>", "Per-batch OCR timeout in milliseconds.", parsePositiveInt)
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -205,6 +212,35 @@ ocrCommand
       }
       addOption(extractOptions, "timeoutMs", options.timeoutMs)
       process.stdout.write(await extractPdfPage(extractOptions))
+    },
+  )
+
+ocrCommand
+  .command("extract-pages", { hidden: true })
+  .requiredOption("--engine <engine>", "OCR engine: ocrmypdf or tesseract.")
+  .requiredOption("--language <codes>", "Tesseract language codes.")
+  .requiredOption("--input <path>", "PDF file to process.")
+  .requiredOption("--pages <numbers>", "Comma-separated one-based PDF page numbers.")
+  .option("--timeout-ms <number>", "OCR timeout in milliseconds.", parsePositiveInt)
+  .action(
+    async (
+      options: {
+        engine: string
+        language: string
+        input: string
+        pages: string
+        timeoutMs?: number
+      },
+      command: Command,
+    ) => {
+      const extractOptions: Parameters<typeof extractPdfPages>[0] = {
+        engine: parsePdfOcrEngine(options.engine),
+        language: options.language,
+        input: path.resolve(projectRoot(command), options.input),
+        pages: parsePdfOcrPages(options.pages),
+      }
+      addOption(extractOptions, "timeoutMs", options.timeoutMs)
+      process.stdout.write(JSON.stringify(await extractPdfPages(extractOptions)))
     },
   )
 
@@ -421,7 +457,7 @@ program
 
       console.log(
         pc.green(
-          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} staleLastKnownGood=${result.staleLastKnownGood.length} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`,
+          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} staleLastKnownGood=${result.staleLastKnownGood.length} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} ocrPages=${result.ocr.pages} ocrCacheHits=${result.ocr.cacheHits} ocrBatches=${result.ocr.batches} ocrSubprocesses=${result.ocr.subprocesses} ocrDurationMs=${result.ocr.durationMs} errors=${result.errors.length}`,
         ),
       )
       printUnsupportedSummary(result.unsupportedExtensions)
@@ -497,6 +533,11 @@ program
         console.log(
           `\n${pc.cyan(file.relativePath)} chunks=${file.chunkStats.count} redactions=${file.redactions} minChars=${file.chunkStats.minChars} p50Chars=${file.chunkStats.p50Chars} p95Chars=${file.chunkStats.p95Chars} maxChars=${file.chunkStats.maxChars} contextualRatio=${file.chunkStats.contextualRatio.toFixed(3)}`,
         )
+        if (file.ocr) {
+          console.log(
+            `ocrPages=${file.ocr.pages} ocrCacheHits=${file.ocr.cacheHits} ocrBatches=${file.ocr.batches} ocrSubprocesses=${file.ocr.subprocesses} ocrDurationMs=${file.ocr.durationMs}`,
+          )
+        }
         for (const chunk of file.chunks) {
           const context = chunk.contextPath ? ` context=${chunk.contextPath}` : ""
           console.log(`\n${pc.dim(chunk.citation)}${context}`)

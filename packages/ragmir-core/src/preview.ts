@@ -85,6 +85,7 @@ async function previewFile(
         bytes: file.bytes,
         parsedChars: redacted.document.text.length,
         redactions: totalRedactions(redacted.counts),
+        ocr: parsed.ocr ?? null,
         chunkStats: summarizeChunkStats(chunks),
         chunks: chunks.slice(0, maxChunksPerFile).map(previewChunk),
         omittedChunks: Math.max(0, chunks.length - maxChunksPerFile),

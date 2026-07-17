@@ -138,6 +138,14 @@ PDF OCR is optional and page-aware. Ragmir calls it only for blank extracted pag
 `pdfOcrCommand`, `imageOcrCommand`, and `legacyWordCommand` values must be JSON argument arrays;
 they run without a shell and must print text to stdout.
 
+`rgr ocr setup` writes the batched PDF contract. It replaces `{pages}` with up to 16 ordered page
+numbers and expects JSON containing `subprocesses` plus an ordered `pages` array of `{ page, text }`
+objects. Existing custom commands using `{page}` remain compatible and gain durable per-page cache,
+but still launch once per missing page. Cache entries live under private `.ragmir/ocr-cache/` state
+and are keyed by source checksum, page, engine and engine version, language, DPI, parser policy, and
+command fingerprint. A changed source, executable, language, DPI, or parser policy cannot reuse stale
+OCR text. `pdfOcrTimeoutMs` applies to one bounded batch.
+
 ## Environment overrides
 
 Use `RAGMIR_*` variables for local experiments, for example:

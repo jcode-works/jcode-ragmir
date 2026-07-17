@@ -36,12 +36,14 @@ export type {
   ConfigurePdfOcrOptions,
   ConfigurePdfOcrResult,
   ExtractPdfPageOptions,
+  ExtractPdfPagesOptions,
+  ExtractPdfPagesResult,
   OcrExecutableStatus,
   PdfOcrEngine,
   PdfOcrEngineSelection,
   PdfOcrStatus,
 } from "./ocr.js"
-export { configurePdfOcr, extractPdfPage, inspectPdfOcr } from "./ocr.js"
+export { configurePdfOcr, extractPdfPage, extractPdfPages, inspectPdfOcr } from "./ocr.js"
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
 export { previewChunks } from "./preview.js"
@@ -127,6 +129,7 @@ export type {
   McpOutputUsageReport,
   OperationOptions,
   ParsedPage,
+  PdfOcrMetrics,
   PreviewChunk,
   PreviewChunksOptions,
   PreviewFile,

@@ -257,6 +257,16 @@ export interface ParsedDocument {
   sourceLineCoordinates?: boolean
   pages?: ParsedPage[]
   regions?: ParsedRegion[]
+  ocr?: PdfOcrMetrics
+}
+
+export interface PdfOcrMetrics {
+  pages: number
+  cacheHits: number
+  cacheMisses: number
+  batches: number
+  subprocesses: number
+  durationMs: number
 }
 
 export interface ParsedPage {
@@ -359,6 +369,7 @@ export interface IngestResult {
   emptyTextFiles: string[]
   unsupportedExtensions: Array<{ extension: string; count: number }>
   redactions: number
+  ocr: PdfOcrMetrics
   vectorIndexWarning: string | null
   lexicalIndexWarning: string | null
   storageWarning: string | null
@@ -420,6 +431,7 @@ export interface PreviewFile {
   bytes: number
   parsedChars: number
   redactions: number
+  ocr: PdfOcrMetrics | null
   chunkStats: ChunkStats
   chunks: PreviewChunk[]
   omittedChunks: number

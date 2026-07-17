@@ -10,6 +10,7 @@ import mammoth = require("mammoth")
 import { getDocumentProxy } from "unpdf"
 import YAML from "yaml"
 import { OCR_IMAGE_EXTENSIONS } from "./files.js"
+import { isRecord } from "./guards.js"
 import {
   MAX_EXTERNAL_TEXT_STDIO_BYTES,
   MAX_OFFICE_TEXT_ENTRY_COUNT,
@@ -18,11 +19,19 @@ import {
   MAX_PDF_PAGES,
   MAX_PDF_TEXT_CHARACTERS,
 } from "./limits.js"
+import { MAX_OCR_BATCH_PAGES, pdfOcrCommandIdentity } from "./ocr.js"
+import {
+  PDF_OCR_PARSER_POLICY,
+  type PdfOcrCacheIdentity,
+  readPdfOcrCache,
+  writePdfOcrCache,
+} from "./ocr-cache.js"
 import { throwIfAborted } from "./operation.js"
 import type {
   ParsedDocument,
   ParsedPage,
   ParsedRegion,
+  PdfOcrMetrics,
   SourceFile,
   SourceLocation,
 } from "./types.js"
@@ -58,11 +67,12 @@ export async function parseFile(
   let text: string
   let pages: ParsedPage[] | undefined
   let regions: ParsedRegion[] | undefined
+  let ocr: PdfOcrMetrics | undefined
   let sourceLineCoordinates = false
 
   switch (file.extension) {
     case ".pdf":
-      ;({ text, pages, regions } = await parsePdf(file.absolutePath, options))
+      ;({ text, pages, regions, ocr } = await parsePdf(file, options))
       break
     case ".doc":
       text = await parseLegacyWord(file.absolutePath, options)
@@ -130,6 +140,9 @@ export async function parseFile(
   }
   if (regions) {
     document.regions = regions
+  }
+  if (ocr) {
+    document.ocr = ocr
   }
   return document
 }
@@ -552,10 +565,15 @@ function decodeXmlEntities(input: string): string {
 }
 
 async function parsePdf(
-  filePath: string,
+  file: SourceFile,
   options: ParseFileOptions,
-): Promise<{ text: string; pages: ParsedPage[]; regions: ParsedRegion[] }> {
-  const buffer = await readFile(filePath)
+): Promise<{
+  text: string
+  pages: ParsedPage[]
+  regions: ParsedRegion[]
+  ocr?: PdfOcrMetrics
+}> {
+  const buffer = await readFile(file.absolutePath)
   let pdf: Awaited<ReturnType<typeof getDocumentProxy>>
   try {
     pdf = await getDocumentProxy(new Uint8Array(buffer))
@@ -569,13 +587,12 @@ async function parsePdf(
     throw error
   }
 
+  const pageTexts: string[] = []
   try {
     if (pdf.numPages > MAX_PDF_PAGES) {
       throw new Error(`PDF has ${pdf.numPages} pages; the safety limit is ${MAX_PDF_PAGES}.`)
     }
 
-    const pageTexts: string[] = []
-    let totalCharacters = 0
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber)
       let pageText = ""
@@ -591,30 +608,183 @@ async function parsePdf(
       }
 
       pageText = normalizePdfPageText(pageText)
-      if (!pageText && options.pdfOcrCommand && options.pdfOcrCommand.length > 0) {
-        pageText = normalizePdfPageText(
-          await runExternalTextCommand(filePath, {
-            command: options.pdfOcrCommand,
-            cwd: options.projectRoot,
-            label: `OCR command for PDF page ${pageNumber}`,
-            timeoutMs: options.pdfOcrTimeoutMs ?? 120_000,
-            pathEnvName: "RAGMIR_PDF_PATH",
-            pageNumber,
-            ...(options.signal ? { signal: options.signal } : {}),
-          }),
-        )
-      }
-      totalCharacters += pageText.length
-      if (totalCharacters > MAX_PDF_TEXT_CHARACTERS) {
-        throw new Error(`PDF text exceeds the ${MAX_PDF_TEXT_CHARACTERS} character safety limit.`)
-      }
       pageTexts.push(pageText)
     }
-
-    return joinPdfPages(pageTexts)
   } finally {
     await pdf.destroy()
   }
+
+  const blankPages = pageTexts.flatMap((text, index) => (text ? [] : [index + 1]))
+  const ocr =
+    blankPages.length > 0 && options.pdfOcrCommand && options.pdfOcrCommand.length > 0
+      ? await fillPdfOcrPages(file, pageTexts, blankPages, options)
+      : undefined
+  const totalCharacters = pageTexts.reduce((total, pageText) => total + pageText.length, 0)
+  if (totalCharacters > MAX_PDF_TEXT_CHARACTERS) {
+    throw new Error(`PDF text exceeds the ${MAX_PDF_TEXT_CHARACTERS} character safety limit.`)
+  }
+  return { ...joinPdfPages(pageTexts), ...(ocr ? { ocr } : {}) }
+}
+
+async function fillPdfOcrPages(
+  file: SourceFile,
+  pageTexts: string[],
+  blankPages: number[],
+  options: ParseFileOptions,
+): Promise<PdfOcrMetrics> {
+  const startedAt = performance.now()
+  const command = options.pdfOcrCommand ?? []
+  const projectRoot = options.projectRoot ?? path.dirname(file.absolutePath)
+  const commandIdentity = await pdfOcrCommandIdentity(command, projectRoot)
+  const metrics: PdfOcrMetrics = {
+    pages: blankPages.length,
+    cacheHits: 0,
+    cacheMisses: 0,
+    batches: 0,
+    subprocesses: commandIdentity.subprocesses,
+    durationMs: 0,
+  }
+  const missingPages: number[] = []
+
+  for (const pageNumber of blankPages) {
+    const cached = await readPdfOcrCache(
+      projectRoot,
+      pdfOcrCacheIdentity(file.checksum, pageNumber, commandIdentity),
+    )
+    if (cached === null) {
+      metrics.cacheMisses += 1
+      missingPages.push(pageNumber)
+    } else {
+      metrics.cacheHits += 1
+      pageTexts[pageNumber - 1] = cached
+    }
+  }
+
+  if (commandIdentity.supportsBatch) {
+    for (const batch of pdfOcrPageBatches(missingPages)) {
+      const output = await runExternalTextCommand(file.absolutePath, {
+        command,
+        cwd: options.projectRoot,
+        label: `OCR command for PDF pages ${batch.join(",")}`,
+        timeoutMs: options.pdfOcrTimeoutMs ?? 120_000,
+        pathEnvName: "RAGMIR_PDF_PATH",
+        pageNumbers: batch,
+        ...(options.signal ? { signal: options.signal } : {}),
+      })
+      const result = parsePdfOcrBatchOutput(output, batch)
+      metrics.batches += 1
+      metrics.subprocesses += 1 + result.subprocesses
+      for (const page of result.pages) {
+        const text = normalizePdfPageText(page.text)
+        pageTexts[page.page - 1] = text
+        await writePdfOcrCache(
+          projectRoot,
+          pdfOcrCacheIdentity(file.checksum, page.page, commandIdentity),
+          text,
+        )
+      }
+    }
+  } else {
+    for (const pageNumber of missingPages) {
+      const text = normalizePdfPageText(
+        await runExternalTextCommand(file.absolutePath, {
+          command,
+          cwd: options.projectRoot,
+          label: `OCR command for PDF page ${pageNumber}`,
+          timeoutMs: options.pdfOcrTimeoutMs ?? 120_000,
+          pathEnvName: "RAGMIR_PDF_PATH",
+          pageNumber,
+          ...(options.signal ? { signal: options.signal } : {}),
+        }),
+      )
+      metrics.batches += 1
+      metrics.subprocesses += 1
+      pageTexts[pageNumber - 1] = text
+      await writePdfOcrCache(
+        projectRoot,
+        pdfOcrCacheIdentity(file.checksum, pageNumber, commandIdentity),
+        text,
+      )
+    }
+  }
+
+  metrics.durationMs = Math.round((performance.now() - startedAt) * 1_000) / 1_000
+  return metrics
+}
+
+function pdfOcrCacheIdentity(
+  sourceChecksum: string,
+  page: number,
+  command: Awaited<ReturnType<typeof pdfOcrCommandIdentity>>,
+): PdfOcrCacheIdentity {
+  return {
+    sourceChecksum,
+    page,
+    engine: command.engine,
+    engineVersion: command.engineVersion,
+    language: command.language,
+    dpi: command.dpi,
+    parserPolicy: PDF_OCR_PARSER_POLICY,
+    commandFingerprint: command.commandFingerprint,
+  }
+}
+
+function pdfOcrPageBatches(pages: number[]): number[][] {
+  const batches: number[][] = []
+  for (const page of pages) {
+    const current = batches.at(-1)
+    if (
+      !current ||
+      current.length >= MAX_OCR_BATCH_PAGES ||
+      page - (current[0] ?? page) >= MAX_OCR_BATCH_PAGES
+    ) {
+      batches.push([page])
+    } else {
+      current.push(page)
+    }
+  }
+  return batches
+}
+
+function parsePdfOcrBatchOutput(
+  output: string,
+  requestedPages: number[],
+): { pages: Array<{ page: number; text: string }>; subprocesses: number } {
+  let value: unknown
+  try {
+    value = JSON.parse(output)
+  } catch {
+    throw new Error("Batched PDF OCR command returned invalid JSON.")
+  }
+  if (!isRecord(value)) {
+    throw new Error("Batched PDF OCR command returned an invalid result.")
+  }
+  if (
+    !Number.isInteger(value.subprocesses) ||
+    Number(value.subprocesses) < 0 ||
+    Number(value.subprocesses) > 100 ||
+    !Array.isArray(value.pages)
+  ) {
+    throw new Error("Batched PDF OCR command returned invalid process diagnostics.")
+  }
+  const pages = value.pages.flatMap((entry) => {
+    if (isRecord(entry) && Number.isInteger(entry.page) && typeof entry.text === "string") {
+      return [
+        {
+          page: Number(entry.page),
+          text: entry.text,
+        },
+      ]
+    }
+    return []
+  })
+  if (
+    pages.length !== requestedPages.length ||
+    pages.some((page, index) => page.page !== requestedPages[index])
+  ) {
+    throw new Error("Batched PDF OCR command returned pages outside the requested ordered batch.")
+  }
+  return { pages, subprocesses: Number(value.subprocesses) }
 }
 
 function isPdfTextItem(value: unknown): value is { str: string; hasEOL?: boolean } {
@@ -660,6 +830,7 @@ interface ExternalTextCommandOptions {
   timeoutMs: number
   pathEnvName: "RAGMIR_IMAGE_PATH" | "RAGMIR_LEGACY_WORD_PATH" | "RAGMIR_PDF_PATH"
   pageNumber?: number
+  pageNumbers?: number[]
   signal?: AbortSignal
 }
 
@@ -677,8 +848,9 @@ async function runExternalTextCommand(
   const hasInputPlaceholder = command.some((part) => part.includes("{input}"))
   const args = configuredArgs.map((part) => part.replaceAll("{input}", filePath))
   const pageNumber = options.pageNumber === undefined ? "" : String(options.pageNumber)
+  const pageNumbers = options.pageNumbers?.join(",") ?? ""
   for (const [index, arg] of args.entries()) {
-    args[index] = arg.replaceAll("{page}", pageNumber)
+    args[index] = arg.replaceAll("{page}", pageNumber).replaceAll("{pages}", pageNumbers)
   }
   if (!hasInputPlaceholder) {
     args.push(filePath)
@@ -692,6 +864,7 @@ async function runExternalTextCommand(
         ...externalCommandEnvironment(),
         [options.pathEnvName]: filePath,
         ...(options.pageNumber === undefined ? {} : { RAGMIR_PDF_PAGE: pageNumber }),
+        ...(options.pageNumbers === undefined ? {} : { RAGMIR_PDF_PAGES: pageNumbers }),
       },
       stdio: ["ignore", "pipe", "pipe"],
     })

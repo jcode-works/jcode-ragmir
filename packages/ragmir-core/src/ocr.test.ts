@@ -7,9 +7,12 @@ import { initProject } from "./init.js"
 import {
   configurePdfOcr,
   extractPdfPage,
+  extractPdfPages,
   inspectPdfOcr,
   normalizeOcrLanguage,
   parsePdfOcrEngine,
+  parsePdfOcrPages,
+  pdfOcrCommandIdentity,
 } from "./ocr.js"
 
 const tempDirs: string[] = []
@@ -30,6 +33,8 @@ describe("PDF OCR onboarding", () => {
     expect(normalizeOcrLanguage(" ENG+FRA ")).toBe("eng+fra")
     expect(() => parsePdfOcrEngine("cloud", true)).toThrow("auto, ocrmypdf, or tesseract")
     expect(() => normalizeOcrLanguage("eng;curl example.test")).toThrow("Tesseract codes")
+    expect(parsePdfOcrPages("3,1,2,2")).toEqual([1, 2, 3])
+    expect(() => parsePdfOcrPages("0,2")).toThrow("between 1")
   })
 
   it("should detect Tesseract with Poppler and configure the project command", async () => {
@@ -59,15 +64,15 @@ describe("PDF OCR onboarding", () => {
       "exec",
       "rgr",
       "ocr",
-      "extract-page",
+      "extract-pages",
       "--engine",
       "tesseract",
       "--language",
       "eng+fra",
       "--input",
       "{input}",
-      "--page",
-      "{page}",
+      "--pages",
+      "{pages}",
       "--timeout-ms",
       "45000",
     ])
@@ -104,6 +109,25 @@ describe("PDF OCR onboarding", () => {
     ).resolves.toBe("Synthetic OCR text from Tesseract\n")
   })
 
+  it("should extract multiple PDF pages through one bounded Tesseract batch", async () => {
+    const root = await createTempRoot("ragmir-ocr-tesseract-batch-")
+    const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
+    process.env.PATH = binDir
+    const input = path.join(root, "scan.pdf")
+    await writeFile(input, "synthetic PDF fixture")
+
+    await expect(
+      extractPdfPages({ engine: "tesseract", input, pages: [2, 4, 5], language: "eng" }),
+    ).resolves.toMatchObject({
+      subprocesses: 2,
+      pages: [
+        { page: 2, text: "Synthetic OCR text from Tesseract\n" },
+        { page: 4, text: "Synthetic OCR text from Tesseract\n" },
+        { page: 5, text: "Synthetic OCR text from Tesseract\n" },
+      ],
+    })
+  })
+
   it("should extract one PDF page with OCRmyPDF sidecar output", async () => {
     const root = await createTempRoot("ragmir-ocr-ocrmypdf-")
     const binDir = await createFakeTools(root, { ocrmypdf: true })
@@ -114,6 +138,43 @@ describe("PDF OCR onboarding", () => {
     await expect(
       extractPdfPage({ engine: "ocrmypdf", input, page: 1, language: "eng" }),
     ).resolves.toBe("Synthetic OCR text from OCRmyPDF\n")
+  })
+
+  it("should extract multiple selected pages through one OCRmyPDF batch", async () => {
+    const root = await createTempRoot("ragmir-ocr-ocrmypdf-batch-")
+    const binDir = await createFakeTools(root, { ocrmypdf: true })
+    process.env.PATH = binDir
+    const input = path.join(root, "scan.pdf")
+    await writeFile(input, "synthetic PDF fixture")
+
+    await expect(
+      extractPdfPages({ engine: "ocrmypdf", input, pages: [1, 3], language: "eng" }),
+    ).resolves.toMatchObject({
+      subprocesses: 1,
+      pages: [
+        { page: 1, text: "Synthetic OCR text from OCRmyPDF\n" },
+        { page: 3, text: "Synthetic OCR text from OCRmyPDF\n" },
+      ],
+    })
+  })
+
+  it("should invalidate custom OCR identity when command content or language changes", async () => {
+    const root = await createTempRoot("ragmir-ocr-identity-")
+    const script = path.join(root, "ocr-wrapper.mjs")
+    const command = [process.execPath, script, "--language", "eng", "{pages}"]
+    await writeFile(script, 'process.stdout.write("v1")\n')
+    const first = await pdfOcrCommandIdentity(command, root)
+    await writeFile(script, 'process.stdout.write("v2")\n')
+    const changedContent = await pdfOcrCommandIdentity(command, root)
+    const changedLanguage = await pdfOcrCommandIdentity(
+      [process.execPath, script, "--language", "fra", "{pages}"],
+      root,
+    )
+
+    expect(changedContent.engineVersion).not.toBe(first.engineVersion)
+    expect(changedContent.commandFingerprint).not.toBe(first.commandFingerprint)
+    expect(changedLanguage.language).toBe("fra")
+    expect(changedLanguage.commandFingerprint).not.toBe(changedContent.commandFingerprint)
   })
 })
 
@@ -133,11 +194,13 @@ async function createFakeTools(
   if (tools.tesseract) {
     await writeExecutable(
       path.join(binDir, "tesseract"),
-      `const args = process.argv.slice(2)
+      `import { readFileSync } from "node:fs"
+const args = process.argv.slice(2)
 if (args.includes("--list-langs")) {
   process.stdout.write("List of available languages (2):\\neng\\nfra\\n")
 } else if (args.includes("stdout")) {
-  process.stdout.write("Synthetic OCR text from Tesseract\\n")
+  const pages = readFileSync(args[0], "utf8").trim().split("\\n").filter(Boolean)
+  process.stdout.write(pages.map(() => "Synthetic OCR text from Tesseract\\n").join("\\f") + "\\f")
 } else {
   process.stdout.write("tesseract 5.5.0\\n")
 }`,
@@ -151,7 +214,11 @@ const args = process.argv.slice(2)
 if (args.includes("-v")) {
   process.stderr.write("pdftoppm version 25.0.0\\n")
 } else {
-  writeFileSync(args.at(-1) + ".png", "synthetic image")
+  const first = Number(args[args.indexOf("-f") + 1])
+  const last = Number(args[args.indexOf("-l") + 1])
+  for (let page = first; page <= last; page += 1) {
+    writeFileSync(args.at(-1) + "-" + page + ".png", "synthetic image")
+  }
 }`,
     )
   }
@@ -164,7 +231,8 @@ if (args.includes("--version")) {
   process.stdout.write("17.8.0\\n")
 } else {
   const sidecarIndex = args.indexOf("--sidecar")
-  writeFileSync(args[sidecarIndex + 1], "Synthetic OCR text from OCRmyPDF\\n")
+  const pages = args[args.indexOf("--pages") + 1].split(",")
+  writeFileSync(args[sidecarIndex + 1], pages.map(() => "Synthetic OCR text from OCRmyPDF\\n").join("\\f") + "\\f")
 }`,
     )
   }

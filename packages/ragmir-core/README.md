@@ -104,6 +104,10 @@ Core also exports setup, preview, audit, evaluation, source-routing, privacy, OC
 integration helpers. See the [complete API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 for public options and result types.
 
+Optional PDF OCR processes only blank pages. The generated setup batches bounded page groups and
+stores private content-addressed page results, so interrupted scans resume only missing pages and
+warm output remains identical without launching OCR subprocesses.
+
 ## Optional packages and boundaries
 
 - [`@jcode.labs/ragmir-chat`](https://www.npmjs.com/package/@jcode.labs/ragmir-chat) adds local GGUF

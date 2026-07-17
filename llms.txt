@@ -39,7 +39,9 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - Privacy boundary: the corpus and index stay local. A cloud agent receives retrieved passages only
   when the user chooses that workflow, under that provider's data policy.
 - OCR boundary: embedded PDF text comes first; a configured local executable runs only for blank
-  pages. Ragmir has no cloud OCR integration.
+  pages. Generated setup batches bounded page groups and caches page text privately by source,
+  engine version, language, DPI, parser policy, and command identity. OCR diagnostics contain counts
+  and timings, not content. Ragmir has no cloud OCR integration.
 - Retrieval inspection: preview redacted chunks without writing storage; optionally expose RRF,
   FTS/fallback and lexical-coverage diagnostics, filter candidates and hydrated neighbors by source
   or structural context, or force exact vector search for ANN diagnostics. Exact file paths use a

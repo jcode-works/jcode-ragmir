@@ -40,7 +40,10 @@ rgr ocr setup
 rgr ingest
 ```
 
-OCR is local and opt-in. Images and legacy `.doc` files need explicitly configured local extractors.
+OCR is local and opt-in. Generated PDF OCR runs in bounded page groups and resumes from private
+content-addressed cache entries. Use `rgr ingest --json` or `rgr preview --json` to inspect OCR cache
+hits, batches, subprocesses, and duration without exposing page text in diagnostics. Images and
+legacy `.doc` files need explicitly configured local extractors.
 
 ## Search is weak
 

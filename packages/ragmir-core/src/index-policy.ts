@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { PDF_OCR_PARSER_POLICY } from "./ocr-cache.js"
 import type { Config } from "./types.js"
 
 const INDEX_CONTENT_POLICY_VERSION = 1
@@ -23,6 +24,7 @@ export function indexPolicyFingerprint(config: Config): string {
     extraction: {
       parserVersion: 2,
       pdfOcrCommand: config.pdfOcrCommand,
+      pdfOcrParserPolicy: config.pdfOcrCommand.length > 0 ? PDF_OCR_PARSER_POLICY : null,
       imageOcrCommand: config.imageOcrCommand,
       legacyWordCommand: config.legacyWordCommand,
     },
