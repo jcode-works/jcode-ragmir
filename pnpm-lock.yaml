@@ -109,6 +109,9 @@ importers:
       '@types/node':
         specifier: ^24.10.1
         version: 24.13.2
+      apache-arrow:
+        specifier: ^18.1.0
+        version: 18.1.0
       publint:
         specifier: ^0.3.21
         version: 0.3.21

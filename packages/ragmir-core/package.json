@@ -71,6 +71,7 @@
     "bench:local-hash-runtime": "pnpm build && node benchmarks/local-hash-runtime.mjs",
     "bench:local-hash-experiment": "pnpm build && node benchmarks/local-hash-experiment.mjs",
     "bench:reranker-experiment": "pnpm build && node benchmarks/reranker-experiment.mjs",
+    "bench:index-compression-experiment": "pnpm build && node benchmarks/index-compression-experiment.mjs",
     "bench:model-lifecycle": "pnpm build && node benchmarks/model-lifecycle.mjs",
     "bench:observability": "pnpm build && node benchmarks/observability.mjs",
     "bench:parsers": "pnpm build && node benchmarks/parsers.mjs",
@@ -123,6 +124,7 @@
     "@jcode.labs/ragmir-tts": "workspace:*",
     "@types/html-to-text": "^9.0.4",
     "@types/node": "^24.10.1",
+    "apache-arrow": "^18.1.0",
     "publint": "^0.3.21",
     "typescript": "^5.9.3",
     "vitest": "^4.0.15"

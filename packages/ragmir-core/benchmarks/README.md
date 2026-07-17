@@ -70,3 +70,7 @@ active; generated results remain excluded from release artifacts.
 `bench:reranker-experiment` evaluates a pinned, quantized local cross-encoder over the first 20
 retrieval candidates. It prepares the ignored model cache once, proves subsequent offline loading,
 and compares Recall@K, nDCG@10, citations, p50/p95/p99 latency, peak RSS, model size, and cold start.
+
+`bench:index-compression-experiment` compares float32 and float16 vector storage against the same
+exact-search reference on M and L. It sweeps IVF-PQ query profiles and HNSW-SQ `ef`, prunes obsolete
+versions before measuring physical bytes, and retains only recall-safe Pareto improvements.

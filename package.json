@@ -41,6 +41,7 @@
     "bench:local-hash-runtime": "pnpm --filter @jcode.labs/ragmir bench:local-hash-runtime",
     "bench:local-hash-experiment": "pnpm --filter @jcode.labs/ragmir bench:local-hash-experiment",
     "bench:reranker-experiment": "pnpm --filter @jcode.labs/ragmir bench:reranker-experiment",
+    "bench:index-compression-experiment": "pnpm --filter @jcode.labs/ragmir bench:index-compression-experiment",
     "bench:observability": "pnpm --filter @jcode.labs/ragmir bench:observability",
     "bench:parsers": "pnpm --filter @jcode.labs/ragmir bench:parsers",
     "bench:generations": "pnpm --filter @jcode.labs/ragmir bench:generations",
