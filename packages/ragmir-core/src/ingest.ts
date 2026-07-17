@@ -44,6 +44,7 @@ import {
 import type {
   AuditReport,
   Config,
+  IncrementalFailurePolicy,
   IndexManifest,
   IndexManifestFile,
   IngestOptions,
@@ -121,6 +122,10 @@ async function ingestUnlocked(
     const canReuse = manifestCompatible && existingTable !== null
     const previousIndexedFiles = canReuse ? (existingManifest.indexedFiles ?? []) : []
     const previousEmptyFiles = canReuse ? storedEmptyFiles : []
+    const previousFiles = new Map<string, IndexManifestFile>([
+      ...previousIndexedFiles.map((file) => [file.relativePath, file] as const),
+      ...previousEmptyFiles.map((file) => [file.relativePath, { ...file, chunkCount: 0 }] as const),
+    ])
     const reusableIndexedFiles = previousIndexedFiles.filter(
       (file) => currentFiles.get(file.relativePath)?.checksum === file.checksum,
     )
@@ -172,6 +177,7 @@ async function ingestUnlocked(
         files,
         reusablePaths: mode === "incremental" ? reusablePaths : new Set(),
         reusableChunkCounts,
+        ...(mode === "incremental" ? { previousFiles } : {}),
       })
       if (mode === "rebuild") {
         state = {
@@ -204,6 +210,7 @@ async function ingestUnlocked(
       })
     let removalApplied = false
     let lexicalIndexWarning: string | null = null
+    const failurePolicy = incrementalFailurePolicy(options, config)
 
     for (const fileBatch of valueBatches(pendingFiles, state.batchSize)) {
       throwIfAborted(signal)
@@ -218,7 +225,7 @@ async function ingestUnlocked(
           state,
           parsed.file.relativePath,
           parsed.error
-            ? { state: "error", chunkCount: 0, redactions: 0, error: parsed.error }
+            ? { state: "error", redactions: 0, error: parsed.error }
             : {
                 state: "parsed",
                 chunkCount: parsed.chunks.length,
@@ -231,6 +238,7 @@ async function ingestUnlocked(
       throwIfAborted(signal)
 
       const successfulFiles = parsedBatch.filter((parsed) => parsed.error === null)
+      const failedFiles = parsedBatch.filter((parsed) => parsed.error !== null)
       const allChunks = successfulFiles.flatMap((parsed) => parsed.chunks)
       const rows = await vectorRowsForChunks(allChunks, config, signal)
       for (const parsed of successfulFiles) {
@@ -240,7 +248,10 @@ async function ingestUnlocked(
       throwIfAborted(signal)
 
       const replacePaths = [
-        ...fileBatch.map((file) => file.relativePath),
+        ...successfulFiles.map((parsed) => parsed.file.relativePath),
+        ...(state.mode === "incremental" && failurePolicy === "remove-stale"
+          ? failedFiles.map((parsed) => parsed.file.relativePath)
+          : []),
         ...(!removalApplied ? removedPaths : []),
       ]
       const writeResult = await updateRowsInTable(
@@ -253,7 +264,26 @@ async function ingestUnlocked(
       removalApplied = true
       lexicalIndexWarning ??= writeResult.lexicalIndexWarning
       for (const parsed of successfulFiles) {
-        state = updateIngestionFile(state, parsed.file.relativePath, { state: "indexed" })
+        state = updateIngestionFile(state, parsed.file.relativePath, {
+          state: "indexed",
+          lastGoodChecksum: parsed.file.checksum,
+          lastGoodChunkCount: parsed.chunks.length,
+          lastGoodBytes: parsed.file.bytes,
+          lastGoodMtimeMs: parsed.file.mtimeMs,
+          staleLastKnownGood: false,
+        })
+      }
+      if (state.mode === "incremental" && failurePolicy === "remove-stale") {
+        for (const parsed of failedFiles) {
+          state = updateIngestionFile(state, parsed.file.relativePath, {
+            chunkCount: 0,
+            lastGoodChecksum: null,
+            lastGoodChunkCount: 0,
+            lastGoodBytes: null,
+            lastGoodMtimeMs: null,
+            staleLastKnownGood: false,
+          })
+        }
       }
       await writeProgressManifest(state, config, connection)
       await persistIngestionProgress(state, config, options)
@@ -298,6 +328,7 @@ async function ingestUnlocked(
         (file) => file.state === "indexed" && file.chunkCount > 0 && !file.reused,
       ).length,
       reusedFiles: state.files.filter((file) => file.reused).length,
+      staleLastKnownGood: manifest.staleFiles?.map((file) => file.relativePath) ?? [],
       policyRebuild,
       chunks: manifest.chunkCount,
       discoveredFiles: inventory.discoveredFiles,
@@ -370,7 +401,18 @@ async function reconcileCommittedFiles(
       const key = `${file.relativePath}\0${file.checksum}`
       const committed =
         file.chunkCount > 0 ? rowCounts.get(key) === file.chunkCount : committedEmptyFiles.has(key)
-      return committed ? { ...file, state: "indexed", error: null } : file
+      return committed
+        ? {
+            ...file,
+            state: "indexed",
+            lastGoodChecksum: file.checksum,
+            lastGoodChunkCount: file.chunkCount,
+            lastGoodBytes: file.bytes,
+            lastGoodMtimeMs: file.mtimeMs,
+            staleLastKnownGood: false,
+            error: null,
+          }
+        : file
     }),
   }
 }
@@ -468,6 +510,21 @@ async function manifestForState(
   connection: Connection | undefined,
 ): Promise<IndexManifest> {
   const indexedFiles = indexedFilesFromState(state)
+  const staleFiles = state.files
+    .flatMap((file) =>
+      file.staleLastKnownGood && file.lastGoodChecksum !== null && file.error !== null
+        ? [
+            {
+              relativePath: file.relativePath,
+              currentChecksum: file.checksum,
+              lastGoodChecksum: file.lastGoodChecksum,
+              chunkCount: file.lastGoodChunkCount,
+              error: file.error,
+            },
+          ]
+        : [],
+    )
+    .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
   const chunkCount = indexedFiles.reduce((sum, file) => sum + file.chunkCount, 0)
   const table = await openRowsTableByName(state.tableName, config, connection)
   const [firstRow] = table ? ((await table.query().limit(1).toArray()) as VectorRow[]) : []
@@ -489,19 +546,41 @@ async function manifestForState(
     chunkCount,
     tableName: state.tableName,
     indexedFiles,
+    ...(staleFiles.length > 0 ? { staleFiles } : {}),
   }
 }
 
 function indexedFilesFromState(state: IngestionRunState): IndexManifestFile[] {
   return state.files
-    .filter((file) => file.state === "indexed" && file.chunkCount > 0)
-    .map((file) => ({
-      relativePath: file.relativePath,
-      checksum: file.checksum,
-      chunkCount: file.chunkCount,
-      bytes: file.bytes,
-      mtimeMs: file.mtimeMs,
-    }))
+    .flatMap((file) => {
+      if (file.state === "indexed" && file.chunkCount > 0) {
+        return [
+          {
+            relativePath: file.relativePath,
+            checksum: file.checksum,
+            chunkCount: file.chunkCount,
+            bytes: file.bytes,
+            mtimeMs: file.mtimeMs,
+          },
+        ]
+      }
+      if (
+        file.staleLastKnownGood &&
+        file.lastGoodChecksum !== null &&
+        file.lastGoodChunkCount > 0
+      ) {
+        return [
+          {
+            relativePath: file.relativePath,
+            checksum: file.lastGoodChecksum,
+            chunkCount: file.lastGoodChunkCount,
+            ...(file.lastGoodBytes === null ? {} : { bytes: file.lastGoodBytes }),
+            ...(file.lastGoodMtimeMs === null ? {} : { mtimeMs: file.lastGoodMtimeMs }),
+          },
+        ]
+      }
+      return []
+    })
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
 }
 
@@ -512,13 +591,35 @@ function emptyTextRecords(state: IngestionRunState): Array<{
   mtimeMs: number
 }> {
   return state.files
-    .filter((file) => file.state === "indexed" && file.chunkCount === 0)
-    .map((file) => ({
-      relativePath: file.relativePath,
-      checksum: file.checksum,
-      bytes: file.bytes,
-      mtimeMs: file.mtimeMs,
-    }))
+    .flatMap((file) => {
+      if (file.state === "indexed" && file.chunkCount === 0) {
+        return [
+          {
+            relativePath: file.relativePath,
+            checksum: file.checksum,
+            bytes: file.bytes,
+            mtimeMs: file.mtimeMs,
+          },
+        ]
+      }
+      if (
+        file.staleLastKnownGood &&
+        file.lastGoodChecksum !== null &&
+        file.lastGoodChunkCount === 0 &&
+        file.lastGoodBytes !== null &&
+        file.lastGoodMtimeMs !== null
+      ) {
+        return [
+          {
+            relativePath: file.relativePath,
+            checksum: file.lastGoodChecksum,
+            bytes: file.lastGoodBytes,
+            mtimeMs: file.lastGoodMtimeMs,
+          },
+        ]
+      }
+      return []
+    })
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
 }
 
@@ -579,6 +680,19 @@ function ingestFileBatchSize(value: number | undefined): number {
     throw new Error("batchSize must be a positive integer.")
   }
   return batchSize
+}
+
+function incrementalFailurePolicy(
+  options: IngestOptions,
+  config: Config,
+): IncrementalFailurePolicy {
+  const policy = options.incrementalFailurePolicy ?? config.incrementalFailurePolicy
+  if (policy !== "preserve-last-good" && policy !== "remove-stale") {
+    throw new Error(
+      'incrementalFailurePolicy must be either "preserve-last-good" or "remove-stale".',
+    )
+  }
+  return policy
 }
 
 function valueBatches<T>(values: T[], batchSize: number): T[][] {

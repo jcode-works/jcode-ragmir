@@ -6,6 +6,7 @@ import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import type {
   Config,
   IndexManifest,
+  IndexManifestFile,
   IngestionFileStage,
   IngestionProgress,
   IngestionRunMode,
@@ -13,7 +14,7 @@ import type {
   SourceFile,
 } from "./types.js"
 
-const INGESTION_STATE_VERSION = 1
+const INGESTION_STATE_VERSION = 2
 const INGESTION_STATE_FILENAME = "ingestion-state.json"
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const GENERATION_ID_PATTERN = /^[0-9a-f]{32}$/iu
@@ -26,6 +27,11 @@ export interface IngestionFileState {
   policyFingerprint: string
   state: IngestionFileStage
   chunkCount: number
+  lastGoodChecksum: string | null
+  lastGoodChunkCount: number
+  lastGoodBytes: number | null
+  lastGoodMtimeMs: number | null
+  staleLastKnownGood: boolean
   redactions: number
   error: string | null
   reused: boolean
@@ -57,6 +63,7 @@ interface CreateIngestionRunStateOptions {
   files: SourceFile[]
   reusablePaths: Set<string>
   reusableChunkCounts: Map<string, number>
+  previousFiles?: Map<string, IndexManifestFile>
 }
 
 export function createIngestionRunState(
@@ -78,6 +85,10 @@ export function createIngestionRunState(
     resumed: false,
     files: options.files.map((file) => {
       const reused = options.reusablePaths.has(file.relativePath)
+      const previous = options.previousFiles?.get(file.relativePath)
+      const lastGoodChecksum = previous?.checksum ?? (reused ? file.checksum : null)
+      const lastGoodChunkCount =
+        previous?.chunkCount ?? options.reusableChunkCounts.get(file.relativePath) ?? 0
       return {
         relativePath: file.relativePath,
         checksum: file.checksum,
@@ -85,7 +96,12 @@ export function createIngestionRunState(
         mtimeMs: file.mtimeMs,
         policyFingerprint: options.policyFingerprint,
         state: reused ? "indexed" : "pending",
-        chunkCount: options.reusableChunkCounts.get(file.relativePath) ?? 0,
+        chunkCount: lastGoodChunkCount,
+        lastGoodChecksum,
+        lastGoodChunkCount,
+        lastGoodBytes: previous?.bytes ?? (reused ? file.bytes : null),
+        lastGoodMtimeMs: previous?.mtimeMs ?? (reused ? file.mtimeMs : null),
+        staleLastKnownGood: lastGoodChecksum !== null && lastGoodChecksum !== file.checksum,
         redactions: 0,
         error: null,
         reused,
@@ -128,7 +144,15 @@ export function resumeIngestionState(state: IngestionRunState): IngestionRunStat
     files: state.files.map((file) =>
       file.state === "indexed"
         ? file
-        : { ...file, state: "pending", chunkCount: 0, error: null, updatedAt: now },
+        : {
+            ...file,
+            state: "pending",
+            chunkCount: file.lastGoodChunkCount,
+            error: null,
+            staleLastKnownGood:
+              file.lastGoodChecksum !== null && file.lastGoodChecksum !== file.checksum,
+            updatedAt: now,
+          },
     ),
   }
 }
@@ -137,7 +161,19 @@ export function updateIngestionFile(
   state: IngestionRunState,
   relativePath: string,
   update: Partial<
-    Pick<IngestionFileState, "state" | "chunkCount" | "redactions" | "error" | "reused">
+    Pick<
+      IngestionFileState,
+      | "state"
+      | "chunkCount"
+      | "lastGoodChecksum"
+      | "lastGoodChunkCount"
+      | "lastGoodBytes"
+      | "lastGoodMtimeMs"
+      | "staleLastKnownGood"
+      | "redactions"
+      | "error"
+      | "reused"
+    >
   >,
 ): IngestionRunState {
   const now = new Date().toISOString()
@@ -218,9 +254,17 @@ export function ingestionProgress(state: IngestionRunState): IngestionProgress {
     embeddedFiles: count("embedded"),
     indexedFiles: count("indexed"),
     errorFiles: count("error"),
-    chunksIndexed: state.files
-      .filter((file) => file.state === "indexed")
-      .reduce((sum, file) => sum + file.chunkCount, 0),
+    staleFiles: state.files.filter((file) => file.staleLastKnownGood).length,
+    chunksIndexed: state.files.reduce(
+      (sum, file) =>
+        sum +
+        (file.staleLastKnownGood
+          ? file.lastGoodChunkCount
+          : file.state === "indexed"
+            ? file.chunkCount
+            : 0),
+      0,
+    ),
     lastActivityAt: state.lastActivityAt,
   }
 }
@@ -295,23 +339,54 @@ function isIngestionFileState(
   value: unknown,
   policyFingerprint: string,
 ): value is IngestionFileState {
+  if (
+    !(
+      isRecord(value) &&
+      typeof value.relativePath === "string" &&
+      value.relativePath.length > 0 &&
+      !value.relativePath.includes("\0") &&
+      typeof value.checksum === "string" &&
+      value.checksum.length > 0 &&
+      isNonNegativeSafeInteger(value.bytes) &&
+      isNonNegativeFiniteNumber(value.mtimeMs) &&
+      value.policyFingerprint === policyFingerprint &&
+      isIngestionFileStage(value.state) &&
+      isNonNegativeSafeInteger(value.chunkCount) &&
+      (value.lastGoodChecksum === null ||
+        (typeof value.lastGoodChecksum === "string" && value.lastGoodChecksum.length > 0)) &&
+      isNonNegativeSafeInteger(value.lastGoodChunkCount) &&
+      (value.lastGoodBytes === null || isNonNegativeSafeInteger(value.lastGoodBytes)) &&
+      (value.lastGoodMtimeMs === null || isNonNegativeFiniteNumber(value.lastGoodMtimeMs)) &&
+      typeof value.staleLastKnownGood === "boolean" &&
+      isNonNegativeSafeInteger(value.redactions) &&
+      (value.error === null || typeof value.error === "string") &&
+      typeof value.reused === "boolean" &&
+      isIsoTimestamp(value.updatedAt) &&
+      (!value.reused || value.state === "indexed")
+    )
+  ) {
+    return false
+  }
+
+  const hasLastGood = value.lastGoodChecksum !== null
+  if (
+    (!hasLastGood &&
+      (value.lastGoodChunkCount !== 0 ||
+        value.lastGoodBytes !== null ||
+        value.lastGoodMtimeMs !== null)) ||
+    (value.staleLastKnownGood &&
+      (!hasLastGood || value.lastGoodChecksum === value.checksum || value.state === "indexed"))
+  ) {
+    return false
+  }
+
   return (
-    isRecord(value) &&
-    typeof value.relativePath === "string" &&
-    value.relativePath.length > 0 &&
-    !value.relativePath.includes("\0") &&
-    typeof value.checksum === "string" &&
-    value.checksum.length > 0 &&
-    isNonNegativeSafeInteger(value.bytes) &&
-    isNonNegativeFiniteNumber(value.mtimeMs) &&
-    value.policyFingerprint === policyFingerprint &&
-    isIngestionFileStage(value.state) &&
-    isNonNegativeSafeInteger(value.chunkCount) &&
-    isNonNegativeSafeInteger(value.redactions) &&
-    (value.error === null || typeof value.error === "string") &&
-    typeof value.reused === "boolean" &&
-    isIsoTimestamp(value.updatedAt) &&
-    (!value.reused || value.state === "indexed")
+    value.state !== "indexed" ||
+    (value.lastGoodChecksum === value.checksum &&
+      value.lastGoodChunkCount === value.chunkCount &&
+      value.lastGoodBytes === value.bytes &&
+      value.lastGoodMtimeMs === value.mtimeMs &&
+      !value.staleLastKnownGood)
   )
 }
 

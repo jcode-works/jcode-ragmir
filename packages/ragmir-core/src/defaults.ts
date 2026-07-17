@@ -46,6 +46,7 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   maxFileBytes: 50_000_000,
   ingestConcurrency: 4,
   embeddingBatchSize: 32,
+  incrementalFailurePolicy: "preserve-last-good",
   hybridTextScanLimit: 5_000,
   includeExtensions: [],
   pdfOcrCommand: [],

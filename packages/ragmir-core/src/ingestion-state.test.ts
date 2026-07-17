@@ -68,6 +68,15 @@ describe("ingestion state", () => {
       },
     },
     {
+      condition: "a file claims stale rows without a last-good checksum",
+      mutate: (state: ReturnType<typeof validIncrementalState>) => {
+        const file = state.files[0]
+        if (file) {
+          file.staleLastKnownGood = true
+        }
+      },
+    },
+    {
       condition: "a file policy differs from the run policy",
       mutate: (state: ReturnType<typeof validIncrementalState>) => {
         const file = state.files[0]
@@ -123,6 +132,33 @@ describe("ingestion state", () => {
     const config = testConfig(root)
     const state = validIncrementalState(config)
     state.tableName = generationTableName(config.tableName, "123e4567-e89b-42d3-a456-426614174000")
+
+    await writeIngestionState(state, config)
+
+    await expect(readIngestionState(config)).resolves.toEqual(state)
+  })
+
+  it("should accept legacy last-good manifest metadata without byte or mtime fields", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-state-last-good-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const file = sourceFile(root)
+    const state = createIngestionRunState({
+      mode: "incremental",
+      tableName: config.tableName,
+      previousTableName: null,
+      policyFingerprint: "test-policy",
+      batchSize: 25,
+      files: [{ ...file, checksum: "b".repeat(64) }],
+      reusablePaths: new Set(),
+      reusableChunkCounts: new Map(),
+      previousFiles: new Map([
+        [
+          file.relativePath,
+          { relativePath: file.relativePath, checksum: file.checksum, chunkCount: 1 },
+        ],
+      ]),
+    })
 
     await writeIngestionState(state, config)
 

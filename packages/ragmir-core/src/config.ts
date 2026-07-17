@@ -14,6 +14,7 @@ import type { Config } from "./types.js"
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
 const privacyProfileSchema = z.enum(["strict", "private", "trusted", "custom"])
 const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
+const incrementalFailurePolicySchema = z.enum(["preserve-last-good", "remove-stale"])
 
 const rawConfigSchema = z
   .object({
@@ -59,6 +60,9 @@ const rawConfigSchema = z
     maxFileBytes: z.number().int().positive().default(DEFAULT_CONFIG.maxFileBytes),
     ingestConcurrency: z.number().int().positive().default(DEFAULT_CONFIG.ingestConcurrency),
     embeddingBatchSize: z.number().int().positive().default(DEFAULT_CONFIG.embeddingBatchSize),
+    incrementalFailurePolicy: incrementalFailurePolicySchema.default(
+      DEFAULT_CONFIG.incrementalFailurePolicy,
+    ),
     hybridTextScanLimit: z.number().int().positive().default(DEFAULT_CONFIG.hybridTextScanLimit),
     includeExtensions: z.array(z.string().min(1)).default(DEFAULT_CONFIG.includeExtensions),
     pdfOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.pdfOcrCommand),
@@ -161,6 +165,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     maxFileBytes: effective.maxFileBytes,
     ingestConcurrency: effective.ingestConcurrency,
     embeddingBatchSize: effective.embeddingBatchSize,
+    incrementalFailurePolicy: effective.incrementalFailurePolicy,
     hybridTextScanLimit: effective.hybridTextScanLimit,
     includeExtensions: normalizeExtensions(effective.includeExtensions),
     pdfOcrCommand: effective.pdfOcrCommand,

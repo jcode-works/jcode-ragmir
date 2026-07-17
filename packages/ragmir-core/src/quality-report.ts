@@ -20,6 +20,7 @@ export function fingerprintIndexManifest(manifest: IndexManifest): string {
       chunkCount: manifest.chunkCount,
       tableName: manifest.tableName ?? null,
       indexedFiles: manifest.indexedFiles ?? [],
+      staleFiles: manifest.staleFiles ?? [],
     }),
   )
 }

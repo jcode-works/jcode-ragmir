@@ -42,6 +42,7 @@ export interface Config {
   maxFileBytes: number
   ingestConcurrency: number
   embeddingBatchSize: number
+  incrementalFailurePolicy: IncrementalFailurePolicy
   hybridTextScanLimit: number
   includeExtensions: string[]
   pdfOcrCommand: string[]
@@ -54,6 +55,7 @@ export interface Config {
 
 export type PrivacyProfile = "strict" | "private" | "trusted" | "custom"
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
+export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
 
 export type AccessLogAction =
   | "ingest"
@@ -130,6 +132,7 @@ export interface IndexManifest {
   chunkCount: number
   tableName?: string
   indexedFiles?: IndexManifestFile[]
+  staleFiles?: IndexManifestStaleFile[]
   qualityReport?: IndexQualityReport
 }
 
@@ -139,6 +142,14 @@ export interface IndexManifestFile {
   chunkCount: number
   bytes?: number
   mtimeMs?: number
+}
+
+export interface IndexManifestStaleFile {
+  relativePath: string
+  currentChecksum: string
+  lastGoodChecksum: string
+  chunkCount: number
+  error: string
 }
 
 export interface RedactionConfig {
@@ -245,6 +256,7 @@ export interface IngestOptions extends OperationOptions {
   cwd?: PathLike
   rebuild?: boolean
   batchSize?: number
+  incrementalFailurePolicy?: IncrementalFailurePolicy
   onProgress?: (progress: IngestionProgress) => void | Promise<void>
 }
 
@@ -259,6 +271,7 @@ export interface IngestResult {
   indexedFiles: number
   rebuiltFiles: number
   reusedFiles: number
+  staleLastKnownGood: string[]
   policyRebuild: boolean
   chunks: number
   skippedFiles: number
@@ -296,6 +309,7 @@ export interface IngestionProgress {
   embeddedFiles: number
   indexedFiles: number
   errorFiles: number
+  staleFiles: number
   chunksIndexed: number
   lastActivityAt: string
 }

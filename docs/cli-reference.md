@@ -17,7 +17,7 @@ rgr search "release decision"
 | `init` | Create basic local configuration only. |
 | `doctor [--fix]` | Check setup, index freshness, and safe repairs. |
 | `preview` | Parse, redact, and chunk selected sources without writing the index. |
-| `ingest [--rebuild] [--batch-size N]` | Index configured sources in resumable batches; rebuild after provider or chunking changes. |
+| `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY]` | Index configured sources in resumable batches; rebuild after provider or chunking changes. |
 | `search <query>` | Return ranked cited passages. |
 | `ask <query>` | Return cited context without model synthesis. |
 | `research <query>` | Run an audit-backed multi-query retrieval pass. |
@@ -62,6 +62,12 @@ the index are not parsed or embedded again.
 Every inventory pass recalculates each file's SHA-256, so a content change is detected even when a
 sync tool preserves both file size and modification time. A committed batch atomically replaces the
 changed source's chunks.
+
+If a changed file fails during parsing, embedding, or its LanceDB write, incremental ingestion keeps
+the previous rows searchable and records the current error, last-good checksum, and stale state.
+Repairing the source replaces those rows once; deleting the source removes them. The default is
+`--incremental-failure-policy preserve-last-good`. Select `remove-stale` explicitly when a failed
+changed file must have no searchable rows.
 
 `rgr status --json` exposes the run ID, mode, status, resume flag, last activity, batch size, chunk
 count, and file counts for `pending`, `parsed`, `embedded`, `indexed`, and `error` states. The human

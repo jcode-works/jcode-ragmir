@@ -323,6 +323,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         maxFileBytes: config.maxFileBytes,
         ingestConcurrency: config.ingestConcurrency,
         embeddingBatchSize: config.embeddingBatchSize,
+        incrementalFailurePolicy: config.incrementalFailurePolicy,
         includeExtensions: config.includeExtensions,
         pdfOcrCommand: config.pdfOcrCommand,
         pdfOcrTimeoutMs: config.pdfOcrTimeoutMs,

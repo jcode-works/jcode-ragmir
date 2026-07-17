@@ -308,6 +308,21 @@ describe("loadConfig", () => {
     await expect(loadConfig(root)).rejects.toThrow("chunkOverlap must be lower than chunkSize.")
   })
 
+  it("should validate the incremental ingestion failure policy", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    const configPath = path.join(root, ".ragmir/config.json")
+
+    await writeFile(configPath, JSON.stringify({ incrementalFailurePolicy: "remove-stale" }))
+    await expect(loadConfig(root)).resolves.toMatchObject({
+      incrementalFailurePolicy: "remove-stale",
+    })
+
+    await writeFile(configPath, JSON.stringify({ incrementalFailurePolicy: "discard-all" }))
+    await expect(loadConfig(root)).rejects.toThrow()
+  })
+
   it("overrides mcpMaxTopK from env and falls back to the default on invalid values", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-"))
     tempDirs.push(root)

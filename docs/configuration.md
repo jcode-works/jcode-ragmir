@@ -24,11 +24,19 @@ edit JSON only for a real need.
 | `mcpMaxOutputBytes` | `32768` | Cap variable-size MCP tool and resource JSON; the server also enforces an absolute 1 MiB ceiling. |
 | `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. |
 | `maxFileBytes` | `50000000` | Raise only when the target corpus justifies it. |
+| `incrementalFailurePolicy` | `preserve-last-good` | Use `remove-stale` only when failed changed files must disappear immediately. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
 
 Changing an embedding provider, model, or chunking field requires `rgr ingest --rebuild`.
 Ragmir also preserves Markdown heading paths and JSON or JSONL structure as retrieval-only context.
 Rebuild indexes created by an older Ragmir version to populate that structural context.
+
+Incremental ingestion preserves the last indexed rows when parsing, embedding, or LanceDB writing
+fails for a changed file. The result, manifest, durable ingestion state, and `rgr audit` mark that
+file as stale until a later ingest repairs it. Set `incrementalFailurePolicy` to `remove-stale`, or
+pass `rgr ingest --incremental-failure-policy remove-stale`, only when serving stale evidence is
+less acceptable than temporarily serving no evidence for that file. Actual source deletion always
+removes its rows.
 
 ## Privacy profiles
 

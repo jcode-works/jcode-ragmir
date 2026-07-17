@@ -16,7 +16,7 @@ import {
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { search } from "./query.js"
-import { readIndexManifest } from "./store.js"
+import { readIndexManifest, writeIndexManifest } from "./store.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -517,6 +517,32 @@ describe("evaluateGoldenQueries", () => {
       report.qualityReportFingerprint,
     )
     expect((await doctor(root)).readiness.retrievalQualityVerified).toBe(true)
+
+    const manifest = await readIndexManifest(config)
+    if (!manifest) {
+      throw new Error("Expected an index manifest after quality evaluation.")
+    }
+    await writeIndexManifest(
+      {
+        ...manifest,
+        staleFiles: [
+          {
+            relativePath: ".ragmir/raw/evidence.md",
+            currentChecksum: "b".repeat(64),
+            lastGoodChecksum: manifest.indexedFiles?.[0]?.checksum ?? "a".repeat(64),
+            chunkCount: manifest.chunkCount,
+            error: "simulated parse failure",
+          },
+        ],
+      },
+      config,
+    )
+
+    const staleReport = await evaluateGoldenQueries({ cwd: root, goldenPath })
+    expect(staleReport.passed).toBe(true)
+    expect(staleReport.verificationEligible).toBe(false)
+    expect(staleReport.reportStored).toBe(false)
+    expect((await doctor(root)).readiness.retrievalQualityVerified).toBe(false)
 
     await writeFile(goldenPath, `${JSON.stringify(golden, null, 2)}\n\n`, "utf8")
 

@@ -11,6 +11,7 @@ import {
   audioLanguage,
   parseAgentInstallMode,
   parseAgentInstallScope,
+  parseIncrementalFailurePolicy,
   parseNonNegativeInt,
   parseNumber,
   parsePositiveInt,
@@ -48,7 +49,7 @@ import {
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { countRows } from "./store.js"
-import type { PreviewChunksOptions, ResearchReport } from "./types.js"
+import type { IncrementalFailurePolicy, PreviewChunksOptions, ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
@@ -379,16 +380,27 @@ program
   .description("Parse changed documents, redact, chunk, embed locally, and update LanceDB.")
   .option("--rebuild", "Force a full local index rebuild instead of reusing unchanged rows.")
   .option("--batch-size <number>", "Files committed per resumable batch.", parsePositiveInt)
+  .option(
+    "--incremental-failure-policy <policy>",
+    "Preserve last-good rows after a file failure, or remove stale rows.",
+    parseIncrementalFailurePolicy,
+  )
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
-      options: { rebuild?: boolean; batchSize?: number; json?: boolean },
+      options: {
+        rebuild?: boolean
+        batchSize?: number
+        incrementalFailurePolicy?: IncrementalFailurePolicy
+        json?: boolean
+      },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
       const ingestOptions: Parameters<typeof ingest>[0] = { cwd }
       addOption(ingestOptions, "rebuild", options.rebuild)
       addOption(ingestOptions, "batchSize", options.batchSize)
+      addOption(ingestOptions, "incrementalFailurePolicy", options.incrementalFailurePolicy)
       const result = await ingest(ingestOptions)
       if (options.json) {
         console.log(JSON.stringify(result, null, 2))
@@ -400,7 +412,7 @@ program
 
       console.log(
         pc.green(
-          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`,
+          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} staleLastKnownGood=${result.staleLastKnownGood.length} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`,
         ),
       )
       printUnsupportedSummary(result.unsupportedExtensions)
@@ -1011,6 +1023,7 @@ program
       maxFileBytes: config.maxFileBytes,
       ingestConcurrency: config.ingestConcurrency,
       embeddingBatchSize: config.embeddingBatchSize,
+      incrementalFailurePolicy: config.incrementalFailurePolicy,
       includeExtensions: config.includeExtensions,
       pdfOcrCommand: config.pdfOcrCommand,
       pdfOcrTimeoutMs: config.pdfOcrTimeoutMs,
@@ -1046,6 +1059,7 @@ program
     console.log(`maxFileBytes=${config.maxFileBytes}`)
     console.log(`ingestConcurrency=${config.ingestConcurrency}`)
     console.log(`embeddingBatchSize=${config.embeddingBatchSize}`)
+    console.log(`incrementalFailurePolicy=${config.incrementalFailurePolicy}`)
     console.log(`includeExtensions=${config.includeExtensions.join(",")}`)
     console.log(`pdfOcrCommand=${config.pdfOcrCommand.join(" ")}`)
     console.log(`pdfOcrTimeoutMs=${config.pdfOcrTimeoutMs}`)
@@ -1061,7 +1075,7 @@ program
       console.log(`ingestionResumed=${ingestion.resumed}`)
       console.log(`ingestionBatchSize=${ingestion.batchSize}`)
       console.log(
-        `ingestionProgress=${ingestion.indexedFiles}/${ingestion.totalFiles} indexed, ${ingestion.errorFiles} errors, ${ingestion.pendingFiles} pending`,
+        `ingestionProgress=${ingestion.indexedFiles}/${ingestion.totalFiles} indexed, ${ingestion.errorFiles} errors, ${ingestion.staleFiles} stale, ${ingestion.pendingFiles} pending`,
       )
       console.log(`ingestionLastActivityAt=${ingestion.lastActivityAt}`)
     }

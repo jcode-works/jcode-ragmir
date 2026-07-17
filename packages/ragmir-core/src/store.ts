@@ -190,7 +190,9 @@ function isIndexManifest(
     typeof value.chunkCount === "number" &&
     (!("tableName" in value) || typeof value.tableName === "string") &&
     (!("indexedFiles" in value) ||
-      (Array.isArray(value.indexedFiles) && value.indexedFiles.every(isIndexManifestFile)))
+      (Array.isArray(value.indexedFiles) && value.indexedFiles.every(isIndexManifestFile))) &&
+    (!("staleFiles" in value) ||
+      (Array.isArray(value.staleFiles) && value.staleFiles.every(isIndexManifestStaleFile)))
   )
 }
 
@@ -202,6 +204,17 @@ function isIndexManifestFile(value: unknown): boolean {
     typeof value.chunkCount === "number" &&
     (!("bytes" in value) || typeof value.bytes === "number") &&
     (!("mtimeMs" in value) || typeof value.mtimeMs === "number")
+  )
+}
+
+function isIndexManifestStaleFile(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.relativePath === "string" &&
+    typeof value.currentChecksum === "string" &&
+    typeof value.lastGoodChecksum === "string" &&
+    typeof value.chunkCount === "number" &&
+    typeof value.error === "string"
   )
 }
 

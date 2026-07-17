@@ -192,6 +192,7 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
   const relativeGoldenPath = projectRelativePath(config.projectRoot, goldenPath)
   const verificationEligible =
     initialManifest !== null &&
+    (initialManifest.staleFiles?.length ?? 0) === 0 &&
     relativeGoldenPath !== null &&
     cases.length >= goldenFile.minimumCasesForVerification &&
     answerableCases.length > 0 &&

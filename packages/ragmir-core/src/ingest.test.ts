@@ -1,17 +1,21 @@
 import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { loadConfig } from "./config.js"
+import * as embeddingsModule from "./embeddings.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress, readIngestionState, writeIngestionState } from "./ingestion-state.js"
 import { initProject } from "./init.js"
+import { search } from "./query.js"
+import * as storeModule from "./store.js"
 import { connectStore, openRowsTable, readIndexManifest, readRows } from "./store.js"
 
 const tempDirs: string[] = []
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true })
   }
@@ -93,6 +97,170 @@ describe("ingest", () => {
       ".ragmir/raw/beta.md",
     ])
     expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length)
+  })
+
+  it("should preserve and mark the last known good rows after an incremental parse failure", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-last-good-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    const sourcePath = path.join(root, ".ragmir", "raw", "evidence.json")
+    const relativePath = ".ragmir/raw/evidence.json"
+    await writeFile(sourcePath, JSON.stringify({ decision: "retain legacy-token evidence" }))
+    await ingest({ cwd: root })
+
+    const config = await loadConfig(root)
+    const rowsBefore = await readRows(config)
+    const manifestBefore = await readIndexManifest(config)
+    await writeFile(sourcePath, '{"decision":', "utf8")
+
+    const failed = await ingest({ cwd: root })
+    const rowsAfterFailure = await readRows(config)
+    const manifestAfterFailure = await readIndexManifest(config)
+    const stateAfterFailure = await readIngestionState(config)
+    const fileState = stateAfterFailure?.files.find((file) => file.relativePath === relativePath)
+    const reportAfterFailure = await audit(root)
+    const resultsAfterFailure = await search("legacy-token", { cwd: root })
+
+    expect(failed.staleLastKnownGood).toEqual([relativePath])
+    expect(failed.errors).toEqual([expect.objectContaining({ path: relativePath })])
+    expect(rowsAfterFailure).toEqual(rowsBefore)
+    expect(manifestAfterFailure?.chunkCount).toBe(rowsBefore.length)
+    expect(manifestAfterFailure?.indexedFiles).toEqual(manifestBefore?.indexedFiles)
+    expect(manifestAfterFailure?.staleFiles).toEqual([
+      expect.objectContaining({
+        relativePath,
+        lastGoodChecksum: manifestBefore?.indexedFiles?.[0]?.checksum,
+        chunkCount: rowsBefore.length,
+      }),
+    ])
+    expect(fileState).toMatchObject({
+      state: "error",
+      lastGoodChecksum: manifestBefore?.indexedFiles?.[0]?.checksum,
+      lastGoodChunkCount: rowsBefore.length,
+      staleLastKnownGood: true,
+    })
+    expect(fileState?.checksum).not.toBe(fileState?.lastGoodChecksum)
+    expect(reportAfterFailure.staleInIndex).toEqual([relativePath])
+    expect(reportAfterFailure.missingFromIndex).toEqual([])
+    expect(reportAfterFailure.totalChunks).toBe(rowsBefore.length)
+    expect(resultsAfterFailure[0]?.text).toContain("legacy-token")
+
+    await writeFile(sourcePath, JSON.stringify({ decision: "use repaired-token evidence" }))
+    const repaired = await ingest({ cwd: root })
+    const repairedRows = await readRows(config)
+    const repairedManifest = await readIndexManifest(config)
+
+    expect(repaired.staleLastKnownGood).toEqual([])
+    expect(repaired.errors).toEqual([])
+    expect(repairedRows).toHaveLength(1)
+    expect(new Set(repairedRows.map((row) => row.id)).size).toBe(repairedRows.length)
+    expect(repairedRows[0]?.text).toContain("repaired-token")
+    expect(repairedManifest?.staleFiles).toBeUndefined()
+    await expect(audit(root)).resolves.toMatchObject({
+      staleInIndex: [],
+      missingFromIndex: [],
+      totalChunks: 1,
+    })
+
+    await rm(sourcePath)
+    const deleted = await ingest({ cwd: root })
+    expect(deleted.chunks).toBe(0)
+    expect(await readRows(config)).toEqual([])
+    await expect(audit(root)).resolves.toMatchObject({
+      indexedFiles: [],
+      supportedFiles: [],
+      staleInIndex: [],
+      missingFromIndex: [],
+      totalChunks: 0,
+    })
+  })
+
+  it("should remove stale rows only when the strict incremental failure policy is selected", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-remove-stale-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    const sourcePath = path.join(root, ".ragmir", "raw", "evidence.json")
+    const relativePath = ".ragmir/raw/evidence.json"
+    await writeFile(sourcePath, JSON.stringify({ evidence: "valid before failure" }))
+    await ingest({ cwd: root })
+    await writeFile(sourcePath, "{invalid", "utf8")
+
+    const result = await ingest({ cwd: root, incrementalFailurePolicy: "remove-stale" })
+    const config = await loadConfig(root)
+    const state = await readIngestionState(config)
+
+    expect(result.staleLastKnownGood).toEqual([])
+    expect(result.errors).toEqual([expect.objectContaining({ path: relativePath })])
+    expect(await readRows(config)).toEqual([])
+    expect(await readIndexManifest(config)).toMatchObject({
+      chunkCount: 0,
+      indexedFiles: [],
+    })
+    expect(state?.files[0]).toMatchObject({
+      state: "error",
+      lastGoodChecksum: null,
+      lastGoodChunkCount: 0,
+      staleLastKnownGood: false,
+    })
+    await expect(audit(root)).resolves.toMatchObject({
+      missingFromIndex: [relativePath],
+      staleInIndex: [],
+      totalChunks: 0,
+    })
+  })
+
+  it("should keep the active rows and manifest when incremental embedding fails", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-embedding-failure-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    const sourcePath = path.join(root, ".ragmir", "raw", "evidence.md")
+    await writeFile(sourcePath, "Healthy evidence before embedding failure.\n")
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const rowsBefore = await readRows(config)
+    const manifestBefore = await readIndexManifest(config)
+    await writeFile(sourcePath, "Changed evidence that cannot be embedded.\n")
+    vi.spyOn(embeddingsModule, "embedTexts").mockRejectedValueOnce(
+      new Error("simulated embedding failure"),
+    )
+
+    await expect(ingest({ cwd: root })).rejects.toThrow("simulated embedding failure")
+
+    expect(await readRows(config)).toEqual(rowsBefore)
+    expect(await readIndexManifest(config)).toEqual(manifestBefore)
+    await expect(readIngestionState(config)).resolves.toMatchObject({
+      status: "failed",
+      files: [expect.objectContaining({ state: "parsed", staleLastKnownGood: true })],
+    })
+  })
+
+  it("should keep the active rows and manifest when the incremental Lance write fails", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-lance-failure-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    const sourcePath = path.join(root, ".ragmir", "raw", "evidence.md")
+    await writeFile(sourcePath, "Healthy evidence before Lance failure.\n")
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const rowsBefore = await readRows(config)
+    const manifestBefore = await readIndexManifest(config)
+    await writeFile(sourcePath, "Changed evidence that cannot be committed.\n")
+    vi.spyOn(storeModule, "updateRowsInTable").mockRejectedValueOnce(
+      new Error("simulated Lance write failure"),
+    )
+
+    await expect(ingest({ cwd: root })).rejects.toThrow("simulated Lance write failure")
+
+    expect(await readRows(config)).toEqual(rowsBefore)
+    expect(await readIndexManifest(config)).toEqual(manifestBefore)
+    await expect(readIngestionState(config)).resolves.toMatchObject({
+      status: "failed",
+      files: [expect.objectContaining({ state: "embedded", staleLastKnownGood: true })],
+    })
   })
 
   it("should rebuild changed content when size and mtime are unchanged", async () => {
