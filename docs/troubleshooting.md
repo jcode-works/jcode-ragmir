@@ -71,6 +71,18 @@ share an actively written `.ragmir/storage/` directory.
 
 Run `rgr security-audit --strict`. It reports the exact local control that conflicts with the strict profile. Strict mode requires ignored local state, redaction, bounded MCP output, and no external extractors.
 
+The audit also reports tracked private paths and local extractor authority. Move tracked private
+data out of Git, add the containing path to `.gitignore`, and rotate any credential that reached a
+remote. External extractors run with the current operator's filesystem and process permissions;
+strict privacy disables them.
+
+## Configuration rejects a regex or environment variable
+
+Custom redaction expressions that are invalid or may cause catastrophic backtracking are rejected
+before content processing. Replace nested or ambiguous repetition with bounded, linear patterns.
+Invalid `RAGMIR_*` values now name the failing variable instead of silently falling back; correct or
+unset the override and rerun the command.
+
 ## Chat or audio is not ready
 
 Run `rgr chat doctor` or `rgr audio --doctor`. Setup commands download optional public model files explicitly; normal offline use requires those files to be present already. See the dedicated local chat and TTS guides for model preparation.

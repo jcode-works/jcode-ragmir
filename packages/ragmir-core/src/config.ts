@@ -9,16 +9,26 @@ import {
   defaultEmbeddingModelRevision,
   LEGACY_CONFIG_PATH,
   LEGACY_DEFAULT_CONFIG,
+  MAX_CHUNK_SIZE,
+  MAX_CONFIG_ARRAY_ITEMS,
+  MAX_CONFIG_PATH_CHARACTERS,
+  MAX_CONFIG_TEXT_CHARACTERS,
   MAX_CONFIGURED_FILE_BYTES,
   MAX_EMBEDDING_BATCH_SIZE,
+  MAX_EXTERNAL_COMMAND_ARGUMENTS,
+  MAX_EXTERNAL_COMMAND_TIMEOUT_MS,
   MAX_HYBRID_TEXT_SCAN_LIMIT,
+  MAX_INCLUDE_EXTENSIONS,
   MAX_INGEST_CONCURRENCY,
+  MAX_MCP_OUTPUT_BYTES,
+  MAX_REDACTION_PATTERNS,
   MAX_SEARCH_TOP_K,
   MAX_WORKLOAD_CONCURRENCY,
   MAX_WORKLOAD_QUEUE,
   MAX_WORKLOAD_QUEUE_TIMEOUT_MS,
 } from "./defaults.js"
 import { isRecord } from "./guards.js"
+import { redactionPatternSafetyError } from "./redaction.js"
 import type { Config, WorkloadLimit } from "./types.js"
 
 export const CONFIG_LOAD_DIAGNOSTICS_CHANNEL = "ragmir:config-load"
@@ -39,6 +49,25 @@ const privacyProfileSchema = z.enum(["strict", "private", "trusted", "custom"])
 const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
 const sourceFingerprintModeSchema = z.enum(["fast", "strict"])
 const incrementalFailurePolicySchema = z.enum(["preserve-last-good", "remove-stale"])
+const configPathSchema = z.string().min(1).max(MAX_CONFIG_PATH_CHARACTERS)
+const configTextSchema = z.string().min(1).max(MAX_CONFIG_TEXT_CHARACTERS)
+const externalCommandSchema = z.array(configTextSchema).max(MAX_EXTERNAL_COMMAND_ARGUMENTS)
+const redactionPatternSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    pattern: configTextSchema,
+    flags: z.string().max(8).optional(),
+    replacement: z.string().max(MAX_CONFIG_TEXT_CHARACTERS).optional(),
+    verify: z.enum(["luhn"]).optional(),
+  })
+  .strict()
+  .superRefine((pattern, context) => {
+    const safetyError = redactionPatternSafetyError(pattern.pattern, pattern.flags)
+    if (safetyError) {
+      context.addIssue({ code: "custom", message: safetyError, path: ["pattern"] })
+    }
+  })
+const externalExtractorsByConfig = new WeakMap<Config, boolean>()
 function workloadLimitSchema(defaults: WorkloadLimit) {
   return z
     .object({
@@ -63,17 +92,22 @@ const rawConfigSchema = z
   .object({
     privacyProfile: privacyProfileSchema.default(DEFAULT_CONFIG.privacyProfile),
     retrievalProfile: retrievalProfileSchema.default(DEFAULT_CONFIG.retrievalProfile),
-    acceptedRisks: z.array(z.string().min(1)).default(DEFAULT_CONFIG.acceptedRisks),
-    rawDir: z.string().default(DEFAULT_CONFIG.rawDir),
-    storageDir: z.string().default(DEFAULT_CONFIG.storageDir),
-    sourcesFile: z.string().default(DEFAULT_CONFIG.sourcesFile),
-    sources: z.array(z.string().min(1)).default(DEFAULT_CONFIG.sources),
-    accessLogPath: z.string().default(DEFAULT_CONFIG.accessLogPath),
-    embeddingModelPath: z.string().default(DEFAULT_CONFIG.embeddingModelPath),
-    tableName: z.string().default(DEFAULT_CONFIG.tableName),
+    acceptedRisks: z.array(configTextSchema).max(128).default(DEFAULT_CONFIG.acceptedRisks),
+    rawDir: configPathSchema.default(DEFAULT_CONFIG.rawDir),
+    storageDir: configPathSchema.default(DEFAULT_CONFIG.storageDir),
+    sourcesFile: configPathSchema.default(DEFAULT_CONFIG.sourcesFile),
+    sources: z.array(configPathSchema).max(MAX_CONFIG_ARRAY_ITEMS).default(DEFAULT_CONFIG.sources),
+    accessLogPath: configPathSchema.default(DEFAULT_CONFIG.accessLogPath),
+    embeddingModelPath: configPathSchema.default(DEFAULT_CONFIG.embeddingModelPath),
+    tableName: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9_-]+$/u)
+      .default(DEFAULT_CONFIG.tableName),
     embeddingProvider: embeddingProviderSchema.default(DEFAULT_CONFIG.embeddingProvider),
-    embeddingModel: z.string().default(DEFAULT_CONFIG.embeddingModel),
-    embeddingModelRevision: z.string().min(1).default(DEFAULT_CONFIG.embeddingModelRevision),
+    embeddingModel: configTextSchema.default(DEFAULT_CONFIG.embeddingModel),
+    embeddingModelRevision: configTextSchema.default(DEFAULT_CONFIG.embeddingModelRevision),
     embeddingModelDigest: embeddingModelDigestSchema.default(DEFAULT_CONFIG.embeddingModelDigest),
     transformersAllowRemoteModels: z
       .boolean()
@@ -83,24 +117,28 @@ const rawConfigSchema = z
         enabled: z.boolean().default(DEFAULT_CONFIG.redaction.enabled),
         builtIn: z.boolean().default(DEFAULT_CONFIG.redaction.builtIn),
         patterns: z
-          .array(
-            z.object({
-              name: z.string().min(1),
-              pattern: z.string().min(1),
-              flags: z.string().optional(),
-              replacement: z.string().optional(),
-              verify: z.enum(["luhn"]).optional(),
-            }),
-          )
+          .array(redactionPatternSchema)
+          .max(MAX_REDACTION_PATTERNS)
           .default(DEFAULT_CONFIG.redaction.patterns),
       })
+      .strict()
       .default(DEFAULT_CONFIG.redaction),
     accessLog: z.boolean().default(DEFAULT_CONFIG.accessLog),
     mcpMaxTopK: z.number().int().positive().default(DEFAULT_CONFIG.mcpMaxTopK),
-    mcpMaxOutputBytes: z.number().int().min(1_024).default(DEFAULT_CONFIG.mcpMaxOutputBytes),
+    mcpMaxOutputBytes: z
+      .number()
+      .int()
+      .min(1_024)
+      .max(MAX_MCP_OUTPUT_BYTES)
+      .default(DEFAULT_CONFIG.mcpMaxOutputBytes),
     topK: z.number().int().positive().default(DEFAULT_CONFIG.topK),
-    chunkSize: z.number().int().positive().default(DEFAULT_CONFIG.chunkSize),
-    chunkOverlap: z.number().int().nonnegative().default(DEFAULT_CONFIG.chunkOverlap),
+    chunkSize: z.number().int().positive().max(MAX_CHUNK_SIZE).default(DEFAULT_CONFIG.chunkSize),
+    chunkOverlap: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(MAX_CHUNK_SIZE)
+      .default(DEFAULT_CONFIG.chunkOverlap),
     maxFileBytes: z.number().int().positive().default(DEFAULT_CONFIG.maxFileBytes),
     ingestConcurrency: z.number().int().positive().default(DEFAULT_CONFIG.ingestConcurrency),
     embeddingBatchSize: z.number().int().positive().default(DEFAULT_CONFIG.embeddingBatchSize),
@@ -125,13 +163,31 @@ const rawConfigSchema = z
       })
       .strict()
       .default(DEFAULT_CONFIG.workloadLimits),
-    includeExtensions: z.array(z.string().min(1)).default(DEFAULT_CONFIG.includeExtensions),
-    pdfOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.pdfOcrCommand),
-    pdfOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.pdfOcrTimeoutMs),
-    imageOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.imageOcrCommand),
-    imageOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.imageOcrTimeoutMs),
-    legacyWordCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.legacyWordCommand),
-    legacyWordTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.legacyWordTimeoutMs),
+    includeExtensions: z
+      .array(z.string().min(1).max(32))
+      .max(MAX_INCLUDE_EXTENSIONS)
+      .default(DEFAULT_CONFIG.includeExtensions),
+    pdfOcrCommand: externalCommandSchema.default(DEFAULT_CONFIG.pdfOcrCommand),
+    pdfOcrTimeoutMs: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_EXTERNAL_COMMAND_TIMEOUT_MS)
+      .default(DEFAULT_CONFIG.pdfOcrTimeoutMs),
+    imageOcrCommand: externalCommandSchema.default(DEFAULT_CONFIG.imageOcrCommand),
+    imageOcrTimeoutMs: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_EXTERNAL_COMMAND_TIMEOUT_MS)
+      .default(DEFAULT_CONFIG.imageOcrTimeoutMs),
+    legacyWordCommand: externalCommandSchema.default(DEFAULT_CONFIG.legacyWordCommand),
+    legacyWordTimeoutMs: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_EXTERNAL_COMMAND_TIMEOUT_MS)
+      .default(DEFAULT_CONFIG.legacyWordTimeoutMs),
   })
   .strict()
 
@@ -193,7 +249,8 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
 
   const parsed = rawConfigSchema.parse(configWithModelIdentityDefaults(defaults, raw))
   const withProfile = applyRetrievalProfile(parsed, raw)
-  const withEnv = applyEnv(withProfile)
+  const withEnv = rawConfigSchema.parse(applyEnv(withProfile))
+  const externalExtractorsConfigured = configuredExternalExtractors(withEnv)
   const effective = applyPrivacyFloor(withEnv)
 
   assertAtMost("maxFileBytes", effective.maxFileBytes, MAX_CONFIGURED_FILE_BYTES)
@@ -252,7 +309,22 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
       configPath: projectConfig.configPath,
     } satisfies ConfigLoadDiagnosticsEvent)
   }
+  externalExtractorsByConfig.set(config, externalExtractorsConfigured)
   return config
+}
+
+export function externalExtractorsRequested(config: Config): boolean {
+  return externalExtractorsByConfig.get(config) ?? configuredExternalExtractors(config)
+}
+
+function configuredExternalExtractors(
+  config: Pick<Config, "pdfOcrCommand" | "imageOcrCommand" | "legacyWordCommand">,
+): boolean {
+  return (
+    config.pdfOcrCommand.length > 0 ||
+    config.imageOcrCommand.length > 0 ||
+    config.legacyWordCommand.length > 0
+  )
 }
 
 function assertAtMost(name: string, value: number, maximum: number): void {
@@ -493,12 +565,12 @@ function readEmbeddingProviderEnv(
   fallback: RawConfig["embeddingProvider"],
 ): RawConfig["embeddingProvider"] {
   const raw = process.env[name] ?? process.env[legacyName]
-  if (!raw) {
+  if (raw === undefined) {
     return fallback
   }
   const parsed = embeddingProviderSchema.safeParse(raw)
   if (!parsed.success) {
-    return fallback
+    throw invalidEnvironmentValue(name, legacyName, '"local-hash" or "transformers"')
   }
   return parsed.data
 }
@@ -509,8 +581,14 @@ function readSourceFingerprintModeEnv(
   fallback: RawConfig["sourceFingerprintMode"],
 ): RawConfig["sourceFingerprintMode"] {
   const raw = process.env[name] ?? process.env[legacyName]
+  if (raw === undefined) {
+    return fallback
+  }
   const parsed = sourceFingerprintModeSchema.safeParse(raw)
-  return parsed.success ? parsed.data : fallback
+  if (!parsed.success) {
+    throw invalidEnvironmentValue(name, legacyName, '"fast" or "strict"')
+  }
+  return parsed.data
 }
 
 function readStringEnv(name: string, legacyName: string, fallback: string): string {
@@ -518,24 +596,28 @@ function readStringEnv(name: string, legacyName: string, fallback: string): stri
 }
 
 function readBooleanEnv(name: string, legacyName: string, fallback: boolean): boolean {
-  const raw = (process.env[name] ?? process.env[legacyName])?.toLowerCase()
+  const supplied = process.env[name] ?? process.env[legacyName]
+  if (supplied === undefined) {
+    return fallback
+  }
+  const raw = supplied.toLowerCase()
   if (raw === "1" || raw === "true" || raw === "yes") {
     return true
   }
   if (raw === "0" || raw === "false" || raw === "no") {
     return false
   }
-  return fallback
+  throw invalidEnvironmentValue(name, legacyName, "a boolean (1/0, true/false, or yes/no)")
 }
 
 function readPositiveIntEnv(name: string, legacyName: string, fallback: number): number {
   const raw = process.env[name] ?? process.env[legacyName]
-  if (!raw) {
+  if (raw === undefined) {
     return fallback
   }
   const value = Number(raw)
   if (!(Number.isSafeInteger(value) && value > 0)) {
-    return fallback
+    throw invalidEnvironmentValue(name, legacyName, "a positive safe integer")
   }
   return value
 }
@@ -547,28 +629,31 @@ function readIntegerAtLeastEnv(
   fallback: number,
 ): number {
   const raw = process.env[name] ?? process.env[legacyName]
-  if (!raw) {
+  if (raw === undefined) {
     return fallback
   }
   const value = Number(raw)
   if (!(Number.isSafeInteger(value) && value >= minimum)) {
-    return fallback
+    throw invalidEnvironmentValue(name, legacyName, `an integer of at least ${minimum}`)
   }
   return value
 }
 
 function readNonNegativeIntEnv(name: string, legacyName: string, fallback: number): number {
   const raw = process.env[name] ?? process.env[legacyName]
-  if (!raw) {
+  if (raw === undefined) {
     return fallback
   }
   const value = Number(raw)
-  return Number.isSafeInteger(value) && value >= 0 ? value : fallback
+  if (!(Number.isSafeInteger(value) && value >= 0)) {
+    throw invalidEnvironmentValue(name, legacyName, "a non-negative safe integer")
+  }
+  return value
 }
 
 function readExtensionsEnv(name: string, legacyName: string, fallback: string[]): string[] {
   const raw = process.env[name] ?? process.env[legacyName]
-  if (!raw) {
+  if (raw === undefined) {
     return fallback
   }
   return raw.split(",")
@@ -576,16 +661,24 @@ function readExtensionsEnv(name: string, legacyName: string, fallback: string[])
 
 function readJsonStringArrayEnv(name: string, legacyName: string, fallback: string[]): string[] {
   const raw = process.env[name] ?? process.env[legacyName]
-  if (!raw) {
+  if (raw === undefined) {
     return fallback
   }
   try {
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) &&
-      parsed.every((value) => typeof value === "string" && value.length > 0)
-      ? parsed
-      : fallback
+    if (
+      !Array.isArray(parsed) ||
+      !parsed.every((value) => typeof value === "string" && value.length > 0)
+    ) {
+      throw invalidEnvironmentValue(name, legacyName, "a JSON array of non-empty strings")
+    }
+    return parsed
   } catch {
-    return fallback
+    throw invalidEnvironmentValue(name, legacyName, "a JSON array of non-empty strings")
   }
+}
+
+function invalidEnvironmentValue(name: string, legacyName: string, expected: string): Error {
+  const sourceName = process.env[name] !== undefined ? name : legacyName
+  return new Error(`${sourceName} must be ${expected}.`)
 }

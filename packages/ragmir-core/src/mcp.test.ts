@@ -469,8 +469,8 @@ describe("MCP protocol contract", () => {
   })
 
   it("should bound security and usage reports with the configured MCP budget", async () => {
-    const customPatterns = Array.from({ length: 100 }, (_value, index) => ({
-      name: `custom-pattern-${index}-${"description-".repeat(10)}`,
+    const customPatterns = Array.from({ length: 64 }, (_value, index) => ({
+      name: `custom-pattern-${index}-${"x".repeat(60)}`,
       pattern: `SECRET_${index}`,
     }))
     const root = await createProject("ragmir-mcp-report-budget-", {

@@ -47,6 +47,9 @@ Returned citations expose only verifiable coordinates: source lines for line-pre
 pages, PPTX slides, XLSX sheets and cells, and EPUB spine positions.
 Run `npx rgr audit --unsupported` to compare the selected files with the index and see what was
 skipped.
+Custom redaction expressions are screened for catastrophic backtracking. `npx rgr security-audit`
+also reports permissions, ignored/tracked state for every private path, and local extractor
+authority.
 `npx rgr status` and normal `npx rgr doctor` consume compact manifest health without opening chunk
 storage. Use `npx rgr doctor --deep` or `npx rgr audit` for explicit O(corpus) live diagnostics.
 

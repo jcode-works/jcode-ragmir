@@ -311,6 +311,9 @@ unit. Run `rgr limits` to inspect the effective limits.
 
 Redaction reduces accidental exposure but is not a compliance certification. Review the
 [security hardening guide](./SECURITY-HARDENING.md) before using sensitive corpora.
+Custom redaction expressions are rejected when they are invalid or susceptible to catastrophic
+backtracking. `rgr security-audit` checks every configured private path for permissions, Git ignore
+coverage and tracked files, and reports the operator authority granted to local extractors.
 
 ## Packages
 

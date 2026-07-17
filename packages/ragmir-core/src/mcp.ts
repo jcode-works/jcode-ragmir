@@ -11,7 +11,7 @@ import {
 } from "./access-log.js"
 import { RagmirClient } from "./client.js"
 import { findProjectConfig, loadConfig } from "./config.js"
-import { RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
+import { MAX_SEARCH_TOP_K, RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { evaluateGoldenQueriesWithConfig } from "./evaluate.js"
 import { auditWithConfig } from "./ingest.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
@@ -47,6 +47,7 @@ const MAX_MCP_CODE_EVIDENCE = 100
 const MAX_MCP_CODE_SCAN_FILES = 10_000
 const MAX_MCP_CODE_SCAN_BYTES = 256 * 1024 * 1024
 const MAX_MCP_CODE_SCAN_CONCURRENCY = 16
+const MAX_MCP_CONTEXT_RADIUS = 3
 const STRICT_MCP_FRESHNESS_WARNING =
   "Index freshness requires attention. Run `rgr doctor` locally for detailed diagnostics."
 const STRICT_MCP_NEXT_STEP = "Run `rgr doctor` locally for detailed next steps."
@@ -69,8 +70,8 @@ const POTENTIALLY_NETWORKED_TOOL_ANNOTATIONS = {
 const queryToolInputSchema = z
   .object({
     query: z.string().trim().min(1).max(MAX_MCP_INPUT_CHARACTERS),
-    topK: z.number().int().positive().optional(),
-    contextRadius: z.number().int().min(0).optional(),
+    topK: z.number().int().positive().max(MAX_SEARCH_TOP_K).optional(),
+    contextRadius: z.number().int().min(0).max(MAX_MCP_CONTEXT_RADIUS).optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
     includePaths: z.array(z.string().min(1).max(MAX_MCP_PATH_CHARACTERS)).max(20).optional(),
     excludePaths: z.array(z.string().min(1).max(MAX_MCP_PATH_CHARACTERS)).max(20).optional(),
@@ -86,7 +87,7 @@ const askToolInputSchema = queryToolInputSchema.extend({
 const researchToolInputSchema = z
   .object({
     query: z.string().trim().min(1).max(MAX_MCP_INPUT_CHARACTERS),
-    topK: z.number().int().positive().optional(),
+    topK: z.number().int().positive().max(MAX_SEARCH_TOP_K).optional(),
     includeCode: z.boolean().optional(),
     fullAudit: z.boolean().optional(),
     timeoutMs: z.number().int().positive().max(MAX_MCP_OPERATION_TIMEOUT_MS).optional(),
@@ -109,7 +110,7 @@ const searchToolInputSchema = queryToolInputSchema.extend({
 const evaluateToolInputSchema = z
   .object({
     goldenPath: z.string().min(1).max(MAX_MCP_PATH_CHARACTERS),
-    topK: z.number().int().positive().optional(),
+    topK: z.number().int().positive().max(MAX_SEARCH_TOP_K).optional(),
     failUnder: z.number().min(0).max(1).optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
   })
@@ -136,7 +137,7 @@ const promptRouteInputSchema = z
 const expandToolInputSchema = z
   .object({
     citation: z.string().min(1).max(2_000),
-    contextRadius: z.number().int().min(0).max(3).optional(),
+    contextRadius: z.number().int().min(0).max(MAX_MCP_CONTEXT_RADIUS).optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
   })
   .strict()
@@ -688,6 +689,10 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
                 ...report.accessLog,
                 path: privateProjectPath(config.projectRoot, report.accessLog.path),
               },
+              privatePaths: report.privatePaths.map((entry) => ({
+                ...entry,
+                path: privateProjectPath(config.projectRoot, entry.path),
+              })),
               storage: {
                 ...report.storage,
                 path: privateProjectPath(config.projectRoot, report.storage.path),

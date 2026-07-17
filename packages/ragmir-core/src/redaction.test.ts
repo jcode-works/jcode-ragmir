@@ -42,6 +42,22 @@ describe("redactText", () => {
     expect(redactText("CLIENT-12345", config).text).toBe("[CLIENT]")
   })
 
+  it("should reject catastrophic custom patterns before matching long text", () => {
+    const config = testConfig({
+      redaction: {
+        enabled: true,
+        builtIn: false,
+        patterns: [{ name: "catastrophic", pattern: "(a+)+$" }],
+      },
+    })
+    const startedAt = performance.now()
+
+    expect(() => redactText(`${"a".repeat(100_000)}!`, config)).toThrow(
+      /catastrophic backtracking/i,
+    )
+    expect(performance.now() - startedAt).toBeLessThan(100)
+  })
+
   it.each([
     {
       name: "private key",
@@ -167,6 +183,55 @@ describe("redactText", () => {
     const result = redactText(obfuscated, config)
 
     expect(result.text).toBe(obfuscated)
+  })
+
+  it("should preserve source line coordinates when redaction stays on one line", () => {
+    const text = "Heading\nContact user@example.com.\nEvidence"
+    const document: ParsedDocument = {
+      file: {
+        absolutePath: "/tmp/evidence.md",
+        relativePath: "evidence.md",
+        source: "evidence.md",
+        extension: ".md",
+        bytes: text.length,
+        mtimeMs: 1,
+        checksum: "evidence",
+      },
+      text,
+      sourceLineCoordinates: true,
+    }
+
+    const redacted = redactDocument(document, testConfig())
+
+    expect(redacted.document.sourceLineCoordinates).toBe(true)
+  })
+
+  it("should disable source line coordinates when a replacement adds a line", () => {
+    const text = "Heading\nSECRET\nEvidence"
+    const document: ParsedDocument = {
+      file: {
+        absolutePath: "/tmp/evidence.md",
+        relativePath: "evidence.md",
+        source: "evidence.md",
+        extension: ".md",
+        bytes: text.length,
+        mtimeMs: 1,
+        checksum: "evidence",
+      },
+      text,
+      sourceLineCoordinates: true,
+    }
+    const config = testConfig({
+      redaction: {
+        enabled: true,
+        builtIn: false,
+        patterns: [{ name: "secret", pattern: "SECRET", replacement: "[SECRET]\n" }],
+      },
+    })
+
+    const redacted = redactDocument(document, config)
+
+    expect(redacted.document.sourceLineCoordinates).toBe(false)
   })
 
   it("should preserve page provenance when an earlier page changes length", () => {

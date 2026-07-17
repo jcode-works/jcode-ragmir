@@ -160,7 +160,7 @@ export async function searchWithConfig(
     const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
     let lease: Awaited<ReturnType<typeof acquireGenerationReadLease>> | undefined
     try {
-      if (!generationLeaseHeld) {
+      if (!generationLeaseHeld && snapshot.table) {
         lease = await acquireGenerationReadLease(snapshot.tableName, config)
       }
       return await searchWithinGeneration(query, options, config, snapshot, signal, queueTimeMs)
@@ -472,7 +472,9 @@ export async function expandCitationWithConfig(
   const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
   let lease: Awaited<ReturnType<typeof acquireGenerationReadLease>> | undefined
   try {
-    lease = await acquireGenerationReadLease(snapshot.tableName, config)
+    if (snapshot.table) {
+      lease = await acquireGenerationReadLease(snapshot.tableName, config)
+    }
     return await expandCitationWithinGeneration(citation, options, config, snapshot)
   } finally {
     await lease?.release().catch(() => undefined)

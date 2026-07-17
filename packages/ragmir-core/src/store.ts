@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { channel } from "node:diagnostics_channel"
-import { createReadStream } from "node:fs"
+import { createReadStream, existsSync } from "node:fs"
 import { readdir, readFile, rm, stat } from "node:fs/promises"
 import path from "node:path"
 import * as lancedb from "@lancedb/lancedb"
@@ -733,6 +733,9 @@ export async function openRowsTableByName(
   config: Config,
   connection?: lancedb.Connection,
 ): Promise<lancedb.Table | null> {
+  if (!connection && !existsSync(config.storageDir)) {
+    return null
+  }
   return withConnection(config, connection, async (db) => {
     const tableNames = await db.tableNames()
     if (!tableNames.includes(tableName)) {

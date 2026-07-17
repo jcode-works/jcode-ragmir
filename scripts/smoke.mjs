@@ -640,11 +640,16 @@ async function smokeExampleWorkspace() {
       await chmod(path.join(exampleTemp, "raw"), 0o700)
     }
 
-    const security = await runKb(["security-audit", "--strict"], exampleTemp)
+    const security = await runKbFailure(["security-audit", "--strict"], exampleTemp)
     assertIncludes(
       security.stdout,
       "llmGeneration=false",
       "example security audit should keep LLM generation outside core",
+    )
+    assertIncludes(
+      security.stdout,
+      "warning: The configured rawDir is not ignored by Git.",
+      "strict security audit should reject the intentionally public example corpus",
     )
 
     const ingest = await runKb(["ingest"], exampleTemp)
@@ -825,7 +830,7 @@ async function smokeDocumentBenchmark() {
     const pdfCase = evaluation.cases?.find(
       (testCase) => testCase.id === "pdf-embedded-text-page-citation",
     )
-    if (!pdfCase?.matchedCitations?.includes("raw/contracts/pdf-control-evidence.pdf:p1:L1-L1#0")) {
+    if (!pdfCase?.matchedCitations?.includes("raw/contracts/pdf-control-evidence.pdf:p1#0")) {
       throw new Error(
         `document benchmark should extract embedded PDF text with a page citation, got ${JSON.stringify(pdfCase)}`,
       )

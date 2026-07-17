@@ -200,7 +200,7 @@ selection without changing the exact text, offsets, or citations returned to the
 | Export | Purpose |
 | --- | --- |
 | `doctor(cwd?, options?)` | Report setup, source, index, and agent-integration readiness. |
-| `securityAudit(cwd?, options?)` | Report local privacy, redaction, permissions, and MCP posture. |
+| `securityAudit(cwd?, options?)` | Report local privacy, redaction, private-path Git/permission state, extractor authority, and MCP posture. |
 | `ingestionLimits(config)` | Read active parser safety limits. |
 | `accessLogUsageReport(options?)` | Summarize metadata-only local access logs. |
 | `accessLogWriterMetrics(config)` | Read pending, in-flight, written, and dropped access-log event counts. |
@@ -208,7 +208,7 @@ selection without changing the exact text, offsets, or citations returned to the
 | `optimizeStorage(options?)` | Inspect or force fragment compaction, old-version pruning, and complete FTS, adaptive-vector, and scalar-index coverage under the local writer lock. |
 | `collectGenerationGarbage(options?)` | Inspect generation roles or reclaim expired, unleased tables under the local writer lock. |
 | `destroyIndex(cwd?)` | Remove generated index data without deleting source files. |
-| `redactText(input, config)` | Apply configured redaction before custom processing. |
+| `redactText(input, config)` | Apply configured redaction before custom processing; unsafe custom expressions are rejected before matching. |
 | `routePrompt(prompt)` | Recommend deterministically whether a prompt needs retrieval. |
 | `getIndexFreshnessWarning(config)` | Return a stale-index warning or `null`. |
 | `getLexicalScanWarning(config, chunkCount)` | Return a lexical-scan capacity warning or `null`. |

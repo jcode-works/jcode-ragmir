@@ -26,7 +26,7 @@ edit JSON only for a real need.
 | `topK` | `8` | Change the default number of returned passages, up to the hard limit of 100. |
 | `mcpMaxTopK` | `10` | Bound MCP passage requests; values above 100 are rejected. |
 | `mcpMaxOutputBytes` | `32768` | Cap variable-size MCP tool and resource JSON; the server also enforces an absolute 1 MiB ceiling. |
-| `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. |
+| `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. Chunk size is capped at 1,000,000 characters. |
 | `maxFileBytes` | `50000000` | Lower the per-file parser budget; 50 MB is the hard ceiling. |
 | `ingestConcurrency` | `4` | Bound concurrent parsers; values above `8` are rejected. |
 | `embeddingBatchSize` | `32` | Bound one model call; values above `128` are rejected. |
@@ -35,6 +35,11 @@ edit JSON only for a real need.
 | `hybridTextScanLimit` | `5000` | Bound only the complete-scan fallback used when FTS is unavailable; values above 10,000 are rejected. A fallback smaller than the active corpus is rejected instead of returning silently truncated lexical evidence. |
 | `workloadLimits` | See below | Bound active search, embedding, and ingestion work plus their queues and queue deadlines. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
+
+Configuration arrays and strings have hard size ceilings. Sources are capped at 10,000 entries,
+custom extensions at 128, redaction patterns at 64, and external commands at 128 arguments.
+`mcpMaxOutputBytes` cannot exceed 1 MiB. Invalid environment overrides fail configuration loading
+with the variable name instead of silently reverting to a different value.
 
 ### Workload admission
 
@@ -109,6 +114,10 @@ removes its rows.
 
 `privacyProfile` is a safety floor, separate from retrieval quality.
 
+Custom redaction patterns are compiled only after syntax, length, and catastrophic-backtracking
+checks. Unsafe expressions are rejected while loading configuration and are never applied to source
+text.
+
 ## Semantic retrieval
 
 ```bash
@@ -136,7 +145,9 @@ rgr ocr setup --language eng+fra
 
 PDF OCR is optional and page-aware. Ragmir calls it only for blank extracted pages. Custom
 `pdfOcrCommand`, `imageOcrCommand`, and `legacyWordCommand` values must be JSON argument arrays;
-they run without a shell and must print text to stdout.
+they run without a shell and must print text to stdout. They still execute with the operator's
+filesystem and process authority. Their per-invocation timeout is capped at 900,000 ms, and strict
+privacy disables them even when a command remains present in the configuration file.
 
 `rgr ocr setup` writes the batched PDF contract. It replaces `{pages}` with up to 16 ordered page
 numbers and expects JSON containing `subprocesses` plus an ordered `pages` array of `{ page, text }`
@@ -157,6 +168,11 @@ RAGMIR_MCP_MAX_OUTPUT_BYTES=16384 rgr serve-mcp
 
 Environment overrides cover selected runtime settings such as models, retrieval limits, access logs,
 and extractor commands. Run `rgr status --json` to inspect the effective result.
+
+`rgr security-audit` reports permission state plus Git-ignore and tracked-file state for the config,
+raw documents, index storage, source list, access log, and local model directory. Read-only status,
+doctor, search, and audit operations do not create an absent index or change an existing shared
+directory mode.
 
 For a long-running process that hosts more than one isolated project workflow, create one
 `RagmirClient` per project root and keep process-wide environment overrides stable after startup.

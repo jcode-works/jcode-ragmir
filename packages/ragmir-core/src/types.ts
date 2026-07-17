@@ -1051,12 +1051,28 @@ export interface SecurityAuditReport {
     gitIgnored: boolean
     encryptedAtRest: "external-required"
   }
+  privatePaths: Array<{
+    kind: "config" | "raw" | "storage" | "sources" | "access-log" | "embedding-models"
+    path: string
+    insideProject: boolean
+    gitIgnored: boolean | null
+    gitTracked: boolean | null
+    permissionPrivate: boolean | null
+  }>
+  externalExtractors: {
+    configured: boolean
+    enabled: Array<"pdf-ocr" | "image-ocr" | "legacy-word">
+    disabledByStrictProfile: boolean
+    executeWithOperatorAuthority: true
+  }
   permissions: {
     checked: boolean
     configPrivate: boolean | null
     rawDirPrivate: boolean | null
     storageDirPrivate: boolean | null
+    sourcesFilePrivate: boolean | null
     accessLogPrivate: boolean | null
+    embeddingModelPathPrivate: boolean | null
   }
   mcp: {
     maxTopK: number
