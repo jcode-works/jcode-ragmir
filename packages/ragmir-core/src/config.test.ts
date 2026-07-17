@@ -52,6 +52,20 @@ describe("loadConfig", () => {
     expect(config.imageOcrTimeoutMs).toBe(120_000)
     expect(config.legacyWordCommand).toEqual([])
     expect(config.legacyWordTimeoutMs).toBe(120_000)
+    expect(config.sourceFingerprintMode).toBe("fast")
+  })
+
+  it("should load strict source fingerprint mode", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-fingerprint-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir/config.json"),
+      JSON.stringify({ sourceFingerprintMode: "strict" }),
+      "utf8",
+    )
+
+    await expect(loadConfig(root)).resolves.toMatchObject({ sourceFingerprintMode: "strict" })
   })
 
   it("should select the nearest Ragmir config inside a monorepo", async () => {

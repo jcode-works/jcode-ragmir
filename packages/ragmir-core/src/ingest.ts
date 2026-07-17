@@ -817,7 +817,10 @@ export async function audit(
   throwIfAborted(signal)
   const config = await loadConfig(cwd)
   throwIfAborted(signal)
-  const inventory = await inventorySourceFiles(config, signal ? { signal } : {})
+  const inventory = await inventorySourceFiles(config, {
+    ...(signal ? { signal } : {}),
+    writeFingerprintCache: false,
+  })
   throwIfAborted(signal)
   const files = inventory.supportedFiles
   const inventoryMetrics = sourceInventoryMetrics(files)

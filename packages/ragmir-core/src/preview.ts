@@ -21,7 +21,7 @@ const MAX_PREVIEW_CHUNKS_PER_FILE = 50
 
 export async function previewChunks(options: PreviewChunksOptions = {}): Promise<PreviewReport> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  const inventory = await inventorySourceFiles(config)
+  const inventory = await inventorySourceFiles(config, { writeFingerprintCache: false })
   const requestedPaths = normalizePathPrefixes(options.paths)
   const maxFiles = boundedPositiveInteger(
     options.maxFiles,

@@ -17,6 +17,7 @@ import type { Config } from "./types.js"
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
 const privacyProfileSchema = z.enum(["strict", "private", "trusted", "custom"])
 const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
+const sourceFingerprintModeSchema = z.enum(["fast", "strict"])
 const incrementalFailurePolicySchema = z.enum(["preserve-last-good", "remove-stale"])
 
 const rawConfigSchema = z
@@ -63,6 +64,9 @@ const rawConfigSchema = z
     maxFileBytes: z.number().int().positive().default(DEFAULT_CONFIG.maxFileBytes),
     ingestConcurrency: z.number().int().positive().default(DEFAULT_CONFIG.ingestConcurrency),
     embeddingBatchSize: z.number().int().positive().default(DEFAULT_CONFIG.embeddingBatchSize),
+    sourceFingerprintMode: sourceFingerprintModeSchema.default(
+      DEFAULT_CONFIG.sourceFingerprintMode,
+    ),
     incrementalFailurePolicy: incrementalFailurePolicySchema.default(
       DEFAULT_CONFIG.incrementalFailurePolicy,
     ),
@@ -172,6 +176,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     maxFileBytes: effective.maxFileBytes,
     ingestConcurrency: effective.ingestConcurrency,
     embeddingBatchSize: effective.embeddingBatchSize,
+    sourceFingerprintMode: effective.sourceFingerprintMode,
     incrementalFailurePolicy: effective.incrementalFailurePolicy,
     hybridTextScanLimit: effective.hybridTextScanLimit,
     includeExtensions: normalizeExtensions(effective.includeExtensions),
@@ -309,6 +314,11 @@ function applyEnv(config: RawConfig): RawConfig {
       "KB_EMBEDDING_BATCH_SIZE",
       config.embeddingBatchSize,
     ),
+    sourceFingerprintMode: readSourceFingerprintModeEnv(
+      "RAGMIR_SOURCE_FINGERPRINT_MODE",
+      "KB_SOURCE_FINGERPRINT_MODE",
+      config.sourceFingerprintMode,
+    ),
     hybridTextScanLimit: readPositiveIntEnv(
       "RAGMIR_HYBRID_TEXT_SCAN_LIMIT",
       "KB_HYBRID_TEXT_SCAN_LIMIT",
@@ -377,6 +387,16 @@ function readEmbeddingProviderEnv(
     return fallback
   }
   return parsed.data
+}
+
+function readSourceFingerprintModeEnv(
+  name: string,
+  legacyName: string,
+  fallback: RawConfig["sourceFingerprintMode"],
+): RawConfig["sourceFingerprintMode"] {
+  const raw = process.env[name] ?? process.env[legacyName]
+  const parsed = sourceFingerprintModeSchema.safeParse(raw)
+  return parsed.success ? parsed.data : fallback
 }
 
 function readStringEnv(name: string, legacyName: string, fallback: string): string {

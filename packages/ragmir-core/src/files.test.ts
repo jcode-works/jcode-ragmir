@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, open, rm, stat, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -391,4 +391,127 @@ describe("listSourceFiles", () => {
       "../apps/portal/README.md",
     ])
   })
+
+  it("should reuse cached fingerprints without reading unchanged file content", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-fingerprint-cache-"))
+    tempDirs.push(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    await mkdir(rawDir, { recursive: true })
+    await writeFile(path.join(rawDir, "a.md"), "alpha\n", "utf8")
+    await writeFile(path.join(rawDir, "b.md"), "bravo\n", "utf8")
+    const config = testConfig(root)
+
+    const first = await inventorySourceFiles(config)
+    const second = await inventorySourceFiles(config)
+
+    expect(inventoryMetrics(first)).toMatchObject({ hashedFiles: 2, contentBytesRead: 12 })
+    expect(inventoryMetrics(second)).toMatchObject({
+      hashedFiles: 0,
+      contentBytesRead: 0,
+      reusedFingerprints: 2,
+    })
+  })
+
+  it("should hash an overlapping source path only once per inventory", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-fingerprint-dedup-"))
+    tempDirs.push(root)
+    const nested = path.join(root, ".ragmir", "raw", "nested")
+    await mkdir(nested, { recursive: true })
+    await writeFile(path.join(nested, "evidence.md"), "evidence\n", "utf8")
+
+    const inventory = await inventorySourceFiles(
+      testConfig(root, { sources: [".ragmir/raw/nested"] }),
+    )
+
+    expect(inventory.supportedFiles).toHaveLength(1)
+    expect(inventoryMetrics(inventory).hashedFiles).toBe(1)
+  })
+
+  it("should fall back to content hashing when the fingerprint cache is corrupt", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-fingerprint-corrupt-"))
+    tempDirs.push(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    const storageDir = path.join(root, ".ragmir", "storage")
+    await mkdir(rawDir, { recursive: true })
+    await mkdir(storageDir, { recursive: true })
+    await writeFile(path.join(rawDir, "evidence.md"), "evidence\n", "utf8")
+    await writeFile(path.join(storageDir, "source-fingerprints.jsonl"), "{not valid json\n", "utf8")
+
+    const inventory = await inventorySourceFiles(testConfig(root))
+
+    expect(inventoryMetrics(inventory)).toMatchObject({
+      hashedFiles: 1,
+      reusedFingerprints: 0,
+    })
+  })
+
+  it("should hash every included file on every strict inventory", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-fingerprint-strict-"))
+    tempDirs.push(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    await mkdir(rawDir, { recursive: true })
+    await writeFile(path.join(rawDir, "evidence.md"), "evidence\n", "utf8")
+    const config = testConfig(root, { sourceFingerprintMode: "strict" })
+
+    await inventorySourceFiles(config)
+    const repeated = await inventorySourceFiles(config)
+
+    expect(inventoryMetrics(repeated)).toMatchObject({
+      hashedFiles: 1,
+      reusedFingerprints: 0,
+      contentBytesRead: 9,
+    })
+  })
+
+  it("should not hash files excluded from a directory source root", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-fingerprint-excluded-"))
+    tempDirs.push(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    await mkdir(path.join(rawDir, "excluded"), { recursive: true })
+    await writeFile(path.join(rawDir, "included.md"), "included\n", "utf8")
+    await writeFile(path.join(rawDir, "excluded", "hidden.md"), "hidden\n", "utf8")
+
+    const inventory = await inventorySourceFiles(
+      testConfig(root, { sources: ["!.ragmir/raw/excluded/**"] }),
+    )
+
+    expect(inventory.supportedFiles.map((file) => file.relativePath)).toEqual([
+      ".ragmir/raw/included.md",
+    ])
+    expect(inventoryMetrics(inventory)).toMatchObject({
+      hashedFiles: 1,
+      contentBytesRead: 9,
+    })
+  })
+
+  it("should detect a same-size change when mtime is restored", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-fingerprint-suspicious-"))
+    tempDirs.push(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    const filePath = path.join(rawDir, "evidence.md")
+    await mkdir(rawDir, { recursive: true })
+    await writeFile(filePath, "first\n", "utf8")
+    const config = testConfig(root)
+    const before = await inventorySourceFiles(config)
+    const originalStats = await stat(filePath)
+
+    await writeFile(filePath, "other\n", "utf8")
+    await utimes(filePath, originalStats.atime, originalStats.mtime)
+    const after = await inventorySourceFiles(config)
+
+    expect(after.supportedFiles[0]?.checksum).not.toBe(before.supportedFiles[0]?.checksum)
+    expect(inventoryMetrics(after).hashedFiles).toBe(1)
+  })
 })
+
+function inventoryMetrics(inventory: Awaited<ReturnType<typeof inventorySourceFiles>>): {
+  contentBytesRead: number
+  hashedFiles: number
+  reusedFingerprints: number
+} {
+  return inventory as typeof inventory & {
+    contentBytesRead: number
+    hashedFiles: number
+    reusedFingerprints: number
+  }
+}

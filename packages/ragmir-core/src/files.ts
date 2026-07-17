@@ -1,10 +1,19 @@
 import { createHash } from "node:crypto"
+import type { Stats } from "node:fs"
 import { createReadStream, existsSync } from "node:fs"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import fg from "fast-glob"
 import { DEFAULT_CONFIG, LEGACY_KB_DIR, LEGACY_PRIVATE_DIR, RAGMIR_DIR } from "./defaults.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
+import {
+  readSourceFingerprintCache,
+  reusableSourceFingerprint,
+  type SourceFileIdentity,
+  type SourceFingerprintRecord,
+  sourceFingerprintRecord,
+  writeSourceFingerprintCache,
+} from "./source-fingerprint-cache.js"
 import type {
   Config,
   OperationOptions,
@@ -102,9 +111,23 @@ interface SourceInputs {
   ignorePatterns: string[]
 }
 
-interface SourceEntryStats {
-  size: number
-  mtimeMs: number
+type SourceEntryStats = Pick<Stats, "size" | "mtimeMs" | "ctimeMs" | "dev" | "ino" | "mode">
+
+interface SourceCandidate {
+  absolutePath: string
+  info: SourceEntryStats
+  source: string
+  relativePath: string
+  extension: string
+}
+
+interface SourceGlobEntry {
+  path: string
+  stats?: SourceEntryStats
+}
+
+export interface SourceInventoryOptions extends OperationOptions {
+  writeFingerprintCache?: boolean
 }
 
 export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
@@ -196,7 +219,7 @@ export async function listSourceFiles(
 
 export async function inventorySourceFiles(
   config: Config,
-  options: OperationOptions = {},
+  options: SourceInventoryOptions = {},
 ): Promise<SourceInventory> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
@@ -215,15 +238,16 @@ export async function inventorySourceFiles(
         }),
   )
   throwIfAborted(signal)
-  const files = new Map<string, SourceFile>()
+  const candidates = new Map<string, SourceCandidate>()
   const skippedFiles = new Map<string, SkippedSourceFile>()
-  let discoveredFiles = 0
+  const discoveredPaths = new Set<string>()
+  const allowedExtensions = supportedExtensions(config)
 
-  const recordSourceFile = async (
+  const recordSourceCandidate = (
     absolutePath: string,
     info: SourceEntryStats,
     source: string,
-  ): Promise<void> => {
+  ): void => {
     throwIfAborted(signal)
     if (excludedPaths.has(absolutePath)) {
       return
@@ -232,7 +256,7 @@ export async function inventorySourceFiles(
     if (GENERATED_SOURCE_READMES.has(relativePath)) {
       return
     }
-    discoveredFiles += 1
+    discoveredPaths.add(absolutePath)
 
     const extension = path.extname(absolutePath).toLowerCase()
     const skipped = skippedSourceFile(absolutePath, relativePath, source, extension, info.size)
@@ -242,7 +266,7 @@ export async function inventorySourceFiles(
       return
     }
 
-    if (!isSupportedSourceFile(absolutePath, extension, config)) {
+    if (!isSupportedSourceFile(absolutePath, extension, allowedExtensions)) {
       const normalizedExtension = extension || NO_EXTENSION
       skippedFiles.set(absolutePath, {
         relativePath,
@@ -268,17 +292,9 @@ export async function inventorySourceFiles(
       return
     }
 
-    const checksum = await checksumFile(absolutePath, signal)
-    throwIfAborted(signal)
-    files.set(absolutePath, {
-      absolutePath,
-      relativePath,
-      source,
-      extension,
-      bytes: info.size,
-      mtimeMs: info.mtimeMs,
-      checksum,
-    })
+    if (!candidates.has(absolutePath)) {
+      candidates.set(absolutePath, { absolutePath, info, source, relativePath, extension })
+    }
   }
 
   for (const root of inputs.roots) {
@@ -289,31 +305,34 @@ export async function inventorySourceFiles(
 
     const rootInfo = await stat(root)
     throwIfAborted(signal)
-    const entries = rootInfo.isDirectory()
+    const entries: SourceGlobEntry[] = rootInfo.isDirectory()
       ? ((await fg("**/*", {
           cwd: root,
           absolute: true,
           onlyFiles: true,
           dot: true,
           followSymbolicLinks: false,
-          ignore: DEFAULT_FAST_GLOB_IGNORES,
+          ignore: [
+            ...DEFAULT_FAST_GLOB_IGNORES,
+            ...ignorePatternsForRoot(root, config.projectRoot, inputs.ignorePatterns),
+          ],
           objectMode: true,
           stats: true,
           unique: true,
-        })) as Array<{ path: string; stats?: { size: number; mtimeMs: number } }>)
-      : [{ path: root, stats: { size: rootInfo.size, mtimeMs: rootInfo.mtimeMs } }]
+        })) as SourceGlobEntry[])
+      : [{ path: root, stats: sourceEntryStats(rootInfo) }]
     throwIfAborted(signal)
 
-    await mapLimit(entries, config.ingestConcurrency, signal, async (entry) => {
-      const absolutePath = path.isAbsolute(entry.path) ? entry.path : path.resolve(root, entry.path)
-      const info = entry.stats ?? (await stat(absolutePath))
+    for (const entry of entries) {
       throwIfAborted(signal)
+      const absolutePath = path.isAbsolute(entry.path) ? entry.path : path.resolve(root, entry.path)
+      const info = entry.stats ?? sourceEntryStats(await stat(absolutePath))
       const relativePath = path.relative(config.projectRoot, absolutePath)
       const source = rootInfo.isDirectory()
         ? path.relative(root, absolutePath) || path.basename(absolutePath)
         : relativePath || path.basename(absolutePath)
-      await recordSourceFile(absolutePath, info, source)
-    })
+      recordSourceCandidate(absolutePath, info, source)
+    }
   }
 
   if (inputs.patterns.length > 0) {
@@ -328,46 +347,117 @@ export async function inventorySourceFiles(
       objectMode: true,
       stats: true,
       unique: true,
-    })) as Array<{ path: string; stats?: { size: number; mtimeMs: number } }>
+    })) as SourceGlobEntry[]
     throwIfAborted(signal)
 
-    await mapLimit(entries, config.ingestConcurrency, signal, async (entry) => {
+    for (const entry of entries) {
+      throwIfAborted(signal)
       const absolutePath = path.isAbsolute(entry.path)
         ? entry.path
         : path.resolve(config.projectRoot, entry.path)
-      const info = entry.stats ?? (await stat(absolutePath))
-      throwIfAborted(signal)
+      const info = entry.stats ?? sourceEntryStats(await stat(absolutePath))
       const relativePath = path.relative(config.projectRoot, absolutePath)
-      await recordSourceFile(absolutePath, info, relativePath || path.basename(absolutePath))
+      recordSourceCandidate(absolutePath, info, relativePath || path.basename(absolutePath))
+    }
+  }
+
+  const cachedFingerprints =
+    config.sourceFingerprintMode === "strict"
+      ? new Map<string, SourceFingerprintRecord>()
+      : await readSourceFingerprintCache(config)
+  const usableCache = cachedFingerprints ?? new Map<string, SourceFingerprintRecord>()
+  const nextFingerprints = new Map<string, SourceFingerprintRecord>()
+  const files = new Map<string, SourceFile>()
+  const verifiedAt = new Date().toISOString()
+  let contentBytesRead = 0
+  let hashedFiles = 0
+  let reusedFingerprints = 0
+
+  await mapLimit([...candidates.values()], config.ingestConcurrency, signal, async (candidate) => {
+    const identity = sourceFileIdentity(candidate.absolutePath, candidate.info)
+    const reusable = reusableSourceFingerprint(
+      usableCache.get(candidate.absolutePath),
+      identity,
+      config.sourceFingerprintMode,
+    )
+    let checksum: string
+    if (reusable) {
+      checksum = reusable.checksum
+      reusedFingerprints += 1
+      nextFingerprints.set(candidate.absolutePath, reusable)
+    } else {
+      const hashed = await checksumFile(candidate.absolutePath, signal)
+      const currentIdentity = sourceFileIdentity(
+        candidate.absolutePath,
+        sourceEntryStats(await stat(candidate.absolutePath)),
+      )
+      if (!sameSourceFileIdentity(identity, currentIdentity)) {
+        throw new Error(
+          `Source file changed while it was being hashed: ${candidate.relativePath}. Retry ingestion.`,
+        )
+      }
+      checksum = hashed.checksum
+      hashedFiles += 1
+      contentBytesRead += hashed.bytesRead
+      nextFingerprints.set(
+        candidate.absolutePath,
+        sourceFingerprintRecord(identity, checksum, verifiedAt),
+      )
+    }
+    files.set(candidate.absolutePath, {
+      absolutePath: candidate.absolutePath,
+      relativePath: candidate.relativePath,
+      source: candidate.source,
+      extension: candidate.extension,
+      bytes: candidate.info.size,
+      mtimeMs: candidate.info.mtimeMs,
+      checksum,
     })
+  })
+
+  if (options.writeFingerprintCache !== false) {
+    await writeSourceFingerprintCache(
+      [...nextFingerprints.values()].sort((left, right) =>
+        left.absolutePath.localeCompare(right.absolutePath),
+      ),
+      config,
+    )
   }
 
   throwIfAborted(signal)
   return {
-    discoveredFiles,
+    discoveredFiles: discoveredPaths.size,
     supportedFiles: [...files.values()].sort((a, b) =>
       a.relativePath.localeCompare(b.relativePath),
     ),
     skippedFiles: [...skippedFiles.values()].sort((a, b) =>
       a.relativePath.localeCompare(b.relativePath),
     ),
+    contentBytesRead,
+    hashedFiles,
+    reusedFingerprints,
   }
 }
 
-async function checksumFile(filePath: string, signal: AbortSignal | undefined): Promise<string> {
+async function checksumFile(
+  filePath: string,
+  signal: AbortSignal | undefined,
+): Promise<{ checksum: string; bytesRead: number }> {
   const hash = createHash("sha256")
+  let bytesRead = 0
   throwIfAborted(signal)
   try {
     for await (const chunk of createReadStream(filePath, signal ? { signal } : undefined)) {
       throwIfAborted(signal)
       hash.update(chunk)
+      bytesRead += chunk.length
     }
   } catch (error) {
     throwIfAborted(signal)
     throw error
   }
   throwIfAborted(signal)
-  return hash.digest("hex")
+  return { checksum: hash.digest("hex"), bytesRead }
 }
 
 async function mapLimit<T>(
@@ -400,11 +490,56 @@ export function supportedExtensions(config: Config): Set<string> {
   ])
 }
 
-function isSupportedSourceFile(absolutePath: string, extension: string, config: Config): boolean {
-  if (supportedExtensions(config).has(extension)) {
+function isSupportedSourceFile(
+  absolutePath: string,
+  extension: string,
+  allowedExtensions: Set<string>,
+): boolean {
+  if (allowedExtensions.has(extension)) {
     return true
   }
   return DEFAULT_SUPPORTED_FILE_NAMES.has(path.basename(absolutePath).toLowerCase())
+}
+
+function sourceEntryStats(stats: Stats): SourceEntryStats {
+  return {
+    size: stats.size,
+    mtimeMs: stats.mtimeMs,
+    ctimeMs: stats.ctimeMs,
+    dev: stats.dev,
+    ino: stats.ino,
+    mode: stats.mode,
+  }
+}
+
+function sourceFileIdentity(absolutePath: string, info: SourceEntryStats): SourceFileIdentity {
+  return { absolutePath, ...info }
+}
+
+function sameSourceFileIdentity(left: SourceFileIdentity, right: SourceFileIdentity): boolean {
+  return (
+    left.absolutePath === right.absolutePath &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs &&
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode
+  )
+}
+
+function ignorePatternsForRoot(root: string, projectRoot: string, patterns: string[]): string[] {
+  const relativeRoot = path.relative(projectRoot, root).replaceAll(path.sep, "/")
+  if (!relativeRoot) {
+    return patterns
+  }
+  const prefix = `${relativeRoot}/`
+  return patterns.flatMap((pattern) => {
+    if (pattern.startsWith(prefix)) {
+      return [pattern.slice(prefix.length)]
+    }
+    return pattern.startsWith("*") ? [pattern] : []
+  })
 }
 
 export function summarizeUnsupportedExtensions(

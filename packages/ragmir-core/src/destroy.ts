@@ -9,6 +9,7 @@ import { disposeTransformersCache } from "./embeddings.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
 import { readIngestionState } from "./ingestion-state.js"
 import { operationSignal } from "./operation.js"
+import { SOURCE_FINGERPRINT_CACHE_FILENAME } from "./source-fingerprint-cache.js"
 import type { DestroyIndexResult, OperationOptions } from "./types.js"
 
 export async function destroyIndex(
@@ -23,9 +24,18 @@ export async function destroyIndex(
   return withIndexWriteLock(config.storageDir, signal, async () => {
     const hasIngestionState = (await readIngestionState(config)) !== null
     const hasManifest = existsSync(path.join(config.storageDir, INDEX_MANIFEST_FILENAME))
-    const existed = existedBeforeLock || hasIngestionState || hasManifest
+    const hasFingerprintCache = existsSync(
+      path.join(config.storageDir, SOURCE_FINGERPRINT_CACHE_FILENAME),
+    )
+    const existed = existedBeforeLock || hasIngestionState || hasManifest || hasFingerprintCache
 
-    await assertSafeIndexStorage(config.projectRoot, config.storageDir, existed, hasIngestionState)
+    await assertSafeIndexStorage(
+      config.projectRoot,
+      config.storageDir,
+      existed,
+      hasIngestionState,
+      hasFingerprintCache,
+    )
 
     await recordAccess(config, { action: "destroy-index" })
     await rm(config.storageDir, { recursive: true, force: true })
@@ -46,12 +56,14 @@ async function assertSafeIndexStorage(
   storageDir: string,
   existed: boolean,
   hasIngestionState: boolean,
+  hasFingerprintCache: boolean,
 ): Promise<void> {
   await assertSafeIndexStoragePath(projectRoot, storageDir, existed)
 
   if (
     existed &&
     !hasIngestionState &&
+    !hasFingerprintCache &&
     !existsSync(path.join(storageDir, INDEX_MANIFEST_FILENAME))
   ) {
     throw new Error(

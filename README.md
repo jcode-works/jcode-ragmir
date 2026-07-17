@@ -139,10 +139,11 @@ script, keep the Ragmir version, configuration, embedding provider, and model al
 locally. The result is an equivalent local index on each workstation, not a shared database.
 
 Always sync before `rgr ingest`, then run `rgr audit`. A missing, partially synced, or extra file in
-the selected raw or source folder makes that developer's index diverge. Ragmir hashes file content
-on every inventory pass, so a changed file is still detected when a sync tool preserves its size
-and modification time. Teams can automate setup with `initProject`, `addSourceEntries`, and
-`createRagmirClient`; Ragmir remains the local retrieval layer, not the synchronization layer.
+the selected raw or source folder makes that developer's index diverge. Ragmir hashes content on
+first discovery and whenever file identity or metadata changes. Set `sourceFingerprintMode` to
+`strict` when every inventory must reread every byte, including when a sync tool preserves metadata.
+Teams can automate setup with `initProject`, `addSourceEntries`, and `createRagmirClient`; Ragmir
+remains the local retrieval layer, not the synchronization layer.
 
 ### Audit a knowledge base
 

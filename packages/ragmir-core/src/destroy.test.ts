@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { destroyIndex } from "./destroy.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
 import { createIngestionRunState, writeIngestionState } from "./ingestion-state.js"
+import { SOURCE_FINGERPRINT_CACHE_FILENAME } from "./source-fingerprint-cache.js"
 import { testConfig } from "./test-support/config.js"
 
 const tempDirs: string[] = []
@@ -17,6 +18,20 @@ afterEach(async () => {
 })
 
 describe("destroyIndex", () => {
+  it("should remove a storage directory that contains only the managed fingerprint cache", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-fingerprints-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await mkdir(config.storageDir, { recursive: true })
+    await writeFile(
+      path.join(config.storageDir, SOURCE_FINGERPRINT_CACHE_FILENAME),
+      '{"version":1,"type":"header"}\n',
+      "utf8",
+    )
+
+    await expect(destroyIndex(root)).resolves.toMatchObject({ removed: true })
+    expect(existsSync(config.storageDir)).toBe(false)
+  })
   it("removes an existing storage directory and reports removed=true", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-"))
     tempDirs.push(root)

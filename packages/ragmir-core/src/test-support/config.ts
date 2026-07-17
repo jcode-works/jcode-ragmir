@@ -42,6 +42,7 @@ export function testConfig(
     maxFileBytes: DEFAULT_CONFIG.maxFileBytes,
     ingestConcurrency: DEFAULT_CONFIG.ingestConcurrency,
     embeddingBatchSize: DEFAULT_CONFIG.embeddingBatchSize,
+    sourceFingerprintMode: DEFAULT_CONFIG.sourceFingerprintMode,
     incrementalFailurePolicy: DEFAULT_CONFIG.incrementalFailurePolicy,
     hybridTextScanLimit: DEFAULT_CONFIG.hybridTextScanLimit,
     includeExtensions: [...DEFAULT_CONFIG.includeExtensions],

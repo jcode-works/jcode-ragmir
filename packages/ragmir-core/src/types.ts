@@ -42,6 +42,7 @@ export interface Config {
   maxFileBytes: number
   ingestConcurrency: number
   embeddingBatchSize: number
+  sourceFingerprintMode: SourceFingerprintMode
   incrementalFailurePolicy: IncrementalFailurePolicy
   hybridTextScanLimit: number
   includeExtensions: string[]
@@ -56,6 +57,7 @@ export interface Config {
 export type PrivacyProfile = "strict" | "private" | "trusted" | "custom"
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
 export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
+export type SourceFingerprintMode = "fast" | "strict"
 
 export type AccessLogAction =
   | "ingest"
@@ -205,6 +207,9 @@ export interface SourceInventory {
   discoveredFiles: number
   supportedFiles: SourceFile[]
   skippedFiles: SkippedSourceFile[]
+  contentBytesRead: number
+  hashedFiles: number
+  reusedFingerprints: number
 }
 
 export interface ParsedDocument {

@@ -55,20 +55,21 @@ rgr ingest --batch-size 10
 ```
 
 The default file window contains up to 25 files, within stricter source-byte and estimated-chunk
-budgets. After each file commit, Ragmir atomically records per-file state and the current manifest
-under `.ragmir/storage/`. Starting `rgr ingest` again resumes a compatible
+budgets. After each file commit, Ragmir appends private durable state under `.ragmir/storage/`.
+The compact activation manifest changes only after final validation. Starting `rgr ingest` again resumes a compatible
 interrupted run and processes only pending, failed, or changed files. Files already committed to
 the index are not parsed or embedded again.
 
-Every inventory pass recalculates each file's SHA-256, so a content change is detected even when a
-sync tool preserves both file size and modification time. A committed file atomically replaces that
-changed source's chunks. Run `rgr limits` for the active 50-MB parse window, chunk, vector,
-concurrency, embedding-batch and file-batch ceilings.
+Fast inventory reuses a private SHA-256 only while file identity and high-resolution metadata still
+match, with periodic full verification. `sourceFingerprintMode: "strict"` recalculates every hash.
+A committed file atomically replaces that changed source's chunks. Run `rgr limits` for the active
+50-MB parse window, chunk, vector, concurrency, embedding-batch and file-batch ceilings.
 
 Maintainers can reproduce the 25-file, 50-MB-per-file memory gate with
 `pnpm bench:ingest-memory -- --stress` from the repository root.
 The metadata gate for 100,000 files and one million chunks is
 `pnpm bench:ingestion-metadata -- --stress`; it enforces a 256-MiB peak RSS budget.
+The 100,000-file fast-fingerprint gate is `pnpm bench:discovery -- --stress`.
 
 Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
 text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and

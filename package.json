@@ -34,6 +34,7 @@
     "api:check": "tsc -p tests/public-api-consumer/tsconfig.json",
     "bootstrap": "mise install && pnpm install",
     "bench:compare": "pnpm --filter @jcode.labs/ragmir bench:compare",
+    "bench:discovery": "pnpm --filter @jcode.labs/ragmir bench:discovery",
     "bench:ingest-memory": "pnpm --filter @jcode.labs/ragmir bench:ingest-memory",
     "bench:ingestion-metadata": "pnpm --filter @jcode.labs/ragmir bench:ingestion-metadata",
     "bench:quality": "pnpm --filter @jcode.labs/ragmir bench:quality",
