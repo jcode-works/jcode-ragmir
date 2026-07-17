@@ -27,6 +27,8 @@ export {
   INDEX_SCHEMA_VERSION,
 } from "./index-diagnostics.js"
 export { audit, ingest } from "./ingest.js"
+export type { IngestionDiagnosticsEvent } from "./ingestion-metrics.js"
+export { INGESTION_DIAGNOSTICS_CHANNEL } from "./ingestion-metrics.js"
 export { getIngestionProgress } from "./ingestion-state.js"
 export { initProject } from "./init.js"
 export { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
@@ -117,11 +119,15 @@ export type {
   IndexManifest,
   IndexManifestFile,
   IndexManifestStaleFile,
+  IngestionEmbeddingModelState,
   IngestionFileStage,
   IngestionLimitsReport,
+  IngestionMetrics,
+  IngestionPhaseDurations,
   IngestionProgress,
   IngestionRunMode,
   IngestionRunStatus,
+  IngestionThroughputMetrics,
   IngestOptions,
   IngestResult,
   KnowledgeBaseContextReport,

@@ -4,7 +4,7 @@ import { mkdir, readdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { throwIfAborted } from "./operation.js"
 import { tokenize } from "./text.js"
-import type { Config } from "./types.js"
+import type { Config, IngestionEmbeddingModelState } from "./types.js"
 import { runWorkload, type WorkloadAdmission } from "./workload.js"
 
 const LOCAL_HASH_DIMENSIONS = 384
@@ -121,6 +121,15 @@ export async function embedText(
     throw new Error("No embedding returned for query.")
   }
   return embedding
+}
+
+export function embeddingModelState(
+  config: Config,
+): Exclude<IngestionEmbeddingModelState, "mixed" | "unused"> {
+  if (config.embeddingProvider === "local-hash") {
+    return "stateless"
+  }
+  return transformersPipelines.has(transformersCacheKey(config)) ? "warm" : "cold"
 }
 
 async function embedWithTransformers(

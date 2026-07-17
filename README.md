@@ -49,6 +49,8 @@ and writes local MCP helpers. `rgr ingest` is incremental, uses bounded parse wi
 durable progress per file. Re-run the same command after an interruption to continue after the last
 committed file. The agent receives bounded passages with the source path, excerpt, chunk, verified
 source lines when available, PDF pages, PPTX slides, XLSX sheets and cells, or EPUB spine positions.
+Use `rgr ingest --metrics --json` when you need local, privacy-safe phase and throughput diagnostics;
+the default path leaves those timers and RSS samples disabled.
 
 Prefer a direct search? Run:
 

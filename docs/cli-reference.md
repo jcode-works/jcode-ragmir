@@ -17,7 +17,7 @@ rgr search "release decision"
 | `init` | Create basic local configuration only. |
 | `doctor [--fix]` | Check setup, index freshness, and safe repairs. |
 | `preview` | Parse, redact, and chunk selected sources without writing the index. |
-| `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY]` | Index configured sources through bounded windows with per-file durable progress; rebuild after provider or chunking changes. |
+| `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY] [--metrics] [--json]` | Index configured sources through bounded windows with per-file durable progress; optionally return privacy-safe phase and throughput metrics. |
 | `search <query>` | Return ranked cited passages. |
 | `ask <query>` | Return cited context without model synthesis. |
 | `research <query>` | Run a bounded, rank-aware multi-query retrieval pass. |
@@ -77,6 +77,7 @@ report records both configured and consumed budgets.
 rgr ingest
 rgr status --json
 rgr ingest --batch-size 10
+rgr ingest --metrics --json
 ```
 
 The default file window contains up to 25 files, within stricter source-byte and estimated-chunk
@@ -95,6 +96,7 @@ Maintainers can reproduce the 25-file, 50-MB-per-file memory gate with
 The metadata gate for 100,000 files and one million chunks is
 `pnpm bench:ingestion-metadata -- --stress`; it enforces a 256-MiB peak RSS budget.
 The 100,000-file fast-fingerprint gate is `pnpm bench:discovery -- --stress`.
+The privacy-safe phase-attribution and disabled-overhead gate is `pnpm bench:observability`.
 The LanceDB maintenance gate is `pnpm bench:storage`; it verifies full
 FTS coverage, stable citations, bounded fragment/version growth, and at most 10% search p95
 regression after 24 mutation batches.
@@ -104,6 +106,13 @@ The adaptive-index scorecard is `pnpm bench:vector-index -- --sizes S,M,L`. It c
 IVF-PQ, HNSW-SQ, and `relativePath` BTree lookup with 10 warm-ups, 100 samples, and five measured
 repetitions. A production ANN candidate must improve p95 with less than 0.01 absolute Recall@10
 loss against exhaustive search.
+
+`--metrics` adds queue and write-lock wait, discovery, hashing, parsing, redaction, chunking,
+embedding, Lance payload write, maintenance, throughput, cache-state, RSS, OCR subprocess, fallback,
+error, timeout, and bound-activation counters to the result. The local `ragmir:ingestion`
+diagnostics channel emits the same bounded summary when subscribed. It never includes a project
+root, source path, source text, or raw query. Without the flag or a subscriber, phase timers and RSS
+sampling stay disabled.
 
 Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
 text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and

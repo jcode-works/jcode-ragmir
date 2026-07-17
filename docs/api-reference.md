@@ -158,7 +158,12 @@ all scoped resources when evaluation finishes.
 uses the compatible strategy recorded in the manifest. `topK` is limited to 100 and
 `contextRadius` is clamped to three chunks. `IngestOptions` also accepts `rebuild`, a
 positive `batchSize` that defaults to 25 files and is capped at 128, `incrementalFailurePolicy`, and
-an optional `onProgress` callback. The default `preserve-last-good` policy keeps prior rows searchable and marks
+an optional `onProgress` callback. Set `collectMetrics: true` to include privacy-safe phase,
+throughput, cache-state, RSS, OCR subprocess, fallback, error, timeout, and bound-activation metrics
+in `IngestResult.metrics`. Subscribing to the exported `INGESTION_DIAGNOSTICS_CHANNEL` emits the
+same bounded summary even when the result field is not requested. Diagnostics contain no project
+root, source path, source text, or raw query. Without collection or a subscriber, timers and RSS
+sampling remain disabled. The default `preserve-last-good` policy keeps prior rows searchable and marks
 them stale when a changed file fails; `remove-stale` deletes them. Its durable progress contains the
 run ID, resume flag, last activity, chunk count, stale count, and per-stage file counts.
 Atomic sidecar replacement flushes file contents before rename and synchronizes the storage
@@ -293,7 +298,7 @@ types that callers commonly compose explicitly.
 | Area | Exported types |
 | --- | --- |
 | Configuration | `Config`, `PrivacyProfile`, `RetrievalProfile` |
-| Ingestion | `IngestOptions`, `IngestResult`, `IncrementalFailurePolicy`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexHealthSnapshot`, `IndexMaintenanceSnapshot`, `IndexManifestFile`, `IndexManifestStaleFile`, `VectorIndexManifest`, `VectorIndexParameters`, `VectorIndexStrategy`, `ParsedPage` |
+| Ingestion | `IngestOptions`, `IngestResult`, `IngestionMetrics`, `IngestionPhaseDurations`, `IngestionThroughputMetrics`, `IngestionEmbeddingModelState`, `IngestionDiagnosticsEvent`, `INGESTION_DIAGNOSTICS_CHANNEL`, `IncrementalFailurePolicy`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexHealthSnapshot`, `IndexMaintenanceSnapshot`, `IndexManifestFile`, `IndexManifestStaleFile`, `VectorIndexManifest`, `VectorIndexParameters`, `VectorIndexStrategy`, `ParsedPage` |
 | Preview | `PreviewChunksOptions`, `PreviewReport`, `PreviewFile`, `PreviewChunk` |
 | Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
 | Research, audit, and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `AuditOptions`, `AuditReport`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |

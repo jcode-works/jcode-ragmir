@@ -28,6 +28,9 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - Chat profiles and TTS models are not Core or MCP requirements.
 - MCP byte budgets select typed summaries with exact scalar values, omission counters, and the best
   search citation instead of shortening identifiers or paths.
+- Optional ingestion metrics attribute phase time, throughput, cache state, and peak RSS locally.
+  Their bounded diagnostic omits project roots, source paths, queries, and source text; collection
+  stays disabled unless requested or subscribed.
 - Ragmir is not a hosted document store, cloud-sync service, agent-memory replacement, or universal
   code-search replacement.
 

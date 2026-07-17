@@ -11,7 +11,7 @@ import {
   MAX_INGEST_VECTOR_BYTES_PER_FILE,
   VECTOR_DISTANCE_METRIC,
 } from "./defaults.js"
-import { embedTexts } from "./embeddings.js"
+import { embeddingModelState, embedTexts } from "./embeddings.js"
 import {
   countSkippedByReason,
   inventorySourceFiles,
@@ -21,6 +21,11 @@ import { collectGenerationGarbageUnlocked } from "./generation-retention.js"
 import { INDEX_SCHEMA_VERSION } from "./index-diagnostics.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
+import {
+  activeIngestionMetrics,
+  createIngestionMetricsCollector,
+  runWithIngestionMetrics,
+} from "./ingestion-metrics.js"
 import type { IngestionRunState } from "./ingestion-state.js"
 import {
   canResumeIngestion,
@@ -104,11 +109,51 @@ export async function ingestWithConfig(
   connection?: Connection,
 ): Promise<IngestResult> {
   const signal = operationSignal(options)
-  return runWorkload(config, "ingestion", signal, () =>
-    withIndexWriteLock(config.storageDir, signal, () =>
-      ingestUnlocked(config, options, connection, signal),
-    ),
-  )
+  return runWorkload(config, "ingestion", signal, async ({ queueTimeMs }) => {
+    const collector = createIngestionMetricsCollector(
+      options.collectMetrics === true,
+      queueTimeMs,
+      config.embeddingProvider,
+    )
+    if (!collector) {
+      return withIndexWriteLock(config.storageDir, signal, () =>
+        ingestUnlocked(config, options, connection, signal),
+      )
+    }
+
+    return runWithIngestionMetrics(collector, async () => {
+      collector.beginPhase("writeLockWait")
+      try {
+        const result = await withIndexWriteLock(config.storageDir, signal, () => {
+          collector.endPhase("writeLockWait")
+          return ingestUnlocked(config, options, connection, signal)
+        })
+        const metrics = collector.complete({
+          runId: result.runId,
+          status: result.errors.length > 0 ? "completed_with_errors" : "completed",
+          candidateFiles: result.supportedFiles,
+          processedFiles: result.rebuiltFiles + result.emptyTextFiles.length + result.errors.length,
+          fallbackFiles: result.staleLastKnownGood.length,
+          errorCount: result.errors.length,
+          ocrSubprocesses: result.ocr.subprocesses,
+        })
+        return options.collectMetrics === true ? { ...result, metrics } : result
+      } catch (error) {
+        collector.endPhase("writeLockWait")
+        collector.recordFailure(error)
+        collector.complete({
+          runId: null,
+          status: signal?.aborted ? "interrupted" : "failed",
+          candidateFiles: 0,
+          processedFiles: 0,
+          fallbackFiles: 0,
+          errorCount: 1,
+          ocrSubprocesses: 0,
+        })
+        throw error
+      }
+    })
+  })
 }
 
 async function ingestUnlocked(
@@ -118,6 +163,7 @@ async function ingestUnlocked(
   signal: AbortSignal | undefined,
 ): Promise<IngestResult> {
   let state: IngestionRunState | null = null
+  const metrics = activeIngestionMetrics()
   try {
     throwIfAborted(signal)
     const requestedBatchSize = ingestFileBatchSize(options.batchSize)
@@ -125,7 +171,12 @@ async function ingestUnlocked(
     const existingManifest = await readIndexManifest(config)
     const storedState = await readIngestionState(config)
     const storedEmptyFiles = await readEmptyTextFiles(config)
-    const inventory = await inventorySourceFiles(config, signal ? { signal } : {})
+    const inventory = metrics
+      ? await metrics.measureAsync("inventory", () =>
+          inventorySourceFiles(config, signal ? { signal } : {}),
+        )
+      : await inventorySourceFiles(config, signal ? { signal } : {})
+    metrics?.recordSourceBytes(inventory.contentBytesRead)
     const files = inventory.supportedFiles
     const inventoryMetrics = sourceInventoryMetrics(files)
     const currentFiles = new Map(files.map((file) => [file.relativePath, file]))
@@ -208,6 +259,7 @@ async function ingestUnlocked(
     await persistIngestionProgress(state, config, options)
     throwIfAborted(signal)
 
+    const tableName = state.tableName
     const previousPaths = new Set(previousIndexedFiles.map((file) => file.relativePath))
     const currentPaths = new Set(files.map((file) => file.relativePath))
     const removedPaths =
@@ -271,13 +323,12 @@ async function ingestUnlocked(
           ...(!removalApplied ? removedPaths : []),
         ]
         if (rows.length > 0 || replacePaths.length > 0) {
-          const writeResult = await updateRowsInTable(
-            rows,
-            replacePaths,
-            state.tableName,
-            config,
-            connection,
-          )
+          const writeResult = metrics
+            ? await metrics.measureAsync("storageWrite", () =>
+                updateRowsInTable(rows, replacePaths, tableName, config, connection),
+              )
+            : await updateRowsInTable(rows, replacePaths, tableName, config, connection)
+          metrics?.recordStoragePayload(vectorRowsPayloadBytes(rows))
           removalApplied = true
           storageMutations += 1
           lexicalIndexWarning ??= writeResult.lexicalIndexWarning
@@ -309,25 +360,28 @@ async function ingestUnlocked(
     }
 
     if (!removalApplied && removedPaths.length > 0) {
-      const writeResult = await updateRowsInTable(
-        [],
-        removedPaths,
-        state.tableName,
-        config,
-        connection,
-      )
+      const writeResult = metrics
+        ? await metrics.measureAsync("storageWrite", () =>
+            updateRowsInTable([], removedPaths, tableName, config, connection),
+          )
+        : await updateRowsInTable([], removedPaths, tableName, config, connection)
       storageMutations += 1
       lexicalIndexWarning ??= writeResult.lexicalIndexWarning
     }
 
     sortIngestionFilesForStorage(state)
     let manifest = await manifestForState(state, config, connection)
-    const maintenance = await maintainStorageTable(state.tableName, config, connection, {
-      additionalMutations: storageMutations,
-      ...(manifest.vectorDimension === undefined
-        ? {}
-        : { vectorDimension: manifest.vectorDimension }),
-    })
+    const maintain = () =>
+      maintainStorageTable(tableName, config, connection, {
+        additionalMutations: storageMutations,
+        ...(manifest.vectorDimension === undefined
+          ? {}
+          : { vectorDimension: manifest.vectorDimension }),
+      })
+    metrics?.recordMaintenanceOperation()
+    const maintenance = metrics
+      ? await metrics.measureAsync("maintenance", maintain)
+      : await maintain()
     if (manifest.chunkCount > 0 && !maintenance.adaptiveIndices) {
       throw new Error("Cannot activate an index without adaptive vector index diagnostics.")
     }
@@ -356,9 +410,11 @@ async function ingestUnlocked(
     await writeEmptyTextFiles(emptyTextRecords(state), config)
     await writeIndexManifest(manifest, config, indexedFilesFromState(state))
     try {
-      const garbageCollection = await collectGenerationGarbageUnlocked(config, connection, {
-        state,
-      })
+      const collectGarbage = () => collectGenerationGarbageUnlocked(config, connection, { state })
+      metrics?.recordMaintenanceOperation()
+      const garbageCollection = metrics
+        ? await metrics.measureAsync("maintenance", collectGarbage)
+        : await collectGarbage()
       storageWarning = combineWarnings(storageWarning, garbageCollection.warning)
     } catch (error) {
       storageWarning = combineWarnings(
@@ -509,21 +565,34 @@ async function parseSourceFile(
   config: Config,
   signal: AbortSignal | undefined,
 ): Promise<ParsedSourceFile> {
+  const metrics = activeIngestionMetrics()
+  metrics?.recordSourceBytes(file.bytes)
   try {
-    const parsed = await parseFile(file, { ...config, ...(signal ? { signal } : {}) })
+    const parse = () => parseFile(file, { ...config, ...(signal ? { signal } : {}) })
+    const parsed = metrics ? await metrics.measureAsync("parsing", parse) : await parse()
     throwIfAborted(signal)
-    const redacted = redactDocument(parsed, config)
+    const redacted = metrics
+      ? metrics.measure("redaction", () => redactDocument(parsed, config))
+      : redactDocument(parsed, config)
+    const chunks = metrics
+      ? metrics.measure("chunking", () =>
+          chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap, {
+            maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
+          }),
+        )
+      : chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap, {
+          maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
+        })
     return {
       file,
-      chunks: chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap, {
-        maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
-      }),
+      chunks,
       redactions: totalRedactions(redacted.counts),
       ocr: parsed.ocr ?? null,
       error: null,
     }
   } catch (error) {
     throwIfAborted(signal)
+    metrics?.recordFailure(error)
     return {
       file,
       chunks: [],
@@ -539,11 +608,18 @@ async function vectorRowsForChunks(
   config: Config,
   signal: AbortSignal | undefined,
 ): Promise<VectorRow[]> {
+  const metrics = activeIngestionMetrics()
   const rows: VectorRow[] = []
   let vectorBytes = 0
   for (const batch of valueBatches(chunks, config.embeddingBatchSize)) {
     throwIfAborted(signal)
-    const embeddings = await embedTexts(batch.map(chunkSearchText), config, "document", signal)
+    metrics?.recordEmbeddingModelState(embeddingModelState(config))
+    const embed = () =>
+      embedTexts(batch.map(chunkSearchText), config, "document", signal, (admission) => {
+        metrics?.recordEmbeddingQueue(admission.queueTimeMs)
+      })
+    const embeddings = metrics ? await metrics.measureAsync("embedding", embed) : await embed()
+    metrics?.recordEmbeddings(embeddings.length)
     throwIfAborted(signal)
     for (const [index, chunk] of batch.entries()) {
       const vector = embeddings[index]
@@ -552,6 +628,7 @@ async function vectorRowsForChunks(
       }
       vectorBytes += vector.length * Float64Array.BYTES_PER_ELEMENT
       if (vectorBytes > MAX_INGEST_VECTOR_BYTES_PER_FILE) {
+        metrics?.recordTruncation()
         throw new Error(
           `Vector memory limit of ${MAX_INGEST_VECTOR_BYTES_PER_FILE} bytes exceeded for ${chunk.relativePath}. Increase chunkSize, split the source file, or use a smaller embedding model.`,
         )
@@ -566,6 +643,23 @@ async function vectorRowsForChunks(
     }
   }
   return rows
+}
+
+function vectorRowsPayloadBytes(rows: VectorRow[]): number {
+  return rows.reduce(
+    (total, row) =>
+      total +
+      Buffer.byteLength(row.id, "utf8") +
+      Buffer.byteLength(row.source, "utf8") +
+      Buffer.byteLength(row.relativePath, "utf8") +
+      Buffer.byteLength(row.contextPath, "utf8") +
+      Buffer.byteLength(row.text, "utf8") +
+      Buffer.byteLength(row.searchText, "utf8") +
+      Buffer.byteLength(row.embeddingProvider, "utf8") +
+      Buffer.byteLength(row.embeddingModel, "utf8") +
+      row.vector.length * Float64Array.BYTES_PER_ELEMENT,
+    0,
+  )
 }
 
 async function persistIngestionProgress(

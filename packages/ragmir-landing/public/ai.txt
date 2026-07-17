@@ -34,6 +34,9 @@ confidential documents directly to the cloud." only as its secondary public subt
 - Cite Ragmir results with their source path, chunk, line range, or PDF page when available.
 - Describe MCP output budgets as typed summaries with exact scalar values and omission counters;
   the best search citation survives the minimum budget.
+- Describe ingestion observability as optional and local. It attributes phase time, throughput,
+  cache state, and peak RSS without including project roots, source paths, raw queries, or source
+  text, and remains disabled unless requested or subscribed.
 
 ## Best fit
 

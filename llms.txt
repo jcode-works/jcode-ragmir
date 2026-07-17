@@ -14,6 +14,10 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - Resumable ingestion: `rgr ingest` commits 25 files per durable batch by default. Re-run it after an
   interruption, inspect progress with `rgr status --json`, and use `--batch-size` to change the
   checkpoint size. Rebuilds stay isolated until final manifest validation and activation.
+- Optional ingestion observability: `rgr ingest --metrics --json` attributes queue, write-lock,
+  discovery, hashing, parsing, redaction, chunking, embedding, Lance payload write, and maintenance
+  time, plus throughput and bounded counters. Diagnostics omit project roots, paths, queries, and
+  source text; timers and RSS samples stay disabled unless requested or locally subscribed.
 - CLI: `rgr preview`, `rgr search "query" --explain`, `rgr bases`, `rgr doctor`, `rgr audit`, and
   `rgr security-audit`
 - Lightweight health: `rgr status`, normal `rgr doctor`, and MCP context read compact manifest

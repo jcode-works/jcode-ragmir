@@ -435,6 +435,7 @@ program
     "Preserve last-good rows after a file failure, or remove stale rows.",
     parseIncrementalFailurePolicy,
   )
+  .option("--metrics", "Collect privacy-safe phase and throughput metrics.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -442,6 +443,7 @@ program
         rebuild?: boolean
         batchSize?: number
         incrementalFailurePolicy?: IncrementalFailurePolicy
+        metrics?: boolean
         json?: boolean
       },
       command: Command,
@@ -451,6 +453,7 @@ program
       addOption(ingestOptions, "rebuild", options.rebuild)
       addOption(ingestOptions, "batchSize", options.batchSize)
       addOption(ingestOptions, "incrementalFailurePolicy", options.incrementalFailurePolicy)
+      addOption(ingestOptions, "collectMetrics", options.metrics)
       const result = await ingest(ingestOptions)
       if (options.json) {
         console.log(JSON.stringify(result, null, 2))

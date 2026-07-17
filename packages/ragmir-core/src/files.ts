@@ -5,6 +5,7 @@ import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import fg from "fast-glob"
 import { DEFAULT_CONFIG, LEGACY_KB_DIR, LEGACY_PRIVATE_DIR, RAGMIR_DIR } from "./defaults.js"
+import { activeIngestionMetrics } from "./ingestion-metrics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import {
   readSourceFingerprintCache,
@@ -445,19 +446,23 @@ async function checksumFile(
 ): Promise<{ checksum: string; bytesRead: number }> {
   const hash = createHash("sha256")
   let bytesRead = 0
-  throwIfAborted(signal)
+  const metrics = activeIngestionMetrics()
+  metrics?.beginPhase("hashing")
   try {
+    throwIfAborted(signal)
     for await (const chunk of createReadStream(filePath, signal ? { signal } : undefined)) {
       throwIfAborted(signal)
       hash.update(chunk)
       bytesRead += chunk.length
     }
+    throwIfAborted(signal)
+    return { checksum: hash.digest("hex"), bytesRead }
   } catch (error) {
     throwIfAborted(signal)
     throw error
+  } finally {
+    metrics?.endPhase("hashing")
   }
-  throwIfAborted(signal)
-  return { checksum: hash.digest("hex"), bytesRead }
 }
 
 async function mapLimit<T>(

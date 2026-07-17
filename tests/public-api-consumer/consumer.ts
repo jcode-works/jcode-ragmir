@@ -12,6 +12,7 @@ import {
   getKnowledgeBaseContext,
   getKnowledgeBaseSourceCatalog,
   ingest,
+  INGESTION_DIAGNOSTICS_CHANNEL,
   isRagmirError,
   pullEmbeddingModel,
   redactText,
@@ -21,6 +22,8 @@ import {
   type Config,
   type AccessLogWriterMetrics,
   type EnableSemanticEmbeddingsResult,
+  type IngestionDiagnosticsEvent,
+  type IngestionMetrics,
   type IngestOptions,
   type OperationOptions,
   type PullEmbeddingModelResult,
@@ -38,7 +41,11 @@ import {
 import { renderSpeech, type RenderSpeechOptions } from "@jcode.labs/ragmir-tts"
 
 const cwd = process.cwd()
-const ingestOptions = { cwd, rebuild: false } satisfies IngestOptions
+const ingestOptions = { cwd, rebuild: false, collectMetrics: true } satisfies IngestOptions
+const ingestionDiagnosticsChannel: string = INGESTION_DIAGNOSTICS_CHANNEL
+const ingestionDiagnostic: IngestionDiagnosticsEvent | undefined = undefined
+void ingestionDiagnosticsChannel
+void ingestionDiagnostic
 const searchOptions = { cwd, topK: 5, explain: true } satisfies SearchOptions
 const researchOptions = {
   cwd,
@@ -75,7 +82,10 @@ const speechOptions = {
   edgeTimeoutMs: 30_000,
 } satisfies RenderSpeechOptions
 
-void ingest(ingestOptions)
+void ingest(ingestOptions).then((result) => {
+  const metrics: IngestionMetrics | undefined = result.metrics
+  void metrics
+})
 void search("What changed?", searchOptions).then((results) => {
   const rankingPolicyFingerprint: string | undefined =
     results[0]?.score?.rankingPolicyFingerprint

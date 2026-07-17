@@ -1,3 +1,4 @@
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -6,6 +7,7 @@ import { loadConfig } from "./config.js"
 import * as embeddingsModule from "./embeddings.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { audit, ingest } from "./ingest.js"
+import { INGESTION_DIAGNOSTICS_CHANNEL } from "./ingestion-metrics.js"
 import { getIngestionProgress, readIngestionState, writeIngestionState } from "./ingestion-state.js"
 import { initProject } from "./init.js"
 import { search } from "./query.js"
@@ -22,6 +24,67 @@ afterEach(async () => {
 })
 
 describe("ingest", () => {
+  it("should collect privacy-safe phase metrics only when requested", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-private-observability-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const privateText = "PRIVATE-OBSERVABILITY-EVIDENCE"
+    const relativePath = ".ragmir/raw/private-evidence.md"
+    await writeFile(path.join(root, relativePath), `${privateText}\n`, "utf8")
+    const events: unknown[] = []
+    const onDiagnostic = (event: unknown): void => {
+      events.push(event)
+    }
+
+    subscribe(INGESTION_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    let result: Awaited<ReturnType<typeof ingest>>
+    try {
+      result = await ingest({ cwd: root, collectMetrics: true })
+    } finally {
+      unsubscribe(INGESTION_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    }
+
+    expect(result.metrics).toMatchObject({
+      candidateFiles: 1,
+      processedFiles: 1,
+      embeddedChunks: 1,
+      embeddingProvider: "local-hash",
+      embeddingModelState: "stateless",
+      embeddingCacheHits: 0,
+      embeddingCacheMisses: 0,
+      fallbackFiles: 0,
+      errorCount: 0,
+      timeoutCount: 0,
+      truncationCount: 0,
+      ocrSubprocesses: 0,
+    })
+    expect(result.metrics?.sourceBytesRead).toBeGreaterThan(Buffer.byteLength(privateText, "utf8"))
+    expect(result.metrics?.storagePayloadBytes).toBeGreaterThan(0)
+    expect(result.metrics?.peakRssBytes).toBeGreaterThan(0)
+    expect(result.metrics?.maintenanceOperations).toBeGreaterThanOrEqual(1)
+    expect(result.metrics?.phaseDurations).toEqual({
+      queueMs: expect.any(Number),
+      writeLockWaitMs: expect.any(Number),
+      discoveryMs: expect.any(Number),
+      hashingMs: expect.any(Number),
+      parsingMs: expect.any(Number),
+      redactionMs: expect.any(Number),
+      chunkingMs: expect.any(Number),
+      embeddingMs: expect.any(Number),
+      storageWriteMs: expect.any(Number),
+      maintenanceMs: expect.any(Number),
+      totalMs: expect.any(Number),
+    })
+    expect(events).toHaveLength(1)
+    const serialized = JSON.stringify(events)
+    expect(serialized).not.toContain(root)
+    expect(serialized).not.toContain(relativePath)
+    expect(serialized).not.toContain(privateText)
+
+    const unmeasured = await ingest({ cwd: root })
+    expect(unmeasured.metrics).toBeUndefined()
+  })
+
   it("should stop an audit when the signal is already aborted", async () => {
     const controller = new AbortController()
     controller.abort("cancelled by caller")

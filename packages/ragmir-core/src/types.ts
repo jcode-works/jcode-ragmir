@@ -397,7 +397,53 @@ export interface IngestOptions extends OperationOptions {
   rebuild?: boolean
   batchSize?: number
   incrementalFailurePolicy?: IncrementalFailurePolicy
+  collectMetrics?: boolean
   onProgress?: (progress: IngestionProgress) => void | Promise<void>
+}
+
+export type IngestionEmbeddingModelState = "unused" | "stateless" | "cold" | "warm" | "mixed"
+
+export interface IngestionPhaseDurations {
+  queueMs: number
+  writeLockWaitMs: number
+  discoveryMs: number
+  hashingMs: number
+  parsingMs: number
+  redactionMs: number
+  chunkingMs: number
+  embeddingMs: number
+  storageWriteMs: number
+  maintenanceMs: number
+  totalMs: number
+}
+
+export interface IngestionThroughputMetrics {
+  filesPerSecond: number
+  mebibytesPerSecond: number
+  chunksPerSecond: number
+  embeddingsPerSecond: number
+}
+
+export interface IngestionMetrics {
+  phaseDurations: IngestionPhaseDurations
+  throughput: IngestionThroughputMetrics
+  sourceBytesRead: number
+  storagePayloadBytes: number
+  peakRssBytes: number
+  candidateFiles: number
+  processedFiles: number
+  embeddedChunks: number
+  embeddingProvider: EmbeddingProvider
+  embeddingModelState: IngestionEmbeddingModelState
+  embeddingCacheHits: number
+  embeddingCacheMisses: number
+  embeddingQueueMs: number
+  fallbackFiles: number
+  errorCount: number
+  timeoutCount: number
+  truncationCount: number
+  maintenanceOperations: number
+  ocrSubprocesses: number
 }
 
 export interface IngestResult {
@@ -426,6 +472,7 @@ export interface IngestResult {
   lexicalIndexWarning: string | null
   storageWarning: string | null
   errors: Array<{ path: string; message: string }>
+  metrics?: IngestionMetrics
 }
 
 export type IngestionFileStage = "pending" | "parsed" | "embedded" | "indexed" | "error"
