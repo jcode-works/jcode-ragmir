@@ -62,6 +62,10 @@
     "access": "public"
   },
   "scripts": {
+    "bench:compare": "node benchmarks/compare.mjs",
+    "bench:quality": "pnpm build && node benchmarks/run.mjs --profile quality",
+    "bench:scale": "pnpm build && node benchmarks/run.mjs --profile scale",
+    "bench:smoke": "pnpm build && node benchmarks/verify.mjs && node benchmarks/run.mjs --profile smoke",
     "build": "tsc -p tsconfig.json",
     "check": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && tsc -p tsconfig.json --noEmit",
     "mcp:smoke": "pnpm build && node scripts/mcp-smoke.mjs",
