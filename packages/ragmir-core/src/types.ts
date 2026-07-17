@@ -598,6 +598,11 @@ export interface ResearchOptions extends OperationOptions {
   cwd?: PathLike
   topK?: number
   includeCode?: boolean
+  fullAudit?: boolean
+  codeTopK?: number
+  codeScanMaxFiles?: number
+  codeScanMaxBytes?: number
+  codeScanConcurrency?: number
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
@@ -616,6 +621,8 @@ export interface ResearchEvidence {
   pageStart: number | null
   pageEnd: number | null
   queries: string[]
+  bestRank: number
+  researchScore: number
 }
 
 export interface CodeEvidence {
@@ -623,6 +630,7 @@ export interface CodeEvidence {
   lineNumber: number
   snippet: string
   matchedTerms: string[]
+  score: number
 }
 
 export interface ResearchReport {
@@ -630,6 +638,8 @@ export interface ResearchReport {
   generatedQueries: string[]
   ready: boolean
   audit: {
+    mode: "manifest" | "full"
+    inventoryVerified: boolean
     supportedFiles: number
     supportedBytes: number
     largestFileBytes: number
@@ -646,6 +656,17 @@ export interface ResearchReport {
   sourceDiagnostics: SourceDiagnostics
   evidence: ResearchEvidence[]
   codeEvidence: CodeEvidence[]
+  budgets: {
+    timeoutMs: number | null
+    evidenceTopK: number
+    codeEvidenceTopK: number
+    codeScanMaxFiles: number
+    codeScanMaxBytes: number
+    codeScanConcurrency: number
+    codeFilesScanned: number
+    codeBytesScanned: number
+    codeScanTruncated: boolean
+  }
   gaps: string[]
   nextSteps: string[]
 }

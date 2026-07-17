@@ -62,6 +62,10 @@ Hybrid retrieval has stable source-and-chunk tie-breaks and provider-aware abste
 `explain: true` to inspect vector and lexical contributions plus the active ranking-policy
 fingerprint. An empty result means every candidate failed the evidence threshold.
 
+`research` uses language-aware query expansion with deterministic cross-query ranking. It reads
+manifest health by default and exposes explicit timeout, code-file, code-byte, concurrency, and
+result budgets. Request `fullAudit: true` only when the report also needs a fresh source inventory.
+
 ## TypeScript API
 
 ```ts

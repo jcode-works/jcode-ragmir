@@ -127,7 +127,7 @@ authentication, authorization, rate limits, and transport security.
 | `previewChunks(options?)` | Return redacted chunks and distributions without writing an index. |
 | `search(query, options?)` | Return ranked cited passages. |
 | `ask(query, options?)` | Return cited retrieval context without calling an LLM. |
-| `research(query, options?)` | Run audit-backed multi-query retrieval and report evidence gaps. |
+| `research(query, options?)` | Run bounded, rank-aware multi-query retrieval and report evidence gaps. |
 | `expandCitation(citation, options?)` | Read one exact chunk and a bounded neighbor window. |
 | `compactSearchResults(results, maxLength?)` | Reduce retrieved passages for a limited context window. |
 | `compactResearchReport(report)` | Replace full research evidence text with compact snippets. |
@@ -150,6 +150,15 @@ bounded by batch size and vector bytes, while each file remains the atomic durab
 result includes reciprocal-rank fusion contributions, one-based vector and lexical ranks, vector
 distance, lexical backend score, and matched query terms. `ExpandCitationOptions.contextRadius` is
 clamped to three chunks.
+
+`ResearchOptions` also accepts `fullAudit`, `codeTopK`, `codeScanMaxFiles`,
+`codeScanMaxBytes`, and `codeScanConcurrency`. The defaults are a manifest-only health snapshot,
+20 code results, 1,000 files, 32 MiB, and four concurrent reads. Limits are capped at 100 results,
+10,000 files, 256 MiB, and 16 reads. A full source inventory is opt-in with `fullAudit: true`.
+`ResearchReport.budgets` records configured and consumed budgets; `audit.mode` distinguishes
+`manifest` from `full`. Evidence exposes a weighted cross-query RRF `researchScore` and `bestRank`.
+The original query has a protected weight so language-aware expansions can add evidence without
+removing direct-search results from the same candidate depth.
 
 Golden evaluation files are limited to 1 MiB and 100 cases. Each query is limited to 20,000
 characters, with at most 100 expected paths or citations of 500 characters each.

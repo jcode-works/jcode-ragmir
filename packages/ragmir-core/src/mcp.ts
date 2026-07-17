@@ -38,6 +38,11 @@ import { VERSION } from "./version.js"
 const MAX_MCP_INPUT_CHARACTERS = 20_000
 const MAX_MCP_PATH_CHARACTERS = 500
 const MAX_MCP_OUTPUT_BYTES = 1_048_576
+const MAX_MCP_OPERATION_TIMEOUT_MS = 2_147_483_647
+const MAX_MCP_CODE_EVIDENCE = 100
+const MAX_MCP_CODE_SCAN_FILES = 10_000
+const MAX_MCP_CODE_SCAN_BYTES = 256 * 1024 * 1024
+const MAX_MCP_CODE_SCAN_CONCURRENCY = 16
 const STRICT_MCP_FRESHNESS_WARNING =
   "Index freshness requires attention. Run `rgr doctor` locally for detailed diagnostics."
 const STRICT_MCP_NEXT_STEP = "Run `rgr doctor` locally for detailed next steps."
@@ -79,6 +84,12 @@ const researchToolInputSchema = z
     query: z.string().trim().min(1).max(MAX_MCP_INPUT_CHARACTERS),
     topK: z.number().int().positive().optional(),
     includeCode: z.boolean().optional(),
+    fullAudit: z.boolean().optional(),
+    timeoutMs: z.number().int().positive().max(MAX_MCP_OPERATION_TIMEOUT_MS).optional(),
+    codeTopK: z.number().int().positive().max(MAX_MCP_CODE_EVIDENCE).optional(),
+    codeScanMaxFiles: z.number().int().positive().max(MAX_MCP_CODE_SCAN_FILES).optional(),
+    codeScanMaxBytes: z.number().int().positive().max(MAX_MCP_CODE_SCAN_BYTES).optional(),
+    codeScanConcurrency: z.number().int().positive().max(MAX_MCP_CODE_SCAN_CONCURRENCY).optional(),
     compact: z.boolean().optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
     includePaths: z.array(z.string().min(1).max(MAX_MCP_PATH_CHARACTERS)).max(20).optional(),
@@ -482,12 +493,27 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     {
       title: "Ragmir Research",
       description:
-        "Run an audit-backed multi-query research pass with cited evidence and optional code matches.",
+        "Run a bounded multi-query research pass with cited evidence and optional code matches.",
       inputSchema: researchToolInputSchema,
       annotations: POTENTIALLY_NETWORKED_TOOL_ANNOTATIONS,
     },
     async (
-      { query, topK, includeCode, compact, maxBytes, includePaths, excludePaths, contextPaths },
+      {
+        query,
+        topK,
+        includeCode,
+        fullAudit,
+        timeoutMs,
+        codeTopK,
+        codeScanMaxFiles,
+        codeScanMaxBytes,
+        codeScanConcurrency,
+        compact,
+        maxBytes,
+        includePaths,
+        excludePaths,
+        contextPaths,
+      },
       { signal },
     ) => {
       throwIfMcpAborted(signal)
@@ -503,6 +529,12 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       const researchOptions: Parameters<RagmirClient["research"]>[1] = { signal }
       addOption(researchOptions, "topK", options.topK)
       addOption(researchOptions, "includeCode", includeCode)
+      addOption(researchOptions, "fullAudit", fullAudit)
+      addOption(researchOptions, "timeoutMs", timeoutMs)
+      addOption(researchOptions, "codeTopK", codeTopK)
+      addOption(researchOptions, "codeScanMaxFiles", codeScanMaxFiles)
+      addOption(researchOptions, "codeScanMaxBytes", codeScanMaxBytes)
+      addOption(researchOptions, "codeScanConcurrency", codeScanConcurrency)
       addOption(researchOptions, "includePaths", options.includePaths)
       addOption(researchOptions, "excludePaths", options.excludePaths)
       addOption(researchOptions, "contextPaths", options.contextPaths)

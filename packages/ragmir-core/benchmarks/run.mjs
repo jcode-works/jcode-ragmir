@@ -219,6 +219,8 @@ try {
       measurement: research.measurement,
       evidenceCount: research.value.evidence.length,
       ready: research.value.ready,
+      auditMode: research.value.audit.mode,
+      budgets: research.value.budgets,
     },
     storage: {
       physicalBytesAfterRebuild,

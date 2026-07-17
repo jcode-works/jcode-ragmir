@@ -15,6 +15,7 @@ import {
   isRagmirError,
   pullEmbeddingModel,
   redactText,
+  research,
   search,
   securityAudit,
   type Config,
@@ -26,6 +27,7 @@ import {
   type RagmirClient,
   type RagmirErrorCode,
   type RedactionCount,
+  type ResearchOptions,
   type SearchOptions,
 } from "@jcode.labs/ragmir"
 import {
@@ -38,6 +40,15 @@ import { renderSpeech, type RenderSpeechOptions } from "@jcode.labs/ragmir-tts"
 const cwd = process.cwd()
 const ingestOptions = { cwd, rebuild: false } satisfies IngestOptions
 const searchOptions = { cwd, topK: 5, explain: true } satisfies SearchOptions
+const researchOptions = {
+  cwd,
+  topK: 5,
+  timeoutMs: 10_000,
+  codeTopK: 10,
+  codeScanMaxFiles: 500,
+  codeScanMaxBytes: 8 * 1024 * 1024,
+  codeScanConcurrency: 4,
+} satisfies ResearchOptions
 const operationOptions = {
   signal: AbortSignal.timeout(5_000),
   timeoutMs: 10_000,
@@ -69,6 +80,10 @@ void search("What changed?", searchOptions).then((results) => {
   const rankingPolicyFingerprint: string | undefined =
     results[0]?.score?.rankingPolicyFingerprint
   void rankingPolicyFingerprint
+})
+void research("What changed?", researchOptions).then((report) => {
+  const firstResearchScore: number | undefined = report.evidence[0]?.researchScore
+  void firstResearchScore
 })
 void createRagmirClient({ cwd }).then(async (client: RagmirClient) => {
   await client.search("What changed?", operationOptions)

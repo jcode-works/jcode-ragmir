@@ -196,6 +196,8 @@ function researchPayload(detail: string): McpResearchPayload {
     generatedQueries: [detail, detail],
     ready: true,
     audit: {
+      mode: "full",
+      inventoryVerified: true,
       supportedFiles: 1,
       supportedBytes: 100,
       largestFileBytes: 100,
@@ -216,6 +218,17 @@ function researchPayload(detail: string): McpResearchPayload {
     },
     evidence: [],
     codeEvidence: [],
+    budgets: {
+      timeoutMs: 10_000,
+      evidenceTopK: 5,
+      codeEvidenceTopK: 20,
+      codeScanMaxFiles: 1_000,
+      codeScanMaxBytes: 32 * 1024 * 1024,
+      codeScanConcurrency: 4,
+      codeFilesScanned: 10,
+      codeBytesScanned: 1_000,
+      codeScanTruncated: false,
+    },
     gaps: [detail],
     nextSteps: [detail],
   }

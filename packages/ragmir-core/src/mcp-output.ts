@@ -197,6 +197,7 @@ export function fitResearchPayload(
     },
     evidence: [],
     codeEvidence: [],
+    budgets: candidate.budgets,
     gaps: [],
     nextSteps: [],
   }

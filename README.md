@@ -151,12 +151,16 @@ remains the local retrieval layer, not the synchronization layer.
 pnpm exec rgr preview --path docs --max-chunks 3
 pnpm exec rgr audit --unsupported
 pnpm exec rgr security-audit
-pnpm exec rgr research "release obligations" --compact
+pnpm exec rgr research "release obligations" --compact --timeout-ms 10000
 ```
 
 Use this path for policies, runbooks, specifications, contracts, and other corpora where the answer
 must remain traceable to evidence. `preview` shows redacted chunks, structural context, citations,
 and size distributions without writing an index.
+`research` combines language-aware query variants with deterministic cross-query ranking. Its
+normal health check reads the active manifest; add `--full-audit` only when the same response must
+include a fresh source inventory and duplicate or mirror diagnostics. Code scanning has explicit
+file, byte, concurrency, and result limits.
 
 ### Explain retrieval decisions
 

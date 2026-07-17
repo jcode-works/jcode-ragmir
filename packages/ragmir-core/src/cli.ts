@@ -672,10 +672,20 @@ program
 
 program
   .command("research")
-  .description("Run an audit-backed multi-query research pass with cited evidence.")
+  .description("Run a bounded multi-query research pass with cited evidence.")
   .argument("<query>", "Research question or topic.")
   .option("-k, --top-k <number>", "Maximum number of evidence passages to keep.", parsePositiveInt)
   .option("--no-code", "Skip the lightweight repository code search.")
+  .option("--full-audit", "Run a full source inventory instead of manifest health checks.")
+  .option("--timeout-ms <number>", "Bound the complete research operation.", parsePositiveInt)
+  .option("--code-top-k <number>", "Maximum number of code matches to keep.", parsePositiveInt)
+  .option("--code-scan-max-files <number>", "Maximum code files to read.", parsePositiveInt)
+  .option("--code-scan-max-bytes <number>", "Maximum total code bytes to read.", parsePositiveInt)
+  .option(
+    "--code-scan-concurrency <number>",
+    "Maximum concurrent code file reads.",
+    parsePositiveInt,
+  )
   .option(
     "--include-path <prefix>",
     "Use only indexed source paths under this prefix. Repeat for multiple prefixes.",
@@ -702,6 +712,12 @@ program
       options: {
         topK?: number
         code?: boolean
+        fullAudit?: boolean
+        timeoutMs?: number
+        codeTopK?: number
+        codeScanMaxFiles?: number
+        codeScanMaxBytes?: number
+        codeScanConcurrency?: number
         includePath: string[]
         excludePath: string[]
         contextPath: string[]
@@ -714,6 +730,12 @@ program
       const researchOptions: Parameters<typeof research>[1] = { cwd }
       addOption(researchOptions, "topK", options.topK)
       addOption(researchOptions, "includeCode", options.code)
+      addOption(researchOptions, "fullAudit", options.fullAudit)
+      addOption(researchOptions, "timeoutMs", options.timeoutMs)
+      addOption(researchOptions, "codeTopK", options.codeTopK)
+      addOption(researchOptions, "codeScanMaxFiles", options.codeScanMaxFiles)
+      addOption(researchOptions, "codeScanMaxBytes", options.codeScanMaxBytes)
+      addOption(researchOptions, "codeScanConcurrency", options.codeScanConcurrency)
       addPathFilters(researchOptions, options)
       const report = await research(query, researchOptions)
       const output = options.compact ? compactResearchReport(report) : report
@@ -1937,7 +1959,10 @@ function printResearchReport(
   console.log(`ready=${report.ready}`)
   console.log(`generatedQueries=${report.generatedQueries.length}`)
   console.log(
-    `audit.supportedFiles=${report.audit.supportedFiles} audit.supportedBytes=${report.audit.supportedBytes} audit.largestFileBytes=${report.audit.largestFileBytes} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.oversizedFiles=${report.audit.oversizedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`,
+    `audit.mode=${report.audit.mode} audit.inventoryVerified=${report.audit.inventoryVerified} audit.supportedFiles=${report.audit.supportedFiles} audit.supportedBytes=${report.audit.supportedBytes} audit.largestFileBytes=${report.audit.largestFileBytes} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.oversizedFiles=${report.audit.oversizedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`,
+  )
+  console.log(
+    `budgets.timeoutMs=${report.budgets.timeoutMs ?? "none"} budgets.evidenceTopK=${report.budgets.evidenceTopK} budgets.codeEvidenceTopK=${report.budgets.codeEvidenceTopK} budgets.codeFiles=${report.budgets.codeFilesScanned}/${report.budgets.codeScanMaxFiles} budgets.codeBytes=${report.budgets.codeBytesScanned}/${report.budgets.codeScanMaxBytes} budgets.codeConcurrency=${report.budgets.codeScanConcurrency} budgets.codeTruncated=${report.budgets.codeScanTruncated}`,
   )
   console.log(`securityWarnings=${report.securityWarnings.length}`)
   console.log(
@@ -1958,7 +1983,7 @@ function printResearchReport(
     for (const [index, evidence] of report.evidence.entries()) {
       const distance = evidence.distance === null ? "n/a" : evidence.distance.toFixed(4)
       console.log(
-        `  [${index + 1}] ${evidence.relativePath} chunk=${evidence.chunkIndex} distance=${distance}`,
+        `  [${index + 1}] ${evidence.relativePath} chunk=${evidence.chunkIndex} distance=${distance} researchScore=${evidence.researchScore.toFixed(6)} bestRank=${evidence.bestRank}`,
       )
       console.log(`      ${researchEvidencePreview(evidence)}`)
     }
@@ -1969,7 +1994,7 @@ function printResearchReport(
     console.log(pc.cyan("Code Evidence:"))
     for (const evidence of report.codeEvidence.slice(0, 10)) {
       console.log(
-        `  - ${evidence.relativePath}:${evidence.lineNumber} terms=${evidence.matchedTerms.join(",")}`,
+        `  - ${evidence.relativePath}:${evidence.lineNumber} score=${evidence.score} terms=${evidence.matchedTerms.join(",")}`,
       )
       console.log(`      ${evidence.snippet}`)
     }

@@ -298,8 +298,23 @@ describe("MCP protocol contract", () => {
       query: "production release approval",
       topK: 1,
       includeCode: false,
+      timeoutMs: 10_000,
+      codeTopK: 1,
+      codeScanMaxFiles: 2,
+      codeScanMaxBytes: 1_000,
+      codeScanConcurrency: 1,
     })
-    expect(research).toMatchObject({ ready: true, evidence: expect.any(Array) })
+    expect(research).toMatchObject({
+      ready: true,
+      audit: { mode: "manifest", inventoryVerified: false },
+      evidence: expect.any(Array),
+      budgets: {
+        timeoutMs: 10_000,
+        evidenceTopK: 1,
+        codeEvidenceTopK: 1,
+        codeFilesScanned: 0,
+      },
+    })
 
     const expanded = await jsonToolResult(client, "ragmir_expand", {
       citation: search[0].citation,

@@ -20,7 +20,7 @@ rgr search "release decision"
 | `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY]` | Index configured sources through bounded windows with per-file durable progress; rebuild after provider or chunking changes. |
 | `search <query>` | Return ranked cited passages. |
 | `ask <query>` | Return cited context without model synthesis. |
-| `research <query>` | Run an audit-backed multi-query retrieval pass. |
+| `research <query>` | Run a bounded, rank-aware multi-query retrieval pass. |
 | `audit [--unsupported]` | Compare sources with the index and list skipped files. |
 | `bases` | List root and nested monorepo bases and mark the active one. |
 | `status` | Show configuration, indexed chunk count, and the latest ingestion progress. |
@@ -53,6 +53,22 @@ evidence threshold; it does not force a low-confidence passage into the response
 
 `preview` uses the active redaction and chunking configuration but never writes storage. `audit`
 reports min, mean, p50, p95, and max chunk sizes plus structural-context coverage.
+
+### Bounded research
+
+```bash
+rgr research "release obligations" --timeout-ms 10000 --code-top-k 10
+rgr research "release obligations" --code-scan-max-files 500 --code-scan-max-bytes 8388608
+rgr research "release obligations" --full-audit
+```
+
+Research uses language-aware expansions and deterministic weighted cross-query RRF. The direct
+query keeps enough weight to preserve its candidate set; expansions add support and fill remaining
+slots. The default path reads a fresh manifest health snapshot instead of walking every source.
+`--full-audit` explicitly requests that inventory and its duplicate, archive, and mirror
+diagnostics. `--top-k` and `--code-top-k` bound output items; `--timeout-ms`,
+`--code-scan-max-files`, `--code-scan-max-bytes`, and `--code-scan-concurrency` bound work. The
+report records both configured and consumed budgets.
 
 ## Resumable ingestion
 
