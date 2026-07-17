@@ -58,9 +58,11 @@ The default `local-hash` provider needs no model download. It is lexical/hash re
 semantic embeddings. Enable local Transformers.js embeddings explicitly with `rgr setup --semantic`
 and rebuild the index.
 
-Hybrid retrieval has stable source-and-chunk tie-breaks and provider-aware abstention. Pass
-`explain: true` to inspect vector and lexical contributions plus the active ranking-policy
-fingerprint. An empty result means every candidate failed the evidence threshold.
+Hybrid retrieval has stable source-and-chunk tie-breaks, two-pass recall-safe diversification, and
+provider-aware abstention. Pass `explain: true` to inspect vector and lexical contributions, FTS or
+fallback activation and reason, candidate and coverage budgets, plus the active ranking-policy
+fingerprint.
+An empty result means every candidate failed the evidence threshold.
 
 `research` uses language-aware query expansion with deterministic cross-query ranking. It reads
 manifest health by default and exposes explicit timeout, code-file, code-byte, concurrency, and

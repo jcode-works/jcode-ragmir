@@ -42,7 +42,9 @@ When parsing or redaction invalidates a source-line mapping, `lineStart` and `li
 instead of presenting an unverifiable line claim.
 
 With `explain: true`, `score` includes the vector and lexical ranks, their reciprocal-rank-fusion
-contributions, matched terms, backend scores, and `rankingPolicyFingerprint`. The fingerprint
+contributions, matched terms, backend scores, FTS or complete-fallback activation and reason,
+candidate materialization, query-variant count, indexed/unindexed rows, coverage, and
+`rankingPolicyFingerprint`. The fingerprint
 identifies the provider, retrieval profile, fusion parameters, and abstention threshold used by
 the result. Equal scores are ordered by stable source and chunk keys, so identical indexes return
 the same order regardless of backend row order. Search returns an empty array when every candidate
@@ -148,7 +150,8 @@ bounded by batch size and vector bytes, while each file remains the atomic durab
 `AccessLogUsageOptions` accept `signal` and `timeoutMs`. Diagnostic functions that take a separate
 `options` argument use the same `OperationOptions` contract. When explanation is enabled, each
 result includes reciprocal-rank fusion contributions, one-based vector and lexical ranks, vector
-distance, lexical backend score, and matched query terms. `ExpandCitationOptions.contextRadius` is
+distance, lexical backend and coverage diagnostics, and matched query terms.
+`ExpandCitationOptions.contextRadius` is
 clamped to three chunks.
 
 `ResearchOptions` also accepts `fullAudit`, `codeTopK`, `codeScanMaxFiles`,

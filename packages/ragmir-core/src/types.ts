@@ -545,6 +545,16 @@ export interface SearchScoreExplanation {
   lexicalRank: number | null
   vectorDistance: number | null
   lexicalBackendScore: number | null
+  lexicalBackend: "fts" | "fallback"
+  lexicalFallbackActivated: boolean
+  lexicalFallbackReason: "fts-index-unavailable" | "fts-query-failed" | null
+  lexicalExactPathMatch: boolean
+  lexicalCandidateLimit: number
+  lexicalCandidatesMaterialized: number
+  lexicalQueryVariants: number
+  lexicalIndexedRows: number
+  lexicalUnindexedRows: number
+  lexicalCoverage: number
   rankingPolicyFingerprint: string
   matchedTerms: string[]
 }

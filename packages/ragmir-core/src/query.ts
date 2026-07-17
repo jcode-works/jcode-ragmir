@@ -1,5 +1,11 @@
 import { channel } from "node:diagnostics_channel"
-import type { Connection } from "@lancedb/lancedb"
+import {
+  type Connection,
+  type FullTextQuery,
+  MatchQuery,
+  Operator,
+  PhraseQuery,
+} from "@lancedb/lancedb"
 import { flushAccessLog, recordAccess } from "./access-log.js"
 import { citationForCoordinates, stripCitationCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
@@ -80,6 +86,10 @@ const LEXICAL_CANDIDATE_POLICY: Record<RetrievalProfile, { minimum: number; mult
   }
 const MAX_CONTEXT_RADIUS = 3
 const MAX_VECTOR_CANDIDATES = 1_000
+const MAX_LEXICAL_CANDIDATES = 4_000
+const FULL_TEXT_INDEX_NAME = "searchText_idx"
+const LEXICAL_IDENTIFIER_PATTERN = /[\p{L}\p{N}]+(?:[-_.][\p{L}\p{N}]+)+/gu
+const SOURCE_PATH_QUERY_PATTERN = /^[\p{L}\p{N}_. /\\-]+\.[a-z0-9]{1,12}$/iu
 export const QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL = "ragmir:query-explanation"
 const queryExplanationDiagnostics = channel(QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL)
 const SEARCH_COLUMNS = [
@@ -104,6 +114,28 @@ const SEARCH_COLUMNS = [
 ]
 const VECTOR_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_distance"]
 const FTS_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_score"]
+
+interface LexicalCandidateSet {
+  rows: SearchRow[]
+  exactPathMatches: Set<string>
+  backend: "fts" | "fallback"
+  fallbackActivated: boolean
+  fallbackReason: "fts-index-unavailable" | "fts-query-failed" | null
+  candidateLimit: number
+  candidatesMaterialized: number
+  queryVariants: number
+  indexedRows: number
+  unindexedRows: number
+  coverage: number
+}
+
+interface LexicalCandidateOptions {
+  ftsLimit: number
+  fallbackLimit: number
+  indexedChunkCount: number
+  minimumResults: number
+  pathPredicate: string | null
+}
 
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
@@ -160,14 +192,15 @@ async function searchWithinGeneration(
     options.excludePaths,
     options.contextPaths,
   )
-  const [vector, textRows] = await Promise.all([
+  const [vector, lexicalCandidates] = await Promise.all([
     embedText(sanitized.query, config),
-    lexicalCandidateRows(
-      table,
-      sanitized.query,
-      lexicalCandidateLimit(config.hybridTextScanLimit, topK, config.retrievalProfile),
-      retrievalPredicate,
-    ),
+    lexicalCandidateRows(table, sanitized.query, {
+      ftsLimit: lexicalCandidateLimit(topK, config.retrievalProfile),
+      fallbackLimit: config.hybridTextScanLimit,
+      indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
+      minimumResults: topK,
+      pathPredicate: retrievalPredicate,
+    }),
   ])
   throwIfAborted(signal)
   const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
@@ -184,12 +217,24 @@ async function searchWithinGeneration(
     .toArray()) as SearchRow[]
   throwIfAborted(signal)
   const rankingPolicy = rankingPolicyFor(config.embeddingProvider, config.retrievalProfile)
-  const rankedRows = rankHybridRows(sanitized.query, vectorRows, textRows, rankingPolicy)
-  const relevantRows = rankedRows.filter((ranked) =>
-    candidatePassesAbstention(evidence, ranked.row, rankingPolicy),
+  const rankedRows = rankHybridRows(
+    sanitized.query,
+    vectorRows,
+    lexicalCandidates.rows,
+    rankingPolicy,
   )
-  const rows = diversifyRows(relevantRows, topK, config.retrievalProfile)
-  const contextByRow = await contextChunksByRow(table, rows, contextRadius)
+  const relevantRows = rankedRows.filter(
+    (ranked) =>
+      lexicalCandidates.exactPathMatches.has(rowKey(ranked.row)) ||
+      candidatePassesAbstention(evidence, ranked.row, rankingPolicy),
+  )
+  const rows = diversifyRows(
+    relevantRows,
+    topK,
+    config.retrievalProfile,
+    lexicalCandidates.exactPathMatches,
+  )
+  const contextByRow = await contextChunksByRow(table, rows, contextRadius, retrievalPredicate)
   throwIfAborted(signal)
 
   const results = rows.map((row) => {
@@ -220,6 +265,16 @@ async function searchWithinGeneration(
               lexicalRank: row.lexicalRank,
               vectorDistance,
               lexicalBackendScore: row.lexicalBackendScore,
+              lexicalBackend: lexicalCandidates.backend,
+              lexicalFallbackActivated: lexicalCandidates.fallbackActivated,
+              lexicalFallbackReason: lexicalCandidates.fallbackReason,
+              lexicalExactPathMatch: lexicalCandidates.exactPathMatches.has(rowKey(row.row)),
+              lexicalCandidateLimit: lexicalCandidates.candidateLimit,
+              lexicalCandidatesMaterialized: lexicalCandidates.candidatesMaterialized,
+              lexicalQueryVariants: lexicalCandidates.queryVariants,
+              lexicalIndexedRows: lexicalCandidates.indexedRows,
+              lexicalUnindexedRows: lexicalCandidates.unindexedRows,
+              lexicalCoverage: lexicalCandidates.coverage,
               rankingPolicyFingerprint: rankingPolicyFingerprint(rankingPolicy),
               matchedTerms: matchedQueryTerms(config.projectRoot, queryTokens, row.row.searchText),
             },
@@ -240,12 +295,13 @@ function diversifyRows(
   rows: Array<RankedRow<SearchRow>>,
   topK: number,
   profile: RetrievalProfile,
+  exactPathMatches: ReadonlySet<string>,
 ): Array<RankedRow<SearchRow>> {
   const uniqueRows: Array<RankedRow<SearchRow>> = []
   const textIndexes = new Map<string, number>()
 
   for (const row of rows) {
-    const textKey = `${row.row.contextPath}\0${row.row.text.replace(/\s+/gu, " ").trim().toLowerCase()}`
+    const textKey = row.row.text.replace(/\s+/gu, " ").trim().toLowerCase()
     const existingIndex = textIndexes.get(textKey)
     if (existingIndex === undefined) {
       textIndexes.set(textKey, uniqueRows.length)
@@ -253,25 +309,48 @@ function diversifyRows(
       continue
     }
     const existing = uniqueRows[existingIndex]
-    if (existing && preferCanonicalPath(row.row.relativePath, existing.row.relativePath)) {
+    const existingIsExact = existing ? exactPathMatches.has(rowKey(existing.row)) : false
+    const candidateIsExact = exactPathMatches.has(rowKey(row.row))
+    if (
+      existing &&
+      (candidateIsExact !== existingIsExact
+        ? candidateIsExact
+        : preferCanonicalPath(row.row.relativePath, existing.row.relativePath))
+    ) {
       uniqueRows[existingIndex] = row
     }
   }
 
   const selected: Array<RankedRow<SearchRow>> = []
+  const selectedKeys = new Set<string>()
   const perSource = new Map<string, number>()
   const maxChunksPerSource = VECTOR_CANDIDATE_POLICY[profile].maxChunksPerSource
-
-  for (const row of uniqueRows) {
+  const appendRow = (row: RankedRow<SearchRow>, enforceSourceCap: boolean): void => {
+    const key = rowKey(row.row)
+    if (selectedKeys.has(key)) {
+      return
+    }
     if (selected.some((candidate) => overlapsSourceSpan(candidate.row, row.row))) {
-      continue
+      return
     }
     const sourceCount = perSource.get(row.row.relativePath) ?? 0
-    if (sourceCount >= maxChunksPerSource) {
-      continue
+    if (enforceSourceCap && sourceCount >= maxChunksPerSource) {
+      return
     }
     selected.push(row)
+    selectedKeys.add(key)
     perSource.set(row.row.relativePath, sourceCount + 1)
+  }
+
+  for (const row of uniqueRows) {
+    appendRow(row, true)
+    if (selected.length >= topK) {
+      return selected
+    }
+  }
+
+  for (const row of uniqueRows) {
+    appendRow(row, false)
     if (selected.length >= topK) {
       break
     }
@@ -310,12 +389,11 @@ export function vectorCandidateLimit(topK: number, profile: RetrievalProfile = "
 }
 
 export function lexicalCandidateLimit(
-  configuredLimit: number,
   topK: number,
   profile: RetrievalProfile = "balanced",
 ): number {
   const policy = LEXICAL_CANDIDATE_POLICY[profile]
-  return Math.min(configuredLimit, Math.max(policy.minimum, topK * policy.multiplier))
+  return Math.min(MAX_LEXICAL_CANDIDATES, Math.max(policy.minimum, topK * policy.multiplier))
 }
 
 export async function ask(query: string, options: SearchOptions = {}): Promise<AskResult> {
@@ -469,25 +547,152 @@ function retrievalOnlyAnswer(sources: SearchResult[]): string {
 async function lexicalCandidateRows(
   table: RowsTable,
   query: string,
+  options: LexicalCandidateOptions,
+): Promise<LexicalCandidateSet> {
+  const ftsQueries = lexicalQuery(query)
+  const stats = await table.indexStats(FULL_TEXT_INDEX_NAME).catch(() => undefined)
+  let fallbackReason: LexicalCandidateSet["fallbackReason"] = "fts-index-unavailable"
+  if (ftsQueries && stats) {
+    try {
+      const sourcePathQuery = sourcePathPredicateForQuery(query)
+      const sourcePathRows = sourcePathQuery
+        ? await executeSourcePathQuery(
+            table,
+            sourcePathQuery,
+            options.ftsLimit,
+            options.pathPredicate,
+          )
+        : []
+      const primaryRows = await executeFullTextQuery(
+        table,
+        ftsQueries.primary,
+        options.ftsLimit,
+        options.pathPredicate,
+      )
+      const rows: SearchRow[] = []
+      const initialRows = [...sourcePathRows, ...primaryRows]
+      const seenRows = new Set<string>()
+      for (const row of initialRows) {
+        const key = rowKey(row)
+        if (!seenRows.has(key)) {
+          seenRows.add(key)
+          rows.push(row)
+        }
+      }
+      let executedVariants = 1 + Number(sourcePathQuery !== null)
+      if (rows.length < options.minimumResults) {
+        for (const supplementalQuery of ftsQueries.supplemental) {
+          const supplementalRows = await executeFullTextQuery(
+            table,
+            supplementalQuery,
+            options.ftsLimit,
+            options.pathPredicate,
+          ).catch(() => [])
+          executedVariants += 1
+          for (const row of supplementalRows) {
+            const key = rowKey(row)
+            if (seenRows.has(key)) {
+              continue
+            }
+            seenRows.add(key)
+            rows.push(row)
+            if (rows.length >= options.ftsLimit) {
+              break
+            }
+          }
+          if (rows.length >= options.minimumResults || rows.length >= options.ftsLimit) {
+            break
+          }
+        }
+      }
+      const indexedRows = stats.numIndexedRows
+      const unindexedRows = stats.numUnindexedRows
+      const coveredRows = indexedRows + unindexedRows
+      const exactPathMatches = new Set(
+        sourcePathQuery?.exactRelativePath
+          ? sourcePathRows
+              .filter((row) => row.relativePath === sourcePathQuery.exactRelativePath)
+              .map(rowKey)
+          : [],
+      )
+      return {
+        rows,
+        exactPathMatches,
+        backend: "fts",
+        fallbackActivated: false,
+        fallbackReason: null,
+        candidateLimit: options.ftsLimit,
+        candidatesMaterialized: rows.length,
+        queryVariants: executedVariants,
+        indexedRows,
+        unindexedRows,
+        coverage: coveredRows === 0 ? 1 : indexedRows / coveredRows,
+      }
+    } catch {
+      fallbackReason = "fts-query-failed"
+      // A complete bounded scan remains safe for small or explicitly bounded corpora.
+    }
+  }
+  if (options.fallbackLimit < options.indexedChunkCount) {
+    throw new RagmirError(
+      "INDEX_UNAVAILABLE",
+      `Full-text search is unavailable and the fallback limit would scan only ${options.fallbackLimit} of ${options.indexedChunkCount} chunks. Run \`rgr storage optimize\` or rebuild the index before searching.`,
+      { retryable: true },
+    )
+  }
+  const fallbackQuery = table.query().select(SEARCH_COLUMNS)
+  const rows = (await (options.pathPredicate
+    ? fallbackQuery.where(options.pathPredicate)
+    : fallbackQuery
+  )
+    .limit(options.fallbackLimit)
+    .toArray()) as SearchRow[]
+  return {
+    rows,
+    exactPathMatches: new Set(),
+    backend: "fallback",
+    fallbackActivated: true,
+    fallbackReason,
+    candidateLimit: options.fallbackLimit,
+    candidatesMaterialized: rows.length,
+    queryVariants: 0,
+    indexedRows: 0,
+    unindexedRows: options.indexedChunkCount,
+    coverage:
+      options.indexedChunkCount === 0 ? 1 : Math.min(1, rows.length / options.indexedChunkCount),
+  }
+}
+
+async function executeFullTextQuery(
+  table: RowsTable,
+  query: FullTextQuery,
   limit: number,
   pathPredicate: string | null,
 ): Promise<SearchRow[]> {
-  const ftsQuery = lexicalQuery(query)
-  if (ftsQuery) {
-    try {
-      const searchQuery = table.search(ftsQuery, "fts", "searchText").select(FTS_SEARCH_COLUMNS)
-      return (await (pathPredicate ? searchQuery.where(pathPredicate) : searchQuery)
-        .limit(limit)
-        .toArray()) as SearchRow[]
-    } catch {
-      // Older indexes may not have the FTS index yet. Keep retrieval usable and
-      // let doctor/index freshness tell the operator to rebuild.
-    }
-  }
-  const fallbackQuery = table.query().select(SEARCH_COLUMNS)
-  return (await (pathPredicate ? fallbackQuery.where(pathPredicate) : fallbackQuery)
+  const searchQuery = table.search(query, "fts", "searchText").select(FTS_SEARCH_COLUMNS)
+  return (await (pathPredicate ? searchQuery.where(pathPredicate) : searchQuery)
     .limit(limit)
     .toArray()) as SearchRow[]
+}
+
+async function executeSourcePathQuery(
+  table: RowsTable,
+  sourcePathQuery: { predicate: string; exactRelativePath: string | null },
+  limit: number,
+  retrievalPredicate: string | null,
+): Promise<SearchRow[]> {
+  const predicate = retrievalPredicate
+    ? `(${sourcePathQuery.predicate}) AND (${retrievalPredicate})`
+    : sourcePathQuery.predicate
+  return (await table.query().select(SEARCH_COLUMNS).where(predicate).limit(limit).toArray()).map(
+    (row) => ({
+      ...(row as SearchRow),
+      _score:
+        sourcePathQuery.exactRelativePath === (row as SearchRow).relativePath
+          ? Number.MAX_SAFE_INTEGER
+          : Number.MAX_SAFE_INTEGER - 1,
+    }),
+  )
 }
 
 function searchPredicate(
@@ -544,6 +749,7 @@ async function contextChunksByRow(
   table: RowsTable,
   rows: Array<RankedRow<SearchRow>>,
   requestedRadius: number,
+  retrievalPredicate: string | null,
 ): Promise<Map<string, SearchContextChunk[]>> {
   const radius = Math.min(MAX_CONTEXT_RADIUS, Math.max(0, requestedRadius))
   if (radius === 0 || rows.length === 0) {
@@ -557,10 +763,14 @@ async function contextChunksByRow(
         `(relativePath = ${sqlString(relativePath)} AND chunkIndex >= ${minimum} AND chunkIndex <= ${maximum})`,
     ),
   )
+  const rangePredicate = predicates.join(" OR ")
+  const hydrationPredicate = retrievalPredicate
+    ? `(${rangePredicate}) AND (${retrievalPredicate})`
+    : rangePredicate
   const allContextRows = (await table
     .query()
     .select(SEARCH_COLUMNS)
-    .where(predicates.join(" OR "))
+    .where(hydrationPredicate)
     .toArray()) as SearchRow[]
   const contextRowsByPath = new Map<string, SearchRow[]>()
   for (const contextRow of allContextRows) {
@@ -743,8 +953,72 @@ function citationForRow(row: SearchRow): string {
   return citationForCoordinates(row)
 }
 
-function lexicalQuery(query: string): string {
-  return [...new Set(tokenize(query))].join(" ")
+function lexicalQuery(
+  query: string,
+): { primary: FullTextQuery; supplemental: FullTextQuery[] } | null {
+  const tokens = [...new Set(tokenize(query))]
+  if (tokens.length === 0) {
+    return null
+  }
+  const joined = tokens.join(" ")
+  const supplemental: FullTextQuery[] = []
+  if (tokens.length > 1) {
+    supplemental.push(new PhraseQuery(joined, "searchText"))
+  }
+  const identifierTerms = [...query.matchAll(LEXICAL_IDENTIFIER_PATTERN)]
+    .map((match) => match[0])
+    .filter(Boolean)
+  for (const identifier of [...new Set(identifierTerms)]) {
+    supplemental.push(
+      new MatchQuery(identifier, "searchText", {
+        boost: 2,
+        ...(isFuzzyLexicalTerm(identifier) ? { fuzziness: 1, prefixLength: 3 } : {}),
+      }),
+    )
+  }
+  const rareTerms = tokens
+    .filter(isFuzzyLexicalTerm)
+    .sort((left, right) => right.length - left.length || left.localeCompare(right))
+    .slice(0, 3)
+  for (const term of rareTerms) {
+    supplemental.push(
+      new MatchQuery(term, "searchText", {
+        boost: 1.25,
+        fuzziness: 1,
+        prefixLength: 3,
+      }),
+    )
+  }
+  return {
+    primary: new MatchQuery(joined, "searchText", { operator: Operator.Or }),
+    supplemental,
+  }
+}
+
+function isFuzzyLexicalTerm(term: string): boolean {
+  return term.length >= 7 && /^[a-z0-9_.-]+$/u.test(term)
+}
+
+function sourcePathPredicateForQuery(
+  query: string,
+): { predicate: string; exactRelativePath: string | null } | null {
+  const normalized = query.trim().replaceAll("\\", "/").replace(/^\.\//u, "")
+  if (!SOURCE_PATH_QUERY_PATTERN.test(normalized)) {
+    return null
+  }
+  const fileName = normalized.split("/").at(-1)
+  if (!fileName) {
+    return null
+  }
+  const clauses = new Set<string>([
+    `relativePath = ${sqlString(normalized)}`,
+    `relativePath = ${sqlString(fileName)}`,
+    `ends_with(relativePath, ${sqlString(`/${fileName}`)})`,
+  ])
+  return {
+    predicate: `(${[...clauses].join(" OR ")})`,
+    exactRelativePath: normalized.includes("/") ? normalized : null,
+  }
 }
 
 function compareChunkRows(a: SearchRow, b: SearchRow): number {

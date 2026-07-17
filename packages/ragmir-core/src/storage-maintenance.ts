@@ -187,7 +187,7 @@ export async function maintainOpenStorageTable(
   if (plannedActions.includes("refresh-full-text-index")) {
     try {
       await table.createIndex("searchText", {
-        config: lancedb.Index.fts({ asciiFolding: true, lowercase: true }),
+        config: lancedb.Index.fts({ asciiFolding: true, lowercase: true, withPosition: true }),
         replace: true,
       })
       const coverage = await fullTextIndexCoverage(table, before.totalRows)

@@ -10,7 +10,7 @@ import { vectorModelFingerprint } from "./vector-index.js"
  * required metadata). A stored manifest with a lower schemaVersion means the
  * index predates the current code and should be rebuilt.
  */
-export const INDEX_SCHEMA_VERSION = 9
+export const INDEX_SCHEMA_VERSION = 10
 
 /**
  * Detect a stale or incompatible index without re-scanning every source file.
@@ -95,5 +95,5 @@ export function getLexicalScanWarning(config: Config, chunkCount: number): strin
   if (chunkCount <= config.hybridTextScanLimit) {
     return null
   }
-  return `Lexical fallback scans at most ${config.hybridTextScanLimit} of ${chunkCount} chunks when full-text search is unavailable. Raise \`hybridTextScanLimit\` in .ragmir/config.json only if keyword recall is still weak after rebuilding the index.`
+  return `Lexical fallback can scan at most ${config.hybridTextScanLimit} of ${chunkCount} chunks when full-text search is unavailable. Search rejects this truncated fallback instead of returning incomplete lexical evidence. Run \`rgr storage optimize\` or rebuild the index; raise \`hybridTextScanLimit\` only for a measured complete-scan fallback.`
 }

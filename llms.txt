@@ -36,10 +36,12 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   when the user chooses that workflow, under that provider's data policy.
 - OCR boundary: embedded PDF text comes first; a configured local executable runs only for blank
   pages. Ragmir has no cloud OCR integration.
-- Retrieval inspection: preview redacted chunks without writing storage; optionally expose RRF
-  contributions and the ranking-policy fingerprint, filter by source or structural context, or
-  force exact vector search for ANN diagnostics. Equal scores use stable source-and-chunk
-  tie-breaks, and provider-aware abstention can return no passage instead of weak evidence.
+- Retrieval inspection: preview redacted chunks without writing storage; optionally expose RRF,
+  FTS/fallback and lexical-coverage diagnostics, filter candidates and hydrated neighbors by source
+  or structural context, or force exact vector search for ANN diagnostics. Exact file paths use a
+  bounded scalar variant; exact phrases, identifiers and rare terms expand the lexical pool only
+  when it cannot fill `topK`. Diversification backfills ranked
+  non-overlapping chunks after its source-diverse pass.
 - Research: language-aware query variants use deterministic weighted cross-query RRF. The normal
   path reads manifest health; a full source audit is explicit. Timeout, code-file, code-byte,
   concurrency, evidence, and MCP byte budgets stay bounded and are reported.

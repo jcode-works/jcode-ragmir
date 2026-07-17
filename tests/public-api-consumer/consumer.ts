@@ -79,7 +79,15 @@ void ingest(ingestOptions)
 void search("What changed?", searchOptions).then((results) => {
   const rankingPolicyFingerprint: string | undefined =
     results[0]?.score?.rankingPolicyFingerprint
+  const lexicalFallbackReason:
+    | "fts-index-unavailable"
+    | "fts-query-failed"
+    | null
+    | undefined = results[0]?.score?.lexicalFallbackReason
   void rankingPolicyFingerprint
+  void lexicalFallbackReason
+  const lexicalExactPathMatch: boolean | undefined = results[0]?.score?.lexicalExactPathMatch
+  void lexicalExactPathMatch
 })
 void research("What changed?", researchOptions).then((report) => {
   const firstResearchScore: number | undefined = report.evidence[0]?.researchScore
@@ -113,6 +121,7 @@ const semanticResult: Promise<EnableSemanticEmbeddingsResult> = enableSemanticEm
 const pullResult: Promise<PullEmbeddingModelResult> = pullEmbeddingModel(config)
 const redactions: RedactionCount[] = redactText("example", config).counts
 const errorCode: RagmirErrorCode = "TIMEOUT"
+const indexErrorCode: RagmirErrorCode = "INDEX_UNAVAILABLE"
 
 void semanticResult
 void accessLogMetrics
@@ -120,3 +129,4 @@ void flushedAccessLog
 void pullResult
 void redactions
 void errorCode
+void indexErrorCode

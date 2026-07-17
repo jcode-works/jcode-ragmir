@@ -29,7 +29,7 @@ edit JSON only for a real need.
 | `embeddingBatchSize` | `32` | Bound one model call; values above `128` are rejected. |
 | `sourceFingerprintMode` | `fast` | Use `strict` to hash every source on every inventory instead of reusing unchanged private fingerprints. |
 | `incrementalFailurePolicy` | `preserve-last-good` | Use `remove-stale` only when failed changed files must disappear immediately. |
-| `hybridTextScanLimit` | `5000` | Bound lexical fallback candidates; values above 10,000 are rejected. Search applies a smaller profile-aware candidate budget when possible. |
+| `hybridTextScanLimit` | `5000` | Bound only the complete-scan fallback used when FTS is unavailable; values above 10,000 are rejected. A fallback smaller than the active corpus is rejected instead of returning silently truncated lexical evidence. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
 
 ### Retrieval profiles and ranking policy
@@ -38,18 +38,22 @@ Profiles bound retrieval work. They are candidate and diversification budgets, n
 a larger budget improves every corpus. Evaluate the profile against a representative golden set
 before changing production configuration.
 
-| Profile | Quality intent | Latency intent | Default `topK` | Lexical scan cap | Vector candidates | Lexical candidates | Chunks per source | Context radius |
+| Profile | Quality intent | Latency intent | Default `topK` | Fallback scan cap | Vector candidates | FTS candidates | First-pass chunks per source | Context radius |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `fast` | Narrow, diverse evidence | Lowest work budget | 5 | 2,000 | max(40, 3 x `topK`) | max(100, 10 x `topK`) | 1 | 0 |
-| `balanced` | General-purpose evidence | Default work budget | 8 | 5,000 | max(80, 4 x `topK`) | max(250, 20 x `topK`) | 2 | 0 |
-| `quality` | Broader multi-section evidence | Highest work budget | 12 | 10,000 | max(200, 8 x `topK`) | max(500, 40 x `topK`) | 4 | 1 |
-| `custom` | Golden-set validated | Operator-defined | configured | configured | max(80, 4 x `topK`) | max(250, 20 x `topK`) | 2 | 0 |
+| `fast` | Narrow, diverse evidence | Lowest work budget | 5 | 2,000 | max(40, 3 x `topK`) | max(100, 10 x `topK`) | 1, then backfill | 0 |
+| `balanced` | General-purpose evidence | Default work budget | 8 | 5,000 | max(80, 4 x `topK`) | max(250, 20 x `topK`) | 2, then backfill | 0 |
+| `quality` | Broader multi-section evidence | Highest work budget | 12 | 10,000 | max(200, 8 x `topK`) | min(4,000, max(500, 40 x `topK`)) | 4, then backfill | 1 |
+| `custom` | Golden-set validated | Operator-defined | configured | configured | max(80, 4 x `topK`) | max(250, 20 x `topK`) | 2, then backfill | 0 |
 
-Vector candidates are capped at 1,000 and lexical candidates never exceed
-`hybridTextScanLimit`. Hybrid ranking uses deterministic reciprocal-rank fusion with `k = 60` and
-equal vector and lexical weights. Stable source and chunk keys break score ties before ranks are
-assigned. The active provider, profile, and ranking parameters form a policy fingerprint stored in
-quality reports and exposed by score explanations.
+Vector candidates are capped at 1,000. The FTS pool is profile-aware and capped at 4,000,
+independently from `hybridTextScanLimit`. Structural context and body text feed the primary local
+index. Exact file paths use a bounded scalar variant. Controlled exact-phrase, identifier, and fuzzy
+rare-term queries expand only a primary pool that cannot fill `topK`, preserving established ranks. The
+diversity pass prefers distinct sources first, then backfills ranked non-duplicate, non-overlapping
+chunks to `topK`. Hybrid ranking uses deterministic reciprocal-rank fusion with `k = 60` and equal
+vector and lexical weights. Stable source and chunk keys break score ties before ranks are assigned.
+The active provider, profile, and ranking parameters form a policy fingerprint stored in quality
+reports and exposed by score explanations.
 
 Abstention is provider-aware. `local-hash` requires lexical evidence and gives query identifiers
 precedence over coincidental section numbers. Transformers results require lexical evidence or a

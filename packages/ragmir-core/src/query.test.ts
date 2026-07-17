@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
+import { loadConfig } from "./config.js"
 import type { RagmirError } from "./errors.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
@@ -15,6 +16,7 @@ import {
   search,
   vectorCandidateLimit,
 } from "./query.js"
+import { openRowsTable } from "./store.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -72,17 +74,80 @@ describe("search", () => {
     }
   })
 
-  it("keeps a broad vector candidate pool for small result sets", () => {
+  it("should keep candidate pools bounded independently for small result sets", () => {
     expect(vectorCandidateLimit(1)).toBe(80)
     expect(vectorCandidateLimit(5)).toBe(80)
     expect(vectorCandidateLimit(25)).toBe(100)
     expect(vectorCandidateLimit(1, "fast")).toBe(40)
     expect(vectorCandidateLimit(1, "quality")).toBe(200)
     expect(vectorCandidateLimit(100_000, "quality")).toBe(1_000)
-    expect(lexicalCandidateLimit(5_000, 5)).toBe(250)
-    expect(lexicalCandidateLimit(5_000, 5, "fast")).toBe(100)
-    expect(lexicalCandidateLimit(10_000, 5, "quality")).toBe(500)
-    expect(lexicalCandidateLimit(125, 5, "quality")).toBe(125)
+    expect(lexicalCandidateLimit(5)).toBe(250)
+    expect(lexicalCandidateLimit(5, "fast")).toBe(100)
+    expect(lexicalCandidateLimit(5, "quality")).toBe(500)
+    expect(lexicalCandidateLimit(100, "quality")).toBe(4_000)
+  })
+
+  it("should retrieve evidence from an exact source path identifier", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-source-path-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw", "architecture"), { recursive: true })
+    await mkdir(path.join(root, ".ragmir", "raw", "duplicate"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "architecture", "API_GATEWAY_47.md"),
+      "The selected document contains routine operational evidence.\n",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "architecture", "unrelated.md"),
+      "A separate document contains ordinary planning notes.\n",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "duplicate", "API_GATEWAY_47.md"),
+      "The selected document contains routine operational evidence.\n",
+    )
+    await ingest({ cwd: root })
+
+    const results = await search(".ragmir/raw/architecture/API_GATEWAY_47.md", {
+      cwd: root,
+      topK: 1,
+      explain: true,
+    })
+
+    expect(results[0]?.relativePath).toBe(".ragmir/raw/architecture/API_GATEWAY_47.md")
+    expect(results[0]?.score?.lexicalExactPathMatch).toBe(true)
+  })
+
+  it("should backfill a mono-document result set after the diversity pass", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-diversity-backfill-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 80, chunkOverlap: 0, retrievalProfile: "fast" }),
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "handbook.md"),
+      Array.from(
+        { length: 8 },
+        (_value, index) =>
+          `# Section ${index + 1}\n\nShared-orbit evidence ${index + 1} records a distinct operational decision with enough detail.`,
+      ).join("\n\n"),
+    )
+    await ingest({ cwd: root })
+
+    const results = await search("shared-orbit evidence", { cwd: root, topK: 4 })
+
+    expect(results).toHaveLength(4)
+    expect(new Set(results.map((result) => result.chunkIndex)).size).toBe(4)
+    for (const [index, result] of results.entries()) {
+      for (const other of results.slice(index + 1)) {
+        expect(
+          (result.charStart ?? 0) < (other.charEnd ?? 0) &&
+            (other.charStart ?? 0) < (result.charEnd ?? 0),
+        ).toBe(false)
+      }
+    }
   })
 
   it("uses lexical evidence in addition to vector candidates", async () => {
@@ -260,6 +325,7 @@ describe("search", () => {
     expect(score?.lexicalRank).toBeGreaterThan(0)
     expect(score?.vectorDistance).toBe(explained[0]?.distance)
     expect(score?.lexicalBackendScore).toBeGreaterThan(0)
+    expect(score?.lexicalFallbackReason).toBeNull()
     expect(score?.matchedTerms).toEqual(expect.arrayContaining(["token", "rotation", "evidence"]))
   })
 
@@ -288,6 +354,48 @@ describe("search", () => {
     const results = await search("zanzibar-token retention proof", { cwd: root, topK: 1 })
 
     expect(results[0]?.relativePath).toBe(".ragmir/raw/zeta.md")
+  })
+
+  it("should reject a silently truncated lexical fallback", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-truncated-fallback-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ hybridTextScanLimit: 1 }),
+    )
+    await writeFile(path.join(root, ".ragmir", "raw", "alpha.md"), "Alpha evidence.\n")
+    await writeFile(path.join(root, ".ragmir", "raw", "zeta.md"), "Zeta evidence.\n")
+    await ingest({ cwd: root })
+    const table = await openRowsTable(await loadConfig(root))
+    await table?.dropIndex("searchText_idx")
+
+    await expect(search("zeta evidence", { cwd: root })).rejects.toMatchObject({
+      code: "INDEX_UNAVAILABLE",
+    })
+  })
+
+  it("should explain complete lexical fallback activation and coverage", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fallback-explain-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "policy.md"), "Fallback policy evidence.\n")
+    await ingest({ cwd: root })
+    const table = await openRowsTable(await loadConfig(root))
+    await table?.dropIndex("searchText_idx")
+
+    const [result] = await search("fallback policy", { cwd: root, topK: 1, explain: true })
+
+    expect(result?.score).toMatchObject({
+      lexicalBackend: "fallback",
+      lexicalFallbackActivated: true,
+      lexicalFallbackReason: "fts-index-unavailable",
+      lexicalIndexedRows: 0,
+      lexicalUnindexedRows: 1,
+      lexicalCoverage: 1,
+    })
   })
 
   it("should retrieve later Markdown chunks through their heading context", async () => {
@@ -394,10 +502,11 @@ describe("search", () => {
     )
     await ingest({ cwd: root })
 
-    const typo = await search("sceurity", { cwd: root, topK: 1 })
+    const typo = await search("sceurity", { cwd: root, topK: 1, explain: true })
     const wrongWord = await search("secretary", { cwd: root, topK: 1 })
 
     expect(typo[0]?.relativePath).toBe(".ragmir/raw/security.md")
+    expect(typo[0]?.score?.lexicalQueryVariants).toBeGreaterThan(1)
     expect(wrongWord).toEqual([])
   })
 
@@ -488,6 +597,44 @@ describe("search", () => {
     expect(results[0]?.context.length).toBeGreaterThanOrEqual(2)
     expect(results[0]?.context.some((chunk) => chunk.text.includes("Opening"))).toBe(true)
     expect(results[0]?.context.some((chunk) => chunk.text.includes("Rare needle"))).toBe(true)
+  })
+
+  it("should reapply structural filters while hydrating neighboring chunks", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-filtered-context-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 70, chunkOverlap: 0 }),
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "runbook.md"),
+      [
+        "# Operations",
+        "",
+        "## Release",
+        "Release-only neighbor evidence must never cross the active structural filter.",
+        "",
+        "## Archive",
+        "Archive needle evidence is the requested and structurally filtered passage.",
+        "",
+        "Archive continuation evidence remains inside the selected structural section.",
+      ].join("\n"),
+    )
+    await ingest({ cwd: root })
+
+    const [result] = await search("archive needle evidence", {
+      cwd: root,
+      topK: 1,
+      contextRadius: 2,
+      contextPaths: ["Operations > Archive"],
+    })
+
+    expect(result?.context.length).toBeGreaterThan(0)
+    expect(
+      result?.context.every((chunk) => chunk.contextPath.startsWith("Operations > Archive")),
+    ).toBe(true)
   })
 
   it("retrieves expected evidence from the sovereign RAG demo golden set", async () => {

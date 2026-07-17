@@ -122,6 +122,8 @@ async function evaluateRankingVariants(client, goldenQueries) {
     "hybrid-lexical-1.25": [],
     "hybrid-lexical-1.5": [],
     "hybrid-lexical-2": [],
+    "diversity-fixed-cap-2": [],
+    "diversity-soft-mmr-0.85": [],
   }
   for (const testCase of goldenQueries) {
     const rows = await client.search(testCase.query, {
@@ -164,6 +166,12 @@ async function evaluateRankingVariants(client, goldenQueries) {
       ),
     )
     variants.hybrid.push(scoreVariantCase(testCase, rows.slice(0, 10)))
+    variants["diversity-fixed-cap-2"].push(
+      scoreVariantCase(testCase, fixedSourceCapRows(rows, 10, 2)),
+    )
+    variants["diversity-soft-mmr-0.85"].push(
+      scoreVariantCase(testCase, softMmrRows(rows, 10, 0.85)),
+    )
     for (const [name, lexicalWeight] of [
       ["hybrid-lexical-1.25", 1.25],
       ["hybrid-lexical-1.5", 1.5],
@@ -190,7 +198,9 @@ async function evaluateRankingVariants(client, goldenQueries) {
       return [
         name,
         {
+          recallAt5: mean(answerable.map((testCase) => testCase.recallAt5)),
           recallAt10: mean(answerable.map((testCase) => testCase.recall)),
+          meanReturned: mean(cases.map((testCase) => testCase.returned)),
           falsePositiveRate: mean(unanswerable.map((testCase) => Number(testCase.returned > 0))),
         },
       ]
@@ -201,9 +211,15 @@ async function evaluateRankingVariants(client, goldenQueries) {
 function scoreVariantCase(testCase, rows) {
   const expectedPaths = testCase.expectedPaths ?? []
   const returnedPaths = new Set(rows.map((row) => row.relativePath))
+  const returnedPathsAt5 = new Set(rows.slice(0, 5).map((row) => row.relativePath))
   const answerable = testCase.answerable !== false && expectedPaths.length > 0
   return {
     answerable,
+    recallAt5:
+      expectedPaths.length === 0
+        ? Number(rows.length === 0)
+        : expectedPaths.filter((expectedPath) => returnedPathsAt5.has(expectedPath)).length /
+          expectedPaths.length,
     recall:
       expectedPaths.length === 0
         ? Number(rows.length === 0)
@@ -211,6 +227,76 @@ function scoreVariantCase(testCase, rows) {
           expectedPaths.length,
     returned: rows.length,
   }
+}
+
+function fixedSourceCapRows(rows, limit, perSourceLimit) {
+  const selected = []
+  const sourceCounts = new Map()
+  for (const row of rows) {
+    const sourceCount = sourceCounts.get(row.relativePath) ?? 0
+    if (sourceCount >= perSourceLimit) {
+      continue
+    }
+    selected.push(row)
+    sourceCounts.set(row.relativePath, sourceCount + 1)
+    if (selected.length >= limit) {
+      break
+    }
+  }
+  return selected
+}
+
+function softMmrRows(rows, limit, relevanceWeight) {
+  const candidates = rows.map((row, rank) => ({ row, rank, tokens: lexicalTokens(row.text) }))
+  const selected = []
+  while (selected.length < limit && candidates.length > 0) {
+    candidates.sort((left, right) => {
+      const relevanceDifference =
+        softMmrScore(right, selected, rows.length, relevanceWeight) -
+        softMmrScore(left, selected, rows.length, relevanceWeight)
+      return (
+        relevanceDifference ||
+        left.rank - right.rank ||
+        left.row.relativePath.localeCompare(right.row.relativePath) ||
+        left.row.chunkIndex - right.row.chunkIndex
+      )
+    })
+    const next = candidates.shift()
+    if (next) {
+      selected.push(next)
+    }
+  }
+  return selected.map((candidate) => candidate.row)
+}
+
+function softMmrScore(candidate, selected, candidateCount, relevanceWeight) {
+  const relevance = 1 - candidate.rank / Math.max(1, candidateCount)
+  const maximumRedundancy = selected.reduce(
+    (maximum, selectedCandidate) =>
+      Math.max(maximum, candidateRedundancy(candidate, selectedCandidate)),
+    0,
+  )
+  return relevanceWeight * relevance - (1 - relevanceWeight) * maximumRedundancy
+}
+
+function candidateRedundancy(left, right) {
+  if (left.row.relativePath === right.row.relativePath) {
+    return 1
+  }
+  if (left.tokens.size === 0 || right.tokens.size === 0) {
+    return 0
+  }
+  let intersection = 0
+  for (const token of left.tokens) {
+    if (right.tokens.has(token)) {
+      intersection += 1
+    }
+  }
+  return intersection / (left.tokens.size + right.tokens.size - intersection)
+}
+
+function lexicalTokens(value) {
+  return new Set(value.toLowerCase().match(/[\p{L}\p{N}_-]+/gu) ?? [])
 }
 
 function mean(values) {

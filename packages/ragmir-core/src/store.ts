@@ -158,7 +158,7 @@ async function ensureLexicalIndex(table: lancedb.Table): Promise<EnsureVectorInd
 
   try {
     await table.createIndex("searchText", {
-      config: lancedb.Index.fts({ asciiFolding: true, lowercase: true }),
+      config: lancedb.Index.fts({ asciiFolding: true, lowercase: true, withPosition: true }),
     })
     return { created: true, warning: null }
   } catch (error) {
