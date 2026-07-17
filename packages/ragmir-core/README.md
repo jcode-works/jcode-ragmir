@@ -33,7 +33,9 @@ Setup keeps configuration, the index, helpers, reports, and metadata-only access
 `.ragmir/` state. Ingestion is incremental, resumable, and serialized across local writer
 processes. Source, chunk, vector, concurrency, and batch windows are bounded, with durable progress
 committed per file. Completed ingestion refreshes incomplete full-text coverage and runs bounded
-LanceDB maintenance when mutation or fragment thresholds are reached. Inspect it with
+LanceDB maintenance when mutation or fragment thresholds are reached. Sidecar replacement flushes
+before rename, synchronizes the storage directory where supported, and retains one validated
+activation manifest for explicit recovery diagnostics. Inspect maintenance with
 `npx rgr storage optimize --dry-run --json`. Exact vector search is retained below 100,000 rows;
 larger tables use a benchmarked IVF-PQ policy only with complete coverage. Use
 `npx rgr search "query" --exact-vector-search` to bypass ANN for diagnostics. Rebuild generations

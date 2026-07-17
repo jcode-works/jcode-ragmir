@@ -1,6 +1,6 @@
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
-import { readIndexManifest } from "./store.js"
+import { indexManifestRecoveryWarning, readIndexManifest } from "./store.js"
 import type { Config, IndexManifest } from "./types.js"
 import { vectorModelFingerprint } from "./vector-index.js"
 
@@ -32,6 +32,11 @@ export function indexFreshnessWarning(
   config: Config,
   manifest: IndexManifest | null,
 ): string | null {
+  const recoveryWarning = indexManifestRecoveryWarning(config)
+  if (recoveryWarning) {
+    return recoveryWarning
+  }
+
   if (!manifest) {
     return null
   }

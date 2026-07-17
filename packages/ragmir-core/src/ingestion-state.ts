@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { createReadStream } from "node:fs"
-import { open as openFile, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { open as openFile, readdir, readFile, rm } from "node:fs/promises"
 import path from "node:path"
+import { syncDirectory, writePrivateFileAtomic } from "./durable-file.js"
 import { isRecord } from "./guards.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import type {
@@ -923,15 +924,9 @@ async function writePrivateJsonAtomic(
   value: unknown,
   directory: string,
 ): Promise<void> {
-  await ensurePrivateDirectory(directory)
-  const temporaryPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`
-  try {
-    await writeFile(temporaryPath, JSON.stringify(value, null, 2), "utf8")
-    await hardenPrivateFile(temporaryPath)
-    await rename(temporaryPath, targetPath)
-  } finally {
-    await rm(temporaryPath, { force: true })
-  }
+  await writePrivateFileAtomic(targetPath, directory, async (handle) => {
+    await handle.writeFile(JSON.stringify(value, null, 2), "utf8")
+  })
 }
 
 async function writePrivateJsonLinesAtomic(
@@ -939,21 +934,7 @@ async function writePrivateJsonLinesAtomic(
   values: Iterable<unknown>,
   directory: string,
 ): Promise<void> {
-  await ensurePrivateDirectory(directory)
-  const temporaryPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`
-  try {
-    const handle = await openFile(temporaryPath, "wx", 0o600)
-    try {
-      await writeJsonLines(handle, values)
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
-    await hardenPrivateFile(temporaryPath)
-    await rename(temporaryPath, targetPath)
-  } finally {
-    await rm(temporaryPath, { force: true })
-  }
+  await writePrivateFileAtomic(targetPath, directory, (handle) => writeJsonLines(handle, values))
 }
 
 async function appendPrivateJournal(
@@ -964,12 +945,13 @@ async function appendPrivateJournal(
   await ensurePrivateDirectory(directory)
   const handle = await openFile(targetPath, "a", 0o600)
   try {
+    await hardenPrivateFile(targetPath)
     await writeJsonLines(handle, records)
     await handle.sync()
   } finally {
     await handle.close()
   }
-  await hardenPrivateFile(targetPath)
+  await syncDirectory(directory)
 }
 
 async function writeJsonLines(

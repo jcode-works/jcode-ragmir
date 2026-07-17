@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto"
 import { channel } from "node:diagnostics_channel"
 import { createReadStream } from "node:fs"
-import { open as openFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
+import { readdir, readFile, rm, stat } from "node:fs/promises"
 import path from "node:path"
 import * as lancedb from "@lancedb/lancedb"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
+import { writePrivateFileAtomic } from "./durable-file.js"
 import { isRecord } from "./guards.js"
-import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
+import { ensurePrivateDirectory } from "./permissions.js"
 import { isIndexQualityReport } from "./quality-report.js"
 import type {
   Config,
@@ -19,6 +20,7 @@ import type {
 } from "./types.js"
 
 const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json"
+const INDEX_MANIFEST_PREVIOUS_FILENAME = "index-manifest.previous.json"
 const INDEX_FILES_PREFIX = "index-manifest.files."
 const INDEX_FILES_SUFFIX = ".jsonl"
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -26,17 +28,46 @@ const STREAM_WRITE_BYTES = 64 * 1_024
 export const INDEX_READ_DIAGNOSTICS_CHANNEL = "ragmir:index-read"
 
 export interface IndexReadDiagnosticsEvent {
-  kind: "connection-open" | "connection-close" | "manifest-read" | "table-open" | "table-close"
+  kind:
+    | "connection-open"
+    | "connection-close"
+    | "manifest-read"
+    | "manifest-recovery"
+    | "table-open"
+    | "table-close"
   projectRoot: string
+  recoveryReason?: "canonical-invalid" | "canonical-missing"
   tableName?: string
 }
 
 const indexReadDiagnostics = channel(INDEX_READ_DIAGNOSTICS_CHANNEL)
 
 type PersistedIndexManifest = Omit<IndexManifest, "indexedFiles" | "qualityReport"> & {
+  indexedFiles?: IndexManifestFile[]
   indexedFilesSnapshot?: string
   qualityReport?: unknown
 }
+
+type ManifestCandidateStatus = "valid" | "missing" | "invalid"
+
+export interface IndexManifestRecoveryDiagnostic {
+  canonicalStatus: ManifestCandidateStatus
+  previousStatus: ManifestCandidateStatus | "not-checked"
+  selected: "canonical" | "previous" | null
+  warning: string | null
+}
+
+interface ManifestCandidate {
+  status: ManifestCandidateStatus
+  manifest: PersistedIndexManifest | null
+}
+
+interface ResolvedIndexManifest {
+  manifest: PersistedIndexManifest | null
+  recovery: IndexManifestRecoveryDiagnostic
+}
+
+const manifestRecoveryDiagnostics = new WeakMap<Config, IndexManifestRecoveryDiagnostic>()
 
 export interface EmptyTextFileRecord {
   relativePath: string
@@ -233,59 +264,54 @@ export async function writeIndexManifest(
     }
     persistedManifest = { ...manifestHeader, indexedFilesSnapshot: currentSnapshot }
   }
+  const previousSelection = await resolveIndexManifest(config)
+  const previousManifest = previousSelection.manifest ?? persistedManifest
+  await writePrivateJsonAtomic(
+    path.join(config.storageDir, INDEX_MANIFEST_PREVIOUS_FILENAME),
+    previousManifest,
+    config.storageDir,
+  )
   await writePrivateJsonAtomic(manifestPath, persistedManifest, config.storageDir)
-  await removeStaleIndexFileSnapshots(currentSnapshot, config)
+  manifestRecoveryDiagnostics.set(config, {
+    canonicalStatus: "valid",
+    previousStatus: "valid",
+    selected: "canonical",
+    warning: null,
+  })
+  await removeStaleIndexFileSnapshots(
+    new Set(
+      [currentSnapshot, previousManifest.indexedFilesSnapshot].filter(
+        (filename): filename is string => filename !== null && filename !== undefined,
+      ),
+    ),
+    config,
+  )
 }
 
 export async function readIndexManifest(config: Config): Promise<IndexManifest | null> {
-  try {
-    const raw = await readRawIndexManifest(config)
-    if (!isIndexManifest(raw)) {
-      return null
-    }
-    const { indexedFilesSnapshot, qualityReport, ...manifest } = raw
-    const indexedFiles = indexedFilesSnapshot
-      ? await readIndexFileSnapshot(indexedFilesSnapshot, config)
-      : raw.indexedFiles
-    if (indexedFilesSnapshot && (!indexedFiles || indexedFiles.length !== raw.fileCount)) {
-      return null
-    }
-    const hydrated = indexedFiles ? { ...manifest, indexedFiles } : manifest
-    return isIndexQualityReport(qualityReport) ? { ...hydrated, qualityReport } : hydrated
-  } catch (error) {
-    // The manifest is purely diagnostic. A missing file (pre-manifest index) or
-    // a corrupt/unreadable file should surface as "no freshness info" rather
-    // than fail the caller.
-    if (error instanceof SyntaxError) {
-      return null
-    }
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return null
-    }
-    throw error
+  const raw = (await resolveIndexManifest(config)).manifest
+  if (!raw) {
+    return null
   }
+  const { indexedFilesSnapshot, qualityReport, ...manifest } = raw
+  const indexedFiles = indexedFilesSnapshot
+    ? await readIndexFileSnapshot(indexedFilesSnapshot, config)
+    : raw.indexedFiles
+  if (indexedFilesSnapshot && (!indexedFiles || indexedFiles.length !== raw.fileCount)) {
+    return null
+  }
+  const hydrated = indexedFiles ? { ...manifest, indexedFiles } : manifest
+  return isIndexQualityReport(qualityReport) ? { ...hydrated, qualityReport } : hydrated
 }
 
 export async function readIndexManifestHeader(config: Config): Promise<IndexManifest | null> {
   publishIndexReadDiagnostics({ kind: "manifest-read", projectRoot: config.projectRoot })
-  try {
-    const raw = await readRawIndexManifest(config)
-    if (!isIndexManifest(raw)) {
-      return null
-    }
-    const {
-      indexedFiles: _files,
-      indexedFilesSnapshot: _snapshot,
-      qualityReport,
-      ...manifest
-    } = raw
-    return isIndexQualityReport(qualityReport) ? { ...manifest, qualityReport } : manifest
-  } catch (error) {
-    if (error instanceof SyntaxError || (isNodeError(error) && error.code === "ENOENT")) {
-      return null
-    }
-    throw error
+  const raw = (await resolveIndexManifest(config)).manifest
+  if (!raw) {
+    return null
   }
+  const { indexedFiles: _files, indexedFilesSnapshot: _snapshot, qualityReport, ...manifest } = raw
+  return isIndexQualityReport(qualityReport) ? { ...manifest, qualityReport } : manifest
 }
 
 export async function readIndexManifestFilePage(
@@ -301,25 +327,18 @@ export async function readIndexManifestFilePage(
   }
 
   publishIndexReadDiagnostics({ kind: "manifest-read", projectRoot: config.projectRoot })
-  try {
-    const raw = await readRawIndexManifest(config)
-    if (!isIndexManifest(raw)) {
-      return null
-    }
-    const files = raw.indexedFilesSnapshot
-      ? await readIndexFileSnapshotPage(raw.indexedFilesSnapshot, config, offset, limit)
-      : (raw.indexedFiles?.slice(offset, offset + limit) ?? null)
-    if (!files || offset > raw.fileCount || offset + files.length > raw.fileCount) {
-      return null
-    }
-    const nextOffset = offset + files.length < raw.fileCount ? offset + files.length : null
-    return { files, total: raw.fileCount, offset, limit, nextOffset }
-  } catch (error) {
-    if (error instanceof SyntaxError || (isNodeError(error) && error.code === "ENOENT")) {
-      return null
-    }
-    throw error
+  const raw = (await resolveIndexManifest(config)).manifest
+  if (!raw) {
+    return null
   }
+  const files = raw.indexedFilesSnapshot
+    ? await readIndexFileSnapshotPage(raw.indexedFilesSnapshot, config, offset, limit)
+    : (raw.indexedFiles?.slice(offset, offset + limit) ?? null)
+  if (!files || offset > raw.fileCount || offset + files.length > raw.fileCount) {
+    return null
+  }
+  const nextOffset = offset + files.length < raw.fileCount ? offset + files.length : null
+  return { files, total: raw.fileCount, offset, limit, nextOffset }
 }
 
 export async function loadIndexReadSnapshot(
@@ -335,11 +354,13 @@ export async function loadIndexReadSnapshot(
     }
     const immutableManifest = manifest ? Object.freeze({ ...manifest }) : null
     const tableName = immutableManifest?.tableName ?? config.tableName
+    const recoveryFailed =
+      immutableManifest === null && indexManifestRecoveryWarning(config) !== null
     return {
       manifest: immutableManifest,
       manifestFingerprint: fingerprintAfter,
       tableName,
-      table: await openRowsTableByName(tableName, config, connection),
+      table: recoveryFailed ? null : await openRowsTableByName(tableName, config, connection),
     }
   }
   throw new Error(
@@ -355,8 +376,119 @@ export async function indexReadSnapshotCurrent(
 }
 
 async function indexManifestFingerprint(config: Config): Promise<string | null> {
+  const [canonical, previous] = await Promise.all([
+    fileFingerprint(path.join(config.storageDir, INDEX_MANIFEST_FILENAME)),
+    fileFingerprint(path.join(config.storageDir, INDEX_MANIFEST_PREVIOUS_FILENAME)),
+  ])
+  return canonical === null && previous === null
+    ? null
+    : `${canonical ?? "missing"}|${previous ?? "missing"}`
+}
+
+async function readRawIndexManifest(
+  config: Config,
+  filename = INDEX_MANIFEST_FILENAME,
+): Promise<unknown> {
+  return JSON.parse(await readFile(path.join(config.storageDir, filename), "utf8")) as unknown
+}
+
+export function indexManifestRecoveryDiagnostic(
+  config: Config,
+): IndexManifestRecoveryDiagnostic | null {
+  return manifestRecoveryDiagnostics.get(config) ?? null
+}
+
+export function indexManifestRecoveryWarning(config: Config): string | null {
+  return indexManifestRecoveryDiagnostic(config)?.warning ?? null
+}
+
+async function resolveIndexManifest(config: Config): Promise<ResolvedIndexManifest> {
+  const canonical = await readManifestCandidate(INDEX_MANIFEST_FILENAME, config)
+  if (canonical.status === "valid") {
+    const recovery: IndexManifestRecoveryDiagnostic = {
+      canonicalStatus: "valid",
+      previousStatus: "not-checked",
+      selected: "canonical",
+      warning: null,
+    }
+    manifestRecoveryDiagnostics.set(config, recovery)
+    return { manifest: canonical.manifest, recovery }
+  }
+
+  const previous = await readManifestCandidate(INDEX_MANIFEST_PREVIOUS_FILENAME, config)
+  if (previous.status === "valid") {
+    const recovery: IndexManifestRecoveryDiagnostic = {
+      canonicalStatus: canonical.status,
+      previousStatus: "valid",
+      selected: "previous",
+      warning:
+        canonical.status === "missing"
+          ? "Canonical index manifest is missing. Ragmir recovered the last validated generation; run `rgr ingest --rebuild` to repair the canonical sidecar."
+          : "Canonical index manifest is invalid. Ragmir recovered the last validated generation; run `rgr ingest --rebuild` to repair the canonical sidecar.",
+    }
+    manifestRecoveryDiagnostics.set(config, recovery)
+    publishIndexReadDiagnostics({
+      kind: "manifest-recovery",
+      projectRoot: config.projectRoot,
+      recoveryReason: canonical.status === "missing" ? "canonical-missing" : "canonical-invalid",
+      ...(previous.manifest?.tableName ? { tableName: previous.manifest.tableName } : {}),
+    })
+    return { manifest: previous.manifest, recovery }
+  }
+
+  const noSidecar = canonical.status === "missing" && previous.status === "missing"
+  const recovery: IndexManifestRecoveryDiagnostic = {
+    canonicalStatus: canonical.status,
+    previousStatus: previous.status,
+    selected: null,
+    warning: noSidecar
+      ? null
+      : "Index manifest recovery failed because no valid canonical or previous sidecar is available. Run `rgr ingest --rebuild`; Ragmir will not select an unverified default table.",
+  }
+  manifestRecoveryDiagnostics.set(config, recovery)
+  return { manifest: null, recovery }
+}
+
+async function readManifestCandidate(filename: string, config: Config): Promise<ManifestCandidate> {
   try {
-    const details = await stat(path.join(config.storageDir, INDEX_MANIFEST_FILENAME))
+    const value = await readRawIndexManifest(config, filename)
+    if (!isIndexManifest(value) || !manifestReferencesManagedTable(value, config)) {
+      return { status: "invalid", manifest: null }
+    }
+    if (value.indexedFiles && value.indexedFiles.length !== value.fileCount) {
+      return { status: "invalid", manifest: null }
+    }
+    if (value.indexedFilesSnapshot) {
+      const snapshot = await stat(path.join(config.storageDir, value.indexedFilesSnapshot))
+      if (!snapshot.isFile()) {
+        return { status: "invalid", manifest: null }
+      }
+    }
+    return { status: "valid", manifest: value }
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return { status: "invalid", manifest: null }
+    }
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return { status: "missing", manifest: null }
+    }
+    throw error
+  }
+}
+
+function manifestReferencesManagedTable(manifest: PersistedIndexManifest, config: Config): boolean {
+  const tableName = manifest.tableName ?? config.tableName
+  if (tableName === config.tableName) {
+    return true
+  }
+  const prefix = `${config.tableName}__generation_`
+  const generationId = tableName.startsWith(prefix) ? tableName.slice(prefix.length) : ""
+  return /^[0-9a-f]{32}$/iu.test(generationId)
+}
+
+async function fileFingerprint(filePath: string): Promise<string | null> {
+  try {
+    const details = await stat(filePath)
     return `${details.dev}:${details.ino}:${details.size}:${details.mtimeMs}`
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
@@ -364,12 +496,6 @@ async function indexManifestFingerprint(config: Config): Promise<string | null> 
     }
     throw error
   }
-}
-
-async function readRawIndexManifest(config: Config): Promise<unknown> {
-  return JSON.parse(
-    await readFile(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), "utf8"),
-  ) as unknown
 }
 
 function isIndexManifest(
@@ -815,15 +941,9 @@ async function writePrivateJsonAtomic(
   value: unknown,
   directory: string,
 ): Promise<void> {
-  await ensurePrivateDirectory(directory)
-  const temporaryPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`
-  try {
-    await writeFile(temporaryPath, JSON.stringify(value, null, 2), "utf8")
-    await hardenPrivateFile(temporaryPath)
-    await rename(temporaryPath, targetPath)
-  } finally {
-    await rm(temporaryPath, { force: true })
-  }
+  await writePrivateFileAtomic(targetPath, directory, async (handle) => {
+    await handle.writeFile(JSON.stringify(value, null, 2), "utf8")
+  })
 }
 
 async function writePrivateJsonLinesAtomic(
@@ -831,43 +951,31 @@ async function writePrivateJsonLinesAtomic(
   values: Iterable<IndexManifestFile>,
   directory: string,
 ): Promise<number> {
-  await ensurePrivateDirectory(directory)
-  const temporaryPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`
-  try {
-    const handle = await openFile(temporaryPath, "wx", 0o600)
-    let count = 0
+  let count = 0
+  await writePrivateFileAtomic(targetPath, directory, async (handle) => {
     let previousKey: string | null = null
     let buffered = ""
-    try {
-      for (const value of values) {
-        if (!isIndexManifestFile(value)) {
-          throw new Error("Index manifest contains invalid file metadata.")
-        }
-        const key = `${value.relativePath}\0${value.checksum}`
-        if (previousKey !== null && key <= previousKey) {
-          throw new Error("Index manifest file metadata must be unique and sorted.")
-        }
-        previousKey = key
-        count += 1
-        buffered += `${JSON.stringify(value)}\n`
-        if (Buffer.byteLength(buffered) >= STREAM_WRITE_BYTES) {
-          await handle.writeFile(buffered, "utf8")
-          buffered = ""
-        }
+    for (const value of values) {
+      if (!isIndexManifestFile(value)) {
+        throw new Error("Index manifest contains invalid file metadata.")
       }
-      if (buffered) {
+      const key = `${value.relativePath}\0${value.checksum}`
+      if (previousKey !== null && key <= previousKey) {
+        throw new Error("Index manifest file metadata must be unique and sorted.")
+      }
+      previousKey = key
+      count += 1
+      buffered += `${JSON.stringify(value)}\n`
+      if (Buffer.byteLength(buffered) >= STREAM_WRITE_BYTES) {
         await handle.writeFile(buffered, "utf8")
+        buffered = ""
       }
-      await handle.sync()
-    } finally {
-      await handle.close()
     }
-    await hardenPrivateFile(temporaryPath)
-    await rename(temporaryPath, targetPath)
-    return count
-  } finally {
-    await rm(temporaryPath, { force: true })
-  }
+    if (buffered) {
+      await handle.writeFile(buffered, "utf8")
+    }
+  })
+  return count
 }
 
 async function readIndexFileSnapshot(
@@ -1011,13 +1119,13 @@ function isIndexFilesSnapshotFilename(value: unknown): value is string {
 }
 
 async function removeStaleIndexFileSnapshots(
-  currentFilename: string | null,
+  retainedFilenames: ReadonlySet<string>,
   config: Config,
 ): Promise<void> {
   const entries = await readdir(config.storageDir)
   await Promise.all(
     entries
-      .filter((entry) => entry !== currentFilename && isIndexFilesSnapshotFilename(entry))
+      .filter((entry) => !retainedFilenames.has(entry) && isIndexFilesSnapshotFilename(entry))
       .map((entry) => rm(path.join(config.storageDir, entry), { force: true })),
   )
 }

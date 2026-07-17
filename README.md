@@ -206,10 +206,13 @@ pnpm exec rgr status --json
 Ragmir records per-file progress atomically under ignored `.ragmir/storage/` state. Files from a
 committed batch are not parsed or embedded again after a restart. A full `--rebuild` writes to an
 isolated generation and activates it only after row and manifest validation, so an interrupted
-rebuild leaves the previous searchable index active. After activation, older generated tables stay
-available so searches that already opened them can finish safely. `rgr destroy-index` removes all
-generated index storage. At the end of ingestion, Ragmir refreshes incomplete full-text coverage
-and compacts LanceDB after 20 mutation batches or when fragment health crosses its threshold. Run
+rebuild leaves the previous searchable index active. Sidecar replacements flush the temporary file
+and synchronize the storage directory where the platform supports it. A validated previous
+activation manifest remains available for recovery; recovered state is reported as stale until a
+rebuild repairs the canonical sidecar. After activation, older generated tables stay available so
+searches that already opened them can finish safely. `rgr destroy-index` removes all generated index
+storage. At the end of ingestion, Ragmir refreshes incomplete full-text coverage and compacts
+LanceDB after 20 mutation batches or when fragment health crosses its threshold. Run
 `rgr storage optimize --dry-run --json` to inspect the active table, then omit `--dry-run` for an
 explicit maintenance pass. The same maintenance pass creates or refreshes adaptive vector and
 `relativePath` scalar indices, and reports their indexed and unindexed rows. Completed rebuilds

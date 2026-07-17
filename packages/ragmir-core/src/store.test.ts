@@ -3,9 +3,13 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
+import { type DurableWritePhase, withDurableWriteFaultForTests } from "./durable-file.js"
 import { maintainOpenStorageTable } from "./storage-maintenance.js"
 import {
+  closeIndexReadSnapshot,
   countRows,
+  indexManifestRecoveryDiagnostic,
+  loadIndexReadSnapshot,
   openRowsTable,
   readEmptyTextFiles,
   readIndexManifest,
@@ -303,7 +307,7 @@ describe("store", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-generation-"))
     tempDirs.push(root)
     const config = testConfig(root)
-    const generationTable = "chunks__generation_test"
+    const generationTable = "chunks__generation_00000000000040008000000000000001"
     await writeRows([sampleRow(".ragmir/raw/legacy.md", 0, [0.1, 0.2], config)], config)
     await writeRowsToTable(
       [sampleRow(".ragmir/raw/current.md", 0, [0.3, 0.4], config)],
@@ -498,7 +502,7 @@ describe("index manifest", () => {
       (await readdir(config.storageDir)).filter((entry) =>
         entry.startsWith("index-manifest.files."),
       ),
-    ).toHaveLength(1)
+    ).toHaveLength(2)
   })
 
   it("returns null when the manifest is missing", async () => {
@@ -531,4 +535,134 @@ describe("index manifest", () => {
 
     expect(await readIndexManifest(config)).toBeNull()
   })
+
+  it.each([
+    { phase: "before-write" as const, selected: "old" as const },
+    { phase: "before-sync" as const, selected: "old" as const },
+    { phase: "before-rename" as const, selected: "old" as const },
+    { phase: "after-rename" as const, selected: "new" as const },
+  ])("should restart on a complete generation after a manifest fault at $phase", async ({
+    phase,
+    selected,
+  }) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-manifest-fault-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const oldTable = `${config.tableName}__generation_00000000000040008000000000000001`
+    const newTable = `${config.tableName}__generation_00000000000040008000000000000002`
+    await writeRowsToTable(
+      [sampleRow(".ragmir/raw/default.md", 0, [0.1, 0.2], config)],
+      config.tableName,
+      config,
+    )
+    await writeRowsToTable(
+      [sampleRow(".ragmir/raw/old.md", 0, [0.3, 0.4], config)],
+      oldTable,
+      config,
+    )
+    await writeRowsToTable(
+      [sampleRow(".ragmir/raw/new.md", 0, [0.5, 0.6], config)],
+      newTable,
+      config,
+    )
+    await writeIndexManifest({ ...sampleManifest, tableName: oldTable }, config)
+
+    await expect(
+      withDurableWriteFaultForTests(failManifestAt(phase), () =>
+        writeIndexManifest({ ...sampleManifest, tableName: newTable }, config),
+      ),
+    ).rejects.toThrow(`fault:${phase}`)
+
+    const expectedTable = selected === "old" ? oldTable : newTable
+    await expect(readIndexManifest(config)).resolves.toMatchObject({ tableName: expectedTable })
+    const snapshot = await loadIndexReadSnapshot(config)
+    try {
+      expect(snapshot.tableName).toBe(expectedTable)
+      expect(snapshot.table?.name).toBe(expectedTable)
+      expect(snapshot.table?.name).not.toBe(config.tableName)
+    } finally {
+      closeIndexReadSnapshot(snapshot, config)
+    }
+  })
+
+  it.each([
+    "missing",
+    "invalid",
+  ] as const)("should recover the previous generation when the canonical manifest is $failure", async (failure) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-manifest-recovery-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const oldTable = `${config.tableName}__generation_00000000000040008000000000000003`
+    const newTable = `${config.tableName}__generation_00000000000040008000000000000004`
+    await writeRowsToTable(
+      [sampleRow(".ragmir/raw/default.md", 0, [0.1, 0.2], config)],
+      config.tableName,
+      config,
+    )
+    await writeRowsToTable(
+      [sampleRow(".ragmir/raw/old.md", 0, [0.3, 0.4], config)],
+      oldTable,
+      config,
+    )
+    await writeRowsToTable(
+      [sampleRow(".ragmir/raw/new.md", 0, [0.5, 0.6], config)],
+      newTable,
+      config,
+    )
+    await writeIndexManifest({ ...sampleManifest, tableName: oldTable }, config)
+    await writeIndexManifest({ ...sampleManifest, tableName: newTable }, config)
+    const canonicalPath = path.join(config.storageDir, INDEX_MANIFEST_FILENAME)
+    if (failure === "missing") {
+      await rm(canonicalPath)
+    } else {
+      await writeFile(canonicalPath, "{invalid", "utf8")
+    }
+
+    await expect(readIndexManifest(config)).resolves.toMatchObject({ tableName: oldTable })
+    expect(indexManifestRecoveryDiagnostic(config)).toMatchObject({
+      canonicalStatus: failure,
+      previousStatus: "valid",
+      selected: "previous",
+    })
+    const snapshot = await loadIndexReadSnapshot(config)
+    try {
+      expect(snapshot.table?.name).toBe(oldTable)
+      expect(snapshot.table?.name).not.toBe(config.tableName)
+    } finally {
+      closeIndexReadSnapshot(snapshot, config)
+    }
+  })
+
+  it("should refuse an unverified default table when both manifests are invalid", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-manifest-unrecoverable-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await writeRowsToTable(
+      [sampleRow(".ragmir/raw/default.md", 0, [0.1, 0.2], config)],
+      config.tableName,
+      config,
+    )
+    await writeIndexManifest(sampleManifest, config)
+    await writeFile(path.join(config.storageDir, INDEX_MANIFEST_FILENAME), "{invalid", "utf8")
+    await writeFile(
+      path.join(config.storageDir, "index-manifest.previous.json"),
+      "{invalid",
+      "utf8",
+    )
+
+    const snapshot = await loadIndexReadSnapshot(config)
+    expect(snapshot.manifest).toBeNull()
+    expect(snapshot.table).toBeNull()
+    expect(indexManifestRecoveryDiagnostic(config)?.warning).toContain(
+      "will not select an unverified default table",
+    )
+  })
 })
+
+function failManifestAt(phase: DurableWritePhase) {
+  return (event: { targetPath: string; phase: DurableWritePhase }): void => {
+    if (path.basename(event.targetPath) === INDEX_MANIFEST_FILENAME && event.phase === phase) {
+      throw new Error(`fault:${phase}`)
+    }
+  }
+}

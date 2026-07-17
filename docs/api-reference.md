@@ -161,6 +161,10 @@ positive `batchSize` that defaults to 25 files and is capped at 128, `incrementa
 an optional `onProgress` callback. The default `preserve-last-good` policy keeps prior rows searchable and marks
 them stale when a changed file fails; `remove-stale` deletes them. Its durable progress contains the
 run ID, resume flag, last activity, chunk count, stale count, and per-stage file counts.
+Atomic sidecar replacement flushes file contents before rename and synchronizes the storage
+directory where supported. The activation manifest keeps one validated previous generation for
+recovery. Retrieval may use that generation after canonical sidecar loss or corruption, but doctor
+reports a recovery warning and readiness remains false until `ingest --rebuild` repairs it.
 Parsing windows are independently bounded by source bytes and estimated chunks. Embeddings are
 bounded by batch size and vector bytes, while each file remains the atomic durable commit unit.
 `DoctorOptions.deep` enables live O(corpus) inventory and security probes; default doctor and status

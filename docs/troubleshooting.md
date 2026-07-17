@@ -34,6 +34,13 @@ If the durable ingestion state is invalid or inconsistent with the current confi
 ignores it and starts a new safe run. It does not resume from untrusted table names or staged
 manifest paths.
 
+## The activation manifest was recovered
+
+If `rgr doctor` reports that the canonical activation manifest is missing or invalid, Ragmir uses
+the last validated previous generation and keeps readiness false. Run `rgr ingest --rebuild` to
+write a new canonical manifest. If both canonical and previous manifests are invalid, retrieval
+does not fall back to an unverified default table.
+
 ## A PDF or image has no text
 
 `rgr ingest --json` reports `emptyTextFiles`. For scanned PDFs, run:

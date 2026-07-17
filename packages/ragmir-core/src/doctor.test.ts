@@ -127,7 +127,7 @@ describe("doctor", () => {
     expect(report.nextSteps.some((step) => step.includes("produced no indexable text"))).toBe(true)
   })
 
-  it("should never report a legacy table ready without a valid manifest", async () => {
+  it("should recover the previous manifest without reporting the index ready", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-legacy-table-"))
     tempDirs.push(root)
     await initProject(root)
@@ -137,9 +137,10 @@ describe("doctor", () => {
 
     const report = await doctor(root)
 
-    expect(report.indexFreshness.manifestFound).toBe(false)
+    expect(report.indexFreshness.manifestFound).toBe(true)
+    expect(report.indexFreshness.warning).toContain("recovered the last validated generation")
     expect(report.ready).toBe(false)
-    expect(report.readiness.operationalReady).toBe(false)
+    expect(report.readiness.operationalReady).toBe(true)
     expect(report.readiness.indexPolicyCurrent).toBe(false)
   })
 })
