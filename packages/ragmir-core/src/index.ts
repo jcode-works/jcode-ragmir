@@ -96,6 +96,7 @@ export type {
   AccessLogUsageOptions,
   AccessLogUsageReport,
   AskResult,
+  AuditOptions,
   AuditReport,
   ChunkStats,
   CodeEvidence,

@@ -26,6 +26,8 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - `@jcode.labs/ragmir-tts` supports offline English, French, and Spanish; explicit online Edge mode
   also supports Japanese, Thai, and Chinese.
 - Chat profiles and TTS models are not Core or MCP requirements.
+- MCP byte budgets select typed summaries with exact scalar values, omission counters, and the best
+  search citation instead of shortening identifiers or paths.
 - Ragmir is not a hosted document store, cloud-sync service, agent-memory replacement, or universal
   code-search replacement.
 

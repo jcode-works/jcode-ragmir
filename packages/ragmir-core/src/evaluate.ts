@@ -259,6 +259,7 @@ export async function evaluateGoldenQueriesWithConfig(
   const goldenPath = path.resolve(cwd, String(options.goldenPath))
   const goldenFile = await readGoldenFile(goldenPath, signal)
   const defaultTopK = boundedTopK(options.topK ?? goldenFile.topK ?? 3, options.maxTopK)
+  const caseDetailLimit = evaluationCaseDetailLimit(options.caseDetailLimit)
   const cases: EvaluationCaseResult[] = []
   const evaluationConcurrency = Math.max(
     1,
@@ -376,6 +377,8 @@ export async function evaluateGoldenQueriesWithConfig(
   })
   await flushAccessLog(config)
   throwIfAborted(signal)
+  const returnedCases = caseDetailLimit === undefined ? cases : cases.slice(0, caseDetailLimit)
+  const omittedCases = cases.length - returnedCases.length
   return {
     goldenPath,
     embeddingProvider: config.embeddingProvider,
@@ -419,8 +422,19 @@ export async function evaluateGoldenQueriesWithConfig(
     },
     p50LatencyMs: percentile(latencies, 0.5),
     p95LatencyMs: percentile(latencies, 0.95),
-    cases,
+    cases: returnedCases,
+    ...(omittedCases === 0 ? {} : { omittedCases }),
   }
+}
+
+function evaluationCaseDetailLimit(value: number | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error("Evaluation case detail limit must be a non-negative integer.")
+  }
+  return value
 }
 
 async function readGoldenFile(

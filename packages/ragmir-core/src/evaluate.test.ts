@@ -219,9 +219,11 @@ describe("evaluateGoldenQueries", () => {
     subscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
 
     try {
-      const report = await evaluateGoldenQueries({ cwd: root, goldenPath })
+      const report = await evaluateGoldenQueries({ cwd: root, goldenPath, caseDetailLimit: 2 })
 
       expect(report.total).toBe(100)
+      expect(report.cases).toHaveLength(2)
+      expect(report.omittedCases).toBe(98)
       expect(report.cases.every((result) => result.hit)).toBe(true)
       expect(events.filter((event) => event.kind === "connection-open")).toHaveLength(1)
       expect(events.filter((event) => event.kind === "connection-close")).toHaveLength(1)

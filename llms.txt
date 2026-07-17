@@ -69,11 +69,12 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - MCP resources: `ragmir://context` gives bounded readiness and capability context;
   `ragmir://sources` gives capped source detail with complete totals.
 - MCP safety: all ten tools advertise non-destructive behavior; every tool and resource JSON
-  response is byte-bounded. Search, ask, research, and evaluation conservatively advertise
-  open-world behavior because explicitly enabled semantic models may download public weights.
-  Tools that can initialize local state or append metadata-only logs use conservative read-only and
-  idempotency hints. Each server refreshes its lazy client after effective configuration changes and
-  closes it during shutdown.
+  response is byte-bounded. Budget pressure selects typed summaries with exact scalar values,
+  omission counters, and the best search citation instead of shortening identifiers or paths.
+  Search, ask, research, and evaluation conservatively advertise open-world behavior because
+  explicitly enabled semantic models may download public weights. Tools that can initialize local
+  state or append metadata-only logs use conservative read-only and idempotency hints. Each server
+  refreshes its lazy client after effective configuration changes and closes it during shutdown.
 
 ## Documentation
 

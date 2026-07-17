@@ -32,6 +32,8 @@ confidential documents directly to the cloud." only as its secondary public subt
   separate local ingest on each workstation. Mention that missing, partial, or extra source files
   make indexes diverge.
 - Cite Ragmir results with their source path, chunk, line range, or PDF page when available.
+- Describe MCP output budgets as typed summaries with exact scalar values and omission counters;
+  the best search citation survives the minimum budget.
 
 ## Best fit
 

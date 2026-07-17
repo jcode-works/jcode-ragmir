@@ -84,19 +84,25 @@ It also exposes two bounded resources:
 | Resource | Use |
 | --- | --- |
 | `ragmir://context` | Active base identity, readiness, freshness, coverage, and available operations. |
-| `ragmir://sources` | Manifest source coverage, skipped-file counts, and index drift, with the first 50 files returned without scanning chunks. |
+| `ragmir://sources` | Manifest source coverage, skipped-file counts, and index drift, with a budget-derived file preview returned without scanning chunks. |
 
 Read `ragmir://context` first when the client supports resources. This gives an agent enough context
 to choose the next operation without chaining status, doctor, and audit calls. Totals in
 `ragmir://sources` stay complete even when detail lists are truncated.
 The TypeScript `sources({ offset, limit })` method can request later pages directly from the
-manifest file snapshot without materializing the complete source list.
+manifest file snapshot without materializing the complete source list; its default page remains 50
+files.
 
 Use compact retrieval first, then pass a returned citation to `ragmir_expand` when the agent needs
 the exact chunk or a bounded neighbor window. Search, ask, research, expansion, audit, and evaluation
 accept `maxBytes`. Variable-size tool and resource JSON is bounded by `mcpMaxOutputBytes` and an
-absolute 1 MiB server ceiling; the remaining tools return fixed-shape results. Responses stay
-parseable, while `_meta["ragmir/output"]` reports the active budget, returned bytes, and truncation.
+absolute 1 MiB server ceiling; every response has an explicit full or summary schema. Responses
+stay parseable, while `_meta["ragmir/output"]` reports the active budget, returned bytes, and
+truncation.
+Budget pressure selects a typed summary with exact scalar values, previews, and omission counters;
+it never shortens identifiers, paths, or warnings in place. Search always retains the best citation
+when one exists. The server also applies the budget before choosing retrieval depth, source page
+size, audit detail, and returned evaluation case details, while keeping aggregate metrics complete.
 `ragmir_ask` returns cited evidence, not a model generated answer. A cloud agent can receive returned
 passages, so choose that handoff only when it matches the corpus's confidentiality requirements.
 

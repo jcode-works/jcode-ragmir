@@ -55,6 +55,7 @@ import {
   writeIndexManifest,
 } from "./store.js"
 import type {
+  AuditOptions,
   AuditReport,
   Config,
   IncrementalFailurePolicy,
@@ -64,7 +65,6 @@ import type {
   IndexManifestFile,
   IngestOptions,
   IngestResult,
-  OperationOptions,
   PdfOcrMetrics,
   SourceDiagnostics,
   SourceFile,
@@ -1004,10 +1004,7 @@ function estimatedChunkCount(file: SourceFile, config: Config): number {
   return Math.max(1, Math.ceil(file.bytes / step))
 }
 
-export async function audit(
-  cwd = process.cwd(),
-  options: OperationOptions = {},
-): Promise<AuditReport> {
+export async function audit(cwd = process.cwd(), options: AuditOptions = {}): Promise<AuditReport> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const config = await loadConfig(cwd)
@@ -1016,7 +1013,7 @@ export async function audit(
 
 export async function auditWithConfig(
   config: Config,
-  options: OperationOptions = {},
+  options: AuditOptions = {},
 ): Promise<AuditReport> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
@@ -1034,24 +1031,27 @@ export async function auditWithConfig(
   throwIfAborted(signal)
 
   if (!table) {
-    return {
-      mode: "deep",
-      inventoryVerified: true,
-      cost: "O(corpus)",
-      discoveredFiles: inventory.discoveredFiles,
-      supportedBytes: inventoryMetrics.supportedBytes,
-      largestFileBytes: inventoryMetrics.largestFileBytes,
-      indexedFiles: [],
-      supportedFiles,
-      skippedFiles: inventory.skippedFiles,
-      emptyTextFiles: [...emptyTextFiles],
-      unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
-      sourceDiagnostics: sourceDiagnostics(files, inventory.skippedFiles),
-      missingFromIndex: supportedFiles.filter((file) => !emptyTextFiles.has(file)),
-      staleInIndex: [],
-      totalChunks: 0,
-      chunkStats: summarizeChunkStats([]),
-    }
+    return applyAuditPreviewLimit(
+      {
+        mode: "deep",
+        inventoryVerified: true,
+        cost: "O(corpus)",
+        discoveredFiles: inventory.discoveredFiles,
+        supportedBytes: inventoryMetrics.supportedBytes,
+        largestFileBytes: inventoryMetrics.largestFileBytes,
+        indexedFiles: [],
+        supportedFiles,
+        skippedFiles: inventory.skippedFiles,
+        emptyTextFiles: [...emptyTextFiles],
+        unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
+        sourceDiagnostics: sourceDiagnostics(files, inventory.skippedFiles),
+        missingFromIndex: supportedFiles.filter((file) => !emptyTextFiles.has(file)),
+        staleInIndex: [],
+        totalChunks: 0,
+        chunkStats: summarizeChunkStats([]),
+      },
+      options.previewLimit,
+    )
   }
 
   try {
@@ -1089,40 +1089,85 @@ export async function auditWithConfig(
     const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]))
 
     throwIfAborted(signal)
-    return {
-      mode: "deep",
-      inventoryVerified: true,
-      cost: "O(corpus)",
-      discoveredFiles: inventory.discoveredFiles,
-      supportedBytes: inventoryMetrics.supportedBytes,
-      largestFileBytes: inventoryMetrics.largestFileBytes,
-      indexedFiles: [...counts.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([source, chunks]) => ({ source, chunks })),
-      supportedFiles,
-      skippedFiles: inventory.skippedFiles,
-      emptyTextFiles: [...emptyTextFiles].sort(),
-      unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
-      sourceDiagnostics: sourceDiagnostics(files, inventory.skippedFiles),
-      missingFromIndex: supportedFiles.filter(
-        (file) => !indexedSet.has(file) && !emptyTextFiles.has(file),
-      ),
-      staleInIndex: [...indexedSet]
-        .filter((file) => {
-          if (!supportedSet.has(file)) {
-            return true
-          }
-          const currentChecksum = currentChecksums.get(file)
-          const indexedChecksums = checksums.get(file)
-          return !currentChecksum || !indexedChecksums?.has(currentChecksum)
-        })
-        .sort(),
-      totalChunks: chunkStats.count,
-      chunkStats: finishAuditChunkStats(chunkStats),
-    }
+    return applyAuditPreviewLimit(
+      {
+        mode: "deep",
+        inventoryVerified: true,
+        cost: "O(corpus)",
+        discoveredFiles: inventory.discoveredFiles,
+        supportedBytes: inventoryMetrics.supportedBytes,
+        largestFileBytes: inventoryMetrics.largestFileBytes,
+        indexedFiles: [...counts.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([source, chunks]) => ({ source, chunks })),
+        supportedFiles,
+        skippedFiles: inventory.skippedFiles,
+        emptyTextFiles: [...emptyTextFiles].sort(),
+        unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
+        sourceDiagnostics: sourceDiagnostics(files, inventory.skippedFiles),
+        missingFromIndex: supportedFiles.filter(
+          (file) => !indexedSet.has(file) && !emptyTextFiles.has(file),
+        ),
+        staleInIndex: [...indexedSet]
+          .filter((file) => {
+            if (!supportedSet.has(file)) {
+              return true
+            }
+            const currentChecksum = currentChecksums.get(file)
+            const indexedChecksums = checksums.get(file)
+            return !currentChecksum || !indexedChecksums?.has(currentChecksum)
+          })
+          .sort(),
+        totalChunks: chunkStats.count,
+        chunkStats: finishAuditChunkStats(chunkStats),
+      },
+      options.previewLimit,
+    )
   } finally {
     closeRowsTable(table, config)
   }
+}
+
+function applyAuditPreviewLimit(
+  report: AuditReport,
+  previewLimit: number | undefined,
+): AuditReport {
+  if (previewLimit === undefined) {
+    return report
+  }
+  if (!Number.isSafeInteger(previewLimit) || previewLimit < 0) {
+    throw new Error("Audit preview limit must be a non-negative integer.")
+  }
+  const limit = previewLimit
+  return {
+    ...report,
+    indexedFiles: report.indexedFiles.slice(0, limit),
+    supportedFiles: report.supportedFiles.slice(0, limit),
+    skippedFiles: report.skippedFiles.slice(0, limit),
+    emptyTextFiles: report.emptyTextFiles.slice(0, limit),
+    sourceDiagnostics: {
+      duplicateCandidates: report.sourceDiagnostics.duplicateCandidates.slice(0, limit),
+      archiveCandidates: report.sourceDiagnostics.archiveCandidates.slice(0, limit),
+      mirrorCandidates: report.sourceDiagnostics.mirrorCandidates.slice(0, limit),
+    },
+    missingFromIndex: report.missingFromIndex.slice(0, limit),
+    staleInIndex: report.staleInIndex.slice(0, limit),
+    omitted: {
+      indexedFiles: omittedCount(report.indexedFiles.length, limit),
+      supportedFiles: omittedCount(report.supportedFiles.length, limit),
+      skippedFiles: omittedCount(report.skippedFiles.length, limit),
+      emptyTextFiles: omittedCount(report.emptyTextFiles.length, limit),
+      duplicateCandidates: omittedCount(report.sourceDiagnostics.duplicateCandidates.length, limit),
+      archiveCandidates: omittedCount(report.sourceDiagnostics.archiveCandidates.length, limit),
+      mirrorCandidates: omittedCount(report.sourceDiagnostics.mirrorCandidates.length, limit),
+      missingFromIndex: omittedCount(report.missingFromIndex.length, limit),
+      staleInIndex: omittedCount(report.staleInIndex.length, limit),
+    },
+  }
+}
+
+function omittedCount(total: number, retained: number): number {
+  return Math.max(0, total - retained)
 }
 
 interface AuditChunkStatsAccumulator {

@@ -74,6 +74,16 @@ describe("ingest", () => {
         reason: "unsupported-extension",
       }),
     ])
+
+    const preview = await audit(root, { previewLimit: 0 })
+    expect(preview.supportedFiles).toEqual([])
+    expect(preview.skippedFiles).toEqual([])
+    expect(preview.staleInIndex).toEqual([])
+    expect(preview.omitted).toMatchObject({
+      supportedFiles: 1,
+      skippedFiles: 1,
+      staleInIndex: 1,
+    })
   })
 
   it("reuses unchanged indexed rows during incremental ingest", async () => {

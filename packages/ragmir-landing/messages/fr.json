@@ -203,7 +203,7 @@
   "faq_offline_question": "Ragmir nécessite-t-il une clé API, un téléchargement de modèle ou une connexion internet ?",
   "faq_offline_answer": "Non pour le parcours par défaut. La recherche local-hash fonctionne hors ligne sans modèle ni clé API. Pour un workflow entièrement hors ligne, utilisez un consommateur local ou configurez Ragmir Chat, qui télécharge et vérifie une fois le profil GGUF choisi, puis génère localement. Ni Ollama, ni Python, ni API LLM hébergée ne sont requis.",
   "faq_compare_question": "En quoi Ragmir diffère-t-il de l'indexation d'un IDE ou d'un RAG hébergé ?",
-  "faq_compare_answer": "La recherche native traite déjà bien le code structuré. Ragmir cible les documents de projet qui nécessitent des citations, garde l'index en local et expose des passages bornés via des outils MCP non destructifs.",
+  "faq_compare_answer": "La recherche native traite déjà bien le code structuré. Ragmir cible les documents de projet qui nécessitent des citations, garde l'index en local et expose des passages bornés via des outils MCP non destructifs. Les petits budgets de sortie conservent les citations exactes et renvoient des résumés typés avec le nombre d'éléments omis.",
   "faq_role_question": "Est-ce que Ragmir rédige les réponses à ma place ?",
   "faq_role_answer": "Ragmir Core renvoie des passages cités depuis vos fichiers locaux ; l'agent ou l'application choisie décide quoi en faire. L'option rgr chat ajoute une génération de réponse citée avec un profil local vérifié lorsque la réponse doit aussi rester sur le poste.",
   "faq_formats_question": "Quels formats de fichiers Ragmir peut-il indexer ?",

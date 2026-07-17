@@ -257,7 +257,12 @@ batches pages and caches each result privately by content and runtime identity.
 New integrations should use `rgrCommand` and the `rgr` CLI name. Search, ask, research, expansion,
 audit, and evaluation accept `maxBytes`; every tool and resource JSON response is bounded by the
 configured `mcpMaxOutputBytes` and an absolute 1 MiB ceiling. Search, ask, and research also accept
-compact output. Metrics are returned under
+compact output. When a response does not fit, the server selects a typed summary with exact scalar
+values, previews, and omission counters rather than recursively shortening arbitrary strings. A
+successful search keeps its best citation at the minimum 1 KiB budget. Retrieval depth, source
+pages, audit previews, and returned evaluation case details are capped before their response report
+is constructed; aggregate audit and evaluation metrics still cover the complete requested work.
+Metrics are returned under
 `_meta["ragmir/output"]` and summarized by the metadata-only usage report.
 
 Each MCP server resolves configuration once per request, lazily reuses one `RagmirClient` per
@@ -273,8 +278,10 @@ and after the call, so cancellation waits only for that in-flight native operati
 `ragmir_evaluate` requires an existing
 project-relative golden file and rejects absolute paths, traversal, and symlinks outside the root.
 Its result includes one gate per declared quality threshold, grouped category and locale metrics,
-the model revision, golden fingerprint, index fingerprint, and whether a compatible report was
-stored for `doctor`.
+the model revision, golden fingerprint, index fingerprint, complete aggregate metrics, and whether
+a compatible report was stored for `doctor`. Library callers can set
+`EvaluationOptions.caseDetailLimit` to return only a bounded case preview; `omittedCases` reports
+the remaining evaluated cases.
 Strict mode returns that project-relative path, replaces evaluation errors with a generic message,
 and masks configured model, storage, source, and access-log paths in diagnostic responses.
 
@@ -289,7 +296,7 @@ types that callers commonly compose explicitly.
 | Ingestion | `IngestOptions`, `IngestResult`, `IncrementalFailurePolicy`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexHealthSnapshot`, `IndexMaintenanceSnapshot`, `IndexManifestFile`, `IndexManifestStaleFile`, `VectorIndexManifest`, `VectorIndexParameters`, `VectorIndexStrategy`, `ParsedPage` |
 | Preview | `PreviewChunksOptions`, `PreviewReport`, `PreviewFile`, `PreviewChunk` |
 | Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
-| Research and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
+| Research, audit, and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `AuditOptions`, `AuditReport`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
 | Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `KnowledgeBaseSourceCatalogOptions`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
 | Operations | `RagmirClientOptions`, `OperationOptions`, `DoctorOptions`, `SecurityAuditOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
 | Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `ExtractPdfPagesOptions`, `ExtractPdfPagesResult`, `PdfOcrMetrics`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |

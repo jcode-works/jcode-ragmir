@@ -437,10 +437,17 @@ describe("MCP protocol contract", () => {
       name: "ragmir_audit",
       arguments: { maxBytes: 1_024 },
     })
+    const auditPayload = JSON.parse(textContent(audit))
     expect(Buffer.byteLength(textContent(audit), "utf8")).toBeLessThanOrEqual(1_024)
+    expect(auditPayload).toMatchObject({
+      counts: { supportedFiles: 24 },
+      previews: { missingFromIndex: [], staleInIndex: [] },
+      omitted: { supportedFiles: 24 },
+    })
     expect(audit._meta?.["ragmir/output"]).toMatchObject({
       budgetBytes: 1_024,
       truncated: true,
+      retrievedBytes: expect.any(Number),
     })
 
     const evaluation = await client.callTool({
@@ -450,6 +457,11 @@ describe("MCP protocol contract", () => {
     const evaluationPayload = JSON.parse(textContent(evaluation))
     expect(Buffer.byteLength(textContent(evaluation), "utf8")).toBeLessThanOrEqual(1_024)
     expect(evaluationPayload.goldenPath).toBe(path.join("evaluation", "golden.json"))
+    expect(evaluationPayload).toMatchObject({
+      total: 16,
+      previews: { cases: [] },
+      omitted: { cases: 16 },
+    })
     expect(JSON.stringify(evaluationPayload)).not.toContain(root)
     expect(evaluation._meta?.["ragmir/output"]).toMatchObject({
       budgetBytes: 1_024,

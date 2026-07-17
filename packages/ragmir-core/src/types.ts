@@ -830,6 +830,7 @@ export interface EvaluationOptions extends OperationOptions {
   maxTopK?: number
   thresholds?: QualityMetricThresholds
   persistCompatibleReport?: boolean
+  caseDetailLimit?: number
 }
 
 export interface EvaluationCaseResult {
@@ -905,6 +906,7 @@ export interface EvaluationResult {
   p50LatencyMs: number
   p95LatencyMs: number
   cases: EvaluationCaseResult[]
+  omittedCases?: number
 }
 
 export interface IndexQualityReport {
@@ -944,6 +946,10 @@ export interface AskResult {
   staleWarning: string | null
 }
 
+export interface AuditOptions extends OperationOptions {
+  previewLimit?: number
+}
+
 export interface AuditReport {
   mode: "deep"
   inventoryVerified: true
@@ -961,6 +967,17 @@ export interface AuditReport {
   staleInIndex: string[]
   totalChunks: number
   chunkStats: ChunkStats
+  omitted?: {
+    indexedFiles: number
+    supportedFiles: number
+    skippedFiles: number
+    emptyTextFiles: number
+    duplicateCandidates: number
+    archiveCandidates: number
+    mirrorCandidates: number
+    missingFromIndex: number
+    staleInIndex: number
+  }
 }
 
 export interface DestroyIndexResult {

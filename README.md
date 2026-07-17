@@ -111,8 +111,10 @@ MCP clients can read `ragmir://context` for a compact base, readiness, freshness
 overview before choosing a tool. Every tool advertises non-destructive behavior, and every tool and
 resource JSON response is subject to a byte budget. Search, ask, research, and evaluation
 conservatively advertise open-world behavior because explicitly enabled semantic models may
-download public weights. Tools that may initialize local state or append metadata-only access logs
-do not claim read-only or idempotent behavior.
+download public weights. Budget pressure returns typed summaries with exact scalar values,
+omission counters, and the best search citation instead of shortening paths or identifiers. Tools
+that may initialize local state or append metadata-only access logs do not claim read-only or
+idempotent behavior.
 
 Core is model-agnostic: any compatible CLI, TypeScript, or MCP consumer can use the returned
 citations. A hosted AI receives the passages you return to it under that provider's data policy. A

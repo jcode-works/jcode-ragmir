@@ -89,10 +89,12 @@ describe("MCP output budgeting", () => {
     const fitted = fitResearchPayload(value, 1_024)
 
     expect(fitted.value.audit.totalChunks).toBe(4)
-    expect(fitted.value.sourceDiagnostics).toEqual({
-      duplicateCandidates: [],
-      archiveCandidates: [],
-      mirrorCandidates: [],
+    expect(fitted.value).toMatchObject({
+      queryIncluded: false,
+      omitted: {
+        generatedQueries: 2,
+        securityWarnings: 1,
+      },
     })
     expect(Buffer.byteLength(JSON.stringify(fitted.value), "utf8")).toBeLessThanOrEqual(1_024)
   })
@@ -141,12 +143,14 @@ describe("MCP output budgeting", () => {
     expect(Buffer.byteLength(bounded.result.content[0].text, "utf8")).toBeLessThanOrEqual(1_024)
     expect(JSON.parse(bounded.result.content[0].text)).toMatchObject({
       found: false,
+      metadataOmitted: true,
       passages: [],
     })
+    expect(bounded.result.content[0].text).not.toContain("...")
     expect(bounded.metadata.truncated).toBe(true)
   })
 
-  it("should preserve generic report shape while bounding nested arrays and strings", () => {
+  it("should use an explicit semantic summary without rewriting required scalars", () => {
     const report = {
       goldenPath: "evaluation/golden.json",
       total: 40,
@@ -157,7 +161,15 @@ describe("MCP output budgeting", () => {
       })),
     }
 
-    const bounded = fitMcpJsonOutput(report, 1_024, "ragmir_evaluate")
+    const bounded = fitMcpJsonOutput(report, 1_024, "ragmir_evaluate", {
+      value: {
+        goldenPath: report.goldenPath,
+        total: report.total,
+        previews: { cases: [] },
+        omitted: { cases: report.cases.length },
+      },
+      omittedItems: report.cases.length,
+    })
     const payload = JSON.parse(bounded.text)
 
     expect(Buffer.byteLength(bounded.text, "utf8")).toBeLessThanOrEqual(1_024)
@@ -168,6 +180,26 @@ describe("MCP output budgeting", () => {
       compacted: true,
       truncated: true,
     })
+  })
+
+  it.each([
+    1_024, 32_768, 1_048_576,
+  ])("should preserve the best citation within a %i-byte generated output budget", (budget) => {
+    for (let seed = 1; seed <= 25; seed += 1) {
+      const results: McpSearchPayload = Array.from({ length: (seed % 8) + 1 }, (_value, index) =>
+        searchResult(`${"évidence ".repeat(seed * 9 + index * 3)}${index}`),
+      )
+      const fitted = fitSearchPayload(results, budget)
+
+      expect(Buffer.byteLength(JSON.stringify(fitted.value), "utf8")).toBeLessThanOrEqual(budget)
+      expect(fitted.value[0]?.citation).toBe(results[0]?.citation)
+    }
+  })
+
+  it("should reject oversized generic output without a typed compact schema", () => {
+    expect(() =>
+      fitMcpJsonOutput({ stableId: "exact", values: ["x".repeat(2_000)] }, 1_024, "test"),
+    ).toThrow("requires a semantic compact payload")
   })
 })
 
