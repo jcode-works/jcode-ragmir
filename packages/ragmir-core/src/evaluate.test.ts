@@ -1,3 +1,4 @@
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -16,7 +17,12 @@ import {
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { search } from "./query.js"
-import { readIndexManifest, writeIndexManifest } from "./store.js"
+import {
+  INDEX_READ_DIAGNOSTICS_CHANNEL,
+  type IndexReadDiagnosticsEvent,
+  readIndexManifest,
+  writeIndexManifest,
+} from "./store.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -184,6 +190,46 @@ describe("evaluateGoldenQueries", () => {
     expect(report.cases.every((result) => result.hit)).toBe(true)
     expect(report.cases.every((result) => result.reciprocalRank > 0)).toBe(true)
     expect(report.cases.every((result) => result.ndcg > 0)).toBe(true)
+  })
+
+  it("should use one connection and one table generation for one hundred cases", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-reuse-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    const goldenPath = path.join(root, "reused-golden.json")
+    await writeFile(
+      goldenPath,
+      JSON.stringify(
+        Array.from({ length: 100 }, (_value, index) => ({
+          id: `reused-${index}`,
+          query: "Which dataset was rejected for confidential tests?",
+          expectedPaths: ["raw/dataset-inventory.csv"],
+        })),
+      ),
+      "utf8",
+    )
+    await ingest({ cwd: root })
+    const events: IndexReadDiagnosticsEvent[] = []
+    const onDiagnostic = (event: unknown): void => {
+      if (isIndexReadDiagnosticsEvent(event, root)) {
+        events.push(event)
+      }
+    }
+    subscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+
+    try {
+      const report = await evaluateGoldenQueries({ cwd: root, goldenPath })
+
+      expect(report.total).toBe(100)
+      expect(report.cases.every((result) => result.hit)).toBe(true)
+      expect(events.filter((event) => event.kind === "connection-open")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "connection-close")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-close")).toHaveLength(1)
+    } finally {
+      unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    }
   })
 
   it("caps query topK when a caller provides a maximum", async () => {
@@ -580,4 +626,20 @@ async function copySovereignDemo(root: string): Promise<void> {
     recursive: true,
   })
   await rm(path.join(root, ".ragmir", "storage"), { recursive: true, force: true })
+}
+
+function isIndexReadDiagnosticsEvent(
+  event: unknown,
+  projectRoot: string,
+): event is IndexReadDiagnosticsEvent {
+  return (
+    typeof event === "object" &&
+    event !== null &&
+    "kind" in event &&
+    ["connection-open", "connection-close", "manifest-read", "table-open", "table-close"].includes(
+      String(event.kind),
+    ) &&
+    "projectRoot" in event &&
+    event.projectRoot === projectRoot
+  )
 }

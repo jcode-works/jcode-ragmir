@@ -4,12 +4,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { z } from "zod"
-import { accessLogUsageReport, MAX_USAGE_REPORT_DAYS, recordMcpOutput } from "./access-log.js"
-import { createRagmirClient, type RagmirClient } from "./client.js"
+import {
+  accessLogUsageReportWithConfig,
+  MAX_USAGE_REPORT_DAYS,
+  recordMcpOutput,
+} from "./access-log.js"
+import { RagmirClient } from "./client.js"
 import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
-import { evaluateGoldenQueries } from "./evaluate.js"
-import { audit } from "./ingest.js"
+import { evaluateGoldenQueriesWithConfig } from "./evaluate.js"
+import { auditWithConfig } from "./ingest.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import type {
@@ -31,7 +35,7 @@ import {
 } from "./mcp-output.js"
 import { routePrompt } from "./prompt-routing.js"
 import { compactResearchReport, compactSearchResults } from "./research.js"
-import { securityAudit } from "./security.js"
+import { securityAuditWithConfig } from "./security.js"
 import type { AskResult, Config } from "./types.js"
 import { VERSION } from "./version.js"
 
@@ -192,7 +196,7 @@ export function createMcpClientLifecycle(cwd: string): McpClientLifecycle {
           if (closing) {
             throw new Error("The MCP server is closed.")
           }
-          return createRagmirClient({ cwd })
+          return RagmirClient.createWithConfig(effectiveConfig)
         })()
         clientPromise = pending
         clientConfigSignature = signature
@@ -395,8 +399,8 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     ) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const options = await searchOptions(
-        cwd,
+      const options = searchOptionsWithConfig(
+        config,
         topK,
         contextRadius,
         includePaths,
@@ -447,8 +451,8 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     ) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const options = await searchOptions(
-        cwd,
+      const options = searchOptionsWithConfig(
+        config,
         topK,
         contextRadius,
         includePaths,
@@ -519,8 +523,8 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     ) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const options = await searchOptions(
-        cwd,
+      const options = searchOptionsWithConfig(
+        config,
         topK,
         undefined,
         includePaths,
@@ -598,7 +602,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     async ({ maxBytes }, { signal }) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const report = await abortableMcpOperation(audit(cwd, { signal }), signal)
+      const report = await abortableMcpOperation(auditWithConfig(config, { signal }), signal)
       return boundedJsonResult(
         report,
         mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
@@ -621,7 +625,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       try {
         const options = evaluationOptions(cwd, goldenPath, topK, config.mcpMaxTopK)
         const result = await abortableMcpOperation(
-          evaluateGoldenQueries({ ...options, signal }),
+          evaluateGoldenQueriesWithConfig({ ...options, signal }, config),
           signal,
         )
         const safeResult = { ...result, goldenPath: options.goldenPath }
@@ -662,7 +666,10 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     async (_input, { signal }) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const report = await abortableMcpOperation(securityAudit(cwd, { signal }), signal)
+      const report = await abortableMcpOperation(
+        securityAuditWithConfig(config, { signal }),
+        signal,
+      )
       const output =
         config.privacyProfile !== "strict"
           ? report
@@ -704,13 +711,12 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     },
     async ({ days }, { signal }) => {
       throwIfMcpAborted(signal)
-      const options: Parameters<typeof accessLogUsageReport>[0] = { cwd }
-      options.signal = signal
-      if (days !== undefined) {
-        options.days = days
-      }
+      const options = { cwd, signal, ...(days === undefined ? {} : { days }) }
       const config = await loadConfig(cwd)
-      const report = await abortableMcpOperation(accessLogUsageReport(options), signal)
+      const report = await abortableMcpOperation(
+        accessLogUsageReportWithConfig(config, options),
+        signal,
+      )
       return boundedJsonResult(
         report,
         mcpOutputBudget(config.mcpMaxOutputBytes),
@@ -860,6 +866,34 @@ export async function searchOptions(
   explain?: boolean
 }> {
   const config = await loadConfig(cwd)
+  return searchOptionsWithConfig(
+    config,
+    topK,
+    contextRadius,
+    includePaths,
+    excludePaths,
+    contextPaths,
+    explain,
+  )
+}
+
+function searchOptionsWithConfig(
+  config: Config,
+  topK: number | undefined,
+  contextRadius?: number | undefined,
+  includePaths?: string[] | undefined,
+  excludePaths?: string[] | undefined,
+  contextPaths?: string[] | undefined,
+  explain?: boolean | undefined,
+): {
+  cwd: string
+  topK?: number
+  contextRadius?: number
+  includePaths?: string[]
+  excludePaths?: string[]
+  contextPaths?: string[]
+  explain?: boolean
+} {
   const boundedTopK = Math.min(topK ?? config.topK, config.mcpMaxTopK)
   const boundedContextRadius =
     contextRadius === undefined ? undefined : Math.min(Math.max(0, contextRadius), 3)
@@ -872,7 +906,7 @@ export async function searchOptions(
     contextPaths?: string[]
     explain?: boolean
   } = {
-    cwd,
+    cwd: config.projectRoot,
     topK: boundedTopK,
   }
   addOption(result, "contextRadius", boundedContextRadius)

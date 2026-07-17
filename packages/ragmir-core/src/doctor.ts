@@ -4,11 +4,11 @@ import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
 import { getLexicalScanWarning, indexFreshnessWarning } from "./index-diagnostics.js"
-import { audit } from "./ingest.js"
+import { auditWithConfig } from "./ingest.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { RGR_RUNNER_FILENAME, rgrCommand } from "./package-manager.js"
 import { isCompatibleQualityReport } from "./quality-report.js"
-import { securityAudit } from "./security.js"
+import { securityAuditWithConfig } from "./security.js"
 import {
   AGENT_HELPER_CONFIG_FILENAMES,
   AGENT_SETUP_FILENAME,
@@ -17,7 +17,7 @@ import {
   SKILL_NAMES,
 } from "./skill.js"
 import { readIndexManifest, readIndexManifestHeader } from "./store.js"
-import type { DoctorOptions, DoctorReport } from "./types.js"
+import type { Config, DoctorOptions, DoctorReport } from "./types.js"
 
 export async function doctor(
   cwd = process.cwd(),
@@ -25,9 +25,18 @@ export async function doctor(
 ): Promise<DoctorReport> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
-  const projectConfig = findProjectConfig(cwd)
-  const initialized = existsSync(projectConfig.configPath)
   const config = await loadConfig(cwd)
+  return doctorWithConfig(config, options)
+}
+
+export async function doctorWithConfig(
+  config: Config,
+  options: DoctorOptions = {},
+): Promise<DoctorReport> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
+  const projectConfig = findProjectConfig(config.projectRoot)
+  const initialized = existsSync(projectConfig.configPath)
   throwIfAborted(signal)
   const command = await rgrCommand(config.projectRoot, [])
   throwIfAborted(signal)
@@ -37,8 +46,8 @@ export async function doctor(
   const deep = options.deep === true
   const [auditReport, securityReport, manifest] = deep
     ? await Promise.all([
-        audit(config.projectRoot, operationOptions),
-        securityAudit(config.projectRoot, operationOptions),
+        auditWithConfig(config, operationOptions),
+        securityAuditWithConfig(config, operationOptions),
         readIndexManifest(config),
       ])
     : [null, null, await readIndexManifestHeader(config)]

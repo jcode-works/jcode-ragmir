@@ -26,7 +26,7 @@ import {
   tokensAreLexicallyRelated,
 } from "./ranking.js"
 import type { IndexReadSnapshot } from "./store.js"
-import { loadIndexReadSnapshot } from "./store.js"
+import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
 import { tokenize } from "./text.js"
 import type {
   AskResult,
@@ -152,15 +152,23 @@ export async function searchWithConfig(
   connection?: Connection,
   activeSignal?: AbortSignal,
   suppliedSnapshot?: IndexReadSnapshot,
+  generationLeaseHeld = false,
 ): Promise<SearchResult[]> {
   const signal = activeSignal ?? operationSignal(options)
   return runWorkload(config, "search", signal, async ({ queueTimeMs }) => {
+    const ownsSnapshot = suppliedSnapshot === undefined
     const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
-    const lease = await acquireGenerationReadLease(snapshot.tableName, config)
+    let lease: Awaited<ReturnType<typeof acquireGenerationReadLease>> | undefined
     try {
+      if (!generationLeaseHeld) {
+        lease = await acquireGenerationReadLease(snapshot.tableName, config)
+      }
       return await searchWithinGeneration(query, options, config, snapshot, signal, queueTimeMs)
     } finally {
-      await lease.release().catch(() => undefined)
+      await lease?.release().catch(() => undefined)
+      if (ownsSnapshot) {
+        closeIndexReadSnapshot(snapshot, config)
+      }
     }
   })
 }
@@ -460,12 +468,17 @@ export async function expandCitationWithConfig(
   connection?: Connection,
   suppliedSnapshot?: IndexReadSnapshot,
 ): Promise<ExpandedCitation> {
+  const ownsSnapshot = suppliedSnapshot === undefined
   const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
-  const lease = await acquireGenerationReadLease(snapshot.tableName, config)
+  let lease: Awaited<ReturnType<typeof acquireGenerationReadLease>> | undefined
   try {
+    lease = await acquireGenerationReadLease(snapshot.tableName, config)
     return await expandCitationWithinGeneration(citation, options, config, snapshot)
   } finally {
-    await lease.release().catch(() => undefined)
+    await lease?.release().catch(() => undefined)
+    if (ownsSnapshot) {
+      closeIndexReadSnapshot(snapshot, config)
+    }
   }
 }
 

@@ -246,7 +246,8 @@ rgr destroy-index --yes
 - `evaluate` measures retrieval against a local golden-query file of at most 16 MiB and 1,000
   cases. Wrapped files can declare graded `relevanceJudgments`, `answerable: false` hard negatives,
   categories, locales, exact citations, and independent thresholds for Recall@1/3/5/10,
-  Precision@5, MRR@10, nDCG@10, citation accuracy, and false-positive rate.
+  Precision@5, MRR@10, nDCG@10, citation accuracy, and false-positive rate. One run pins a single
+  index generation and evaluates cases with bounded concurrency while preserving report order.
 - A passing suite with at least 100 cases, graded relevance, exact citations, hard negatives, and
   every threshold stores a fingerprint in the active manifest. `rgr doctor --deep` reports retrieval
   quality as verified only while that report still matches the golden file, corpus, model revision,

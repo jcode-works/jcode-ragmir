@@ -26,7 +26,7 @@ const STREAM_WRITE_BYTES = 64 * 1_024
 export const INDEX_READ_DIAGNOSTICS_CHANNEL = "ragmir:index-read"
 
 export interface IndexReadDiagnosticsEvent {
-  kind: "manifest-read" | "table-open"
+  kind: "connection-open" | "connection-close" | "manifest-read" | "table-open" | "table-close"
   projectRoot: string
   tableName?: string
 }
@@ -67,8 +67,37 @@ export interface IndexManifestFilePage {
 
 export async function connectStore(config: Config): Promise<lancedb.Connection> {
   await ensurePrivateDirectory(config.storageDir)
-  return lancedb.connect(config.storageDir, {
+  const connection = await lancedb.connect(config.storageDir, {
     readConsistencyInterval: 0,
+  })
+  publishIndexReadDiagnostics({ kind: "connection-open", projectRoot: config.projectRoot })
+  return connection
+}
+
+export function closeStoreConnection(connection: lancedb.Connection, config: Config): void {
+  if (!connection.isOpen()) {
+    return
+  }
+  connection.close()
+  publishIndexReadDiagnostics({ kind: "connection-close", projectRoot: config.projectRoot })
+}
+
+export function closeIndexReadSnapshot(snapshot: IndexReadSnapshot, config: Config): void {
+  if (!snapshot.table) {
+    return
+  }
+  closeRowsTable(snapshot.table, config)
+}
+
+export function closeRowsTable(table: lancedb.Table, config: Config): void {
+  if (!table.isOpen()) {
+    return
+  }
+  table.close()
+  publishIndexReadDiagnostics({
+    kind: "table-close",
+    projectRoot: config.projectRoot,
+    tableName: table.name,
   })
 }
 
@@ -776,7 +805,7 @@ async function withConnection<T>(
     return await operation(activeConnection)
   } finally {
     if (!connection) {
-      activeConnection.close()
+      closeStoreConnection(activeConnection, config)
     }
   }
 }

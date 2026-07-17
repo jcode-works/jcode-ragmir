@@ -39,6 +39,7 @@
     "bench:ingestion-metadata": "pnpm --filter @jcode.labs/ragmir bench:ingestion-metadata",
     "bench:generations": "pnpm --filter @jcode.labs/ragmir bench:generations",
     "bench:quality": "pnpm --filter @jcode.labs/ragmir bench:quality",
+    "bench:runtime": "pnpm --filter @jcode.labs/ragmir bench:runtime",
     "bench:scale": "pnpm --filter @jcode.labs/ragmir bench:scale",
     "bench:smoke": "pnpm --filter @jcode.labs/ragmir bench:smoke",
     "bench:storage": "pnpm --filter @jcode.labs/ragmir bench:storage",

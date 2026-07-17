@@ -54,8 +54,9 @@ fails the active provider's evidence threshold.
 ### Persistent client for Node.js workers
 
 Use one client per project root when a stateful Node.js process performs repeated retrieval. The
-client reuses one local LanceDB connection plus one immutable manifest/table snapshot, and refreshes
-the snapshot only after atomic manifest replacement.
+client reuses one local LanceDB connection plus one immutable manifest/table snapshot, refreshes the
+snapshot only after atomic manifest replacement, and closes each retired table after its last active
+reader finishes.
 
 The client and one-shot API share bounded process-local queues per project root for search,
 embedding, and ingestion. Saturation raises retryable `RagmirError` code `OVERLOADED`; queue expiry
@@ -146,6 +147,10 @@ authentication, authorization, rate limits, and transport security.
 | `compactSearchResults(results, maxLength?)` | Reduce retrieved passages for a limited context window. |
 | `compactResearchReport(report)` | Replace full research evidence text with compact snippets. |
 | `evaluateGoldenQueries(options)` | Score Recall@1/3/5/10, Precision@5, MRR@10, graded nDCG@10, exact citations, and abstention against a local golden-query file. |
+
+One evaluation pins a single configuration, connection, manifest generation, table handle, and
+embedding model. Cases run with bounded concurrency, preserve file order in the report, and release
+all scoped resources when evaluation finishes.
 
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
 `contextPaths`, `explain`, `vectorSearchMode`, `signal`, and `timeoutMs`. Set
@@ -251,9 +256,10 @@ configured `mcpMaxOutputBytes` and an absolute 1 MiB ceiling. Search, ask, and r
 compact output. Metrics are returned under
 `_meta["ragmir/output"]` and summarized by the metadata-only usage report.
 
-Each MCP server lazily reuses one `RagmirClient` per effective configuration, closes and refreshes it
-after configuration changes, and closes it with the server. All tools advertise non-destructive
-behavior. Search, ask, research, and evaluation conservatively advertise open-world behavior because
+Each MCP server resolves configuration once per request, lazily reuses one `RagmirClient` per
+effective configuration, closes and refreshes it after configuration changes, and closes it with the
+server. All tools advertise non-destructive behavior. Search, ask, research, and evaluation
+conservatively advertise open-world behavior because
 explicitly enabled Transformers models may download public weights. The pure prompt router,
 security audit, and usage report also advertise read-only, idempotent behavior. Other tools do not
 because they can initialize ignored local state or append metadata-only access logs. MCP cancellation

@@ -117,8 +117,9 @@ Embedding applications can call `createMcpServer(cwd)` to register a caller-owne
 `connectMcpServer(transport, cwd)` to connect it and receive a closeable server handle. The standard
 `serveMcp(cwd)` helper remains the simplest local stdio entry point. A server lazily reuses one
 `RagmirClient` per effective configuration for its pinned project root, refreshes it after
-configuration changes, and closes the active client when the server or transport closes. Request
-cancellation reaches retrieval operations and bounded resource handlers. Native
+configuration changes, and closes the active client when the server or transport closes. Each MCP
+request resolves configuration once. Request cancellation reaches retrieval operations and bounded
+resource handlers. Native
 filesystem and LanceDB calls that cannot receive an `AbortSignal` directly are checked immediately
 before and after the call. Ragmir does not open an HTTP port; applications that expose a network
 transport own its authentication and

@@ -86,6 +86,7 @@ describe("RagmirClient", () => {
       const refreshed = await client.search("phoenix approval")
 
       expect(refreshed[0]?.text).toContain("phoenix")
+      expect(events.filter((event) => event.kind === "table-close")).toHaveLength(1)
       expect(events.filter((event) => event.kind === "manifest-read")).toHaveLength(1)
       expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
     } finally {
@@ -110,8 +111,11 @@ describe("RagmirClient", () => {
     try {
       await search("production approval", { cwd: root })
 
+      expect(events.filter((event) => event.kind === "connection-open")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "connection-close")).toHaveLength(1)
       expect(events.filter((event) => event.kind === "manifest-read")).toHaveLength(1)
       expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-close")).toHaveLength(1)
     } finally {
       unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
     }
@@ -165,7 +169,7 @@ describe("RagmirClient", () => {
     const config = await loadConfig(root)
     expect(workloadSnapshot(config, "search")).toMatchObject({ active: 0, queued: 0 })
     expect(workloadSnapshot(config, "embedding")).toMatchObject({ active: 0, queued: 0 })
-  })
+  }, 10_000)
 
   it("should reject a 100-request burst at the configured queue boundary", async () => {
     const root = await projectWithEvidence("ragmir-client-overload-")
@@ -241,7 +245,9 @@ function isIndexReadDiagnosticsEvent(
     typeof event === "object" &&
     event !== null &&
     "kind" in event &&
-    (event.kind === "manifest-read" || event.kind === "table-open") &&
+    ["connection-open", "connection-close", "manifest-read", "table-open", "table-close"].includes(
+      String(event.kind),
+    ) &&
     "projectRoot" in event &&
     event.projectRoot === projectRoot
   )

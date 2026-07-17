@@ -96,9 +96,9 @@ try {
 ```
 
 Reuse one client per project root in long-running processes. It caches one immutable read snapshot
-until atomic generation replacement, and `close()` flushes metadata-only access logs before
-releasing model ownership. The final owner disposes its Transformers pipeline only after active
-inference finishes. Top-level
+until atomic generation replacement, closes retired table handles after their last active reader,
+and `close()` flushes metadata-only access logs before releasing model ownership. The final owner
+disposes its Transformers pipeline only after active inference finishes. Top-level
 `ingest`, `search`, `ask`, and `research` functions remain available for one-shot scripts. `ask`
 returns cited retrieval context, not a generated answer.
 

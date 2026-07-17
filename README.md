@@ -281,9 +281,10 @@ try {
 
 Reuse one client per project root in a long-running process. It keeps one local LanceDB connection
 and one immutable read snapshot until atomic generation replacement, accepts `AbortSignal` and
-`timeoutMs`, and flushes access logs after active operations during `close()`. Closing the final
-client owner safely disposes its Transformers pipeline after active inference completes. A private
-heartbeat lock serializes index writers across local OS processes while readers remain available.
+`timeoutMs`, closes retired table snapshots after their last active reader, and flushes access logs
+after active operations during `close()`. Closing the final client owner safely disposes its
+Transformers pipeline after active inference completes. A private heartbeat lock serializes index
+writers across local OS processes while readers remain available.
 One-shot `ingest`, `search`, `ask`, and `research` functions remain available for short scripts.
 
 Core also exports `previewChunks`, `audit`, `doctor`, `securityAudit`, bounded context helpers,

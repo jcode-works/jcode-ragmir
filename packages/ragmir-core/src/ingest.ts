@@ -39,11 +39,12 @@ import {
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
 import { redactDocument, totalRedactions } from "./redaction.js"
-import { securityAudit } from "./security.js"
+import { securityAuditWithConfig } from "./security.js"
 import type { StorageMaintenanceReport } from "./storage-maintenance.js"
 import { maintainStorageTable } from "./storage-maintenance.js"
 import {
   activeIndexTableName,
+  closeRowsTable,
   dropRowsTable,
   openRowsTable,
   openRowsTableByName,
@@ -333,7 +334,7 @@ async function ingestUnlocked(
     if (maintenance.adaptiveIndices) {
       manifest = { ...manifest, vectorIndex: maintenance.adaptiveIndices.vectorIndex }
     }
-    const securityReport = await securityAudit(config.projectRoot, {
+    const securityReport = await securityAuditWithConfig(config, {
       deep: false,
       ...(signal ? { signal } : {}),
     })
@@ -1010,6 +1011,14 @@ export async function audit(
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const config = await loadConfig(cwd)
+  return auditWithConfig(config, options)
+}
+
+export async function auditWithConfig(
+  config: Config,
+  options: OperationOptions = {},
+): Promise<AuditReport> {
+  const signal = operationSignal(options)
   throwIfAborted(signal)
   const inventory = await inventorySourceFiles(config, {
     ...(signal ? { signal } : {}),
@@ -1045,70 +1054,74 @@ export async function audit(
     }
   }
 
-  const counts = new Map<string, number>()
-  const checksums = new Map<string, Set<string>>()
-  const chunkStats = createAuditChunkStatsAccumulator()
-  for await (const row of streamQueryRows(
-    table.query().select(["relativePath", "checksum", "contextPath", "text"]),
-  )) {
-    throwIfAborted(signal)
-    const relativePath = requiredStringField(
-      row,
-      "relativePath",
-      "Audit found an invalid source path.",
-    )
-    const checksum = tableRowField(row, "checksum")
-    const contextPath = requiredStringField(
-      row,
-      "contextPath",
-      "Audit found an invalid chunk context.",
-      true,
-    )
-    const text = requiredStringField(row, "text", "Audit found invalid chunk text.")
-    counts.set(relativePath, (counts.get(relativePath) ?? 0) + 1)
-    if (typeof checksum === "string" && checksum.length > 0) {
-      const fileChecksums = checksums.get(relativePath) ?? new Set<string>()
-      fileChecksums.add(checksum)
-      checksums.set(relativePath, fileChecksums)
+  try {
+    const counts = new Map<string, number>()
+    const checksums = new Map<string, Set<string>>()
+    const chunkStats = createAuditChunkStatsAccumulator()
+    for await (const row of streamQueryRows(
+      table.query().select(["relativePath", "checksum", "contextPath", "text"]),
+    )) {
+      throwIfAborted(signal)
+      const relativePath = requiredStringField(
+        row,
+        "relativePath",
+        "Audit found an invalid source path.",
+      )
+      const checksum = tableRowField(row, "checksum")
+      const contextPath = requiredStringField(
+        row,
+        "contextPath",
+        "Audit found an invalid chunk context.",
+        true,
+      )
+      const text = requiredStringField(row, "text", "Audit found invalid chunk text.")
+      counts.set(relativePath, (counts.get(relativePath) ?? 0) + 1)
+      if (typeof checksum === "string" && checksum.length > 0) {
+        const fileChecksums = checksums.get(relativePath) ?? new Set<string>()
+        fileChecksums.add(checksum)
+        checksums.set(relativePath, fileChecksums)
+      }
+      recordAuditChunkStats(chunkStats, text.length, contextPath.trim().length > 0)
     }
-    recordAuditChunkStats(chunkStats, text.length, contextPath.trim().length > 0)
-  }
 
-  const supportedSet = new Set(supportedFiles)
-  const indexedSet = new Set(counts.keys())
-  const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]))
+    const supportedSet = new Set(supportedFiles)
+    const indexedSet = new Set(counts.keys())
+    const currentChecksums = new Map(files.map((file) => [file.relativePath, file.checksum]))
 
-  throwIfAborted(signal)
-  return {
-    mode: "deep",
-    inventoryVerified: true,
-    cost: "O(corpus)",
-    discoveredFiles: inventory.discoveredFiles,
-    supportedBytes: inventoryMetrics.supportedBytes,
-    largestFileBytes: inventoryMetrics.largestFileBytes,
-    indexedFiles: [...counts.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([source, chunks]) => ({ source, chunks })),
-    supportedFiles,
-    skippedFiles: inventory.skippedFiles,
-    emptyTextFiles: [...emptyTextFiles].sort(),
-    unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
-    sourceDiagnostics: sourceDiagnostics(files, inventory.skippedFiles),
-    missingFromIndex: supportedFiles.filter(
-      (file) => !indexedSet.has(file) && !emptyTextFiles.has(file),
-    ),
-    staleInIndex: [...indexedSet]
-      .filter((file) => {
-        if (!supportedSet.has(file)) {
-          return true
-        }
-        const currentChecksum = currentChecksums.get(file)
-        const indexedChecksums = checksums.get(file)
-        return !currentChecksum || !indexedChecksums?.has(currentChecksum)
-      })
-      .sort(),
-    totalChunks: chunkStats.count,
-    chunkStats: finishAuditChunkStats(chunkStats),
+    throwIfAborted(signal)
+    return {
+      mode: "deep",
+      inventoryVerified: true,
+      cost: "O(corpus)",
+      discoveredFiles: inventory.discoveredFiles,
+      supportedBytes: inventoryMetrics.supportedBytes,
+      largestFileBytes: inventoryMetrics.largestFileBytes,
+      indexedFiles: [...counts.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([source, chunks]) => ({ source, chunks })),
+      supportedFiles,
+      skippedFiles: inventory.skippedFiles,
+      emptyTextFiles: [...emptyTextFiles].sort(),
+      unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
+      sourceDiagnostics: sourceDiagnostics(files, inventory.skippedFiles),
+      missingFromIndex: supportedFiles.filter(
+        (file) => !indexedSet.has(file) && !emptyTextFiles.has(file),
+      ),
+      staleInIndex: [...indexedSet]
+        .filter((file) => {
+          if (!supportedSet.has(file)) {
+            return true
+          }
+          const currentChecksum = currentChecksums.get(file)
+          const indexedChecksums = checksums.get(file)
+          return !currentChecksum || !indexedChecksums?.has(currentChecksum)
+        })
+        .sort(),
+      totalChunks: chunkStats.count,
+      chunkStats: finishAuditChunkStats(chunkStats),
+    }
+  } finally {
+    closeRowsTable(table, config)
   }
 }
 

@@ -69,6 +69,7 @@
     "bench:ingestion-metadata": "pnpm build && node benchmarks/ingestion-metadata.mjs",
     "bench:local-hash-runtime": "pnpm build && node benchmarks/local-hash-runtime.mjs",
     "bench:model-lifecycle": "pnpm build && node benchmarks/model-lifecycle.mjs",
+    "bench:runtime": "pnpm build && node benchmarks/runtime-reuse.mjs",
     "bench:ocr": "pnpm build && node benchmarks/ocr-cache.mjs",
     "bench:generations": "pnpm build && node benchmarks/generation-retention.mjs",
     "bench:quality": "pnpm build && node benchmarks/quality.mjs",

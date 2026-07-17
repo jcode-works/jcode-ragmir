@@ -6,12 +6,12 @@ import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { RagmirError } from "./errors.js"
 import { countSkippedByReason, DEFAULT_FAST_GLOB_IGNORES, isSensitiveFilePath } from "./files.js"
-import { audit } from "./ingest.js"
+import { auditWithConfig } from "./ingest.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { searchWithConfig } from "./query.js"
 import { redactText } from "./redaction.js"
-import { securityAudit } from "./security.js"
-import { loadIndexReadSnapshot } from "./store.js"
+import { securityAuditWithConfig } from "./security.js"
+import { closeIndexReadSnapshot, type IndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
 import { normalizeForMatch } from "./text.js"
 import type {
   CodeEvidence,
@@ -127,6 +127,7 @@ export async function researchWithConfig(
   options: ResearchOptions,
   config: Config,
   connection?: Connection,
+  suppliedSnapshot?: IndexReadSnapshot,
 ): Promise<ResearchReport> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
@@ -139,88 +140,95 @@ export async function researchWithConfig(
   const includeCode = config.privacyProfile === "strict" ? false : options.includeCode !== false
   const budget = researchBudget(options)
   const perQueryTopK = Math.max(2, Math.ceil(topK / 2))
-  const snapshot = await loadIndexReadSnapshot(config, connection)
-  throwIfAborted(signal)
-  const [health, searchResults, codeScan] = await Promise.all([
-    researchHealthSnapshot(config, options.fullAudit === true, snapshot.manifest, signal),
-    Promise.all(
-      generatedQueries.map(async (generatedQuery) => ({
-        query: generatedQuery,
-        results: await searchWithConfig(
-          generatedQuery,
-          {
-            cwd: config.projectRoot,
-            topK: perQueryTopK,
-            ...(options.includePaths ? { includePaths: options.includePaths } : {}),
-            ...(options.excludePaths ? { excludePaths: options.excludePaths } : {}),
-            ...(options.contextPaths ? { contextPaths: options.contextPaths } : {}),
-          },
-          config,
-          connection,
-          signal,
-          snapshot,
-        ),
-      })),
-    ),
-    includeCode
-      ? findCodeEvidence(config, normalizedQuery, budget, signal)
-      : Promise.resolve(emptyCodeScan()),
-  ])
-  throwIfAborted(signal)
-  const evidence = rankResearchEvidence(searchResults, normalizedQuery).slice(0, topK)
-  const codeEvidence = codeScan.evidence
-  const gaps = researchGaps({
-    indexAvailable: health.indexAvailable,
-    evidenceCount: evidence.length,
-    codeEvidenceCount: codeEvidence.length,
-    includeCode,
-    missingFromIndex: health.audit.missingFromIndex,
-    staleInIndex: health.audit.staleInIndex,
-    emptyTextFiles: health.audit.emptyTextFiles,
-    securityWarnings: health.securityWarnings.length,
-    unsupportedFiles: health.audit.unsupportedFiles,
-    oversizedFiles: health.audit.oversizedFiles,
-    duplicateCandidates: health.sourceDiagnostics.duplicateCandidates.length,
-    archiveCandidates: health.sourceDiagnostics.archiveCandidates.length,
-    mirrorCandidates: health.sourceDiagnostics.mirrorCandidates.length,
-  })
+  const ownsSnapshot = suppliedSnapshot === undefined
+  const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
+  try {
+    throwIfAborted(signal)
+    const [health, searchResults, codeScan] = await Promise.all([
+      researchHealthSnapshot(config, options.fullAudit === true, snapshot.manifest, signal),
+      Promise.all(
+        generatedQueries.map(async (generatedQuery) => ({
+          query: generatedQuery,
+          results: await searchWithConfig(
+            generatedQuery,
+            {
+              cwd: config.projectRoot,
+              topK: perQueryTopK,
+              ...(options.includePaths ? { includePaths: options.includePaths } : {}),
+              ...(options.excludePaths ? { excludePaths: options.excludePaths } : {}),
+              ...(options.contextPaths ? { contextPaths: options.contextPaths } : {}),
+            },
+            config,
+            connection,
+            signal,
+            snapshot,
+          ),
+        })),
+      ),
+      includeCode
+        ? findCodeEvidence(config, normalizedQuery, budget, signal)
+        : Promise.resolve(emptyCodeScan()),
+    ])
+    throwIfAborted(signal)
+    const evidence = rankResearchEvidence(searchResults, normalizedQuery).slice(0, topK)
+    const codeEvidence = codeScan.evidence
+    const gaps = researchGaps({
+      indexAvailable: health.indexAvailable,
+      evidenceCount: evidence.length,
+      codeEvidenceCount: codeEvidence.length,
+      includeCode,
+      missingFromIndex: health.audit.missingFromIndex,
+      staleInIndex: health.audit.staleInIndex,
+      emptyTextFiles: health.audit.emptyTextFiles,
+      securityWarnings: health.securityWarnings.length,
+      unsupportedFiles: health.audit.unsupportedFiles,
+      oversizedFiles: health.audit.oversizedFiles,
+      duplicateCandidates: health.sourceDiagnostics.duplicateCandidates.length,
+      archiveCandidates: health.sourceDiagnostics.archiveCandidates.length,
+      mirrorCandidates: health.sourceDiagnostics.mirrorCandidates.length,
+    })
 
-  await recordAccess(config, {
-    action: "research",
-    query: normalizedQuery,
-    topK,
-    resultCount: evidence.length,
-  })
+    await recordAccess(config, {
+      action: "research",
+      query: normalizedQuery,
+      topK,
+      resultCount: evidence.length,
+    })
 
-  return {
-    query: normalizedQuery,
-    generatedQueries,
-    ready:
-      health.indexAvailable &&
-      evidence.length > 0 &&
-      health.audit.missingFromIndex === 0 &&
-      health.audit.staleInIndex === 0 &&
-      health.audit.emptyTextFiles === 0 &&
-      health.audit.oversizedFiles === 0 &&
-      health.securityWarnings.length === 0,
-    audit: health.audit,
-    securityWarnings: health.securityWarnings,
-    sourceDiagnostics: health.sourceDiagnostics,
-    evidence,
-    codeEvidence,
-    budgets: {
-      timeoutMs: options.timeoutMs ?? null,
-      evidenceTopK: topK,
-      codeEvidenceTopK: budget.codeTopK,
-      codeScanMaxFiles: budget.codeScanMaxFiles,
-      codeScanMaxBytes: budget.codeScanMaxBytes,
-      codeScanConcurrency: budget.codeScanConcurrency,
-      codeFilesScanned: codeScan.filesScanned,
-      codeBytesScanned: codeScan.bytesScanned,
-      codeScanTruncated: codeScan.truncated,
-    },
-    gaps,
-    nextSteps: researchNextSteps(gaps),
+    return {
+      query: normalizedQuery,
+      generatedQueries,
+      ready:
+        health.indexAvailable &&
+        evidence.length > 0 &&
+        health.audit.missingFromIndex === 0 &&
+        health.audit.staleInIndex === 0 &&
+        health.audit.emptyTextFiles === 0 &&
+        health.audit.oversizedFiles === 0 &&
+        health.securityWarnings.length === 0,
+      audit: health.audit,
+      securityWarnings: health.securityWarnings,
+      sourceDiagnostics: health.sourceDiagnostics,
+      evidence,
+      codeEvidence,
+      budgets: {
+        timeoutMs: options.timeoutMs ?? null,
+        evidenceTopK: topK,
+        codeEvidenceTopK: budget.codeTopK,
+        codeScanMaxFiles: budget.codeScanMaxFiles,
+        codeScanMaxBytes: budget.codeScanMaxBytes,
+        codeScanConcurrency: budget.codeScanConcurrency,
+        codeFilesScanned: codeScan.filesScanned,
+        codeBytesScanned: codeScan.bytesScanned,
+        codeScanTruncated: codeScan.truncated,
+      },
+      gaps,
+      nextSteps: researchNextSteps(gaps),
+    }
+  } finally {
+    if (ownsSnapshot) {
+      closeIndexReadSnapshot(snapshot, config)
+    }
   }
 }
 
@@ -364,8 +372,8 @@ async function researchHealthSnapshot(
   const operationOptions = signal ? { signal } : {}
   if (fullAudit) {
     const [auditReport, securityReport] = await Promise.all([
-      audit(config.projectRoot, operationOptions),
-      securityAudit(config.projectRoot, operationOptions),
+      auditWithConfig(config, operationOptions),
+      securityAuditWithConfig(config, operationOptions),
     ])
     throwIfAborted(signal)
     return {

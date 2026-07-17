@@ -11,7 +11,7 @@ import {
   RAGMIR_GITIGNORE_ENTRY,
 } from "./defaults.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
-import type { SecurityAuditOptions, SecurityAuditReport } from "./types.js"
+import type { Config, SecurityAuditOptions, SecurityAuditReport } from "./types.js"
 
 export async function securityAudit(
   cwd = process.cwd(),
@@ -20,6 +20,14 @@ export async function securityAudit(
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const config = await loadConfig(cwd)
+  return securityAuditWithConfig(config, options)
+}
+
+export async function securityAuditWithConfig(
+  config: Config,
+  options: SecurityAuditOptions = {},
+): Promise<SecurityAuditReport> {
+  const signal = operationSignal(options)
   throwIfAborted(signal)
   const gitignore = await readGitignore(config.projectRoot, signal)
   throwIfAborted(signal)
@@ -68,7 +76,7 @@ export async function securityAudit(
   throwIfAborted(signal)
   const permissions = await inspectPermissions(
     {
-      configPath: findProjectConfig(cwd).configPath,
+      configPath: findProjectConfig(config.projectRoot).configPath,
       rawDir: config.rawDir,
       storageDir: config.storageDir,
       accessLogPath: config.accessLogPath,

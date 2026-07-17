@@ -256,6 +256,14 @@ export async function accessLogUsageReport(
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  return accessLogUsageReportWithConfig(config, options)
+}
+
+export async function accessLogUsageReportWithConfig(
+  config: Config,
+  options: AccessLogUsageOptions = {},
+): Promise<AccessLogUsageReport> {
+  const signal = operationSignal(options)
   throwIfAborted(signal)
   await flushAccessLog(config)
   throwIfAborted(signal)

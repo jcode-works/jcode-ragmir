@@ -1,3 +1,4 @@
+import { channel } from "node:diagnostics_channel"
 import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
@@ -19,6 +20,15 @@ import {
 } from "./defaults.js"
 import { isRecord } from "./guards.js"
 import type { Config, WorkloadLimit } from "./types.js"
+
+export const CONFIG_LOAD_DIAGNOSTICS_CHANNEL = "ragmir:config-load"
+
+export interface ConfigLoadDiagnosticsEvent {
+  projectRoot: string
+  configPath: string
+}
+
+const configLoadDiagnostics = channel(CONFIG_LOAD_DIAGNOSTICS_CHANNEL)
 
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
 const embeddingModelDigestSchema = z
@@ -197,7 +207,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     throw new Error("chunkOverlap must be lower than chunkSize.")
   }
 
-  return {
+  const config: Config = {
     projectRoot: projectConfig.projectRoot,
     privacyProfile: effective.privacyProfile,
     retrievalProfile: effective.retrievalProfile,
@@ -236,6 +246,13 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     legacyWordCommand: effective.legacyWordCommand,
     legacyWordTimeoutMs: effective.legacyWordTimeoutMs,
   }
+  if (configLoadDiagnostics.hasSubscribers) {
+    configLoadDiagnostics.publish({
+      projectRoot: config.projectRoot,
+      configPath: projectConfig.configPath,
+    } satisfies ConfigLoadDiagnosticsEvent)
+  }
+  return config
 }
 
 function assertAtMost(name: string, value: number, maximum: number): void {

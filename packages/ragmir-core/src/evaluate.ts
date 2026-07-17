@@ -1,17 +1,30 @@
 import { createHash } from "node:crypto"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
+import type { Connection } from "@lancedb/lancedb"
 import { z } from "zod"
-import { recordAccess } from "./access-log.js"
+import { flushAccessLog, recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
+import { retainEmbeddingModel } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
+import { acquireGenerationReadLease, type GenerationReadLease } from "./generation-retention.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { fingerprintIndexManifest, fingerprintQualityReport } from "./quality-report.js"
-import { search } from "./query.js"
+import { searchWithConfig } from "./query.js"
 import { rankingPolicyFingerprint, rankingPolicyFor } from "./ranking.js"
-import { readIndexManifest, writeIndexManifest } from "./store.js"
+import {
+  closeIndexReadSnapshot,
+  closeStoreConnection,
+  connectStore,
+  type IndexReadSnapshot,
+  indexReadSnapshotCurrent,
+  loadIndexReadSnapshot,
+  readIndexManifest,
+  writeIndexManifest,
+} from "./store.js"
 import type {
+  Config,
   EvaluationCaseResult,
   EvaluationGroupResult,
   EvaluationOptions,
@@ -21,6 +34,7 @@ import type {
   QualityGateResult,
   QualityMetricThresholds,
   RelevanceJudgment,
+  SearchOptions,
   SearchResult,
 } from "./types.js"
 
@@ -138,49 +152,165 @@ interface EvaluationMetrics {
   falsePositiveRate: number | null
 }
 
+interface EvaluationClient {
+  snapshot: IndexReadSnapshot
+  search(query: string, options: SearchOptions): Promise<SearchResult[]>
+  close(): Promise<void>
+}
+
+async function createEvaluationClient(
+  config: Config,
+  signal: AbortSignal | undefined,
+): Promise<EvaluationClient> {
+  const connection = await connectStore(config)
+  const releaseEmbeddingModel = retainEmbeddingModel(config)
+  let snapshot: IndexReadSnapshot | undefined
+  try {
+    snapshot = await loadEvaluationSnapshot(config, connection)
+    const generationLease = await acquireGenerationReadLease(snapshot.tableName, config)
+    return evaluationClient(config, connection, snapshot, generationLease, signal, () =>
+      releaseEmbeddingModel(),
+    )
+  } catch (error) {
+    if (snapshot) {
+      closeIndexReadSnapshot(snapshot, config)
+    }
+    closeStoreConnection(connection, config)
+    await releaseEmbeddingModel()
+    throw error
+  }
+}
+
+function evaluationClient(
+  config: Config,
+  connection: Connection,
+  snapshot: IndexReadSnapshot,
+  generationLease: GenerationReadLease,
+  signal: AbortSignal | undefined,
+  releaseEmbeddingModel: () => Promise<void>,
+): EvaluationClient {
+  let closed = false
+  return {
+    snapshot,
+    search(query, options) {
+      return searchWithConfig(query, options, config, connection, signal, snapshot, true)
+    },
+    async close() {
+      if (closed) {
+        return
+      }
+      closed = true
+      try {
+        closeIndexReadSnapshot(snapshot, config)
+      } finally {
+        try {
+          await generationLease.release()
+        } finally {
+          try {
+            closeStoreConnection(connection, config)
+          } finally {
+            await releaseEmbeddingModel()
+          }
+        }
+      }
+    },
+  }
+}
+
+async function loadEvaluationSnapshot(
+  config: Config,
+  connection: Connection,
+): Promise<IndexReadSnapshot> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const snapshot = await loadIndexReadSnapshot(config, connection)
+    const manifest = await readIndexManifest(config)
+    const current = await indexReadSnapshotCurrent(snapshot, config)
+    const matchingPresence = (snapshot.manifest === null) === (manifest === null)
+    const manifestTableName = manifest?.tableName ?? config.tableName
+    if (current && matchingPresence && manifestTableName === snapshot.tableName) {
+      return { ...snapshot, manifest: manifest ? Object.freeze({ ...manifest }) : null }
+    }
+    closeIndexReadSnapshot(snapshot, config)
+  }
+  throw new Error(
+    "Index generation changed repeatedly while opening an evaluation snapshot. Retry evaluation.",
+  )
+}
+
 export async function evaluateGoldenQueries(options: EvaluationOptions): Promise<EvaluationResult> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const cwd = path.resolve(String(options.cwd ?? process.cwd()))
   const config = await loadConfig(cwd)
+  return evaluateGoldenQueriesWithConfig(options, config)
+}
+
+export async function evaluateGoldenQueriesWithConfig(
+  options: EvaluationOptions,
+  config: Config,
+): Promise<EvaluationResult> {
+  const signal = operationSignal(options)
+  throwIfAborted(signal)
+  const cwd = path.resolve(String(options.cwd ?? config.projectRoot))
   const activeRankingPolicyFingerprint = rankingPolicyFingerprint(
     rankingPolicyFor(config.embeddingProvider, config.retrievalProfile),
   )
   throwIfAborted(signal)
   const goldenPath = path.resolve(cwd, String(options.goldenPath))
-  const [goldenFile, initialManifest] = await Promise.all([
-    readGoldenFile(goldenPath, signal),
-    readIndexManifest(config),
-  ])
-  throwIfAborted(signal)
+  const goldenFile = await readGoldenFile(goldenPath, signal)
+  const defaultTopK = boundedTopK(options.topK ?? goldenFile.topK ?? 3, options.maxTopK)
+  const cases: EvaluationCaseResult[] = []
+  const evaluationConcurrency = Math.max(
+    1,
+    Math.min(
+      config.workloadLimits.search.concurrency,
+      config.workloadLimits.embedding.concurrency + config.workloadLimits.embedding.maxQueue,
+    ),
+  )
+  const evaluationClient = await createEvaluationClient(config, signal)
+  const initialManifest = evaluationClient.snapshot.manifest
   const indexFingerprint = initialManifest
     ? fingerprintIndexManifest(initialManifest)
     : "missing-index"
-  const defaultTopK = boundedTopK(options.topK ?? goldenFile.topK ?? 3, options.maxTopK)
-  const cases: EvaluationCaseResult[] = []
 
-  for (const goldenQuery of goldenFile.queries) {
+  try {
     throwIfAborted(signal)
-    const topK = boundedTopK(goldenQuery.topK ?? defaultTopK, options.maxTopK)
-    const evaluationDepth = boundedTopK(Math.max(topK, EVALUATION_DEPTH), options.maxTopK)
-    const startedAt = performance.now()
-    const results = await search(goldenQuery.query, {
-      cwd,
-      topK: evaluationDepth,
-      ...(signal === undefined ? {} : { signal }),
-      ...(goldenQuery.includePaths === undefined ? {} : { includePaths: goldenQuery.includePaths }),
-      ...(goldenQuery.excludePaths === undefined ? {} : { excludePaths: goldenQuery.excludePaths }),
-      ...(goldenQuery.contextPaths === undefined ? {} : { contextPaths: goldenQuery.contextPaths }),
-    })
-    throwIfAborted(signal)
-    cases.push(
-      evaluateCase(
-        goldenQuery,
-        applyVectorDistancePolicy(results, goldenQuery.maximumVectorDistance),
-        topK,
-        performance.now() - startedAt,
-      ),
-    )
+    for (let offset = 0; offset < goldenFile.queries.length; offset += evaluationConcurrency) {
+      throwIfAborted(signal)
+      const batch = goldenFile.queries.slice(offset, offset + evaluationConcurrency)
+      cases.push(
+        ...(await Promise.all(
+          batch.map(async (goldenQuery) => {
+            const topK = boundedTopK(goldenQuery.topK ?? defaultTopK, options.maxTopK)
+            const evaluationDepth = boundedTopK(Math.max(topK, EVALUATION_DEPTH), options.maxTopK)
+            const startedAt = performance.now()
+            const results = await evaluationClient.search(goldenQuery.query, {
+              cwd,
+              topK: evaluationDepth,
+              ...(signal === undefined ? {} : { signal }),
+              ...(goldenQuery.includePaths === undefined
+                ? {}
+                : { includePaths: goldenQuery.includePaths }),
+              ...(goldenQuery.excludePaths === undefined
+                ? {}
+                : { excludePaths: goldenQuery.excludePaths }),
+              ...(goldenQuery.contextPaths === undefined
+                ? {}
+                : { contextPaths: goldenQuery.contextPaths }),
+            })
+            throwIfAborted(signal)
+            return evaluateCase(
+              goldenQuery,
+              applyVectorDistancePolicy(results, goldenQuery.maximumVectorDistance),
+              topK,
+              performance.now() - startedAt,
+            )
+          }),
+        )),
+      )
+    }
+  } finally {
+    await evaluationClient.close()
   }
 
   const answerableCases = cases.filter((result) => result.answerable)
@@ -244,6 +374,7 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
     topK: defaultTopK,
     resultCount: cases.length,
   })
+  await flushAccessLog(config)
   throwIfAborted(signal)
   return {
     goldenPath,

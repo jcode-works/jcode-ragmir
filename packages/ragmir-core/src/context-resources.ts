@@ -1,9 +1,10 @@
 import { loadConfig } from "./config.js"
-import { doctor } from "./doctor.js"
+import { doctorWithConfig } from "./doctor.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { readIndexManifestFilePage, readIndexManifestHeader } from "./store.js"
 import type {
+  Config,
   KnowledgeBaseContextReport,
   KnowledgeBaseSourceCatalog,
   KnowledgeBaseSourceCatalogOptions,
@@ -33,8 +34,16 @@ export async function getKnowledgeBaseContext(
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const config = await loadConfig(cwd)
+  return getKnowledgeBaseContextWithConfig(config, options)
+}
+
+export async function getKnowledgeBaseContextWithConfig(
+  config: Config,
+  options: OperationOptions = {},
+): Promise<KnowledgeBaseContextReport> {
+  const signal = operationSignal(options)
   throwIfAborted(signal)
-  const report = await doctor(config.projectRoot, signal ? { signal } : {})
+  const report = await doctorWithConfig(config, signal ? { signal } : {})
   throwIfAborted(signal)
   const identity = knowledgeBaseIdentity(config.projectRoot)
 
@@ -72,6 +81,14 @@ export async function getKnowledgeBaseSourceCatalog(
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const config = await loadConfig(cwd)
+  return getKnowledgeBaseSourceCatalogWithConfig(config, options)
+}
+
+export async function getKnowledgeBaseSourceCatalogWithConfig(
+  config: Config,
+  options: KnowledgeBaseSourceCatalogOptions = {},
+): Promise<KnowledgeBaseSourceCatalog> {
+  const signal = operationSignal(options)
   throwIfAborted(signal)
   const offset = sourceCatalogOffset(options.offset)
   const limit = sourceCatalogLimit(options.limit)

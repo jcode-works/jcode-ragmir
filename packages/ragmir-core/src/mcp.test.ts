@@ -1,3 +1,4 @@
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -5,6 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js"
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { afterEach, describe, expect, it } from "vitest"
+import { CONFIG_LOAD_DIAGNOSTICS_CHANNEL, type ConfigLoadDiagnosticsEvent } from "./config.js"
 import { DEFAULT_CONFIG } from "./defaults.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
@@ -221,6 +223,56 @@ describe("MCP protocol contract", () => {
     await lifecycle.close()
     expect(refreshed.isClosed).toBe(true)
     await expect(lifecycle.getClient()).rejects.toThrow("MCP server is closed")
+  })
+
+  it("should load configuration exactly once for each MCP request", async () => {
+    const root = await createProject("ragmir-mcp-config-snapshot-")
+    const evaluationDir = path.join(root, "evaluation")
+    await mkdir(evaluationDir, { recursive: true })
+    await writeFile(
+      path.join(evaluationDir, "golden.json"),
+      JSON.stringify([
+        {
+          query: "production approval",
+          expectedPaths: [".ragmir/raw/missing.md"],
+        },
+      ]),
+      "utf8",
+    )
+    const { client } = await connectTestClient(root)
+    const events: ConfigLoadDiagnosticsEvent[] = []
+    const onDiagnostic = (event: unknown): void => {
+      if (isConfigLoadDiagnosticsEvent(event, root)) {
+        events.push(event)
+      }
+    }
+    subscribe(CONFIG_LOAD_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    const requests = [
+      () => client.callTool({ name: "ragmir_search", arguments: { query: "approval" } }),
+      () => client.callTool({ name: "ragmir_status", arguments: {} }),
+      () =>
+        client.callTool({ name: "ragmir_route_prompt", arguments: { prompt: "find evidence" } }),
+      () => client.callTool({ name: "ragmir_audit", arguments: {} }),
+      () =>
+        client.callTool({
+          name: "ragmir_evaluate",
+          arguments: { goldenPath: "evaluation/golden.json" },
+        }),
+      () => client.callTool({ name: "ragmir_security_audit", arguments: {} }),
+      () => client.callTool({ name: "ragmir_usage_report", arguments: {} }),
+      () => client.readResource({ uri: "ragmir://context" }),
+      () => client.readResource({ uri: "ragmir://sources" }),
+    ]
+
+    try {
+      for (const request of requests) {
+        events.length = 0
+        await request()
+        expect(events).toHaveLength(1)
+      }
+    } finally {
+      unsubscribe(CONFIG_LOAD_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    }
   })
 
   it("should run server cleanup when the client transport closes", async () => {
@@ -607,3 +659,17 @@ describe("projectRelativeGoldenPath", () => {
     )
   })
 })
+
+function isConfigLoadDiagnosticsEvent(
+  event: unknown,
+  projectRoot: string,
+): event is ConfigLoadDiagnosticsEvent {
+  return (
+    typeof event === "object" &&
+    event !== null &&
+    "projectRoot" in event &&
+    event.projectRoot === projectRoot &&
+    "configPath" in event &&
+    typeof event.configPath === "string"
+  )
+}
