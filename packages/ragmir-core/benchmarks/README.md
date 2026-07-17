@@ -60,3 +60,9 @@ count produced by the current parser and chunker.
 `bench:cli-startup` measures the lightweight packaged entry for `--version` and `route-prompt`.
 It records p95 process startup latency and peak RSS, and enforces the CLI startup budget used by
 release validation.
+
+`bench:local-hash-experiment` compares the previous SHA-256 feature adapter with the versioned
+integer-hash prototype. It gates throughput, explicit temporary allocations, reproducibility,
+retrieval quality, and citation accuracy against clean quality scorecards supplied through
+`--baseline` and `--candidate`. Capture both scorecards with `bench:quality` while each adapter is
+active; generated results remain excluded from release artifacts.

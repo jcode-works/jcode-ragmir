@@ -69,6 +69,7 @@
     "bench:ingest-memory": "pnpm build && node benchmarks/ingest-memory.mjs",
     "bench:ingestion-metadata": "pnpm build && node benchmarks/ingestion-metadata.mjs",
     "bench:local-hash-runtime": "pnpm build && node benchmarks/local-hash-runtime.mjs",
+    "bench:local-hash-experiment": "pnpm build && node benchmarks/local-hash-experiment.mjs",
     "bench:model-lifecycle": "pnpm build && node benchmarks/model-lifecycle.mjs",
     "bench:observability": "pnpm build && node benchmarks/observability.mjs",
     "bench:parsers": "pnpm build && node benchmarks/parsers.mjs",

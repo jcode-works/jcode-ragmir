@@ -39,6 +39,7 @@
     "bench:ingest-memory": "pnpm --filter @jcode.labs/ragmir bench:ingest-memory",
     "bench:ingestion-metadata": "pnpm --filter @jcode.labs/ragmir bench:ingestion-metadata",
     "bench:local-hash-runtime": "pnpm --filter @jcode.labs/ragmir bench:local-hash-runtime",
+    "bench:local-hash-experiment": "pnpm --filter @jcode.labs/ragmir bench:local-hash-experiment",
     "bench:observability": "pnpm --filter @jcode.labs/ragmir bench:observability",
     "bench:parsers": "pnpm --filter @jcode.labs/ragmir bench:parsers",
     "bench:generations": "pnpm --filter @jcode.labs/ragmir bench:generations",
