@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const corePackageRoot = path.join(repoRoot, "packages", "ragmir-core")
-const cliPath = path.join(corePackageRoot, "dist", "cli.js")
+const cliPath = path.join(corePackageRoot, "dist", "cli-entry.js")
 const chatCliPath = path.join(repoRoot, "packages", "ragmir-chat", "dist", "cli.js")
 const ttsCliPath = path.join(repoRoot, "packages", "ragmir-tts", "dist", "cli.js")
 const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-smoke-"))
@@ -248,6 +248,26 @@ try {
     '"serve-mcp"',
     "generated MCP config should launch the Ragmir MCP server",
   )
+  const runnerPath = path.join(tempRoot, ".ragmir", "run.cjs")
+  const runnerVersion = await runProcess(process.execPath, [runnerPath, "--version"], tempRoot)
+  if (!/^\d+\.\d+\.\d+/u.test(runnerVersion.stdout.trim())) {
+    throw new Error(`generated runner should execute installed CLI, got ${runnerVersion.stdout}`)
+  }
+  const runnerRoute = parseJson(
+    (
+      await runProcess(
+        process.execPath,
+        [runnerPath, "route-prompt", "--json", "find indexed architecture evidence"],
+        tempRoot,
+      )
+    ).stdout,
+    "generated runner route JSON",
+  )
+  if (runnerRoute.shouldUseRagmir !== true) {
+    throw new Error(
+      `generated runner should route local evidence, got ${JSON.stringify(runnerRoute)}`,
+    )
+  }
 
   await configureProject(tempRoot)
   await writeFixtureDocuments(tempRoot)

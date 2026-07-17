@@ -48,6 +48,23 @@ try {
     true,
   )
 
+  const installedCliPath = path.join(consumerRoot, "node_modules", ".bin", "rgr")
+  const installedVersion = await execFileAsync(installedCliPath, ["--version"], {
+    cwd: consumerRoot,
+    env: offlineEnvironment(),
+    maxBuffer: 1024 * 1024,
+  })
+  const installedRoute = await execFileAsync(
+    installedCliPath,
+    ["route-prompt", "--json", "find indexed architecture evidence"],
+    {
+      cwd: consumerRoot,
+      env: offlineEnvironment(),
+      maxBuffer: 1024 * 1024,
+    },
+  )
+  const installedRouteDecision = JSON.parse(installedRoute.stdout)
+
   const workerPath = path.join(consumerRoot, "verify.mjs")
   await writeFile(workerPath, offlineWorkerSource(), "utf8")
   const { stdout } = await execFileAsync(process.execPath, [workerPath], {
@@ -68,6 +85,8 @@ try {
     result.resultPath === ".ragmir/raw/evidence.md" &&
     Array.isArray(result.forbiddenResolutions) &&
     result.forbiddenResolutions.length === 0 &&
+    installedVersion.stdout.trim().length > 0 &&
+    installedRouteDecision.shouldUseRagmir === true &&
     !chatInstalled &&
     !ttsInstalled
   process.stdout.write(
@@ -75,6 +94,8 @@ try {
       ...result,
       preloadMode: "lockfile-and-tarballs",
       installMode: "pnpm-offline-frozen-store",
+      installedCliVersion: installedVersion.stdout.trim(),
+      installedRouteTool: installedRouteDecision.tool,
       chatInstalled,
       ttsInstalled,
       passed,

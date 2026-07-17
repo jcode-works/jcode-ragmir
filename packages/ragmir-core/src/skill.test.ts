@@ -93,7 +93,10 @@ describe("installSkill", () => {
     expect(agentSetup).toContain("OpenCode")
     expect(agentSetup).toContain("Cline")
     expect(agentSetup).toContain(".agents/skills/")
-    expect(await readFile(result.runnerPath, "utf8")).toContain("@jcode.labs/ragmir@")
+    const runner = await readFile(result.runnerPath, "utf8")
+    expect(runner).toContain("@jcode.labs/ragmir@")
+    expect(runner).toContain("dist/cli-entry.js")
+    expect(runner).toContain("await import(pathToFileURL(cliPath).href)")
   })
 
   it("should generate unique rooted MCP helpers for a nested monorepo base", async () => {

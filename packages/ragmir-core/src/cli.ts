@@ -17,6 +17,7 @@ import {
   parsePositiveInt,
   parseRecallThreshold,
 } from "./cli-options.js"
+import { readBoundedStdin } from "./cli-stdin.js"
 import { loadConfig } from "./config.js"
 import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js"
 import { destroyIndex } from "./destroy.js"
@@ -25,11 +26,7 @@ import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
 import { collectGenerationGarbage } from "./generation-retention.js"
-import {
-  getIndexFreshnessWarning,
-  getLexicalScanWarning,
-  indexFreshnessWarning,
-} from "./index-diagnostics.js"
+import { indexFreshnessWarning } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
 import { initProject } from "./init.js"
@@ -61,7 +58,7 @@ import {
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { optimizeStorage } from "./storage-maintenance.js"
-import { countRows, readIndexManifestHeader } from "./store.js"
+import { readIndexManifestHeader } from "./store.js"
 import type { IncrementalFailurePolicy, PreviewChunksOptions, ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
 
@@ -632,8 +629,6 @@ program
         process.exitCode = 1
         return
       }
-
-      await printStaleIndexWarnings(cwd)
 
       for (const [index, result] of outputResults.entries()) {
         const distance = result.distance === null ? "n/a" : result.distance.toFixed(4)
@@ -1657,11 +1652,7 @@ async function promptInput(promptParts: string[] | undefined): Promise<string> {
     return ""
   }
 
-  const chunks: Buffer[] = []
-  for await (const chunk of process.stdin) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-  }
-  return Buffer.concat(chunks).toString("utf8")
+  return readBoundedStdin(process.stdin)
 }
 
 function withTopK(cwd: string, topK: number | undefined): { cwd: string; topK?: number } {
@@ -1913,20 +1904,6 @@ function isTtsModule(value: unknown): value is TtsModule {
     "renderSpeech" in value &&
     typeof value.renderSpeech === "function"
   )
-}
-
-async function printStaleIndexWarnings(cwd: string): Promise<void> {
-  const config = await loadConfig(cwd)
-  const freshnessWarning = await getIndexFreshnessWarning(config)
-  if (freshnessWarning) {
-    console.error(pc.yellow(freshnessWarning))
-    return
-  }
-  const chunkCount = await countRows(config)
-  const lexicalScanWarning = getLexicalScanWarning(config, chunkCount)
-  if (lexicalScanWarning) {
-    console.error(pc.yellow(lexicalScanWarning))
-  }
 }
 
 function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {

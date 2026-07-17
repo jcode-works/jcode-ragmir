@@ -251,7 +251,8 @@ rgr destroy-index --yes
 - `install-skill` refreshes only the canonical kit; `install-agent` changes native scope or link mode.
 - `install-agent --force` replaces a conflicting same-name skill only when explicitly requested.
 - `serve-mcp` starts the local stdio MCP server.
-- `route-prompt` classifies whether a prompt should use Ragmir without storing it.
+- `route-prompt` classifies whether a prompt should use Ragmir without storing it. Piped prompt
+  input is limited to 64 KiB before classification.
 - `evaluate` measures retrieval against a local golden-query file of at most 16 MiB and 1,000
   cases. Wrapped files can declare graded `relevanceJudgments`, `answerable: false` hard negatives,
   categories, locales, exact citations, and independent thresholds for Recall@1/3/5/10,

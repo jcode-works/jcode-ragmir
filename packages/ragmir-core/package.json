@@ -48,9 +48,9 @@
     }
   },
   "bin": {
-    "ragmir": "dist/cli.js",
-    "kb": "dist/cli.js",
-    "rgr": "dist/cli.js"
+    "ragmir": "dist/cli-entry.js",
+    "kb": "dist/cli-entry.js",
+    "rgr": "dist/cli-entry.js"
   },
   "files": [
     "dist",
@@ -63,6 +63,7 @@
   },
   "scripts": {
     "bench:compare": "node benchmarks/compare.mjs",
+    "bench:cli-startup": "pnpm build && node benchmarks/cli-startup.mjs",
     "bench:concurrency": "pnpm build && node benchmarks/concurrency.mjs",
     "bench:discovery": "pnpm build && node benchmarks/discovery.mjs",
     "bench:ingest-memory": "pnpm build && node benchmarks/ingest-memory.mjs",

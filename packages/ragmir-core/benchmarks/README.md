@@ -56,3 +56,7 @@ the comparison is explicitly allowed.
 The generated corpus includes prose, code-like Markdown, JSON, JSONL, HTML, YAML, CSV, XML, PDF,
 DOCX, XLSX, PPTX, and EPUB fixtures. S/M/L are targets, and the result records the actual chunk
 count produced by the current parser and chunker.
+
+`bench:cli-startup` measures the lightweight packaged entry for `--version` and `route-prompt`.
+It records p95 process startup latency and peak RSS, and enforces the CLI startup budget used by
+release validation.
