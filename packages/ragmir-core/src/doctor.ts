@@ -7,6 +7,7 @@ import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnos
 import { audit } from "./ingest.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { RGR_RUNNER_FILENAME, rgrCommand } from "./package-manager.js"
+import { isCompatibleQualityReport } from "./quality-report.js"
 import { securityAudit } from "./security.js"
 import {
   AGENT_HELPER_CONFIG_FILENAMES,
@@ -58,6 +59,12 @@ export async function doctor(
   const operationalReady = initialized && chunksIndexed > 0 && coverageComplete
   const indexPolicyCurrent = freshnessWarning === null
   const privacyCompliant = securityReport.warnings.length === 0
+  const retrievalQualityVerified = await isCompatibleQualityReport(
+    manifest?.qualityReport,
+    manifest,
+    config,
+  )
+  throwIfAborted(signal)
 
   const nextSteps = nextActions({
     initialized,
@@ -119,7 +126,7 @@ export async function doctor(
       coverageComplete,
       indexPolicyCurrent,
       privacyCompliant,
-      retrievalQualityVerified: false,
+      retrievalQualityVerified,
       acceptedRisks: config.acceptedRisks,
     },
     nextSteps,

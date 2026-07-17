@@ -3,6 +3,8 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
+import { loadConfig } from "./config.js"
+import { doctor } from "./doctor.js"
 import {
   evaluateGoldenQueries,
   MAX_GOLDEN_CASES,
@@ -13,6 +15,8 @@ import {
 } from "./evaluate.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { search } from "./query.js"
+import { readIndexManifest } from "./store.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -445,6 +449,101 @@ describe("evaluateGoldenQueries", () => {
     expect(caseResult?.bestRank).toBeNull()
     expect(caseResult?.reciprocalRank).toBe(0)
     expect(caseResult?.ndcg).toBe(0)
+  })
+
+  it("should persist a compatible graded quality report and invalidate it when golden data changes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-quality-report-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const evidencePath = path.join(root, ".ragmir", "raw", "evidence.md")
+    await writeFile(evidencePath, "Retention policy requires seven years.\n", "utf8")
+    const goldenPath = path.join(root, "quality-golden.json")
+    const golden = {
+      topK: 5,
+      minimumCasesForVerification: 3,
+      thresholds: {
+        recallAt1: 1,
+        recallAt3: 1,
+        recallAt5: 1,
+        recallAt10: 1,
+        precisionAt5: 0.2,
+        meanReciprocalRankAt10: 1,
+        ndcgAt10: 1,
+        exactCitationRate: 1,
+        maximumFalsePositiveRate: 0,
+      },
+      queries: [
+        {
+          id: "graded-path",
+          query: "retention policy seven years",
+          expectedPaths: [".ragmir/raw/evidence.md"],
+          category: "exact-term",
+          locale: "en",
+          relevanceJudgments: [{ kind: "path", value: ".ragmir/raw/evidence.md", relevance: 3 }],
+        },
+        {
+          id: "exact-citation",
+          query: "retention policy seven years",
+          expectedPaths: [".ragmir/raw/evidence.md"],
+          expectedCitations: [".ragmir/raw/evidence.md:L1-L1#0"],
+          category: "citation",
+          locale: "en",
+        },
+        {
+          id: "hard-negative",
+          query: "quantum banana volcano",
+          expectedPaths: [],
+          answerable: false,
+          category: "hard-negative",
+          locale: "en",
+        },
+      ],
+    }
+    await writeFile(goldenPath, `${JSON.stringify(golden, null, 2)}\n`, "utf8")
+    await ingest({ cwd: root })
+
+    const report = await evaluateGoldenQueries({ cwd: root, goldenPath })
+
+    expect(report.passed).toBe(true)
+    expect(report.verificationEligible).toBe(true)
+    expect(report.reportStored).toBe(true)
+    expect(report.recallAt).toEqual({ 1: 1, 3: 1, 5: 1, 10: 1 })
+    expect(report.precisionAt5).toBe(0.2)
+    expect(report.exactCitationRate).toBe(1)
+    expect(report.falsePositiveRate).toBe(0)
+    expect(report.groups.categories["hard-negative"]?.falsePositiveRate).toBe(0)
+    const config = await loadConfig(root)
+    expect((await readIndexManifest(config))?.qualityReport?.qualityReportFingerprint).toBe(
+      report.qualityReportFingerprint,
+    )
+    expect((await doctor(root)).readiness.retrievalQualityVerified).toBe(true)
+
+    await writeFile(goldenPath, `${JSON.stringify(golden, null, 2)}\n\n`, "utf8")
+
+    expect((await doctor(root)).readiness.retrievalQualityVerified).toBe(false)
+    await expect(search("retention policy", { cwd: root })).resolves.not.toEqual([])
+  })
+
+  it("should report independent quality gates", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-gates-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    await ingest({ cwd: root })
+
+    const report = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "golden-queries.json",
+      thresholds: { recallAt1: 0, precisionAt5: 1 },
+    })
+
+    expect(report.gates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metric: "recallAt1", passed: true }),
+        expect.objectContaining({ metric: "precisionAt5", passed: false }),
+      ]),
+    )
+    expect(report.passed).toBe(false)
   })
 })
 

@@ -236,6 +236,9 @@ try {
   await mkdir(path.dirname(resultPath), { recursive: true })
   await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`, "utf8")
   process.stdout.write(`${JSON.stringify({ resultPath, ...result }, null, 2)}\n`)
+  if (result.claimEligible && !result.quality.passed) {
+    process.exitCode = 1
+  }
 } finally {
   await Promise.allSettled([client?.close(), mcpClient?.close(), mcpServer?.close()])
   if (options.keep === true) {
@@ -506,6 +509,19 @@ function summarizeQuality(result) {
     precision: result.precision,
     meanReciprocalRank: result.meanReciprocalRank,
     ndcg: result.ndcg,
+    recallAt: result.recallAt,
+    precisionAt5: result.precisionAt5,
+    meanReciprocalRankAt10: result.meanReciprocalRankAt10,
+    ndcgAt10: result.ndcgAt10,
+    exactCitationRate: result.exactCitationRate,
+    falsePositiveRate: result.falsePositiveRate,
+    abstentionAccuracy: result.abstentionAccuracy,
+    thresholds: result.thresholds,
+    gates: result.gates,
+    passed: result.passed,
+    verificationEligible: result.verificationEligible,
+    reportStored: result.reportStored,
+    groups: result.groups,
     p50LatencyMs: result.p50LatencyMs,
     p95LatencyMs: result.p95LatencyMs,
   }

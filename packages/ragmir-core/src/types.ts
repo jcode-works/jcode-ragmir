@@ -130,6 +130,7 @@ export interface IndexManifest {
   chunkCount: number
   tableName?: string
   indexedFiles?: IndexManifestFile[]
+  qualityReport?: IndexQualityReport
 }
 
 export interface IndexManifestFile {
@@ -572,10 +573,53 @@ export interface GoldenQuery {
   query: string
   expectedPaths: string[]
   expectedCitations?: string[]
+  answerable?: boolean
+  category?: string
+  locale?: string
+  relevanceJudgments?: RelevanceJudgment[]
+  maximumVectorDistance?: number
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
   topK?: number
+}
+
+export interface RelevanceJudgment {
+  kind: "path" | "citation"
+  value: string
+  relevance: 0 | 1 | 2 | 3
+}
+
+export interface QualityMetricThresholds {
+  recallAt1?: number
+  recallAt3?: number
+  recallAt5?: number
+  recallAt10?: number
+  precisionAt5?: number
+  meanReciprocalRankAt10?: number
+  ndcgAt10?: number
+  exactCitationRate?: number
+  maximumFalsePositiveRate?: number
+}
+
+export interface QualityGateResult {
+  metric: keyof QualityMetricThresholds
+  direction: "minimum" | "maximum"
+  threshold: number
+  actual: number | null
+  passed: boolean
+  applicable: boolean
+}
+
+export interface EvaluationGroupResult {
+  total: number
+  answerable: number
+  unanswerable: number
+  recallAt10: number
+  precisionAt5: number
+  meanReciprocalRankAt10: number
+  ndcgAt10: number
+  falsePositiveRate: number
 }
 
 export interface EvaluationOptions extends OperationOptions {
@@ -583,6 +627,8 @@ export interface EvaluationOptions extends OperationOptions {
   goldenPath: PathLike
   topK?: number
   maxTopK?: number
+  thresholds?: QualityMetricThresholds
+  persistCompatibleReport?: boolean
 }
 
 export interface EvaluationCaseResult {
@@ -598,12 +644,24 @@ export interface EvaluationCaseResult {
   matchedPaths: string[]
   matchedCitations: string[]
   expectedCitations?: string[]
+  answerable: boolean
+  category?: string
+  locale?: string
+  relevanceJudgments: RelevanceJudgment[]
+  abstained: boolean
+  falsePositive: boolean
+  pathHit: boolean
+  exactCitationHit: boolean | null
   hit: boolean
   bestRank: number | null
   reciprocalRank: number
   recall: number
   precision: number
   ndcg: number
+  recallAt: Record<1 | 3 | 5 | 10, number>
+  precisionAt5: number
+  reciprocalRankAt10: number
+  ndcgAt10: number
   latencyMs: number
 }
 
@@ -611,6 +669,10 @@ export interface EvaluationResult {
   goldenPath: string
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
+  embeddingModelRevision: string
+  retrievalProfile: RetrievalProfile
+  indexFingerprint: string
+  goldenFingerprint: string
   topK: number
   total: number
   hits: number
@@ -620,9 +682,55 @@ export interface EvaluationResult {
   precision: number
   meanReciprocalRank: number
   ndcg: number
+  recallAt: Record<1 | 3 | 5 | 10, number>
+  precisionAt5: number
+  meanReciprocalRankAt10: number
+  ndcgAt10: number
+  exactCitationRate: number | null
+  falsePositiveRate: number | null
+  abstentionAccuracy: number | null
+  thresholds: QualityMetricThresholds
+  gates: QualityGateResult[]
+  passed: boolean
+  verificationEligible: boolean
+  reportStored: boolean
+  qualityReportFingerprint: string | null
+  groups: {
+    categories: Record<string, EvaluationGroupResult>
+    locales: Record<string, EvaluationGroupResult>
+  }
   p50LatencyMs: number
   p95LatencyMs: number
   cases: EvaluationCaseResult[]
+}
+
+export interface IndexQualityReport {
+  schemaVersion: 1
+  createdAt: string
+  goldenPath: string
+  goldenFingerprint: string
+  indexFingerprint: string
+  indexPolicyFingerprint: string
+  embeddingProvider: EmbeddingProvider
+  embeddingModel: string
+  embeddingModelRevision: string
+  retrievalProfile: RetrievalProfile
+  total: number
+  metrics: {
+    recallAt1: number
+    recallAt3: number
+    recallAt5: number
+    recallAt10: number
+    precisionAt5: number
+    meanReciprocalRankAt10: number
+    ndcgAt10: number
+    exactCitationRate: number
+    falsePositiveRate: number
+  }
+  thresholds: Required<QualityMetricThresholds>
+  passed: true
+  verificationEligible: true
+  qualityReportFingerprint: string
 }
 
 export interface AskResult {

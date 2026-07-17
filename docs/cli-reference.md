@@ -132,7 +132,14 @@ rgr destroy-index --yes
 - `install-agent --force` replaces a conflicting same-name skill only when explicitly requested.
 - `serve-mcp` starts the local stdio MCP server.
 - `route-prompt` classifies whether a prompt should use Ragmir without storing it.
-- `evaluate` measures retrieval against a local golden-query file of at most 1 MiB and 100 cases.
+- `evaluate` measures retrieval against a local golden-query file of at most 16 MiB and 1,000
+  cases. Wrapped files can declare graded `relevanceJudgments`, `answerable: false` hard negatives,
+  categories, locales, exact citations, and independent thresholds for Recall@1/3/5/10,
+  Precision@5, MRR@10, nDCG@10, citation accuracy, and false-positive rate.
+- A passing suite with at least 100 cases, graded relevance, exact citations, hard negatives, and
+  every threshold stores a fingerprint in the active manifest. `rgr doctor` reports retrieval
+  quality as verified only while that report still matches the golden file, corpus, model revision,
+  retrieval profile, and index policy.
 - `usage-report --days` accepts an integer from 1 to 3650; `limits` and `destroy-index` expose the
   other local maintenance operations.
 - Add `--json` to machine-readable commands. Do not parse human-readable output in automation.

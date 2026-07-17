@@ -577,7 +577,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_evaluate",
     {
       title: "Ragmir Evaluate",
-      description: "Measure retrieval recall against a local golden query file.",
+      description: "Measure retrieval quality against a local golden query file.",
       inputSchema: evaluateToolInputSchema,
       annotations: POTENTIALLY_NETWORKED_TOOL_ANNOTATIONS,
     },
@@ -591,13 +591,15 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
           signal,
         )
         const safeResult = { ...result, goldenPath: options.goldenPath }
+        const legacyRecallPassed = failUnder === undefined || result.recall >= failUnder
         const output =
           failUnder === undefined
             ? safeResult
             : {
                 ...safeResult,
                 minimumRecall: failUnder,
-                passed: result.recall >= failUnder,
+                legacyRecallPassed,
+                passed: result.passed && legacyRecallPassed,
               }
         return boundedJsonResult(
           output,

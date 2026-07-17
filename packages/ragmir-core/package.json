@@ -63,7 +63,7 @@
   },
   "scripts": {
     "bench:compare": "node benchmarks/compare.mjs",
-    "bench:quality": "pnpm build && node benchmarks/run.mjs --profile quality",
+    "bench:quality": "pnpm build && node benchmarks/quality.mjs",
     "bench:scale": "pnpm build && node benchmarks/run.mjs --profile scale",
     "bench:smoke": "pnpm build && node benchmarks/verify.mjs && node benchmarks/run.mjs --profile smoke",
     "build": "tsc -p tsconfig.json",

@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
 import {
   countRows,
   openRowsTable,
@@ -179,6 +180,31 @@ describe("store", () => {
     expect((await readRows(config)).map((row) => row.relativePath)).toEqual([
       ".ragmir/raw/current.md",
     ])
+  })
+
+  it("should ignore a malformed optional quality report without invalidating the core manifest", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-manifest-quality-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const manifest: IndexManifest = {
+      schemaVersion: 7,
+      createdAt: "2026-07-17T00:00:00.000Z",
+      ragmirVersion: "test",
+      embeddingProvider: config.embeddingProvider,
+      embeddingModel: config.embeddingModel,
+      chunkSize: config.chunkSize,
+      chunkOverlap: config.chunkOverlap,
+      fileCount: 0,
+      chunkCount: 0,
+    }
+    await writeIndexManifest(manifest, config)
+    await writeFile(
+      path.join(config.storageDir, INDEX_MANIFEST_FILENAME),
+      JSON.stringify({ ...manifest, qualityReport: { schemaVersion: "invalid" } }),
+      "utf8",
+    )
+
+    await expect(readIndexManifest(config)).resolves.toEqual(manifest)
   })
 })
 

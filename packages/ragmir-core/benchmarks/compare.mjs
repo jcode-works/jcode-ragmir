@@ -23,8 +23,36 @@ const comparisons = [
   compareMetric("persistentSearchThroughput", baseline, current, ["search", "persistent", "throughputPerSecond"], 0.1, "higher"),
   compareMetric("peakRss", baseline, current, ["resources", "maxRssKiB"], 0.1, "lower"),
   compareMetric("storageBytes", baseline, current, ["storage", "physicalBytes"], 0.1, "lower"),
-  compareMetric("recall", baseline, current, ["quality", "recall"], 0, "higher"),
-  compareMetric("ndcg", baseline, current, ["quality", "ndcg"], 0, "higher"),
+  compareMetric("recallAt1", baseline, current, ["quality", "recallAt", "1"], 0, "higher"),
+  compareMetric("recallAt3", baseline, current, ["quality", "recallAt", "3"], 0, "higher"),
+  compareMetric("recallAt5", baseline, current, ["quality", "recallAt", "5"], 0, "higher"),
+  compareMetric("recallAt10", baseline, current, ["quality", "recallAt", "10"], 0, "higher"),
+  compareMetric("precisionAt5", baseline, current, ["quality", "precisionAt5"], 0, "higher"),
+  compareMetric(
+    "meanReciprocalRankAt10",
+    baseline,
+    current,
+    ["quality", "meanReciprocalRankAt10"],
+    0,
+    "higher",
+  ),
+  compareMetric("ndcgAt10", baseline, current, ["quality", "ndcgAt10"], 0, "higher"),
+  compareMetric(
+    "exactCitationRate",
+    baseline,
+    current,
+    ["quality", "exactCitationRate"],
+    0,
+    "higher",
+  ),
+  compareMetric(
+    "falsePositiveRate",
+    baseline,
+    current,
+    ["quality", "falsePositiveRate"],
+    0,
+    "lower",
+  ),
 ]
 const failed = comparisons.filter((comparison) => comparison.status === "fail")
 const status = comparable ? (failed.length === 0 ? "pass" : "fail") : "inconclusive"
@@ -52,8 +80,14 @@ function compareMetric(name, baseline, current, fieldPath, tolerance, direction)
   if (typeof baselineValue !== "number" || typeof currentValue !== "number") {
     return { name, status: "missing", baseline: baselineValue, current: currentValue }
   }
-  const deltaRatio = baselineValue === 0 ? 0 : (currentValue - baselineValue) / baselineValue
-  const failed = direction === "lower" ? deltaRatio > tolerance : deltaRatio < -tolerance
+  const deltaRatio =
+    baselineValue === 0 ? (currentValue === 0 ? 0 : null) : (currentValue - baselineValue) / baselineValue
+  const failed =
+    baselineValue === 0
+      ? direction === "lower" && currentValue > 0
+      : direction === "lower"
+        ? (deltaRatio ?? 0) > tolerance
+        : (deltaRatio ?? 0) < -tolerance
   return {
     name,
     status: failed ? "fail" : "pass",

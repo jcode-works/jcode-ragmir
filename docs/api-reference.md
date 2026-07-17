@@ -115,7 +115,7 @@ authentication, authorization, rate limits, and transport security.
 | `expandCitation(citation, options?)` | Read one exact chunk and a bounded neighbor window. |
 | `compactSearchResults(results, maxLength?)` | Reduce retrieved passages for a limited context window. |
 | `compactResearchReport(report)` | Replace full research evidence text with compact snippets. |
-| `evaluateGoldenQueries(options)` | Score retrieval against a local golden-query file. |
+| `evaluateGoldenQueries(options)` | Score Recall@1/3/5/10, Precision@5, MRR@10, graded nDCG@10, exact citations, and abstention against a local golden-query file. |
 
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
 `contextPaths`, `explain`, `signal`, and `timeoutMs`. `IngestOptions` also accepts `rebuild`, a
@@ -200,6 +200,9 @@ Native filesystem and LanceDB calls that do not expose `AbortSignal` are checked
 and after the call, so cancellation waits only for that in-flight native operation to return.
 `ragmir_evaluate` requires an existing
 project-relative golden file and rejects absolute paths, traversal, and symlinks outside the root.
+Its result includes one gate per declared quality threshold, grouped category and locale metrics,
+the model revision, golden fingerprint, index fingerprint, and whether a compatible report was
+stored for `doctor`.
 Strict mode returns that project-relative path, replaces evaluation errors with a generic message,
 and masks configured model, storage, source, and access-log paths in diagnostic responses.
 

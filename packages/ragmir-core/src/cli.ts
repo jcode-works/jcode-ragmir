@@ -744,7 +744,7 @@ program
 
 program
   .command("evaluate")
-  .description("Measure retrieval recall against a JSON golden query file.")
+  .description("Measure retrieval quality against a JSON golden query file.")
   .requiredOption(
     "--golden <path>",
     "JSON file with queries and expected paths or exact path:Lx-Ly#chunk citations.",
@@ -756,7 +756,7 @@ program
   )
   .option(
     "--fail-under <recall>",
-    "Exit non-zero only when recall is below this threshold from 0 to 1.",
+    "Legacy average-recall gate from 0 to 1, combined with golden-file quality gates.",
     parseRecallThreshold,
   )
   .option("--json", "Print machine-readable JSON.")
@@ -773,9 +773,13 @@ program
       addOption(evaluationOptions, "topK", options.topK)
       const result = await evaluateGoldenQueries(evaluationOptions)
       const minimumRecall = options.failUnder
-      const passed = minimumRecall === undefined || result.recall >= minimumRecall
+      const legacyRecallPassed = minimumRecall === undefined || result.recall >= minimumRecall
+      const passed = result.passed && legacyRecallPassed
       if (options.json) {
-        const payload = minimumRecall === undefined ? result : { ...result, minimumRecall, passed }
+        const payload =
+          minimumRecall === undefined
+            ? result
+            : { ...result, minimumRecall, legacyRecallPassed, passed }
         console.log(JSON.stringify(payload, null, 2))
         if (!passed) {
           process.exitCode = 1
@@ -786,10 +790,17 @@ program
       const thresholdSummary =
         minimumRecall === undefined
           ? ""
-          : ` minimumRecall=${minimumRecall.toFixed(3)} passed=${passed}`
+          : ` minimumRecall=${minimumRecall.toFixed(3)} legacyRecallPassed=${legacyRecallPassed}`
       console.log(
-        `golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} hitRate=${result.hitRate.toFixed(3)} recall=${result.recall.toFixed(3)} precision=${result.precision.toFixed(3)} mrr=${result.meanReciprocalRank.toFixed(3)} ndcg=${result.ndcg.toFixed(3)} p50Ms=${result.p50LatencyMs.toFixed(1)} p95Ms=${result.p95LatencyMs.toFixed(1)}${thresholdSummary}`,
+        `golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} hitRate=${result.hitRate.toFixed(3)} recallAt1=${result.recallAt[1].toFixed(3)} recallAt3=${result.recallAt[3].toFixed(3)} recallAt5=${result.recallAt[5].toFixed(3)} recallAt10=${result.recallAt[10].toFixed(3)} precisionAt5=${result.precisionAt5.toFixed(3)} mrrAt10=${result.meanReciprocalRankAt10.toFixed(3)} ndcgAt10=${result.ndcgAt10.toFixed(3)} exactCitationRate=${result.exactCitationRate?.toFixed(3) ?? "n/a"} falsePositiveRate=${result.falsePositiveRate?.toFixed(3) ?? "n/a"} passed=${passed} p50Ms=${result.p50LatencyMs.toFixed(1)} p95Ms=${result.p95LatencyMs.toFixed(1)}${thresholdSummary}`,
       )
+      for (const gate of result.gates.filter((candidate) => !candidate.passed)) {
+        console.log(
+          pc.red(
+            `failedGate=${gate.metric} direction=${gate.direction} threshold=${gate.threshold.toFixed(3)} actual=${gate.actual?.toFixed(3) ?? "n/a"}`,
+          ),
+        )
+      }
       for (const testCase of result.cases) {
         const label = testCase.id ? `${testCase.id}: ${testCase.query}` : testCase.query
         const status = testCase.hit ? pc.green("hit") : pc.red("miss")
@@ -1758,6 +1769,7 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   if (report.indexFreshness.warning) {
     console.log(pc.yellow(`indexFreshness: ${report.indexFreshness.warning}`))
   }
+  console.log(`readiness.retrievalQualityVerified=${report.readiness.retrievalQualityVerified}`)
   console.log("nextSteps:")
   for (const step of report.nextSteps) {
     console.log(`  - ${step}`)

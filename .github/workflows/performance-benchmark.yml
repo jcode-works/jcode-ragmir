@@ -60,8 +60,7 @@ jobs:
           BENCH_SIZE: ${{ inputs.size || 'S' }}
           BENCH_PROVIDER: ${{ inputs.provider || 'local-hash' }}
         run: >-
-          pnpm bench:scale --
-          --profile "$BENCH_PROFILE"
+          pnpm "bench:${BENCH_PROFILE}" --
           --size "$BENCH_SIZE"
           --provider "$BENCH_PROVIDER"
           --result packages/ragmir-core/benchmarks/.results/reference.json

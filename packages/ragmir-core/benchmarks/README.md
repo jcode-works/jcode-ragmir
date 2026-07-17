@@ -13,8 +13,9 @@ pnpm bench:compare -- --baseline baseline.json --current current.json
 ```
 
 `bench:smoke` is a fast functional check and is not eligible for product claims. `bench:quality`
-uses the S corpus with the full warm-up and repetition policy. `bench:scale` accepts `S`, `M`, or
-`L`; the default is `S`.
+evaluates two clean S indexes and fails unless their corpus and quality fingerprints match and all
+quality gates pass. `bench:scale` accepts `S`, `M`, or `L`; the default is `S` and uses the full
+warm-up and repetition policy.
 
 Use `--provider transformers` only when the configured model is already present locally. Remote
 model downloads remain disabled. Pass its cache with `--model-path /absolute/path/to/models` when

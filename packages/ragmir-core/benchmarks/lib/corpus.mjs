@@ -78,6 +78,11 @@ export async function generateCorpus({
       bytes: bytes.length,
       sha256: sha256(bytes),
       evidenceKey: document.evidenceKey,
+      groupKey: document.groupKey,
+      semanticQuery: document.semanticQuery,
+      ...(document.citationLineEnd === undefined
+        ? {}
+        : { citation: `${relativePath}:L1-L${document.citationLineEnd}#0` }),
     })
     if (typeof document.bytes === "string") {
       textFiles.push({ absolutePath, relativePath, original: document.bytes, format })
@@ -87,20 +92,30 @@ export async function generateCorpus({
     pathsByFormat.set(format, formatPaths)
   }
 
-  const eligibleGoldenFiles = files.slice(
-    0,
-    Math.min(files.length, goldenCount, GOLDEN_QUERY_LIMIT),
-  )
-  const goldenQueries = eligibleGoldenFiles.map((file, index) => ({
-    id: `bench-${String(index + 1).padStart(3, "0")}`,
-    query: queryForFile(file, index),
-    expectedPaths: [file.relativePath],
-    topK: 5,
-  }))
+  const goldenQueries = createGoldenQueries(files, goldenCount)
   const goldenPath = path.join(root, "golden-queries.json")
   await writeFile(
     goldenPath,
-    `${JSON.stringify({ topK: 5, queries: goldenQueries }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        topK: 10,
+        minimumCasesForVerification: GOLDEN_QUERY_LIMIT,
+        thresholds: {
+          recallAt1: 0.6,
+          recallAt3: 0.75,
+          recallAt5: 0.8,
+          recallAt10: 0.85,
+          precisionAt5: 0.1,
+          meanReciprocalRankAt10: 0.65,
+          ndcgAt10: 0.75,
+          exactCitationRate: 0.9,
+          maximumFalsePositiveRate: 0.05,
+        },
+        queries: goldenQueries,
+      },
+      null,
+      2,
+    )}\n`,
     "utf8",
   )
 
@@ -145,7 +160,17 @@ function createDocument({ index, format, random }) {
   const padded = String(index + 1).padStart(7, "0")
   const evidenceKey = `BENCH-DOC-${padded}-${randomToken(random, 8)}`
   const title = `Deterministic evidence document ${padded}`
-  const text = createEvidenceText({ title, evidenceKey, index, random })
+  const groupKey = `BENCH-GROUP-${String((index % 20) + 1).padStart(2, "0")}`
+  const retentionYears = (index % 17) + 3
+  const semanticQuery = `What is the archive duration for record ${padded}?`
+  const text = createEvidenceText({
+    title,
+    evidenceKey,
+    groupKey,
+    retentionYears,
+    index,
+    random,
+  })
   const fileName = `document-${padded}.${format}`
 
   switch (format) {
@@ -153,36 +178,48 @@ function createDocument({ index, format, random }) {
       return {
         bytes: createDocx(title, evidenceKey, text),
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "xlsx":
       return {
         bytes: createXlsx(title, evidenceKey, text),
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "pptx":
       return {
         bytes: createPptx(title, evidenceKey, text),
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "epub":
       return {
         bytes: createEpub(title, evidenceKey, text),
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "pdf":
       return {
         bytes: createTextPdf(`${title} ${evidenceKey}`),
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "json":
       return {
         bytes: `${JSON.stringify({ title, evidenceKey, content: text }, null, 2)}\n`,
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "jsonl":
@@ -192,6 +229,8 @@ function createDocument({ index, format, random }) {
           .map((content, section) => JSON.stringify({ evidenceKey, section, content }))
           .join("\n")}\n`,
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "html":
@@ -203,6 +242,8 @@ function createDocument({ index, format, random }) {
           .map((paragraph) => `<p>${escapeXml(paragraph)}</p>`)
           .join("")}</body></html>\n`,
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "yaml":
@@ -212,6 +253,8 @@ function createDocument({ index, format, random }) {
           .map((line) => `  ${line}`)
           .join("\n")}\n`,
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "csv":
@@ -224,6 +267,8 @@ function createDocument({ index, format, random }) {
           )
           .join("\n")}\n`,
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "xml":
@@ -232,20 +277,46 @@ function createDocument({ index, format, random }) {
           evidenceKey,
         )}</evidence><content>${escapeXml(text)}</content></document>\n`,
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
     case "txt":
-      return { bytes: `${title}\n${evidenceKey}\n\n${text}\n`, evidenceKey, fileName }
+      return {
+        bytes: `${title}\n${evidenceKey}\n\n${text}\n`,
+        evidenceKey,
+        groupKey,
+        semanticQuery,
+        fileName,
+      }
+    case "md":
+      return {
+        bytes: `# ${title}\n\nEvidence key: ${evidenceKey}. Group: ${groupKey}. Record ${padded} must be retained for ${retentionYears} years under archive policy.\n`,
+        evidenceKey,
+        groupKey,
+        semanticQuery,
+        citationLineEnd: 3,
+        fileName,
+      }
     default:
       return {
         bytes: `# ${title}\n\nEvidence key: ${evidenceKey}\n\n${text}\n`,
         evidenceKey,
+        groupKey,
+        semanticQuery,
         fileName,
       }
   }
 }
 
-function createEvidenceText({ title, evidenceKey, index, random }) {
+function createEvidenceText({
+  title,
+  evidenceKey,
+  groupKey,
+  retentionYears,
+  index,
+  random,
+}) {
   const multilingual = [
     "Local retrieval keeps cited evidence available without a hosted document store.",
     "La recherche locale conserve des preuves citées sans stockage documentaire hébergé.",
@@ -260,6 +331,7 @@ function createEvidenceText({ title, evidenceKey, index, random }) {
       [
         `## ${title} section ${section + 1}`,
         `Evidence identifier ${sectionKey}.`,
+        `Group identifier ${groupKey}. Record ${String(index + 1).padStart(7, "0")} must be retained for ${retentionYears} years under archive policy.`,
         multilingual[(index + section) % multilingual.length],
         `Deterministic workload tokens: ${tokens}.`,
       ].join("\n"),
@@ -276,6 +348,86 @@ function queryForFile(file, index) {
     "查找精确证据标识符",
   ]
   return `${prefixes[index % prefixes.length]} ${file.evidenceKey}`
+}
+
+function createGoldenQueries(files, requestedCount) {
+  const count = Math.min(files.length, requestedCount, GOLDEN_QUERY_LIMIT)
+  const citationFiles = files.filter((file) => file.citation !== undefined)
+  const pathsByGroup = new Map()
+  for (const file of files) {
+    const paths = pathsByGroup.get(file.groupKey) ?? []
+    paths.push(file.relativePath)
+    pathsByGroup.set(file.groupKey, paths)
+  }
+
+  return Array.from({ length: count }, (_value, index) => {
+    const file = files[index]
+    const categoryIndex = index % 10
+    const base = {
+      id: `bench-${String(index + 1).padStart(3, "0")}`,
+      expectedPaths: [file.relativePath],
+      locale: ["en", "fr", "th", "zh"][index % 4],
+      topK: 10,
+    }
+    if (categoryIndex === 1) {
+      return { ...base, query: file.semanticQuery, category: "semantic-paraphrase" }
+    }
+    if (categoryIndex === 2) {
+      return {
+        ...base,
+        query: `Find evidence ${singleCharacterTypo(file.evidenceKey)}`,
+        category: "typo-tolerance",
+      }
+    }
+    if (categoryIndex === 3 || categoryIndex === 8) {
+      const expectedPaths = (pathsByGroup.get(file.groupKey) ?? []).slice(0, 5)
+      return {
+        ...base,
+        query: `Find evidence for ${file.groupKey}`,
+        expectedPaths,
+        category: categoryIndex === 3 ? "multi-source" : "graded-relevance",
+        relevanceJudgments: expectedPaths.map((relativePath, judgmentIndex) => ({
+          kind: "path",
+          value: relativePath,
+          relevance: judgmentIndex === 0 ? 3 : 1,
+        })),
+      }
+    }
+    if (categoryIndex === 4) {
+      return {
+        ...base,
+        query: queryForFile(file, index),
+        category: "path-filter",
+        includePaths: [file.relativePath],
+      }
+    }
+    if (categoryIndex === 5 && citationFiles.length > 0) {
+      const citationFile = citationFiles[index % citationFiles.length]
+      return {
+        ...base,
+        query: queryForFile(citationFile, index),
+        expectedPaths: [citationFile.relativePath],
+        expectedCitations: [citationFile.citation],
+        category: "exact-citation",
+      }
+    }
+    if (categoryIndex === 6) {
+      return {
+        ...base,
+        query: `UNANSWERABLE-${String(index + 1).padStart(4, "0")}-quantum-banana-volcano`,
+        expectedPaths: [],
+        answerable: false,
+        category: "hard-negative",
+      }
+    }
+    return { ...base, query: queryForFile(file, index), category: "exact-term" }
+  })
+}
+
+function singleCharacterTypo(value) {
+  const index = Math.max(1, Math.floor(value.length / 2))
+  const replacement = value[index] === "x" ? "y" : "x"
+  return `${value.slice(0, index)}${replacement}${value.slice(index + 1)}`
 }
 
 function seededRandom(seed) {

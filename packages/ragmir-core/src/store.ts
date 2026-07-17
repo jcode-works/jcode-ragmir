@@ -5,6 +5,7 @@ import * as lancedb from "@lancedb/lancedb"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
 import { isRecord } from "./guards.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
+import { isIndexQualityReport } from "./quality-report.js"
 import type { Config, IndexManifest, VectorRow } from "./types.js"
 
 const EMPTY_TEXT_FILES_MANIFEST = "empty-text-files.json"
@@ -149,7 +150,11 @@ export async function readIndexManifest(config: Config): Promise<IndexManifest |
     if (!isRecord(raw)) {
       return null
     }
-    return isIndexManifest(raw) ? raw : null
+    if (!isIndexManifest(raw)) {
+      return null
+    }
+    const { qualityReport, ...manifest } = raw
+    return isIndexQualityReport(qualityReport) ? { ...manifest, qualityReport } : manifest
   } catch (error) {
     // The manifest is purely diagnostic. A missing file (pre-manifest index) or
     // a corrupt/unreadable file should surface as "no freshness info" rather
@@ -164,7 +169,9 @@ export async function readIndexManifest(config: Config): Promise<IndexManifest |
   }
 }
 
-function isIndexManifest(value: unknown): value is IndexManifest {
+function isIndexManifest(
+  value: unknown,
+): value is Omit<IndexManifest, "qualityReport"> & { qualityReport?: unknown } {
   if (!isRecord(value)) {
     return false
   }
