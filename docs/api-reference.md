@@ -43,7 +43,8 @@ instead of presenting an unverifiable line claim.
 
 With `explain: true`, `score` includes the vector and lexical ranks, their reciprocal-rank-fusion
 contributions, matched terms, backend scores, FTS or complete-fallback activation and reason,
-candidate materialization, query-variant count, indexed/unindexed rows, coverage, and
+candidate materialization, query-variant count, indexed/unindexed rows, coverage, queue wait as
+`workloadQueueMs`, and
 `rankingPolicyFingerprint`. The fingerprint
 identifies the provider, retrieval profile, fusion parameters, and abstention threshold used by
 the result. Equal scores are ordered by stable source and chunk keys, so identical indexes return
@@ -55,6 +56,11 @@ fails the active provider's evidence threshold.
 Use one client per project root when a stateful Node.js process performs repeated retrieval. The
 client reuses one local LanceDB connection plus one immutable manifest/table snapshot, and refreshes
 the snapshot only after atomic manifest replacement.
+
+The client and one-shot API share bounded process-local queues per project root for search,
+embedding, and ingestion. Saturation raises retryable `RagmirError` code `OVERLOADED`; queue expiry
+raises `TIMEOUT`. Caller abort signals remove queued work before it starts. `close()` stops new
+admission and waits for already accepted queued and active operations before closing LanceDB.
 
 ```ts
 import { createRagmirClient, isRagmirError } from "@jcode.labs/ragmir"

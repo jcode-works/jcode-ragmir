@@ -4,10 +4,12 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { createRagmirClient } from "./client.js"
-import type { RagmirError } from "./errors.js"
+import { loadConfig } from "./config.js"
+import { isRagmirError, type RagmirError } from "./errors.js"
 import { initProject } from "./init.js"
 import { search } from "./query.js"
 import { INDEX_READ_DIAGNOSTICS_CHANNEL, type IndexReadDiagnosticsEvent } from "./store.js"
+import { workloadSnapshot } from "./workload.js"
 
 const tempDirs: string[] = []
 
@@ -140,6 +142,55 @@ describe("RagmirClient", () => {
     await expect(ingestion).resolves.toMatchObject({ indexedFiles: 1 })
     await expect(closing).resolves.toBeUndefined()
     expect(client.isClosed).toBe(true)
+  })
+
+  it("should drain bounded queued work before closing", async () => {
+    const root = await projectWithEvidence("ragmir-client-close-queue-")
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({
+        workloadLimits: {
+          search: { concurrency: 1, maxQueue: 16, queueTimeoutMs: 5_000 },
+        },
+      }),
+    )
+    const client = await createRagmirClient({ cwd: root })
+    await client.ingest()
+
+    const searches = Array.from({ length: 10 }, () => client.search("production approval"))
+    const closing = client.close()
+
+    await expect(Promise.all(searches)).resolves.toHaveLength(10)
+    await expect(closing).resolves.toBeUndefined()
+    const config = await loadConfig(root)
+    expect(workloadSnapshot(config, "search")).toMatchObject({ active: 0, queued: 0 })
+    expect(workloadSnapshot(config, "embedding")).toMatchObject({ active: 0, queued: 0 })
+  })
+
+  it("should reject a 100-request burst at the configured queue boundary", async () => {
+    const root = await projectWithEvidence("ragmir-client-overload-")
+    const client = await createRagmirClient({ cwd: root })
+    await client.ingest()
+
+    const settled = await Promise.allSettled(
+      Array.from({ length: 100 }, () => client.search("production approval", { explain: true })),
+    )
+    const fulfilled = settled.filter((result) => result.status === "fulfilled")
+    const overloaded = settled.filter(
+      (result) =>
+        result.status === "rejected" &&
+        isRagmirError(result.reason) &&
+        result.reason.code === "OVERLOADED",
+    )
+
+    expect(fulfilled).toHaveLength(72)
+    expect(fulfilled.some((result) => (result.value[0]?.score?.workloadQueueMs ?? 0) > 0)).toBe(
+      true,
+    )
+    expect(overloaded).toHaveLength(28)
+    await client.close()
+    const config = await loadConfig(root)
+    expect(workloadSnapshot(config, "search")).toMatchObject({ active: 0, queued: 0 })
   })
 
   it("should expose stable abort and validation errors", async () => {

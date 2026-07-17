@@ -30,7 +30,23 @@ edit JSON only for a real need.
 | `sourceFingerprintMode` | `fast` | Use `strict` to hash every source on every inventory instead of reusing unchanged private fingerprints. |
 | `incrementalFailurePolicy` | `preserve-last-good` | Use `remove-stale` only when failed changed files must disappear immediately. |
 | `hybridTextScanLimit` | `5000` | Bound only the complete-scan fallback used when FTS is unavailable; values above 10,000 are rejected. A fallback smaller than the active corpus is rejected instead of returning silently truncated lexical evidence. |
+| `workloadLimits` | See below | Bound active search, embedding, and ingestion work plus their queues and queue deadlines. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
+
+### Workload admission
+
+Ragmir keeps independent process-local queues per project root. Search defaults to 8 active and 64
+queued operations, embedding to 1 active and 64 queued operations, and ingestion to 1 active and 4
+queued operations. Search and embedding wait at most 30 seconds in their queue; ingestion waits at
+most 120 seconds. Each workload accepts `concurrency`, `maxQueue`, and `queueTimeoutMs` under
+`workloadLimits.search`, `.embedding`, or `.ingestion`.
+
+Concurrency is capped at 16, queue length at 1,000, and queue time at 900,000 ms. A full queue
+returns the retryable `OVERLOADED` error. An expired queue entry returns retryable `TIMEOUT`, and an
+aborted entry never starts. `explain: true` exposes `workloadQueueMs` on every returned search score.
+The defaults come from the 100-request XS scorecard: search concurrency 8 kept throughput and p95
+within measurement noise while reducing Transformers peak RSS. Change these limits only after a
+representative concurrency benchmark.
 
 ### Retrieval profiles and ranking policy
 
@@ -48,8 +64,8 @@ before changing production configuration.
 Vector candidates are capped at 1,000. The FTS pool is profile-aware and capped at 4,000,
 independently from `hybridTextScanLimit`. Structural context and body text feed the primary local
 index. Exact file paths use a bounded scalar variant. Controlled exact-phrase, identifier, and fuzzy
-rare-term queries expand only a primary pool that cannot fill `topK`, preserving established ranks. The
-diversity pass prefers distinct sources first, then backfills ranked non-duplicate, non-overlapping
+rare-term queries expand only a primary pool that cannot fill `topK`, preserving established ranks.
+The diversity pass prefers distinct sources first, then backfills ranked non-duplicate, non-overlapping
 chunks to `topK`. Hybrid ranking uses deterministic reciprocal-rank fusion with `k = 60` and equal
 vector and lexical weights. Stable source and chunk keys break score ties before ranks are assigned.
 The active provider, profile, and ranking parameters form a policy fingerprint stored in quality

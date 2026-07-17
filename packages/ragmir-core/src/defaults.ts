@@ -22,6 +22,9 @@ export const MAX_INGEST_CHUNKS_PER_FILE = 65_536
 export const MAX_INGEST_VECTOR_BYTES_PER_FILE = 256 * 1_024 * 1_024
 export const MAX_SEARCH_TOP_K = 100
 export const MAX_HYBRID_TEXT_SCAN_LIMIT = 10_000
+export const MAX_WORKLOAD_CONCURRENCY = 16
+export const MAX_WORKLOAD_QUEUE = 1_000
+export const MAX_WORKLOAD_QUEUE_TIMEOUT_MS = 900_000
 
 export const RAGMIR_GITIGNORE_ENTRY = `${RAGMIR_DIR}/`
 export const LEGACY_KB_GITIGNORE_ENTRY = `${LEGACY_KB_DIR}/`
@@ -60,6 +63,11 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   sourceFingerprintMode: "fast",
   incrementalFailurePolicy: "preserve-last-good",
   hybridTextScanLimit: 5_000,
+  workloadLimits: {
+    search: { concurrency: 8, maxQueue: 64, queueTimeoutMs: 30_000 },
+    embedding: { concurrency: 1, maxQueue: 64, queueTimeoutMs: 30_000 },
+    ingestion: { concurrency: 1, maxQueue: 4, queueTimeoutMs: 120_000 },
+  },
   includeExtensions: [],
   pdfOcrCommand: [],
   pdfOcrTimeoutMs: 120_000,

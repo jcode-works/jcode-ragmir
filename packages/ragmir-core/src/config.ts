@@ -12,15 +12,37 @@ import {
   MAX_HYBRID_TEXT_SCAN_LIMIT,
   MAX_INGEST_CONCURRENCY,
   MAX_SEARCH_TOP_K,
+  MAX_WORKLOAD_CONCURRENCY,
+  MAX_WORKLOAD_QUEUE,
+  MAX_WORKLOAD_QUEUE_TIMEOUT_MS,
 } from "./defaults.js"
 import { isRecord } from "./guards.js"
-import type { Config } from "./types.js"
+import type { Config, WorkloadLimit } from "./types.js"
 
 const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
 const privacyProfileSchema = z.enum(["strict", "private", "trusted", "custom"])
 const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
 const sourceFingerprintModeSchema = z.enum(["fast", "strict"])
 const incrementalFailurePolicySchema = z.enum(["preserve-last-good", "remove-stale"])
+function workloadLimitSchema(defaults: WorkloadLimit) {
+  return z
+    .object({
+      concurrency: z
+        .number()
+        .int()
+        .positive()
+        .max(MAX_WORKLOAD_CONCURRENCY)
+        .default(defaults.concurrency),
+      maxQueue: z.number().int().positive().max(MAX_WORKLOAD_QUEUE).default(defaults.maxQueue),
+      queueTimeoutMs: z
+        .number()
+        .int()
+        .positive()
+        .max(MAX_WORKLOAD_QUEUE_TIMEOUT_MS)
+        .default(defaults.queueTimeoutMs),
+    })
+    .strict()
+}
 
 const rawConfigSchema = z
   .object({
@@ -73,6 +95,20 @@ const rawConfigSchema = z
       DEFAULT_CONFIG.incrementalFailurePolicy,
     ),
     hybridTextScanLimit: z.number().int().positive().default(DEFAULT_CONFIG.hybridTextScanLimit),
+    workloadLimits: z
+      .object({
+        search: workloadLimitSchema(DEFAULT_CONFIG.workloadLimits.search).default(
+          DEFAULT_CONFIG.workloadLimits.search,
+        ),
+        embedding: workloadLimitSchema(DEFAULT_CONFIG.workloadLimits.embedding).default(
+          DEFAULT_CONFIG.workloadLimits.embedding,
+        ),
+        ingestion: workloadLimitSchema(DEFAULT_CONFIG.workloadLimits.ingestion).default(
+          DEFAULT_CONFIG.workloadLimits.ingestion,
+        ),
+      })
+      .strict()
+      .default(DEFAULT_CONFIG.workloadLimits),
     includeExtensions: z.array(z.string().min(1)).default(DEFAULT_CONFIG.includeExtensions),
     pdfOcrCommand: z.array(z.string().min(1)).default(DEFAULT_CONFIG.pdfOcrCommand),
     pdfOcrTimeoutMs: z.number().int().positive().default(DEFAULT_CONFIG.pdfOcrTimeoutMs),
@@ -184,6 +220,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     sourceFingerprintMode: effective.sourceFingerprintMode,
     incrementalFailurePolicy: effective.incrementalFailurePolicy,
     hybridTextScanLimit: effective.hybridTextScanLimit,
+    workloadLimits: effective.workloadLimits,
     includeExtensions: normalizeExtensions(effective.includeExtensions),
     pdfOcrCommand: effective.pdfOcrCommand,
     pdfOcrTimeoutMs: effective.pdfOcrTimeoutMs,

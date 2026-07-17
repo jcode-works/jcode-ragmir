@@ -5,6 +5,7 @@ export type RagmirErrorCode =
   | "INDEX_UNAVAILABLE"
   | "INTERNAL"
   | "INVALID_ARGUMENT"
+  | "OVERLOADED"
   | "TIMEOUT"
 
 interface RagmirErrorOptions {

@@ -45,6 +45,7 @@ export function testConfig(
     sourceFingerprintMode: DEFAULT_CONFIG.sourceFingerprintMode,
     incrementalFailurePolicy: DEFAULT_CONFIG.incrementalFailurePolicy,
     hybridTextScanLimit: DEFAULT_CONFIG.hybridTextScanLimit,
+    workloadLimits: structuredClone(DEFAULT_CONFIG.workloadLimits),
     includeExtensions: [...DEFAULT_CONFIG.includeExtensions],
     pdfOcrCommand: [...DEFAULT_CONFIG.pdfOcrCommand],
     pdfOcrTimeoutMs: DEFAULT_CONFIG.pdfOcrTimeoutMs,

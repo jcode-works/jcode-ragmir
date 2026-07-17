@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto"
 import { mkdir } from "node:fs/promises"
+import { throwIfAborted } from "./operation.js"
 import { tokenize } from "./text.js"
 import type { Config } from "./types.js"
+import { runWorkload, type WorkloadAdmission } from "./workload.js"
 
 const LOCAL_HASH_DIMENSIONS = 384
 const LONG_TOKEN_MIN_LENGTH = 6
@@ -41,16 +43,28 @@ export async function embedTexts(
   texts: string[],
   config: Config,
   inputType: EmbeddingInputType = "document",
+  signal?: AbortSignal,
+  onAdmission?: (admission: WorkloadAdmission) => void,
 ): Promise<number[][]> {
   if (texts.length === 0) {
     return []
   }
+  const pendingExtractor =
+    config.embeddingProvider === "transformers"
+      ? pendingTransformersPipelines.get(transformersCacheKey(config))
+      : undefined
 
-  if (config.embeddingProvider === "local-hash") {
-    return texts.map(localHashEmbedding)
-  }
+  return runWorkload(config, "embedding", signal, async (admission) => {
+    onAdmission?.(admission)
+    throwIfAborted(signal)
+    if (config.embeddingProvider === "local-hash") {
+      return texts.map(localHashEmbedding)
+    }
 
-  return embedWithTransformers(texts, config, inputType)
+    const embeddings = await embedWithTransformers(texts, config, inputType, pendingExtractor)
+    throwIfAborted(signal)
+    return embeddings
+  })
 }
 
 export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingModelResult> {
@@ -70,8 +84,13 @@ export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingM
   }
 }
 
-export async function embedText(text: string, config: Config): Promise<number[]> {
-  const [embedding] = await embedTexts([text], config, "query")
+export async function embedText(
+  text: string,
+  config: Config,
+  signal?: AbortSignal,
+  onAdmission?: (admission: WorkloadAdmission) => void,
+): Promise<number[]> {
+  const [embedding] = await embedTexts([text], config, "query", signal, onAdmission)
   if (!embedding) {
     throw new Error("No embedding returned for query.")
   }
@@ -82,8 +101,9 @@ async function embedWithTransformers(
   texts: string[],
   config: Config,
   inputType: EmbeddingInputType,
+  pendingExtractor?: Promise<TransformersExtractor>,
 ): Promise<number[][]> {
-  const extractor = await transformersExtractor(config)
+  const extractor = await (pendingExtractor ?? transformersExtractor(config))
   const preparedTexts = texts.map((text) =>
     prepareEmbeddingText(text, config.embeddingModel, inputType),
   )
@@ -112,12 +132,7 @@ export function prepareEmbeddingText(
 }
 
 async function transformersExtractor(config: Config): Promise<TransformersExtractor> {
-  const key = [
-    config.embeddingModel,
-    config.embeddingModelRevision,
-    config.embeddingModelPath,
-    String(config.transformersAllowRemoteModels),
-  ].join("\n")
+  const key = transformersCacheKey(config)
   const cached = transformersPipelines.get(key)
   if (cached) {
     // Move to the end so the Map insertion order reflects recent use (LRU).
@@ -143,6 +158,15 @@ async function transformersExtractor(config: Config): Promise<TransformersExtrac
       pendingTransformersPipelines.delete(key)
     }
   }
+}
+
+function transformersCacheKey(config: Config): string {
+  return [
+    config.embeddingModel,
+    config.embeddingModelRevision,
+    config.embeddingModelPath,
+    String(config.transformersAllowRemoteModels),
+  ].join("\n")
 }
 
 async function createTransformersExtractor(config: Config): Promise<TransformersExtractor> {

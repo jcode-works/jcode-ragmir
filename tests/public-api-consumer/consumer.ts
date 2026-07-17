@@ -88,6 +88,8 @@ void search("What changed?", searchOptions).then((results) => {
   void lexicalFallbackReason
   const lexicalExactPathMatch: boolean | undefined = results[0]?.score?.lexicalExactPathMatch
   void lexicalExactPathMatch
+  const workloadQueueMs: number | undefined = results[0]?.score?.workloadQueueMs
+  void workloadQueueMs
 })
 void research("What changed?", researchOptions).then((report) => {
   const firstResearchScore: number | undefined = report.evidence[0]?.researchScore
@@ -122,6 +124,7 @@ const pullResult: Promise<PullEmbeddingModelResult> = pullEmbeddingModel(config)
 const redactions: RedactionCount[] = redactText("example", config).counts
 const errorCode: RagmirErrorCode = "TIMEOUT"
 const indexErrorCode: RagmirErrorCode = "INDEX_UNAVAILABLE"
+const overloadedErrorCode: RagmirErrorCode = "OVERLOADED"
 
 void semanticResult
 void accessLogMetrics
@@ -130,3 +133,4 @@ void pullResult
 void redactions
 void errorCode
 void indexErrorCode
+void overloadedErrorCode

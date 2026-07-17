@@ -326,6 +326,7 @@ describe("search", () => {
     expect(score?.vectorDistance).toBe(explained[0]?.distance)
     expect(score?.lexicalBackendScore).toBeGreaterThan(0)
     expect(score?.lexicalFallbackReason).toBeNull()
+    expect(score?.workloadQueueMs).toBeGreaterThanOrEqual(0)
     expect(score?.matchedTerms).toEqual(expect.arrayContaining(["token", "rotation", "evidence"]))
   })
 

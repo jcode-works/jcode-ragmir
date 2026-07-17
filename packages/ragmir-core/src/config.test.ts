@@ -44,6 +44,11 @@ describe("loadConfig", () => {
     expect(config.accessLog).toBe(true)
     expect(config.mcpMaxTopK).toBe(10)
     expect(config.mcpMaxOutputBytes).toBe(32_768)
+    expect(config.workloadLimits).toEqual({
+      search: { concurrency: 8, maxQueue: 64, queueTimeoutMs: 30_000 },
+      embedding: { concurrency: 1, maxQueue: 64, queueTimeoutMs: 30_000 },
+      ingestion: { concurrency: 1, maxQueue: 4, queueTimeoutMs: 120_000 },
+    })
     expect(config.sources).toEqual([])
     expect(config.includeExtensions).toEqual([])
     expect(config.pdfOcrCommand).toEqual([])
@@ -524,6 +529,23 @@ describe("loadConfig", () => {
     await writeFile(configPath, JSON.stringify({ hybridTextScanLimit: 10_001 }))
     await expect(loadConfig(root)).rejects.toThrow(/hybridTextScanLimit.*at most/i)
 
+    await writeFile(configPath, JSON.stringify({ workloadLimits: { search: { concurrency: 17 } } }))
+    await expect(loadConfig(root)).rejects.toThrow(/workloadLimits[\s\S]*search[\s\S]*concurrency/i)
+
+    await writeFile(
+      configPath,
+      JSON.stringify({ workloadLimits: { embedding: { maxQueue: 1_001 } } }),
+    )
+    await expect(loadConfig(root)).rejects.toThrow(/workloadLimits[\s\S]*embedding[\s\S]*maxQueue/i)
+
+    await writeFile(
+      configPath,
+      JSON.stringify({ workloadLimits: { ingestion: { queueTimeoutMs: 900_001 } } }),
+    )
+    await expect(loadConfig(root)).rejects.toThrow(
+      /workloadLimits[\s\S]*ingestion[\s\S]*queueTimeoutMs/i,
+    )
+
     await writeFile(configPath, "{}\n")
     const original = process.env.RAGMIR_INGEST_CONCURRENCY
     process.env.RAGMIR_INGEST_CONCURRENCY = "1000000"
@@ -532,6 +554,24 @@ describe("loadConfig", () => {
     } finally {
       restoreEnv("RAGMIR_INGEST_CONCURRENCY", original)
     }
+  })
+
+  it("should merge partial workload admission limits with safe defaults", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-workloads-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ workloadLimits: { search: { concurrency: 2 } } }),
+    )
+
+    await expect(loadConfig(root)).resolves.toMatchObject({
+      workloadLimits: {
+        search: { concurrency: 2, maxQueue: 64, queueTimeoutMs: 30_000 },
+        embedding: { concurrency: 1, maxQueue: 64, queueTimeoutMs: 30_000 },
+        ingestion: { concurrency: 1, maxQueue: 4, queueTimeoutMs: 120_000 },
+      },
+    })
   })
 
   it("rejects a config file that is not a JSON object", async () => {

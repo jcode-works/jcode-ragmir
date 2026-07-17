@@ -63,6 +63,7 @@
   },
   "scripts": {
     "bench:compare": "node benchmarks/compare.mjs",
+    "bench:concurrency": "pnpm build && node benchmarks/concurrency.mjs",
     "bench:discovery": "pnpm build && node benchmarks/discovery.mjs",
     "bench:ingest-memory": "pnpm build && node benchmarks/ingest-memory.mjs",
     "bench:ingestion-metadata": "pnpm build && node benchmarks/ingestion-metadata.mjs",

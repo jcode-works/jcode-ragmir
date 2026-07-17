@@ -42,6 +42,7 @@ import type {
   VectorIndexManifest,
 } from "./types.js"
 import { configureAdaptiveVectorQuery, vectorIndexManifestCompatible } from "./vector-index.js"
+import { runWorkload } from "./workload.js"
 
 type RowsTable = NonNullable<IndexReadSnapshot["table"]>
 
@@ -152,13 +153,16 @@ export async function searchWithConfig(
   activeSignal?: AbortSignal,
   suppliedSnapshot?: IndexReadSnapshot,
 ): Promise<SearchResult[]> {
-  const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
-  const lease = await acquireGenerationReadLease(snapshot.tableName, config)
-  try {
-    return await searchWithinGeneration(query, options, config, snapshot, activeSignal)
-  } finally {
-    await lease.release().catch(() => undefined)
-  }
+  const signal = activeSignal ?? operationSignal(options)
+  return runWorkload(config, "search", signal, async ({ queueTimeMs }) => {
+    const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
+    const lease = await acquireGenerationReadLease(snapshot.tableName, config)
+    try {
+      return await searchWithinGeneration(query, options, config, snapshot, signal, queueTimeMs)
+    } finally {
+      await lease.release().catch(() => undefined)
+    }
+  })
 }
 
 async function searchWithinGeneration(
@@ -167,6 +171,7 @@ async function searchWithinGeneration(
   config: Config,
   snapshot: IndexReadSnapshot,
   activeSignal?: AbortSignal,
+  workloadQueueMs = 0,
 ): Promise<SearchResult[]> {
   const signal = activeSignal ?? operationSignal(options)
   const topK = normalizeTopK(options.topK ?? config.topK)
@@ -192,8 +197,11 @@ async function searchWithinGeneration(
     options.excludePaths,
     options.contextPaths,
   )
+  let embeddingQueueMs = 0
   const [vector, lexicalCandidates] = await Promise.all([
-    embedText(sanitized.query, config),
+    embedText(sanitized.query, config, signal, ({ queueTimeMs }) => {
+      embeddingQueueMs = queueTimeMs
+    }),
     lexicalCandidateRows(table, sanitized.query, {
       ftsLimit: lexicalCandidateLimit(topK, config.retrievalProfile),
       fallbackLimit: config.hybridTextScanLimit,
@@ -275,6 +283,7 @@ async function searchWithinGeneration(
               lexicalIndexedRows: lexicalCandidates.indexedRows,
               lexicalUnindexedRows: lexicalCandidates.unindexedRows,
               lexicalCoverage: lexicalCandidates.coverage,
+              workloadQueueMs: workloadQueueMs + embeddingQueueMs,
               rankingPolicyFingerprint: rankingPolicyFingerprint(rankingPolicy),
               matchedTerms: matchedQueryTerms(config.projectRoot, queryTokens, row.row.searchText),
             },

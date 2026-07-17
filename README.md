@@ -171,8 +171,10 @@ pnpm exec rgr search "release approval" --exact-vector-search
 ```
 
 Explanations expose reciprocal-rank-fusion contributions, vector and lexical ranks, FTS or fallback
-activation and reason, candidate and coverage budgets, backend scores, matched terms, and the active
-ranking-policy fingerprint without changing default ranking. Structural context and body text feed
+activation and reason, candidate and coverage budgets, queue wait, backend scores, matched terms,
+and the active ranking-policy fingerprint without changing default ranking. Independent bounded
+queues protect search, embedding, and ingestion. Saturation returns a retryable `OVERLOADED` error
+instead of growing memory without limit. Structural context and body text feed
 the primary lexical index. Exact file paths use a bounded scalar variant; exact phrases,
 identifiers, and fuzzy rare terms expand only an insufficient primary pool. Equal scores
 use stable source and chunk tie-breaks, and provider-aware abstention can return no passage instead

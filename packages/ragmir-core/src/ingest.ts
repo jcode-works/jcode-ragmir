@@ -66,6 +66,7 @@ import type {
   VectorRow,
 } from "./types.js"
 import { VERSION } from "./version.js"
+import { runWorkload } from "./workload.js"
 
 const MAX_SOURCE_DIAGNOSTIC_ITEMS = 20
 const DEFAULT_INGEST_FILE_BATCH_SIZE = 25
@@ -95,8 +96,10 @@ export async function ingestWithConfig(
   connection?: Connection,
 ): Promise<IngestResult> {
   const signal = operationSignal(options)
-  return withIndexWriteLock(config.storageDir, signal, () =>
-    ingestUnlocked(config, options, connection, signal),
+  return runWorkload(config, "ingestion", signal, () =>
+    withIndexWriteLock(config.storageDir, signal, () =>
+      ingestUnlocked(config, options, connection, signal),
+    ),
   )
 }
 
@@ -486,7 +489,7 @@ async function vectorRowsForChunks(
   let vectorBytes = 0
   for (const batch of valueBatches(chunks, config.embeddingBatchSize)) {
     throwIfAborted(signal)
-    const embeddings = await embedTexts(batch.map(chunkSearchText), config)
+    const embeddings = await embedTexts(batch.map(chunkSearchText), config, "document", signal)
     throwIfAborted(signal)
     for (const [index, chunk] of batch.entries()) {
       const vector = embeddings[index]

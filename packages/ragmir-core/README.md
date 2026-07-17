@@ -61,7 +61,9 @@ and rebuild the index.
 Hybrid retrieval has stable source-and-chunk tie-breaks, two-pass recall-safe diversification, and
 provider-aware abstention. Pass `explain: true` to inspect vector and lexical contributions, FTS or
 fallback activation and reason, candidate and coverage budgets, plus the active ranking-policy
-fingerprint.
+fingerprint. Search, embedding, and ingestion use independent bounded queues per project root;
+overload and queue deadlines return stable retryable errors, and explained searches include queue
+wait.
 An empty result means every candidate failed the evidence threshold.
 
 `research` uses language-aware query expansion with deterministic cross-query ranking. It reads

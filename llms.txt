@@ -42,6 +42,9 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   bounded scalar variant; exact phrases, identifiers and rare terms expand the lexical pool only
   when it cannot fill `topK`. Diversification backfills ranked
   non-overlapping chunks after its source-diverse pass.
+- Workload admission: search, embedding, and ingestion have separate bounded process-local queues
+  per project root. Overload and queue timeout are retryable structured errors; explained searches
+  expose queue wait, and shutdown drains accepted work before closing storage.
 - Research: language-aware query variants use deterministic weighted cross-query RRF. The normal
   path reads manifest health; a full source audit is explicit. Timeout, code-file, code-byte,
   concurrency, evidence, and MCP byte budgets stay bounded and are reported.

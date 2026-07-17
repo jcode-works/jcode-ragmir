@@ -45,6 +45,7 @@ export interface Config {
   sourceFingerprintMode: SourceFingerprintMode
   incrementalFailurePolicy: IncrementalFailurePolicy
   hybridTextScanLimit: number
+  workloadLimits: WorkloadLimits
   includeExtensions: string[]
   pdfOcrCommand: string[]
   pdfOcrTimeoutMs: number
@@ -58,6 +59,15 @@ export type PrivacyProfile = "strict" | "private" | "trusted" | "custom"
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
 export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
 export type SourceFingerprintMode = "fast" | "strict"
+export type WorkloadKind = "search" | "embedding" | "ingestion"
+
+export interface WorkloadLimit {
+  concurrency: number
+  maxQueue: number
+  queueTimeoutMs: number
+}
+
+export type WorkloadLimits = Record<WorkloadKind, WorkloadLimit>
 
 export type AccessLogAction =
   | "ingest"
@@ -555,6 +565,7 @@ export interface SearchScoreExplanation {
   lexicalIndexedRows: number
   lexicalUnindexedRows: number
   lexicalCoverage: number
+  workloadQueueMs: number
   rankingPolicyFingerprint: string
   matchedTerms: string[]
 }
