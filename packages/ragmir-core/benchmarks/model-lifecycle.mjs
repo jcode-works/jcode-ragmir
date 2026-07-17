@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
+import { environmentMetadata } from "./lib/metrics.mjs"
 
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -29,6 +30,8 @@ const gates = {
 }
 const report = {
   schemaVersion: 1,
+  createdAt: new Date().toISOString(),
+  environment: environmentMetadata(),
   model: process.env.RAGMIR_BENCH_MODEL ?? "mixedbread-ai/mxbai-embed-xsmall-v1",
   single,
   switched,

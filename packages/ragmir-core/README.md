@@ -19,7 +19,7 @@ It does not upload the corpus, call an LLM, or open an HTTP port.
 
 ## Install and retrieve
 
-Requires Node.js 20 or later.
+Requires Node.js 22 or later. Releases are gated on Linux x64 and macOS ARM64 with Node.js 22.
 
 ```bash
 npm install --save-dev @jcode.labs/ragmir

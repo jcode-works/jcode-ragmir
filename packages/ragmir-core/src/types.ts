@@ -1042,6 +1042,7 @@ export interface DoctorReport {
   initialized: boolean
   packageManager: PackageManager
   runCommand: string
+  runtime: RuntimeInfo
   agentKitInstalled: boolean
   agentIntegration: AgentIntegrationReport
   rawDir: string
@@ -1080,6 +1081,28 @@ export interface DoctorReport {
     acceptedRisks: string[]
   }
   nextSteps: string[]
+}
+
+export interface RuntimePackageVersion {
+  name: string
+  version: string
+}
+
+export interface RuntimeInfo {
+  ragmir: string
+  node: string
+  v8: string
+  napi: string | null
+  platform: NodeJS.Platform
+  architecture: string
+  dependencies: {
+    lanceDb: RuntimePackageVersion | null
+    lanceDbNative: RuntimePackageVersion | null
+    apacheArrow: RuntimePackageVersion | null
+    transformers: RuntimePackageVersion | null
+    onnxRuntime: RuntimePackageVersion | null
+    sharp: RuntimePackageVersion | null
+  }
 }
 
 export interface DoctorOptions extends OperationOptions {

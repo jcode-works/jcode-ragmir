@@ -1939,6 +1939,17 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`ready=${report.ready}`)
   console.log(`packageManager=${report.packageManager}`)
   console.log(`runCommand=${report.runCommand}`)
+  console.log(`runtime.ragmir=${report.runtime.ragmir}`)
+  console.log(`runtime.node=${report.runtime.node}`)
+  console.log(`runtime.v8=${report.runtime.v8}`)
+  console.log(`runtime.napi=${report.runtime.napi ?? "unavailable"}`)
+  console.log(`runtime.platform=${report.runtime.platform}`)
+  console.log(`runtime.architecture=${report.runtime.architecture}`)
+  for (const [name, dependency] of Object.entries(report.runtime.dependencies)) {
+    console.log(
+      `runtime.dependencies.${name}=${dependency ? `${dependency.name}@${dependency.version}` : "unavailable"}`,
+    )
+  }
   console.log(`agentKitInstalled=${report.agentKitInstalled}`)
   console.log(`agentIntegration.ready=${report.agentIntegration.ready}`)
   console.log(`agentIntegration.runnerReady=${report.agentIntegration.runnerReady}`)

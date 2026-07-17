@@ -8,6 +8,7 @@ import { auditWithConfig } from "./ingest.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { RGR_RUNNER_FILENAME, rgrCommand } from "./package-manager.js"
 import { isCompatibleQualityReport } from "./quality-report.js"
+import { runtimeInfo } from "./runtime-info.js"
 import { securityAuditWithConfig } from "./security.js"
 import {
   AGENT_HELPER_CONFIG_FILENAMES,
@@ -128,6 +129,7 @@ export async function doctorWithConfig(
     initialized,
     packageManager: command.packageManager,
     runCommand: command.display,
+    runtime: runtimeInfo(),
     agentKitInstalled,
     agentIntegration,
     rawDir: config.rawDir,

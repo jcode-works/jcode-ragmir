@@ -35,6 +35,15 @@ describe("doctor", () => {
     expect(uninitialized.initialized).toBe(false)
     expect(uninitialized.ready).toBe(false)
     expect(uninitialized.packageManager).toBe("pnpm")
+    expect(uninitialized.runtime).toMatchObject({
+      node: process.versions.node,
+      platform: process.platform,
+      architecture: process.arch,
+      dependencies: {
+        lanceDb: { version: expect.any(String) },
+        lanceDbNative: { version: expect.any(String) },
+      },
+    })
     expect(uninitialized.agentKitInstalled).toBe(false)
     expect(uninitialized.agentIntegration.ready).toBe(false)
     expect(uninitialized.nextSteps).toEqual([

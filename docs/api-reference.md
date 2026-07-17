@@ -1,6 +1,7 @@
 # TypeScript API reference
 
-Ragmir publishes three ESM packages for Node.js 20 or later:
+Ragmir publishes three ESM packages for Node.js 22 or later. Releases are gated on Linux x64 and
+macOS ARM64 with Node.js 22:
 
 | Package | Recommended entry point |
 | --- | --- |
@@ -13,6 +14,10 @@ APIs when a Node.js process owns the workflow. All paths resolve from `cwd` or t
 directory, and generated state stays under the project's ignored `.ragmir/` directory. With the
 default `local-hash` provider, Core indexes and retrieves private project files locally and
 offline. Only passages a caller explicitly hands to an external consumer cross that boundary.
+
+`doctor()` includes a `runtime` block with the active Node, V8, N-API, platform, architecture,
+Ragmir, LanceDB, Arrow, Transformers.js, ONNX Runtime, and Sharp versions. This records resolved
+package metadata without importing or initializing the optional semantic runtimes.
 
 ## Core: cited retrieval
 

@@ -151,6 +151,8 @@ export type {
   ResearchOptions,
   ResearchReport,
   RetrievalProfile,
+  RuntimeInfo,
+  RuntimePackageVersion,
   SearchContextChunk,
   SearchOptions,
   SearchResult,

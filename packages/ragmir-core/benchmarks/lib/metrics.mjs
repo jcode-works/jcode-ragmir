@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto"
+import { existsSync, readFileSync } from "node:fs"
 import { readFile, readdir, stat } from "node:fs/promises"
+import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
 import { monitorEventLoopDelay, performance } from "node:perf_hooks"
@@ -120,7 +122,7 @@ export async function directorySize(root) {
   return total
 }
 
-export function environmentMetadata() {
+export function environmentMetadata(options = {}) {
   const cpu = os.cpus()[0]
   const commit = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" })
   const machine = {
@@ -136,6 +138,78 @@ export function environmentMetadata() {
     commit: commit.status === 0 ? commit.stdout.trim() : "unknown",
     machine,
     machineFingerprint: sha256(stableJson(machine)),
+    runtimeDependencies: runtimeDependencyVersions(options.includeSemanticDependencies !== false),
+  }
+}
+
+function runtimeDependencyVersions(includeSemanticDependencies) {
+  const requireFrom = createRequire(import.meta.url)
+  const lanceDbEntry = resolvePackageEntry(requireFrom, "@lancedb/lancedb")
+  const lanceDbRequire = lanceDbEntry ? createRequire(lanceDbEntry) : requireFrom
+  const transformersEntry = includeSemanticDependencies
+    ? resolvePackageEntry(requireFrom, "@huggingface/transformers")
+    : null
+  const transformersRequire = transformersEntry ? createRequire(transformersEntry) : requireFrom
+  return {
+    lanceDb: resolvedPackageVersion(requireFrom, "@lancedb/lancedb"),
+    lanceDbNative: resolvedLanceDbNative(lanceDbRequire),
+    apacheArrow: resolvedPackageVersion(lanceDbRequire, "apache-arrow"),
+    transformers: includeSemanticDependencies
+      ? resolvedPackageVersion(requireFrom, "@huggingface/transformers")
+      : null,
+    onnxRuntime: includeSemanticDependencies
+      ? resolvedPackageVersion(transformersRequire, "onnxruntime-node")
+      : null,
+    sharp: includeSemanticDependencies
+      ? resolvedPackageVersion(transformersRequire, "sharp")
+      : null,
+  }
+}
+
+function resolvedLanceDbNative(requireFrom) {
+  const base = `@lancedb/lancedb-${process.platform}-${process.arch}`
+  const candidates =
+    process.platform === "linux" ? [`${base}-gnu`, `${base}-musl`] : [`${base}-msvc`, base]
+  for (const packageName of candidates) {
+    const resolved = resolvedPackageVersion(requireFrom, packageName)
+    if (resolved) {
+      return { name: packageName, version: resolved }
+    }
+  }
+  return null
+}
+
+function resolvedPackageVersion(requireFrom, packageName) {
+  const entry = resolvePackageEntry(requireFrom, packageName)
+  if (!entry) {
+    return null
+  }
+  let directory = path.dirname(entry)
+  while (true) {
+    const manifestPath = path.join(directory, "package.json")
+    if (existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+        if (manifest?.name === packageName && typeof manifest.version === "string") {
+          return manifest.version
+        }
+      } catch {
+        return null
+      }
+    }
+    const parent = path.dirname(directory)
+    if (parent === directory) {
+      return null
+    }
+    directory = parent
+  }
+}
+
+function resolvePackageEntry(requireFrom, packageName) {
+  try {
+    return requireFrom.resolve(packageName)
+  } catch {
+    return null
   }
 }
 

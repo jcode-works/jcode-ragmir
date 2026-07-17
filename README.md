@@ -26,8 +26,9 @@ for cited answer generation from a verified local model.
 
 ## Give your coding agent cited project evidence
 
-Ragmir requires Node.js 20 or later. Install it in the repository that owns the files you want to
-search:
+Ragmir requires Node.js 22 or later. Release gates run on Node.js 22 for Linux x64 and macOS ARM64;
+other operating-system and architecture combinations are not currently release-gated. Install it
+in the repository that owns the files you want to search:
 
 ```bash
 pnpm add -D @jcode.labs/ragmir

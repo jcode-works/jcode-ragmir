@@ -1,5 +1,6 @@
 import { registerHooks } from "node:module"
 import path from "node:path"
+import { environmentMetadata } from "./lib/metrics.mjs"
 
 const forbidden = /(?:@huggingface\/transformers|onnxruntime|sharp)/iu
 const resolutions = []
@@ -33,6 +34,7 @@ const embeddings = await embedTexts(["offline local retrieval", "deterministic e
 
 process.stdout.write(
   `${JSON.stringify({
+    environment: environmentMetadata({ includeSemanticDependencies: false }),
     provider: config.embeddingProvider,
     rows: embeddings.length,
     dimensions: embeddings[0]?.length ?? 0,
