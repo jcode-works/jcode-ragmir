@@ -1,4 +1,5 @@
-export { accessLogUsageReport } from "./access-log.js"
+export type { AccessLogWriterMetrics } from "./access-log.js"
+export { accessLogUsageReport, accessLogWriterMetrics, flushAccessLog } from "./access-log.js"
 export type { RagmirClientOptions } from "./client.js"
 export { createRagmirClient, RagmirClient } from "./client.js"
 export { loadConfig } from "./config.js"

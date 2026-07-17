@@ -21,7 +21,7 @@
   "rules": [
     "Ragmir Core returns cited retrieval context only; it does not synthesize answers itself.",
     "Any compatible coding agent, script, CLI, TypeScript application, or MCP client can consume Core results; use a local consumer when no passage may leave the machine.",
-    "Use one `createRagmirClient()` per project root for repeated work in a stateful Node.js process; close it during shutdown and use the top-level functions for one-shot scripts.",
+    "Use one `createRagmirClient()` per project root for repeated work in a stateful Node.js process; it caches one immutable read snapshot until atomic generation replacement and flushes metadata-only access logs during close. Use top-level functions for one-shot scripts.",
     "Ragmir does not open an HTTP port; a network-facing host owns its transport, authentication, authorization, and rate limits.",
     "`rgr chat` is optional add-on generation via @jcode.labs/ragmir-chat; the core remains retrieval-only.",
     "@jcode.labs/ragmir-chat exposes lite (Qwen2.5 0.5B), default fast (Gemma 4 E2B), and explicit quality (Gemma 4 E4B) profiles; setup, doctor, and generation should use the same profile, and none is required by Core or MCP.",

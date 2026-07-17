@@ -9,7 +9,9 @@ import {
   LEGACY_DEFAULT_CONFIG,
   MAX_CONFIGURED_FILE_BYTES,
   MAX_EMBEDDING_BATCH_SIZE,
+  MAX_HYBRID_TEXT_SCAN_LIMIT,
   MAX_INGEST_CONCURRENCY,
+  MAX_SEARCH_TOP_K,
 } from "./defaults.js"
 import { isRecord } from "./guards.js"
 import type { Config } from "./types.js"
@@ -145,6 +147,9 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
   assertAtMost("maxFileBytes", effective.maxFileBytes, MAX_CONFIGURED_FILE_BYTES)
   assertAtMost("ingestConcurrency", effective.ingestConcurrency, MAX_INGEST_CONCURRENCY)
   assertAtMost("embeddingBatchSize", effective.embeddingBatchSize, MAX_EMBEDDING_BATCH_SIZE)
+  assertAtMost("topK", effective.topK, MAX_SEARCH_TOP_K)
+  assertAtMost("mcpMaxTopK", effective.mcpMaxTopK, MAX_SEARCH_TOP_K)
+  assertAtMost("hybridTextScanLimit", effective.hybridTextScanLimit, MAX_HYBRID_TEXT_SCAN_LIMIT)
 
   if (effective.chunkOverlap >= effective.chunkSize) {
     throw new Error("chunkOverlap must be lower than chunkSize.")

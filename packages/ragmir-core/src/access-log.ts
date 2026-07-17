@@ -81,78 +81,148 @@ const MAX_ACCESS_LOG_BYTES = 10 * 1024 * 1024
 /** Number of most recent lines retained when the log exceeds the byte cap. */
 const TRIMMED_ACCESS_LOG_LINES = 50_000
 const ACCESS_LOG_SALT_FILE = ".ragmir-access-log.salt"
-const accessLogWriteQueues = new Map<string, Promise<void>>()
+export const MAX_ACCESS_LOG_PENDING_EVENTS = 1_024
+const ACCESS_LOG_WRITE_BATCH_SIZE = 64
 
-export async function recordAccess(config: Config, event: AccessLogEvent): Promise<void> {
-  if (!config.accessLog) {
-    return
-  }
-
-  try {
-    await withAccessLogWriteQueue(config.accessLogPath, async () => {
-      await ensurePrivateDirectory(path.dirname(config.accessLogPath))
-      await trimAccessLogIfNeeded(config.accessLogPath)
-      await appendFile(
-        config.accessLogPath,
-        `${JSON.stringify(await toLogLine(config, event))}\n`,
-        {
-          encoding: "utf8",
-          mode: 0o600,
-        },
-      )
-      await hardenPrivateFile(config.accessLogPath)
-    })
-  } catch {
-    // Access logging is best-effort so read-only workspaces do not block local use.
-  }
+interface PendingAccessLogLine {
+  render: () => Promise<string>
+  settle: () => void
 }
 
-export async function recordMcpOutput(config: Config, event: McpOutputLogEvent): Promise<void> {
-  if (!config.accessLog) {
-    return
-  }
-
-  try {
-    await withAccessLogWriteQueue(config.accessLogPath, async () => {
-      await ensurePrivateDirectory(path.dirname(config.accessLogPath))
-      await trimAccessLogIfNeeded(config.accessLogPath)
-      const line: McpOutputLogLine = {
-        timestamp: new Date().toISOString(),
-        kind: "mcp-output",
-        tool: event.tool,
-        retrievedBytes: event.retrievedBytes,
-        returnedBytes: event.returnedBytes,
-        compacted: event.compacted,
-        truncated: event.truncated,
-      }
-      await appendFile(config.accessLogPath, `${JSON.stringify(line)}\n`, {
-        encoding: "utf8",
-        mode: 0o600,
-      })
-      await hardenPrivateFile(config.accessLogPath)
-    })
-  } catch {
-    // Output metrics are best-effort and must never block local retrieval.
-  }
+interface AccessLogWriterState {
+  pending: PendingAccessLogLine[]
+  active: Promise<void> | null
+  inFlightEvents: number
+  writtenEvents: number
+  droppedEvents: number
 }
 
-function withAccessLogWriteQueue(
-  accessLogPath: string,
-  operation: () => Promise<void>,
-): Promise<void> {
-  const previous = accessLogWriteQueues.get(accessLogPath) ?? Promise.resolve()
-  const current = previous.then(operation)
-  const settled = current.then(
-    () => undefined,
-    () => undefined,
+export interface AccessLogWriterMetrics {
+  pendingEvents: number
+  inFlightEvents: number
+  writtenEvents: number
+  droppedEvents: number
+}
+
+const accessLogWriters = new Map<string, AccessLogWriterState>()
+const accessLogSalts = new Map<string, Promise<Buffer>>()
+
+export function recordAccess(config: Config, event: AccessLogEvent): Promise<void> {
+  if (!config.accessLog) {
+    return Promise.resolve()
+  }
+  return enqueueAccessLogLine(config.accessLogPath, async () =>
+    JSON.stringify(await toLogLine(config, event)),
   )
-  accessLogWriteQueues.set(accessLogPath, settled)
-  void settled.then(() => {
-    if (accessLogWriteQueues.get(accessLogPath) === settled) {
-      accessLogWriteQueues.delete(accessLogPath)
+}
+
+export function recordMcpOutput(config: Config, event: McpOutputLogEvent): Promise<void> {
+  if (!config.accessLog) {
+    return Promise.resolve()
+  }
+  return enqueueAccessLogLine(config.accessLogPath, async () =>
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      kind: "mcp-output",
+      tool: event.tool,
+      retrievedBytes: event.retrievedBytes,
+      returnedBytes: event.returnedBytes,
+      compacted: event.compacted,
+      truncated: event.truncated,
+    } satisfies McpOutputLogLine),
+  )
+}
+
+export async function flushAccessLog(config: Config): Promise<AccessLogWriterMetrics> {
+  const state = accessLogWriters.get(config.accessLogPath)
+  if (!state) {
+    return emptyAccessLogWriterMetrics()
+  }
+  while (state.active || state.pending.length > 0) {
+    startAccessLogWriter(config.accessLogPath, state)
+    if (state.active) {
+      await state.active
     }
+  }
+  return accessLogWriterMetrics(config)
+}
+
+export function accessLogWriterMetrics(config: Config): AccessLogWriterMetrics {
+  const state = accessLogWriters.get(config.accessLogPath)
+  return state
+    ? {
+        pendingEvents: state.pending.length,
+        inFlightEvents: state.inFlightEvents,
+        writtenEvents: state.writtenEvents,
+        droppedEvents: state.droppedEvents,
+      }
+    : emptyAccessLogWriterMetrics()
+}
+
+function enqueueAccessLogLine(accessLogPath: string, render: () => Promise<string>): Promise<void> {
+  const state = accessLogWriters.get(accessLogPath) ?? {
+    pending: [],
+    active: null,
+    inFlightEvents: 0,
+    writtenEvents: 0,
+    droppedEvents: 0,
+  }
+  accessLogWriters.set(accessLogPath, state)
+  if (state.pending.length >= MAX_ACCESS_LOG_PENDING_EVENTS) {
+    state.droppedEvents += 1
+    return Promise.resolve()
+  }
+  return new Promise((settle) => {
+    state.pending.push({ render, settle })
+    startAccessLogWriter(accessLogPath, state)
   })
-  return current
+}
+
+function startAccessLogWriter(accessLogPath: string, state: AccessLogWriterState): void {
+  if (state.active || state.pending.length === 0) {
+    return
+  }
+  const batch = state.pending.splice(0, ACCESS_LOG_WRITE_BATCH_SIZE)
+  state.inFlightEvents = batch.length
+  const active = writeAccessLogBatch(accessLogPath, batch)
+    .then(() => {
+      state.writtenEvents += batch.length
+    })
+    .catch(() => {
+      state.droppedEvents += batch.length
+    })
+    .finally(() => {
+      for (const entry of batch) {
+        entry.settle()
+      }
+      state.inFlightEvents = 0
+      state.active = null
+      startAccessLogWriter(accessLogPath, state)
+    })
+  state.active = active
+}
+
+async function writeAccessLogBatch(
+  accessLogPath: string,
+  batch: PendingAccessLogLine[],
+): Promise<void> {
+  await ensurePrivateDirectory(path.dirname(accessLogPath))
+  await trimAccessLogIfNeeded(accessLogPath)
+  const lines = await Promise.all(batch.map((entry) => entry.render()))
+  await appendFile(accessLogPath, `${lines.join("\n")}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  })
+  await hardenPrivateFile(accessLogPath)
+}
+
+function emptyAccessLogWriterMetrics(): AccessLogWriterMetrics {
+  return {
+    pendingEvents: 0,
+    inFlightEvents: 0,
+    writtenEvents: 0,
+    droppedEvents: 0,
+  }
 }
 
 async function trimAccessLogIfNeeded(accessLogPath: string): Promise<void> {
@@ -186,6 +256,8 @@ export async function accessLogUsageReport(
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  throwIfAborted(signal)
+  await flushAccessLog(config)
   throwIfAborted(signal)
   const days = normalizeUsageReportDays(options.days)
   const until = new Date()
@@ -327,6 +399,23 @@ async function hashQuery(config: Config, query: string): Promise<string> {
 
 async function accessLogSalt(config: Config): Promise<Buffer> {
   const saltPath = path.join(path.dirname(config.accessLogPath), ACCESS_LOG_SALT_FILE)
+  const cached = accessLogSalts.get(saltPath)
+  if (cached) {
+    return cached
+  }
+  const loading = loadAccessLogSalt(saltPath)
+  accessLogSalts.set(saltPath, loading)
+  try {
+    return await loading
+  } catch (error) {
+    if (accessLogSalts.get(saltPath) === loading) {
+      accessLogSalts.delete(saltPath)
+    }
+    throw error
+  }
+}
+
+async function loadAccessLogSalt(saltPath: string): Promise<Buffer> {
   try {
     return await readFile(saltPath)
   } catch (error) {

@@ -1,5 +1,6 @@
 import {
   accessLogUsageReport,
+  accessLogWriterMetrics,
   audit,
   connectMcpServer,
   createMcpServer,
@@ -7,6 +8,7 @@ import {
   doctor,
   enableSemanticEmbeddings,
   evaluateGoldenQueries,
+  flushAccessLog,
   getKnowledgeBaseContext,
   getKnowledgeBaseSourceCatalog,
   ingest,
@@ -16,6 +18,7 @@ import {
   search,
   securityAudit,
   type Config,
+  type AccessLogWriterMetrics,
   type EnableSemanticEmbeddingsResult,
   type IngestOptions,
   type OperationOptions,
@@ -85,12 +88,16 @@ void generateChatAnswer(chatOptions)
 void renderSpeech(speechOptions)
 
 declare const config: Config
+const accessLogMetrics: AccessLogWriterMetrics = accessLogWriterMetrics(config)
+const flushedAccessLog: Promise<AccessLogWriterMetrics> = flushAccessLog(config)
 const semanticResult: Promise<EnableSemanticEmbeddingsResult> = enableSemanticEmbeddings(cwd)
 const pullResult: Promise<PullEmbeddingModelResult> = pullEmbeddingModel(config)
 const redactions: RedactionCount[] = redactText("example", config).counts
 const errorCode: RagmirErrorCode = "TIMEOUT"
 
 void semanticResult
+void accessLogMetrics
+void flushedAccessLog
 void pullResult
 void redactions
 void errorCode

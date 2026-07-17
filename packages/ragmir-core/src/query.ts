@@ -1,21 +1,24 @@
+import { channel } from "node:diagnostics_channel"
 import type { Connection } from "@lancedb/lancedb"
-import { recordAccess } from "./access-log.js"
+import { flushAccessLog, recordAccess } from "./access-log.js"
 import { citationForCoordinates, stripCitationCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
-import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
+import { MAX_SEARCH_TOP_K, VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { embedText } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
-import { withActiveGenerationReadLease } from "./generation-retention.js"
-import { getIndexFreshnessWarning } from "./index-diagnostics.js"
+import { acquireGenerationReadLease } from "./generation-retention.js"
+import { indexFreshnessWarning } from "./index-diagnostics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
-import { openRowsTableByName, readIndexManifest } from "./store.js"
+import type { IndexReadSnapshot } from "./store.js"
+import { loadIndexReadSnapshot } from "./store.js"
 import { tokenize } from "./text.js"
 import type {
   AskResult,
   Config,
   ExpandCitationOptions,
   ExpandedCitation,
+  IndexManifest,
   RetrievalProfile,
   SearchContextChunk,
   SearchOptions,
@@ -25,7 +28,7 @@ import type {
 } from "./types.js"
 import { configureAdaptiveVectorQuery, vectorIndexManifestCompatible } from "./vector-index.js"
 
-type RowsTable = NonNullable<Awaited<ReturnType<typeof openRowsTableByName>>>
+type RowsTable = NonNullable<IndexReadSnapshot["table"]>
 
 interface SearchRow {
   source: string
@@ -58,7 +61,6 @@ interface RankedRow {
   vectorRank: number | null
   lexicalRank: number | null
   lexicalBackendScore: number | null
-  matchedTerms: string[]
 }
 
 const VECTOR_CANDIDATE_POLICY: Record<
@@ -70,6 +72,13 @@ const VECTOR_CANDIDATE_POLICY: Record<
   quality: { minimum: 200, multiplier: 8, maxChunksPerSource: 4 },
   custom: { minimum: 80, multiplier: 4, maxChunksPerSource: 2 },
 }
+const LEXICAL_CANDIDATE_POLICY: Record<RetrievalProfile, { minimum: number; multiplier: number }> =
+  {
+    fast: { minimum: 100, multiplier: 10 },
+    balanced: { minimum: 250, multiplier: 20 },
+    quality: { minimum: 500, multiplier: 40 },
+    custom: { minimum: 250, multiplier: 20 },
+  }
 /**
  * Reciprocal Rank Fusion (Cormack et al. 2009). Each candidate scores
  * `weight / (RRF_K + rank)` per retriever it appears in, summed across
@@ -86,6 +95,9 @@ const RRF_LEXICAL_WEIGHT = 1
 const BM25_K1 = 1.2
 const BM25_B = 0.75
 const MAX_CONTEXT_RADIUS = 3
+const MAX_VECTOR_CANDIDATES = 1_000
+export const QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL = "ragmir:query-explanation"
+const queryExplanationDiagnostics = channel(QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL)
 const MIN_FUZZY_TOKEN_LENGTH = 7
 const MIN_TRIGRAM_DICE_SIMILARITY = 0.5
 const SEARCH_COLUMNS = [
@@ -113,7 +125,9 @@ const FTS_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_score"]
 
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  return searchWithConfig(query, options, config)
+  const results = await searchWithConfig(query, options, config)
+  await flushAccessLog(config)
+  return results
 }
 
 export async function searchWithConfig(
@@ -122,18 +136,22 @@ export async function searchWithConfig(
   config: Config,
   connection?: Connection,
   activeSignal?: AbortSignal,
+  suppliedSnapshot?: IndexReadSnapshot,
 ): Promise<SearchResult[]> {
-  return withActiveGenerationReadLease(config, (tableName) =>
-    searchWithinGeneration(query, options, config, tableName, connection, activeSignal),
-  )
+  const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
+  const lease = await acquireGenerationReadLease(snapshot.tableName, config)
+  try {
+    return await searchWithinGeneration(query, options, config, snapshot, activeSignal)
+  } finally {
+    await lease.release().catch(() => undefined)
+  }
 }
 
 async function searchWithinGeneration(
   query: string,
   options: SearchOptions,
   config: Config,
-  tableName: string,
-  connection?: Connection,
+  snapshot: IndexReadSnapshot,
   activeSignal?: AbortSignal,
 ): Promise<SearchResult[]> {
   const signal = activeSignal ?? operationSignal(options)
@@ -141,12 +159,12 @@ async function searchWithinGeneration(
   const defaultContextRadius = config.retrievalProfile === "quality" ? 1 : 0
   const contextRadius = normalizeContextRadius(options.contextRadius ?? defaultContextRadius)
   throwIfAborted(signal)
-  const table = await openRowsTableByName(tableName, config, connection)
+  const table = snapshot.table
   throwIfAborted(signal)
   if (!table) {
     return []
   }
-  await assertIndexFreshness(config)
+  assertIndexFreshness(config, snapshot.manifest)
 
   const sanitized = sanitizeRetrievalQuery(query)
   const queryTokens = tokenize(sanitized.query)
@@ -161,10 +179,15 @@ async function searchWithinGeneration(
   )
   const [vector, textRows] = await Promise.all([
     embedText(sanitized.query, config),
-    lexicalCandidateRows(table, sanitized.query, config.hybridTextScanLimit, retrievalPredicate),
+    lexicalCandidateRows(
+      table,
+      sanitized.query,
+      lexicalCandidateLimit(config.hybridTextScanLimit, topK, config.retrievalProfile),
+      retrievalPredicate,
+    ),
   ])
   throwIfAborted(signal)
-  const manifest = await assertVectorIndexCompatibility(config, vector.length)
+  const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
   const vectorQuery = configureAdaptiveVectorQuery(
     table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
     manifest.vectorIndex,
@@ -214,13 +237,13 @@ async function searchWithinGeneration(
               lexicalRank: row.lexicalRank,
               vectorDistance,
               lexicalBackendScore: row.lexicalBackendScore,
-              matchedTerms: row.matchedTerms,
+              matchedTerms: matchedQueryTerms(config.projectRoot, queryTokens, row.row.searchText),
             },
           }
         : {}),
     }
   })
-  await recordAccess(config, {
+  void recordAccess(config, {
     action: "search",
     query: sanitized.query,
     topK,
@@ -352,7 +375,16 @@ function sharedPrefixLength(left: string, right: string): number {
 
 export function vectorCandidateLimit(topK: number, profile: RetrievalProfile = "balanced"): number {
   const policy = VECTOR_CANDIDATE_POLICY[profile]
-  return Math.max(policy.minimum, topK * policy.multiplier)
+  return Math.min(MAX_VECTOR_CANDIDATES, Math.max(policy.minimum, topK * policy.multiplier))
+}
+
+export function lexicalCandidateLimit(
+  configuredLimit: number,
+  topK: number,
+  profile: RetrievalProfile = "balanced",
+): number {
+  const policy = LEXICAL_CANDIDATE_POLICY[profile]
+  return Math.min(configuredLimit, Math.max(policy.minimum, topK * policy.multiplier))
 }
 
 export async function ask(query: string, options: SearchOptions = {}): Promise<AskResult> {
@@ -365,11 +397,12 @@ export async function askWithConfig(
   options: SearchOptions,
   config: Config,
   connection?: Connection,
+  snapshot?: IndexReadSnapshot,
 ): Promise<AskResult> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
-  const sources = await searchWithConfig(query, options, config, connection, signal)
-  const staleWarning = await getIndexFreshnessWarning(config)
+  const sources = await searchWithConfig(query, options, config, connection, signal, snapshot)
+  const staleWarning = null
   throwIfAborted(signal)
 
   if (sources.length === 0) {
@@ -407,25 +440,29 @@ export async function expandCitationWithConfig(
   options: ExpandCitationOptions,
   config: Config,
   connection?: Connection,
+  suppliedSnapshot?: IndexReadSnapshot,
 ): Promise<ExpandedCitation> {
-  return withActiveGenerationReadLease(config, (tableName) =>
-    expandCitationWithinGeneration(citation, options, config, tableName, connection),
-  )
+  const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
+  const lease = await acquireGenerationReadLease(snapshot.tableName, config)
+  try {
+    return await expandCitationWithinGeneration(citation, options, config, snapshot)
+  } finally {
+    await lease.release().catch(() => undefined)
+  }
 }
 
 async function expandCitationWithinGeneration(
   citation: string,
   options: ExpandCitationOptions,
   config: Config,
-  tableName: string,
-  connection?: Connection,
+  snapshot: IndexReadSnapshot,
 ): Promise<ExpandedCitation> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const requestedCitation = citation.trim()
   const target = parseCitationTarget(requestedCitation)
   const contextRadius = normalizeContextRadius(options.contextRadius)
-  const table = await openRowsTableByName(tableName, config, connection)
+  const table = snapshot.table
   throwIfAborted(signal)
   if (!table) {
     return {
@@ -438,13 +475,12 @@ async function expandCitationWithinGeneration(
     }
   }
 
-  const manifest = await readIndexManifest(config)
-  if (!manifest) {
+  if (!snapshot.manifest) {
     throw new Error(
       "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before expanding citations.",
     )
   }
-  const freshnessWarning = await getIndexFreshnessWarning(config)
+  const freshnessWarning = indexFreshnessWarning(config, snapshot.manifest)
   if (freshnessWarning) {
     throw new Error(freshnessWarning)
   }
@@ -583,44 +619,77 @@ async function contextChunksByRow(
     return new Map()
   }
 
-  const predicates = rows.map(({ row }) => {
-    const minChunk = Math.max(0, row.chunkIndex - radius)
-    const maxChunk = row.chunkIndex + radius
-    return `(relativePath = ${sqlString(row.relativePath)} AND chunkIndex >= ${minChunk} AND chunkIndex <= ${maxChunk})`
-  })
+  const ranges = contextRangesByPath(rows, radius)
+  const predicates = [...ranges.entries()].flatMap(([relativePath, pathRanges]) =>
+    pathRanges.map(
+      ({ minimum, maximum }) =>
+        `(relativePath = ${sqlString(relativePath)} AND chunkIndex >= ${minimum} AND chunkIndex <= ${maximum})`,
+    ),
+  )
   const allContextRows = (await table
     .query()
     .select(SEARCH_COLUMNS)
     .where(predicates.join(" OR "))
     .toArray()) as SearchRow[]
+  const contextRowsByPath = new Map<string, SearchRow[]>()
+  for (const contextRow of allContextRows) {
+    const pathRows = contextRowsByPath.get(contextRow.relativePath) ?? []
+    pathRows.push(contextRow)
+    contextRowsByPath.set(contextRow.relativePath, pathRows)
+  }
   const contexts = new Map<string, SearchContextChunk[]>()
   for (const { row } of rows) {
     const minChunk = Math.max(0, row.chunkIndex - radius)
     const maxChunk = row.chunkIndex + radius
-    const contextRows = allContextRows.filter(
-      (candidate) =>
-        candidate.relativePath === row.relativePath &&
-        candidate.chunkIndex >= minChunk &&
-        candidate.chunkIndex <= maxChunk,
+    const contextRows = (contextRowsByPath.get(row.relativePath) ?? []).filter(
+      (candidate) => candidate.chunkIndex >= minChunk && candidate.chunkIndex <= maxChunk,
     )
     contexts.set(rowKey(row), contextRows.sort(compareChunkRows).map(contextChunkForRow))
   }
   return contexts
 }
 
-async function assertVectorIndexCompatibility(
+function contextRangesByPath(
+  rows: RankedRow[],
+  radius: number,
+): Map<string, Array<{ minimum: number; maximum: number }>> {
+  const rangesByPath = new Map<string, RankedRow[]>()
+  for (const rankedRow of rows) {
+    const pathRows = rangesByPath.get(rankedRow.row.relativePath) ?? []
+    pathRows.push(rankedRow)
+    rangesByPath.set(rankedRow.row.relativePath, pathRows)
+  }
+  return new Map(
+    [...rangesByPath.entries()].map(([relativePath, pathRows]) => {
+      const ranges = pathRows
+        .map(({ row }) => ({
+          minimum: Math.max(0, row.chunkIndex - radius),
+          maximum: row.chunkIndex + radius,
+        }))
+        .sort((left, right) => left.minimum - right.minimum)
+      const merged: Array<{ minimum: number; maximum: number }> = []
+      for (const range of ranges) {
+        const previous = merged.at(-1)
+        if (!previous || range.minimum > previous.maximum + 1) {
+          merged.push({ ...range })
+        } else {
+          previous.maximum = Math.max(previous.maximum, range.maximum)
+        }
+      }
+      return [relativePath, merged]
+    }),
+  )
+}
+
+function assertVectorIndexCompatibility(
   config: Awaited<ReturnType<typeof loadConfig>>,
+  manifest: IndexManifest | null,
   vectorDimension: number,
-): Promise<IndexManifestWithVectorIndex> {
-  const manifest = await readIndexManifest(config)
+): IndexManifestWithVectorIndex {
   if (!manifest) {
     throw new Error(
       "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before searching.",
     )
-  }
-  const freshnessWarning = await getIndexFreshnessWarning(config)
-  if (freshnessWarning) {
-    throw new Error(freshnessWarning)
   }
   if (manifest.vectorDimension !== undefined && manifest.vectorDimension !== vectorDimension) {
     throw new Error(
@@ -648,7 +717,7 @@ async function assertVectorIndexCompatibility(
   return { ...manifest, vectorIndex: manifest.vectorIndex }
 }
 
-type IndexManifestWithVectorIndex = NonNullable<Awaited<ReturnType<typeof readIndexManifest>>> & {
+type IndexManifestWithVectorIndex = IndexManifest & {
   vectorIndex: VectorIndexManifest
 }
 
@@ -742,7 +811,6 @@ function rankHybridRows(
         vectorRank: vectorRank === undefined ? null : vectorRank + 1,
         lexicalRank: lexicalRank === undefined ? null : lexicalRank + 1,
         lexicalBackendScore: lexicalScores.get(key) ?? null,
-        matchedTerms: matchedQueryTerms(queryTokens, row.searchText),
       }
     })
     .filter((ranked) => ranked.combinedScore > 0)
@@ -761,7 +829,10 @@ function rankHybridRows(
     })
 }
 
-function matchedQueryTerms(queryTokens: string[], text: string): string[] {
+function matchedQueryTerms(projectRoot: string, queryTokens: string[], text: string): string[] {
+  if (queryExplanationDiagnostics.hasSubscribers) {
+    queryExplanationDiagnostics.publish({ projectRoot })
+  }
   const textTokens = tokenize(text)
   return [...new Set(queryTokens)].filter((queryToken) =>
     textTokens.some((textToken) => tokensAreLexicallyRelated(queryToken, textToken)),
@@ -843,14 +914,16 @@ function rowDistance(row: SearchRow): number {
     : Number.POSITIVE_INFINITY
 }
 
-async function assertIndexFreshness(config: Awaited<ReturnType<typeof loadConfig>>): Promise<void> {
-  const manifest = await readIndexManifest(config)
+function assertIndexFreshness(
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  manifest: IndexManifest | null,
+): void {
   if (!manifest) {
     throw new Error(
       "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before searching.",
     )
   }
-  const freshnessWarning = await getIndexFreshnessWarning(config)
+  const freshnessWarning = indexFreshnessWarning(config, manifest)
   if (freshnessWarning) {
     throw new Error(freshnessWarning)
   }
@@ -889,6 +962,9 @@ function normalizeContextRadius(contextRadius: number | undefined): number {
 function normalizeTopK(topK: number): number {
   if (!Number.isSafeInteger(topK) || topK <= 0) {
     throw new RagmirError("INVALID_ARGUMENT", "topK must be a positive integer.")
+  }
+  if (topK > MAX_SEARCH_TOP_K) {
+    throw new RagmirError("INVALID_ARGUMENT", `topK must be at most ${MAX_SEARCH_TOP_K}.`)
   }
   return topK
 }

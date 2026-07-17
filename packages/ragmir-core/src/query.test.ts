@@ -1,3 +1,4 @@
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -6,7 +7,14 @@ import { afterEach, describe, expect, it } from "vitest"
 import type { RagmirError } from "./errors.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
-import { ask, expandCitation, search, vectorCandidateLimit } from "./query.js"
+import {
+  ask,
+  expandCitation,
+  lexicalCandidateLimit,
+  QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL,
+  search,
+  vectorCandidateLimit,
+} from "./query.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -52,6 +60,10 @@ describe("search", () => {
         message: "topK must be a positive integer.",
       } satisfies Partial<RagmirError>)
     }
+    await expect(search("policy", { cwd: root, topK: 101 })).rejects.toMatchObject({
+      code: "INVALID_ARGUMENT",
+      message: "topK must be at most 100.",
+    } satisfies Partial<RagmirError>)
     for (const contextRadius of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       await expect(search("policy", { cwd: root, contextRadius })).rejects.toMatchObject({
         code: "INVALID_ARGUMENT",
@@ -66,6 +78,11 @@ describe("search", () => {
     expect(vectorCandidateLimit(25)).toBe(100)
     expect(vectorCandidateLimit(1, "fast")).toBe(40)
     expect(vectorCandidateLimit(1, "quality")).toBe(200)
+    expect(vectorCandidateLimit(100_000, "quality")).toBe(1_000)
+    expect(lexicalCandidateLimit(5_000, 5)).toBe(250)
+    expect(lexicalCandidateLimit(5_000, 5, "fast")).toBe(100)
+    expect(lexicalCandidateLimit(10_000, 5, "quality")).toBe(500)
+    expect(lexicalCandidateLimit(125, 5, "quality")).toBe(125)
   })
 
   it("uses lexical evidence in addition to vector candidates", async () => {
@@ -205,10 +222,34 @@ describe("search", () => {
     )
     await ingest({ cwd: root })
 
-    const plain = await search("token rotation evidence", { cwd: root, topK: 1 })
-    const explained = await search("token rotation evidence", { cwd: root, topK: 1, explain: true })
+    const explanations: unknown[] = []
+    const onExplanation = (event: unknown): void => {
+      if (
+        typeof event === "object" &&
+        event !== null &&
+        "projectRoot" in event &&
+        event.projectRoot === root
+      ) {
+        explanations.push(event)
+      }
+    }
+    subscribe(QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL, onExplanation)
+    let plain: Awaited<ReturnType<typeof search>> = []
+    let explained: Awaited<ReturnType<typeof search>> = []
+    try {
+      plain = await search("token rotation evidence", { cwd: root, topK: 1 })
+      expect(explanations).toEqual([])
+      explained = await search("token rotation evidence", {
+        cwd: root,
+        topK: 1,
+        explain: true,
+      })
+    } finally {
+      unsubscribe(QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL, onExplanation)
+    }
     const score = explained[0]?.score
 
+    expect(explanations).toHaveLength(1)
     expect(plain[0]).not.toHaveProperty("score")
     expect(explained[0]?.relativePath).toBe(plain[0]?.relativePath)
     expect(score?.fusion).toBe("rrf")

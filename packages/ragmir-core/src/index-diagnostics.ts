@@ -1,7 +1,7 @@
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { readIndexManifest } from "./store.js"
-import type { Config } from "./types.js"
+import type { Config, IndexManifest } from "./types.js"
 import { vectorModelFingerprint } from "./vector-index.js"
 
 /**
@@ -25,6 +25,13 @@ export const INDEX_SCHEMA_VERSION = 9
 export async function getIndexFreshnessWarning(config: Config): Promise<string | null> {
   const manifest = await readIndexManifest(config)
 
+  return indexFreshnessWarning(config, manifest)
+}
+
+export function indexFreshnessWarning(
+  config: Config,
+  manifest: IndexManifest | null,
+): string | null {
   if (!manifest) {
     return null
   }

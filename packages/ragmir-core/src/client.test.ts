@@ -1,3 +1,4 @@
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -5,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest"
 import { createRagmirClient } from "./client.js"
 import type { RagmirError } from "./errors.js"
 import { initProject } from "./init.js"
+import { search } from "./query.js"
+import { INDEX_READ_DIAGNOSTICS_CHANNEL, type IndexReadDiagnosticsEvent } from "./store.js"
 
 const tempDirs: string[] = []
 
@@ -46,6 +49,70 @@ describe("RagmirClient", () => {
     await expect(client.search("approval")).rejects.toMatchObject({
       code: "CLIENT_CLOSED",
     } satisfies Partial<RagmirError>)
+  })
+
+  it("should reuse one immutable read snapshot until an atomic generation change", async () => {
+    const root = await projectWithEvidence("ragmir-client-snapshot-")
+    const client = await createRagmirClient({ cwd: root })
+    await client.ingest()
+    const events: IndexReadDiagnosticsEvent[] = []
+    const onDiagnostic = (event: unknown): void => {
+      if (isIndexReadDiagnosticsEvent(event, root)) {
+        events.push(event)
+      }
+    }
+    subscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+
+    try {
+      const cold = await client.search("production approval")
+      const warm = await client.search("production approval")
+
+      expect(JSON.stringify(warm)).toBe(JSON.stringify(cold))
+      expect(events.filter((event) => event.kind === "manifest-read")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+
+      await writeFile(
+        path.join(root, ".ragmir", "raw", "decision.md"),
+        "The refreshed rollout requires signed phoenix approval before production deployment.\n",
+        "utf8",
+      )
+      const writer = await createRagmirClient({ cwd: root })
+      await writer.ingest({ rebuild: true })
+      await writer.close()
+      events.length = 0
+
+      const refreshed = await client.search("phoenix approval")
+
+      expect(refreshed[0]?.text).toContain("phoenix")
+      expect(events.filter((event) => event.kind === "manifest-read")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+    } finally {
+      unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+      await client.close()
+    }
+  })
+
+  it("should read one manifest and open one table for a one-shot search", async () => {
+    const root = await projectWithEvidence("ragmir-one-shot-snapshot-")
+    const client = await createRagmirClient({ cwd: root })
+    await client.ingest()
+    await client.close()
+    const events: IndexReadDiagnosticsEvent[] = []
+    const onDiagnostic = (event: unknown): void => {
+      if (isIndexReadDiagnosticsEvent(event, root)) {
+        events.push(event)
+      }
+    }
+    subscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+
+    try {
+      await search("production approval", { cwd: root })
+
+      expect(events.filter((event) => event.kind === "manifest-read")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+    } finally {
+      unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    }
   })
 
   it("should serialize concurrent ingestion in one Node.js process", async () => {
@@ -114,3 +181,17 @@ describe("RagmirClient", () => {
     await client.close()
   })
 })
+
+function isIndexReadDiagnosticsEvent(
+  event: unknown,
+  projectRoot: string,
+): event is IndexReadDiagnosticsEvent {
+  return (
+    typeof event === "object" &&
+    event !== null &&
+    "kind" in event &&
+    (event.kind === "manifest-read" || event.kind === "table-open") &&
+    "projectRoot" in event &&
+    event.projectRoot === projectRoot
+  )
+}

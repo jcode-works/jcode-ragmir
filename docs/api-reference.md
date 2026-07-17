@@ -44,7 +44,8 @@ instead of presenting an unverifiable line claim.
 ### Persistent client for Node.js workers
 
 Use one client per project root when a stateful Node.js process performs repeated retrieval. The
-client reuses one local LanceDB connection and resolves its project root at creation.
+client reuses one local LanceDB connection plus one immutable manifest/table snapshot, and refreshes
+the snapshot only after atomic manifest replacement.
 
 ```ts
 import { createRagmirClient, isRagmirError } from "@jcode.labs/ragmir"
@@ -73,8 +74,8 @@ try {
 
 `RagmirClient` exposes `ingest`, `search`, `ask`, `research`, `expandCitation`, `status`, `sources`,
 and an idempotent `close`. Every data operation accepts `signal` and `timeoutMs` through its options.
-`close()` takes no options, rejects new work, waits for active operations, then closes the shared
-connection.
+`close()` takes no options, rejects new work, waits for active operations, flushes the bounded
+metadata-only access-log writer, then closes the shared connection.
 Index writes targeting the same storage directory are serialized across local OS processes. The
 private lock records its PID, run ID, owner token, start time, and heartbeat; readers do not acquire
 it. A dead local owner is recovered automatically, while bounded contention returns the retryable
@@ -128,7 +129,8 @@ authentication, authorization, rate limits, and transport security.
 `SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
 `contextPaths`, `explain`, `vectorSearchMode`, `signal`, and `timeoutMs`. Set
 `vectorSearchMode: "exact"` to bypass ANN for diagnostic comparison; the default `"adaptive"`
-uses the compatible strategy recorded in the manifest. `IngestOptions` also accepts `rebuild`, a
+uses the compatible strategy recorded in the manifest. `topK` is limited to 100 and
+`contextRadius` is clamped to three chunks. `IngestOptions` also accepts `rebuild`, a
 positive `batchSize` that defaults to 25 files and is capped at 128, `incrementalFailurePolicy`, and
 an optional `onProgress` callback. The default `preserve-last-good` policy keeps prior rows searchable and marks
 them stale when a changed file fails; `remove-stale` deletes them. Its durable progress contains the
@@ -157,6 +159,8 @@ selection without changing the exact text, offsets, or citations returned to the
 | `securityAudit(cwd?, options?)` | Report local privacy, redaction, permissions, and MCP posture. |
 | `ingestionLimits(config)` | Read active parser safety limits. |
 | `accessLogUsageReport(options?)` | Summarize metadata-only local access logs. |
+| `accessLogWriterMetrics(config)` | Read pending, in-flight, written, and dropped access-log event counts. |
+| `flushAccessLog(config)` | Flush the bounded asynchronous access-log writer and return its metrics. |
 | `optimizeStorage(options?)` | Inspect or force fragment compaction, old-version pruning, and complete FTS, adaptive-vector, and scalar-index coverage under the local writer lock. |
 | `collectGenerationGarbage(options?)` | Inspect generation roles or reclaim expired, unleased tables under the local writer lock. |
 | `destroyIndex(cwd?)` | Remove generated index data without deleting source files. |
@@ -235,7 +239,7 @@ types that callers commonly compose explicitly.
 | Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
 | Research and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
 | Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
-| Operations | `RagmirClientOptions`, `OperationOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
+| Operations | `RagmirClientOptions`, `OperationOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
 | Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
 | Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |

@@ -256,8 +256,9 @@ try {
 }
 ```
 
-Reuse one client per project root in a long-running process. It keeps one local LanceDB connection,
-accepts `AbortSignal` and `timeoutMs`, and waits for active operations during `close()`. A private
+Reuse one client per project root in a long-running process. It keeps one local LanceDB connection
+and one immutable read snapshot until atomic generation replacement, accepts `AbortSignal` and
+`timeoutMs`, and flushes access logs after active operations during `close()`. A private
 heartbeat lock serializes index writers across local OS processes while readers remain available.
 One-shot `ingest`, `search`, `ask`, and `research` functions remain available for short scripts.
 

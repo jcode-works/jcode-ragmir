@@ -20,7 +20,8 @@ edit JSON only for a real need.
 | `privacyProfile` | `private` | Use `strict` for the strongest local floor. |
 | `retrievalProfile` | `balanced` | Use `fast`, `quality`, or `custom` for different search budgets. |
 | `embeddingProvider` | `local-hash` | Set `transformers` only after an explicit preload. |
-| `topK` | `8` | Change the default number of returned passages. |
+| `topK` | `8` | Change the default number of returned passages, up to the hard limit of 100. |
+| `mcpMaxTopK` | `10` | Bound MCP passage requests; values above 100 are rejected. |
 | `mcpMaxOutputBytes` | `32768` | Cap variable-size MCP tool and resource JSON; the server also enforces an absolute 1 MiB ceiling. |
 | `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. |
 | `maxFileBytes` | `50000000` | Lower the per-file parser budget; 50 MB is the hard ceiling. |
@@ -28,6 +29,7 @@ edit JSON only for a real need.
 | `embeddingBatchSize` | `32` | Bound one model call; values above `128` are rejected. |
 | `sourceFingerprintMode` | `fast` | Use `strict` to hash every source on every inventory instead of reusing unchanged private fingerprints. |
 | `incrementalFailurePolicy` | `preserve-last-good` | Use `remove-stale` only when failed changed files must disappear immediately. |
+| `hybridTextScanLimit` | `5000` | Bound lexical fallback candidates; values above 10,000 are rejected. Search applies a smaller profile-aware candidate budget when possible. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
 
 Changing an embedding provider, model, or chunking field requires `rgr ingest --rebuild`.

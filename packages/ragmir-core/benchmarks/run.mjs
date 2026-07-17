@@ -1,4 +1,5 @@
 import { fork, execFile } from "node:child_process"
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -81,18 +82,24 @@ try {
     client.search(queries[0], { topK: 5 }),
   )
 
-  const persistent = await measureSeries({
-    warmups: profile.warmups,
-    samples: profile.samples,
-    repetitions: profile.repetitions,
-    operation: (index) => client.search(queries[index % queries.length], { topK: 5 }),
-  })
-  const oneShot = await measureSeries({
-    warmups: profile.oneShotWarmups,
-    samples: profile.oneShotSamples,
-    repetitions: profile.oneShotRepetitions,
-    operation: (index) => search(queries[index % queries.length], { cwd: root, topK: 5 }),
-  })
+  const persistentRun = await withIndexReadDiagnostics(root, () =>
+    measureSeries({
+      warmups: profile.warmups,
+      samples: profile.samples,
+      repetitions: profile.repetitions,
+      operation: (index) => client.search(queries[index % queries.length], { topK: 5 }),
+    }),
+  )
+  const persistent = persistentRun.value
+  const oneShotRun = await withIndexReadDiagnostics(root, () =>
+    measureSeries({
+      warmups: profile.oneShotWarmups,
+      samples: profile.oneShotSamples,
+      repetitions: profile.oneShotRepetitions,
+      operation: (index) => search(queries[index % queries.length], { cwd: root, topK: 5 }),
+    }),
+  )
+  const oneShot = oneShotRun.value
   const filtered = await measureSeries({
     warmups: profile.warmups,
     samples: profile.samples,
@@ -124,20 +131,7 @@ try {
     warmups: profile.cliWarmups,
     samples: profile.cliSamples,
     repetitions: 1,
-    operation: async (index) => {
-      await execFileAsync(
-        process.execPath,
-        [
-          path.resolve(here, "..", "dist", "cli.js"),
-          "search",
-          queries[index % queries.length],
-          "--top-k",
-          "5",
-          "--json",
-        ],
-        { cwd: root, maxBuffer: 4 * 1_024 * 1_024 },
-      )
-    },
+    operation: (index) => runCliSearch(root, queries[index % queries.length]),
   })
 
   ;({ client: mcpClient, server: mcpServer } = await connectMcp(root))
@@ -211,6 +205,10 @@ try {
       },
       persistent,
       oneShot,
+      indexReadDiagnostics: {
+        persistent: persistentRun.diagnostics,
+        oneShot: oneShotRun.diagnostics,
+      },
       filtered,
       contextual,
       cli,
@@ -245,6 +243,52 @@ try {
     process.stderr.write(`Benchmark project preserved at ${root}\n`)
   } else {
     await rm(root, { recursive: true, force: true })
+  }
+}
+
+async function withIndexReadDiagnostics(projectRoot, operation) {
+  const diagnostics = { manifestReads: 0, tableOpens: 0 }
+  const onDiagnostic = (event) => {
+    if (!event || typeof event !== "object" || event.projectRoot !== projectRoot) {
+      return
+    }
+    if (event.kind === "manifest-read") {
+      diagnostics.manifestReads += 1
+    } else if (event.kind === "table-open") {
+      diagnostics.tableOpens += 1
+    }
+  }
+  subscribe("ragmir:index-read", onDiagnostic)
+  try {
+    return { value: await operation(), diagnostics }
+  } finally {
+    unsubscribe("ragmir:index-read", onDiagnostic)
+  }
+}
+
+async function runCliSearch(root, query) {
+  try {
+    await execFileAsync(
+      process.execPath,
+      [path.resolve(here, "..", "dist", "cli.js"), "search", query, "--top-k", "5", "--json"],
+      { cwd: root, maxBuffer: 4 * 1_024 * 1_024 },
+    )
+  } catch (error) {
+    if (!isExpectedEmptyCliSearch(error)) {
+      throw error
+    }
+  }
+}
+
+function isExpectedEmptyCliSearch(error) {
+  if (!error || typeof error !== "object" || error.code !== 1 || typeof error.stdout !== "string") {
+    return false
+  }
+  try {
+    const output = JSON.parse(error.stdout)
+    return output && typeof output === "object" && Array.isArray(output.results) && output.results.length === 0
+  } catch {
+    return false
   }
 }
 

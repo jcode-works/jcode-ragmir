@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
+import { channel } from "node:diagnostics_channel"
 import { createReadStream } from "node:fs"
-import { open as openFile, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { open as openFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import * as lancedb from "@lancedb/lancedb"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
@@ -20,6 +21,15 @@ const INDEX_FILES_PREFIX = "index-manifest.files."
 const INDEX_FILES_SUFFIX = ".jsonl"
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const STREAM_WRITE_BYTES = 64 * 1_024
+export const INDEX_READ_DIAGNOSTICS_CHANNEL = "ragmir:index-read"
+
+export interface IndexReadDiagnosticsEvent {
+  kind: "manifest-read" | "table-open"
+  projectRoot: string
+  tableName?: string
+}
+
+const indexReadDiagnostics = channel(INDEX_READ_DIAGNOSTICS_CHANNEL)
 
 type PersistedIndexManifest = Omit<IndexManifest, "indexedFiles" | "qualityReport"> & {
   indexedFilesSnapshot?: string
@@ -36,6 +46,13 @@ export interface EmptyTextFileRecord {
 export interface IndexWriteResult {
   vectorIndexWarning: string | null
   lexicalIndexWarning: string | null
+}
+
+export interface IndexReadSnapshot {
+  manifest: IndexManifest | null
+  manifestFingerprint: string | null
+  tableName: string
+  table: lancedb.Table | null
 }
 
 export async function connectStore(config: Config): Promise<lancedb.Connection> {
@@ -210,7 +227,8 @@ export async function readIndexManifest(config: Config): Promise<IndexManifest |
   }
 }
 
-async function readIndexManifestHeader(config: Config): Promise<IndexManifest | null> {
+export async function readIndexManifestHeader(config: Config): Promise<IndexManifest | null> {
+  publishIndexReadDiagnostics({ kind: "manifest-read", projectRoot: config.projectRoot })
   try {
     const raw = await readRawIndexManifest(config)
     if (!isIndexManifest(raw)) {
@@ -225,6 +243,50 @@ async function readIndexManifestHeader(config: Config): Promise<IndexManifest | 
     return isIndexQualityReport(qualityReport) ? { ...manifest, qualityReport } : manifest
   } catch (error) {
     if (error instanceof SyntaxError || (isNodeError(error) && error.code === "ENOENT")) {
+      return null
+    }
+    throw error
+  }
+}
+
+export async function loadIndexReadSnapshot(
+  config: Config,
+  connection?: lancedb.Connection,
+): Promise<IndexReadSnapshot> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const fingerprintBefore = await indexManifestFingerprint(config)
+    const manifest = await readIndexManifestHeader(config)
+    const fingerprintAfter = await indexManifestFingerprint(config)
+    if (fingerprintBefore !== fingerprintAfter) {
+      continue
+    }
+    const immutableManifest = manifest ? Object.freeze({ ...manifest }) : null
+    const tableName = immutableManifest?.tableName ?? config.tableName
+    return {
+      manifest: immutableManifest,
+      manifestFingerprint: fingerprintAfter,
+      tableName,
+      table: await openRowsTableByName(tableName, config, connection),
+    }
+  }
+  throw new Error(
+    "Index generation changed repeatedly while opening a read snapshot. Retry the operation.",
+  )
+}
+
+export async function indexReadSnapshotCurrent(
+  snapshot: IndexReadSnapshot,
+  config: Config,
+): Promise<boolean> {
+  return snapshot.manifestFingerprint === (await indexManifestFingerprint(config))
+}
+
+async function indexManifestFingerprint(config: Config): Promise<string | null> {
+  try {
+    const details = await stat(path.join(config.storageDir, INDEX_MANIFEST_FILENAME))
+    return `${details.dev}:${details.ino}:${details.size}:${details.mtimeMs}`
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
       return null
     }
     throw error
@@ -377,8 +439,19 @@ export async function openRowsTableByName(
     if (!tableNames.includes(tableName)) {
       return null
     }
+    publishIndexReadDiagnostics({
+      kind: "table-open",
+      projectRoot: config.projectRoot,
+      tableName,
+    })
     return db.openTable(tableName)
   })
+}
+
+function publishIndexReadDiagnostics(event: IndexReadDiagnosticsEvent): void {
+  if (indexReadDiagnostics.hasSubscribers) {
+    indexReadDiagnostics.publish(event)
+  }
 }
 
 export async function activeIndexTableName(config: Config): Promise<string> {

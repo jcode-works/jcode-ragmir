@@ -1,12 +1,14 @@
 import type { PathLike } from "node:fs"
 import type { Connection } from "@lancedb/lancedb"
+import { flushAccessLog } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { getKnowledgeBaseContext, getKnowledgeBaseSourceCatalog } from "./context-resources.js"
 import { normalizeRagmirError, RagmirError } from "./errors.js"
 import { ingestWithConfig } from "./ingest.js"
 import { askWithConfig, expandCitationWithConfig, searchWithConfig } from "./query.js"
 import { researchWithConfig } from "./research.js"
-import { connectStore } from "./store.js"
+import type { IndexReadSnapshot } from "./store.js"
+import { connectStore, indexReadSnapshotCurrent, loadIndexReadSnapshot } from "./store.js"
 import type {
   AskResult,
   Config,
@@ -32,6 +34,9 @@ export class RagmirClient {
   private readonly config: Config
   private readonly connection: Connection
   private readonly activeOperations = new Set<Promise<unknown>>()
+  private indexSnapshot: IndexReadSnapshot | undefined
+  private indexSnapshotLoad: Promise<IndexReadSnapshot> | undefined
+  private indexSnapshotEpoch = 0
   private closed = false
   private closePromise: Promise<void> | undefined
 
@@ -56,15 +61,36 @@ export class RagmirClient {
   }
 
   async ingest(options: Omit<IngestOptions, "cwd"> = {}): Promise<IngestResult> {
-    return this.run(() => ingestWithConfig(this.config, options, this.connection))
+    return this.run(async () => {
+      const result = await ingestWithConfig(this.config, options, this.connection)
+      this.invalidateIndexSnapshot()
+      return result
+    })
   }
 
   async search(query: string, options: Omit<SearchOptions, "cwd"> = {}): Promise<SearchResult[]> {
-    return this.run(() => searchWithConfig(query, options, this.config, this.connection))
+    return this.run(async () =>
+      searchWithConfig(
+        query,
+        options,
+        this.config,
+        this.connection,
+        undefined,
+        await this.indexSnapshotForRead(),
+      ),
+    )
   }
 
   async ask(query: string, options: Omit<SearchOptions, "cwd"> = {}): Promise<AskResult> {
-    return this.run(() => askWithConfig(query, options, this.config, this.connection))
+    return this.run(async () =>
+      askWithConfig(
+        query,
+        options,
+        this.config,
+        this.connection,
+        await this.indexSnapshotForRead(),
+      ),
+    )
   }
 
   async research(
@@ -78,7 +104,15 @@ export class RagmirClient {
     citation: string,
     options: Omit<ExpandCitationOptions, "cwd"> = {},
   ): Promise<ExpandedCitation> {
-    return this.run(() => expandCitationWithConfig(citation, options, this.config, this.connection))
+    return this.run(async () =>
+      expandCitationWithConfig(
+        citation,
+        options,
+        this.config,
+        this.connection,
+        await this.indexSnapshotForRead(),
+      ),
+    )
   }
 
   async status(options: OperationOptions = {}): Promise<KnowledgeBaseContextReport> {
@@ -94,6 +128,7 @@ export class RagmirClient {
       this.closed = true
       this.closePromise = (async () => {
         await Promise.allSettled([...this.activeOperations])
+        await flushAccessLog(this.config)
         this.connection.close()
       })()
     }
@@ -104,6 +139,40 @@ export class RagmirClient {
     if (this.closed || !this.connection.isOpen()) {
       throw new RagmirError("CLIENT_CLOSED", "Ragmir client is closed.")
     }
+  }
+
+  private async indexSnapshotForRead(): Promise<IndexReadSnapshot> {
+    const cached = this.indexSnapshot
+    if (cached && (await indexReadSnapshotCurrent(cached, this.config))) {
+      return cached
+    }
+    this.indexSnapshot = undefined
+    if (!this.indexSnapshotLoad) {
+      const epoch = this.indexSnapshotEpoch
+      const load = loadIndexReadSnapshot(this.config, this.connection)
+      this.indexSnapshotLoad = load
+      void load.then(
+        (snapshot) => {
+          if (this.indexSnapshotEpoch === epoch) {
+            this.indexSnapshot = snapshot
+          }
+          if (this.indexSnapshotLoad === load) {
+            this.indexSnapshotLoad = undefined
+          }
+        },
+        () => {
+          if (this.indexSnapshotLoad === load) {
+            this.indexSnapshotLoad = undefined
+          }
+        },
+      )
+    }
+    return this.indexSnapshotLoad
+  }
+
+  private invalidateIndexSnapshot(): void {
+    this.indexSnapshotEpoch += 1
+    this.indexSnapshot = undefined
   }
 
   private run<T>(operation: () => Promise<T>): Promise<T> {

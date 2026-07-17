@@ -43,7 +43,8 @@ rgr search "migration" --exact-vector-search
 `--explain`; the optional score object reports RRF contributions, retriever ranks, raw backend
 scores, and matched query terms without changing ranking. Use `--compact` on search or research when
 agent context is limited. Search and ask accept `--exact-vector-search` to bypass an active ANN
-index for diagnostics against exhaustive vector search.
+index for diagnostics against exhaustive vector search. `--top-k` is limited to 100 and
+`--context-radius` is clamped to three chunks.
 
 `preview` uses the active redaction and chunking configuration but never writes storage. `audit`
 reports min, mean, p50, p95, and max chunk sizes plus structural-context coverage.

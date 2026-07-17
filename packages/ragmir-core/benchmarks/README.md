@@ -33,7 +33,8 @@ temporary project for manual inspection.
 
 Every JSON result records the commit, runtime, machine, corpus hash, provider, model revision,
 sample counts, quality metrics, latency percentiles, throughput, process resource usage, and
-physical source/index sizes. Results from different machine fingerprints are inconclusive unless
+physical source/index sizes. Scale results also count manifest reads and table opens for persistent
+and one-shot search series. Results from different machine fingerprints are inconclusive unless
 the comparison is explicitly allowed.
 
 The generated corpus includes prose, code-like Markdown, JSON, JSONL, HTML, YAML, CSV, XML, PDF,

@@ -503,7 +503,7 @@ describe("loadConfig", () => {
     )
   })
 
-  it("should reject ingestion settings above the safe maxima", async () => {
+  it("should reject resource settings above the safe maxima", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-ingest-maxima-"))
     tempDirs.push(root)
     await mkdir(path.join(root, ".ragmir"), { recursive: true })
@@ -514,6 +514,15 @@ describe("loadConfig", () => {
 
     await writeFile(configPath, JSON.stringify({ embeddingBatchSize: 1_000_000 }))
     await expect(loadConfig(root)).rejects.toThrow(/embeddingBatchSize.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ topK: 101 }))
+    await expect(loadConfig(root)).rejects.toThrow(/topK.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ mcpMaxTopK: 101 }))
+    await expect(loadConfig(root)).rejects.toThrow(/mcpMaxTopK.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ hybridTextScanLimit: 10_001 }))
+    await expect(loadConfig(root)).rejects.toThrow(/hybridTextScanLimit.*at most/i)
 
     await writeFile(configPath, "{}\n")
     const original = process.env.RAGMIR_INGEST_CONCURRENCY
