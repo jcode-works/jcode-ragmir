@@ -11,11 +11,11 @@ import {
   RAGMIR_GITIGNORE_ENTRY,
 } from "./defaults.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
-import type { OperationOptions, SecurityAuditReport } from "./types.js"
+import type { SecurityAuditOptions, SecurityAuditReport } from "./types.js"
 
 export async function securityAudit(
   cwd = process.cwd(),
-  options: OperationOptions = {},
+  options: SecurityAuditOptions = {},
 ): Promise<SecurityAuditReport> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
@@ -24,6 +24,7 @@ export async function securityAudit(
   const gitignore = await readGitignore(config.projectRoot, signal)
   throwIfAborted(signal)
   const warnings: string[] = []
+  const probeGit = options.deep !== false
 
   const usesLegacyKb = [config.storageDir, config.sourcesFile, config.accessLogPath].some(
     (filePath) => usesProjectDirectory(config.projectRoot, filePath, LEGACY_KB_DIR),
@@ -45,21 +46,24 @@ export async function securityAudit(
       path.join(config.projectRoot, LEGACY_KB_GITIGNORE_ENTRY),
       gitignore,
       signal,
+      probeGit,
     ),
     isPathIgnored(
       config.projectRoot,
       path.join(config.projectRoot, RAGMIR_GITIGNORE_ENTRY),
       gitignore,
       signal,
+      probeGit,
     ),
     isPathIgnored(
       config.projectRoot,
       path.join(config.projectRoot, LEGACY_PRIVATE_GITIGNORE_ENTRY),
       gitignore,
       signal,
+      probeGit,
     ),
-    isPathIgnored(config.projectRoot, config.storageDir, gitignore, signal),
-    isPathIgnored(config.projectRoot, config.accessLogPath, gitignore, signal),
+    isPathIgnored(config.projectRoot, config.storageDir, gitignore, signal, probeGit),
+    isPathIgnored(config.projectRoot, config.accessLogPath, gitignore, signal, probeGit),
   ])
   throwIfAborted(signal)
   const permissions = await inspectPermissions(
@@ -265,6 +269,7 @@ async function isPathIgnored(
   filePath: string,
   lines: Set<string>,
   signal: AbortSignal | undefined,
+  probeGit: boolean,
 ): Promise<boolean> {
   throwIfAborted(signal)
   const relativePath = normalizeRelativePath(projectRoot, filePath)
@@ -272,16 +277,18 @@ async function isPathIgnored(
     return false
   }
 
-  let gitResult: boolean | null
-  try {
-    gitResult = await checkGitIgnored(projectRoot, relativePath, signal)
-  } catch (error) {
+  if (probeGit) {
+    let gitResult: boolean | null
+    try {
+      gitResult = await checkGitIgnored(projectRoot, relativePath, signal)
+    } catch (error) {
+      throwIfAborted(signal)
+      throw error
+    }
     throwIfAborted(signal)
-    throw error
-  }
-  throwIfAborted(signal)
-  if (gitResult !== null) {
-    return gitResult
+    if (gitResult !== null) {
+      return gitResult
+    }
   }
 
   return isPathIgnoredByEntries(relativePath, lines)

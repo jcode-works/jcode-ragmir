@@ -3,7 +3,7 @@ import path from "node:path"
 import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
-import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
+import { getLexicalScanWarning, indexFreshnessWarning } from "./index-diagnostics.js"
 import { audit } from "./ingest.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { RGR_RUNNER_FILENAME, rgrCommand } from "./package-manager.js"
@@ -16,12 +16,12 @@ import {
   MCP_CONFIG_FILENAME,
   SKILL_NAMES,
 } from "./skill.js"
-import { countRows, readIndexManifest } from "./store.js"
-import type { DoctorReport, OperationOptions } from "./types.js"
+import { readIndexManifest, readIndexManifestHeader } from "./store.js"
+import type { DoctorOptions, DoctorReport } from "./types.js"
 
 export async function doctor(
   cwd = process.cwd(),
-  options: OperationOptions = {},
+  options: DoctorOptions = {},
 ): Promise<DoctorReport> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
@@ -34,52 +34,72 @@ export async function doctor(
   const agentKitInstalled = isAgentKitInstalled(config.projectRoot)
   const agentIntegration = inspectAgentIntegration(config.projectRoot)
   const operationOptions = signal ? { signal } : {}
-  const [auditReport, securityReport, chunksIndexed, manifest, freshnessWarning] =
-    await Promise.all([
-      audit(config.projectRoot, operationOptions),
-      securityAudit(config.projectRoot, operationOptions),
-      countRows(config),
-      readIndexManifest(config),
-      getIndexFreshnessWarning(config),
-    ])
+  const deep = options.deep === true
+  const [auditReport, securityReport, manifest] = deep
+    ? await Promise.all([
+        audit(config.projectRoot, operationOptions),
+        securityAudit(config.projectRoot, operationOptions),
+        readIndexManifest(config),
+      ])
+    : [null, null, await readIndexManifestHeader(config)]
   throwIfAborted(signal)
 
+  const health = manifest?.health
+  const supportedFiles = auditReport?.supportedFiles.length ?? health?.supportedFiles ?? 0
+  const supportedBytes = auditReport?.supportedBytes ?? health?.supportedBytes ?? 0
+  const largestFileBytes = auditReport?.largestFileBytes ?? health?.largestFileBytes ?? 0
+  const skippedFiles = auditReport?.skippedFiles.length ?? health?.skippedFiles ?? 0
+  const unsupportedFiles = auditReport
+    ? countSkippedByReason(auditReport.skippedFiles, "unsupported-extension")
+    : (health?.unsupportedFiles ?? 0)
+  const oversizedFiles = auditReport
+    ? countSkippedByReason(auditReport.skippedFiles, "oversized")
+    : (health?.oversizedFiles ?? 0)
+  const sensitiveFiles = auditReport
+    ? countSkippedByReason(auditReport.skippedFiles, "sensitive-name")
+    : (health?.sensitiveFiles ?? 0)
+  const emptyTextFiles = auditReport?.emptyTextFiles.length ?? health?.emptyTextFiles ?? 0
+  const indexedFiles = auditReport?.indexedFiles.length ?? manifest?.fileCount ?? 0
+  const chunksIndexed = auditReport?.totalChunks ?? manifest?.chunkCount ?? 0
+  const missingFromIndex = auditReport?.missingFromIndex.length ?? health?.missingFromIndex ?? 0
+  const staleInIndex = auditReport?.staleInIndex.length ?? health?.staleInIndex ?? 0
+  const securityWarnings = securityReport?.warnings ?? health?.securityWarnings ?? []
+  const freshnessWarning = indexFreshnessWarning(config, manifest)
   const lexicalScanWarning = chunksIndexed > 0 ? getLexicalScanWarning(config, chunksIndexed) : null
   const indexFreshness = {
     manifestFound: manifest !== null,
     warning: freshnessWarning,
   }
-  const oversizedFiles = countSkippedByReason(auditReport.skippedFiles, "oversized")
-  const sensitiveFiles = countSkippedByReason(auditReport.skippedFiles, "sensitive-name")
+  const diagnosticSnapshotAvailable = deep || health !== undefined
   const coverageComplete =
-    auditReport.missingFromIndex.length === 0 &&
-    auditReport.staleInIndex.length === 0 &&
-    auditReport.emptyTextFiles.length === 0 &&
+    diagnosticSnapshotAvailable &&
+    missingFromIndex === 0 &&
+    staleInIndex === 0 &&
+    emptyTextFiles === 0 &&
     oversizedFiles === 0
-  const operationalReady = initialized && chunksIndexed > 0 && coverageComplete
-  const indexPolicyCurrent = freshnessWarning === null
-  const privacyCompliant = securityReport.warnings.length === 0
-  const retrievalQualityVerified = await isCompatibleQualityReport(
-    manifest?.qualityReport,
-    manifest,
-    config,
-  )
+  const operationalReady = initialized && manifest !== null && chunksIndexed > 0 && coverageComplete
+  const indexPolicyCurrent = manifest !== null && freshnessWarning === null
+  const privacyCompliant = diagnosticSnapshotAvailable && securityWarnings.length === 0
+  const retrievalQualityVerified = deep
+    ? await isCompatibleQualityReport(manifest?.qualityReport, manifest, config)
+    : false
   throwIfAborted(signal)
 
   const nextSteps = nextActions({
     initialized,
-    supportedFiles: auditReport.supportedFiles.length,
-    supportedBytes: auditReport.supportedBytes,
-    largestFileBytes: auditReport.largestFileBytes,
-    skippedFiles: auditReport.skippedFiles.length,
-    unsupportedFiles: countSkippedByReason(auditReport.skippedFiles, "unsupported-extension"),
+    diagnosticSnapshotAvailable,
+    supportedFiles,
+    supportedBytes,
+    largestFileBytes,
+    skippedFiles,
+    unsupportedFiles,
     chunksIndexed,
-    missingFromIndex: auditReport.missingFromIndex.length,
-    staleInIndex: auditReport.staleInIndex.length,
-    emptyTextFiles: auditReport.emptyTextFiles.length,
+    missingFromIndex,
+    staleInIndex,
+    emptyTextFiles,
     oversizedFiles,
     sensitiveFiles,
-    warnings: securityReport.warnings.length,
+    warnings: securityWarnings.length,
     embeddingProvider: config.embeddingProvider,
     agentKitInstalled,
     agentRunnerReady: agentIntegration.runnerReady,
@@ -91,6 +111,10 @@ export async function doctor(
 
   throwIfAborted(signal)
   return {
+    mode: deep ? "deep" : "manifest",
+    inventoryVerified: deep,
+    securityVerified: deep,
+    cost: deep ? "O(corpus)" : "O(1)",
     projectRoot: config.projectRoot,
     initialized,
     packageManager: command.packageManager,
@@ -105,20 +129,20 @@ export async function doctor(
     accessLog: config.accessLog,
     privacyProfile: config.privacyProfile,
     retrievalProfile: config.retrievalProfile,
-    supportedFiles: auditReport.supportedFiles.length,
-    supportedBytes: auditReport.supportedBytes,
-    largestFileBytes: auditReport.largestFileBytes,
+    supportedFiles,
+    supportedBytes,
+    largestFileBytes,
     maxFileBytes: config.maxFileBytes,
-    skippedFiles: auditReport.skippedFiles.length,
-    unsupportedFiles: countSkippedByReason(auditReport.skippedFiles, "unsupported-extension"),
+    skippedFiles,
+    unsupportedFiles,
     oversizedFiles,
     sensitiveFiles,
-    emptyTextFiles: auditReport.emptyTextFiles.length,
-    indexedFiles: auditReport.indexedFiles.length,
+    emptyTextFiles,
+    indexedFiles,
     chunksIndexed,
-    missingFromIndex: auditReport.missingFromIndex.length,
-    staleInIndex: auditReport.staleInIndex.length,
-    securityWarnings: securityReport.warnings,
+    missingFromIndex,
+    staleInIndex,
+    securityWarnings,
     indexFreshness,
     ready: operationalReady && indexPolicyCurrent && privacyCompliant,
     readiness: {
@@ -135,6 +159,7 @@ export async function doctor(
 
 interface NextActionInput {
   initialized: boolean
+  diagnosticSnapshotAvailable: boolean
   supportedFiles: number
   supportedBytes: number
   largestFileBytes: number
@@ -161,6 +186,16 @@ function nextActions(input: NextActionInput): string[] {
 
   if (!input.initialized) {
     steps.push(`Run \`${input.run(["setup"])}\` to initialize Ragmir and install the agent kit.`)
+    return steps
+  }
+
+  if (!input.diagnosticSnapshotAvailable) {
+    steps.push(
+      `Run \`${input.run(["doctor", "--deep"])}\` for an O(corpus) source and security audit.`,
+    )
+    steps.push(
+      `Run \`${input.run(["ingest"])}\` to create a current manifest before relying on status or search.`,
+    )
     return steps
   }
 

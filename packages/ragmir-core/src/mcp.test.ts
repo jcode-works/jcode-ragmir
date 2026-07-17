@@ -412,7 +412,7 @@ describe("MCP protocol contract", () => {
     expect(sourceContent && "text" in sourceContent ? sourceContent.text : "").not.toContain(root)
     expect(sources._meta?.["ragmir/output"]).toMatchObject({
       budgetBytes: 1_024,
-      truncated: true,
+      truncated: false,
     })
   })
 

@@ -25,7 +25,11 @@ import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
 import { collectGenerationGarbage } from "./generation-retention.js"
-import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
+import {
+  getIndexFreshnessWarning,
+  getLexicalScanWarning,
+  indexFreshnessWarning,
+} from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
 import { initProject } from "./init.js"
@@ -57,7 +61,7 @@ import {
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { optimizeStorage } from "./storage-maintenance.js"
-import { countRows } from "./store.js"
+import { countRows, readIndexManifestHeader } from "./store.js"
 import type { IncrementalFailurePolicy, PreviewChunksOptions, ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
 
@@ -248,8 +252,9 @@ program
   .command("doctor")
   .description("Diagnose setup, index freshness, privacy posture, and next steps.")
   .option("--fix", "Create missing scaffolding, install the agent kit, and rebuild stale indexes.")
+  .option("--deep", "Run the O(corpus) source inventory and executable security probes.")
   .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { fix?: boolean; json?: boolean }, command: Command) => {
+  .action(async (options: { fix?: boolean; deep?: boolean; json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
     if (options.fix) {
       const result = await setupProject({ cwd })
@@ -261,7 +266,7 @@ program
       return
     }
 
-    const report = await doctor(cwd)
+    const report = await doctor(cwd, { deep: options.deep === true })
     if (options.json) {
       console.log(JSON.stringify(report, null, 2))
       return
@@ -920,7 +925,7 @@ program
 
 program
   .command("audit")
-  .description("Compare supported files on disk with the current vector index.")
+  .description("Run a deep O(corpus) comparison of source files and the current vector index.")
   .option("--unsupported", "List skipped file paths and reasons.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { unsupported?: boolean; json?: boolean }, command: Command) => {
@@ -930,6 +935,9 @@ program
       console.log(JSON.stringify(report, null, 2))
       return
     }
+    console.log(`mode=${report.mode}`)
+    console.log(`cost=${report.cost}`)
+    console.log(`inventoryVerified=${report.inventoryVerified}`)
     console.log(`discoveredFiles=${report.discoveredFiles}`)
     console.log(`supportedFiles=${report.supportedFiles.length}`)
     console.log(`supportedBytes=${report.supportedBytes}`)
@@ -1087,7 +1095,19 @@ program
     const cwd = projectRoot(command)
     const config = await loadConfig(cwd)
     const identity = knowledgeBaseIdentity(config.projectRoot)
-    const rows = await countRows(config)
+    const manifest = await readIndexManifestHeader(config)
+    const health = manifest?.health
+    const freshnessWarning = indexFreshnessWarning(config, manifest)
+    const ready =
+      manifest !== null &&
+      health !== undefined &&
+      manifest.chunkCount > 0 &&
+      health.missingFromIndex === 0 &&
+      health.staleInIndex === 0 &&
+      health.emptyTextFiles === 0 &&
+      health.oversizedFiles === 0 &&
+      health.securityWarnings.length === 0 &&
+      freshnessWarning === null
     const ingestion = await getIngestionProgress(config)
     const status = {
       knowledgeBaseId: identity?.id ?? null,
@@ -1118,7 +1138,13 @@ program
       imageOcrTimeoutMs: config.imageOcrTimeoutMs,
       legacyWordCommand: config.legacyWordCommand,
       legacyWordTimeoutMs: config.legacyWordTimeoutMs,
-      chunksIndexed: rows,
+      manifestFound: manifest !== null,
+      ready,
+      indexFreshnessWarning: freshnessWarning,
+      indexedFiles: manifest?.fileCount ?? 0,
+      chunksIndexed: manifest?.chunkCount ?? 0,
+      health: health ?? null,
+      maintenance: manifest?.maintenance ?? null,
       ingestion,
     }
     if (options.json) {
@@ -1154,7 +1180,13 @@ program
     console.log(`imageOcrTimeoutMs=${config.imageOcrTimeoutMs}`)
     console.log(`legacyWordCommand=${config.legacyWordCommand.join(" ")}`)
     console.log(`legacyWordTimeoutMs=${config.legacyWordTimeoutMs}`)
-    console.log(`chunksIndexed=${rows}`)
+    console.log(`manifestFound=${manifest !== null}`)
+    console.log(`ready=${ready}`)
+    console.log(`indexedFiles=${manifest?.fileCount ?? 0}`)
+    console.log(`chunksIndexed=${manifest?.chunkCount ?? 0}`)
+    if (freshnessWarning) {
+      console.log(`indexFreshnessWarning=${freshnessWarning}`)
+    }
     if (ingestion) {
       console.log(`ingestionRunId=${ingestion.runId}`)
       console.log(`ingestionStatus=${ingestion.status}`)
@@ -1895,6 +1927,10 @@ async function printStaleIndexWarnings(cwd: string): Promise<void> {
 }
 
 function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
+  console.log(`mode=${report.mode}`)
+  console.log(`cost=${report.cost}`)
+  console.log(`inventoryVerified=${report.inventoryVerified}`)
+  console.log(`securityVerified=${report.securityVerified}`)
   console.log(`projectRoot=${report.projectRoot}`)
   console.log(`initialized=${report.initialized}`)
   console.log(`ready=${report.ready}`)

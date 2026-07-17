@@ -9,6 +9,7 @@ import {
   openRowsTable,
   readEmptyTextFiles,
   readIndexManifest,
+  readIndexManifestFilePage,
   readRows,
   updateRowsInTable,
   writeEmptyTextFiles,
@@ -484,6 +485,13 @@ describe("index manifest", () => {
       await readFile(path.join(config.storageDir, header.indexedFilesSnapshot ?? ""), "utf8"),
     ).toContain("raw/b.md")
     await expect(readIndexManifest(config)).resolves.toEqual(manifest)
+    await expect(readIndexManifestFilePage(config, 1, 1)).resolves.toEqual({
+      files: [indexedFiles[1]],
+      total: 2,
+      offset: 1,
+      limit: 1,
+      nextOffset: null,
+    })
 
     await writeIndexManifest(manifest, config)
     expect(

@@ -69,5 +69,11 @@ describe("context resources", () => {
     expect(catalog.indexedFiles).toHaveLength(50)
     expect(catalog.omitted.indexedFiles).toBe(5)
     expect(catalog.totals.chunks).toBeGreaterThanOrEqual(55)
+    expect(catalog.page).toEqual({ offset: 0, limit: 50, nextOffset: 50 })
+
+    const secondPage = await getKnowledgeBaseSourceCatalog(root, { offset: 50, limit: 10 })
+    expect(secondPage.indexedFiles).toHaveLength(5)
+    expect(secondPage.indexedFiles[0]?.source).toBe(".ragmir/raw/source-50.md")
+    expect(secondPage.page).toEqual({ offset: 50, limit: 10, nextOffset: null })
   })
 })

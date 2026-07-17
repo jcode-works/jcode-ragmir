@@ -116,9 +116,17 @@ Repairing the source replaces those rows once; deleting the source removes them.
 `--incremental-failure-policy preserve-last-good`. Select `remove-stale` explicitly when a failed
 changed file must have no searchable rows.
 
-`rgr status --json` exposes the run ID, mode, status, resume flag, last activity, batch size, chunk
-count, and file counts for `pending`, `parsed`, `embedded`, `indexed`, and `error` states. The human
+`rgr status --json` reads only compact manifest and durable progress metadata. It exposes readiness,
+manifest freshness, persisted source-health and maintenance counts, plus the run ID, mode, status,
+resume flag, last activity, batch size, chunk count, and file counts for `pending`, `parsed`,
+`embedded`, `indexed`, and `error` states. It does not open LanceDB or read chunk text. The human
 output shows the same progress in a compact form.
+
+`rgr doctor` is constant-cost by default and reports the last health snapshot persisted by a
+successful ingestion. Run `rgr doctor --deep` when current filesystem coverage, permissions, Git
+ignore behavior, executable probes, or compatible quality evidence must be verified live. Deep
+doctor and `rgr audit` label their O(corpus) cost in text and JSON output. A missing or invalid
+manifest always yields `ready=false`, including legacy tables that predate manifest activation.
 
 `rgr ingest --rebuild` writes batches into an isolated LanceDB generation. The existing index stays
 active until the new table and manifest pass row-count, checksum, and duplicate-ID validation. The
@@ -240,7 +248,7 @@ rgr destroy-index --yes
   categories, locales, exact citations, and independent thresholds for Recall@1/3/5/10,
   Precision@5, MRR@10, nDCG@10, citation accuracy, and false-positive rate.
 - A passing suite with at least 100 cases, graded relevance, exact citations, hard negatives, and
-  every threshold stores a fingerprint in the active manifest. `rgr doctor` reports retrieval
+  every threshold stores a fingerprint in the active manifest. `rgr doctor --deep` reports retrieval
   quality as verified only while that report still matches the golden file, corpus, model revision,
   retrieval profile, and index policy.
 - `usage-report --days` accepts an integer from 1 to 3650; `limits`, `storage optimize`,

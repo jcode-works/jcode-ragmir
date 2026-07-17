@@ -19,6 +19,7 @@ import type {
   IngestResult,
   KnowledgeBaseContextReport,
   KnowledgeBaseSourceCatalog,
+  KnowledgeBaseSourceCatalogOptions,
   OperationOptions,
   ResearchOptions,
   ResearchReport,
@@ -122,7 +123,9 @@ export class RagmirClient {
     return this.run(() => getKnowledgeBaseContext(this.projectRoot, options))
   }
 
-  async sources(options: OperationOptions = {}): Promise<KnowledgeBaseSourceCatalog> {
+  async sources(
+    options: KnowledgeBaseSourceCatalogOptions = {},
+  ): Promise<KnowledgeBaseSourceCatalog> {
     return this.run(() => getKnowledgeBaseSourceCatalog(this.projectRoot, options))
   }
 

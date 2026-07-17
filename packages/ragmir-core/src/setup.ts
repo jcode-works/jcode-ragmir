@@ -86,12 +86,12 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
   const agentSkills = await installAgentSkills(installOptions)
   const agentKit = agentSkills.projectKit
   const semantic = options.semantic ? await setupSemanticEmbeddings(cwd) : null
-  let report = await doctor(cwd)
+  let report = await doctor(cwd, { deep: true })
   let ingested: IngestResult | null = null
 
   if (options.ingest !== false && canAutoIngest(report)) {
     ingested = await ingest({ cwd })
-    report = await doctor(cwd)
+    report = await doctor(cwd, { deep: true })
   }
 
   const command = await rgrCommand(cwd, ["doctor"])

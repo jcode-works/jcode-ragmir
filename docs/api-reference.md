@@ -100,6 +100,10 @@ it. A dead local owner is recovered automatically, while bounded contention retu
 Cancellation is cooperative between filesystem, parsing, embedding, storage, retrieval, and
 diagnostic phases.
 
+`status()` reads compact manifest health without opening the vector table. `sources({ offset,
+limit })` streams only the requested page from the manifest file snapshot; `limit` defaults to 50
+and is capped at 100. Totals remain complete, and `page.nextOffset` is `null` on the final page.
+
 `RagmirError.code` is one of `ABORTED`, `CLIENT_CLOSED`, `INDEX_BUSY`, `INTERNAL`,
 `INVALID_ARGUMENT`, `OVERLOADED`, or `TIMEOUT`. `retryable` is true for cancellation, timeout,
 overload, and busy-index errors. `isRagmirError(error)` narrows
@@ -123,7 +127,7 @@ authentication, authorization, rate limits, and transport security.
 | `knowledgeBaseIdentity(start?)` | Identify the nearest base relative to the outer workspace. |
 | `discoverKnowledgeBases(start?)` | List root and nested bases and mark the active one. |
 | `getKnowledgeBaseContext(cwd?, options?)` | Return bounded identity, readiness, freshness, and capabilities. |
-| `getKnowledgeBaseSourceCatalog(cwd?, options?)` | Return bounded source coverage with complete totals. |
+| `getKnowledgeBaseSourceCatalog(cwd?, options?)` | Return paged manifest source coverage with complete totals. |
 | `listSourceEntries(cwd?)` | Read configured source and exclusion entries. |
 | `addSourceEntries(options)` | Add source paths or exclusions without duplicating entries. |
 
@@ -133,7 +137,7 @@ authentication, authorization, rate limits, and transport security.
 | --- | --- |
 | `ingest(options?)` | Incrementally parse, redact, chunk, embed, and store selected files. |
 | `getIngestionProgress(config)` | Read durable progress for the latest ingestion run. |
-| `audit(cwd?, options?)` | Compare files on disk with the current index. |
+| `audit(cwd?, options?)` | Run a deep O(corpus) comparison of files on disk with the current index. |
 | `previewChunks(options?)` | Return redacted chunks and distributions without writing an index. |
 | `search(query, options?)` | Return ranked cited passages. |
 | `ask(query, options?)` | Return cited retrieval context without calling an LLM. |
@@ -154,6 +158,10 @@ them stale when a changed file fails; `remove-stale` deletes them. Its durable p
 run ID, resume flag, last activity, chunk count, stale count, and per-stage file counts.
 Parsing windows are independently bounded by source bytes and estimated chunks. Embeddings are
 bounded by batch size and vector bytes, while each file remains the atomic durable commit unit.
+`DoctorOptions.deep` enables live O(corpus) inventory and security probes; default doctor and status
+paths consume persisted manifest health. `KnowledgeBaseSourceCatalogOptions` accepts zero-based
+`offset`, a `limit` from 1 to 100, `signal`, and `timeoutMs`.
+
 `IngestOptions`, `ResearchOptions`, `ExpandCitationOptions`, `EvaluationOptions`, and
 `AccessLogUsageOptions` accept `signal` and `timeoutMs`. Diagnostic functions that take a separate
 `options` argument use the same `OperationOptions` contract. When explanation is enabled, each
@@ -268,12 +276,12 @@ types that callers commonly compose explicitly.
 | Area | Exported types |
 | --- | --- |
 | Configuration | `Config`, `PrivacyProfile`, `RetrievalProfile` |
-| Ingestion | `IngestOptions`, `IngestResult`, `IncrementalFailurePolicy`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexManifestFile`, `IndexManifestStaleFile`, `VectorIndexManifest`, `VectorIndexParameters`, `VectorIndexStrategy`, `ParsedPage` |
+| Ingestion | `IngestOptions`, `IngestResult`, `IncrementalFailurePolicy`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexHealthSnapshot`, `IndexMaintenanceSnapshot`, `IndexManifestFile`, `IndexManifestStaleFile`, `VectorIndexManifest`, `VectorIndexParameters`, `VectorIndexStrategy`, `ParsedPage` |
 | Preview | `PreviewChunksOptions`, `PreviewReport`, `PreviewFile`, `PreviewChunk` |
 | Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
 | Research and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
-| Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
-| Operations | `RagmirClientOptions`, `OperationOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
+| Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `KnowledgeBaseSourceCatalogOptions`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
+| Operations | `RagmirClientOptions`, `OperationOptions`, `DoctorOptions`, `SecurityAuditOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
 | Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `ExtractPdfPagesOptions`, `ExtractPdfPagesResult`, `PdfOcrMetrics`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
 | Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |

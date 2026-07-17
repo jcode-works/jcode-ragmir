@@ -39,6 +39,8 @@ import {
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
 import { redactDocument, totalRedactions } from "./redaction.js"
+import { securityAudit } from "./security.js"
+import type { StorageMaintenanceReport } from "./storage-maintenance.js"
 import { maintainStorageTable } from "./storage-maintenance.js"
 import {
   activeIndexTableName,
@@ -55,6 +57,8 @@ import type {
   AuditReport,
   Config,
   IncrementalFailurePolicy,
+  IndexHealthSnapshot,
+  IndexMaintenanceSnapshot,
   IndexManifest,
   IndexManifestFile,
   IngestOptions,
@@ -63,6 +67,7 @@ import type {
   PdfOcrMetrics,
   SourceDiagnostics,
   SourceFile,
+  SourceInventory,
   TextChunk,
   VectorRow,
 } from "./types.js"
@@ -70,6 +75,7 @@ import { VERSION } from "./version.js"
 import { runWorkload } from "./workload.js"
 
 const MAX_SOURCE_DIAGNOSTIC_ITEMS = 20
+const MAX_HEALTH_PREVIEW_ITEMS = 50
 const DEFAULT_INGEST_FILE_BATCH_SIZE = 25
 const ARCHIVE_PATH_PATTERNS = [
   /(^|[/_-])archive(s)?([/_-]|$)/iu,
@@ -326,6 +332,23 @@ async function ingestUnlocked(
     }
     if (maintenance.adaptiveIndices) {
       manifest = { ...manifest, vectorIndex: maintenance.adaptiveIndices.vectorIndex }
+    }
+    const securityReport = await securityAudit(config.projectRoot, {
+      deep: false,
+      ...(signal ? { signal } : {}),
+    })
+    const checkedAt = new Date().toISOString()
+    manifest = {
+      ...manifest,
+      health: indexHealthSnapshot({
+        checkedAt,
+        inventory,
+        files,
+        state,
+        manifest,
+        securityWarnings: securityReport.warnings,
+      }),
+      maintenance: indexMaintenanceSnapshot(maintenance, checkedAt),
     }
     storageWarning = combineWarnings(storageWarning, maintenance.warning)
     await validateIngestionTable(state, manifest, config, connection)
@@ -607,6 +630,81 @@ async function manifestForState(
     tableName: state.tableName,
     ...(staleFiles.length > 0 ? { staleFiles } : {}),
   }
+}
+
+interface IndexHealthSnapshotInput {
+  checkedAt: string
+  inventory: SourceInventory
+  files: SourceFile[]
+  state: IngestionRunState
+  manifest: IndexManifest
+  securityWarnings: string[]
+}
+
+function indexHealthSnapshot(input: IndexHealthSnapshotInput): IndexHealthSnapshot {
+  const inventoryMetrics = sourceInventoryMetrics(input.files)
+  const emptyTextFiles = emptyTextRecords(input.state).map((file) => file.relativePath)
+  const staleInIndex = (input.manifest.staleFiles ?? []).map((file) => file.relativePath)
+  const missingFromIndex = input.state.files
+    .filter((file) => file.state === "error" && !file.staleLastKnownGood)
+    .map((file) => file.relativePath)
+    .sort()
+  const previews = {
+    missingFromIndex: missingFromIndex.slice(0, MAX_HEALTH_PREVIEW_ITEMS),
+    staleInIndex: staleInIndex.slice(0, MAX_HEALTH_PREVIEW_ITEMS),
+    emptyTextFiles: emptyTextFiles.slice(0, MAX_HEALTH_PREVIEW_ITEMS),
+  }
+  return {
+    schemaVersion: 1,
+    checkedAt: input.checkedAt,
+    discoveredFiles: input.inventory.discoveredFiles,
+    supportedFiles: input.files.length,
+    supportedBytes: inventoryMetrics.supportedBytes,
+    largestFileBytes: inventoryMetrics.largestFileBytes,
+    skippedFiles: input.inventory.skippedFiles.length,
+    unsupportedFiles: countSkippedByReason(input.inventory.skippedFiles, "unsupported-extension"),
+    oversizedFiles: countSkippedByReason(input.inventory.skippedFiles, "oversized"),
+    sensitiveFiles: countSkippedByReason(input.inventory.skippedFiles, "sensitive-name"),
+    emptyTextFiles: emptyTextFiles.length,
+    missingFromIndex: missingFromIndex.length,
+    staleInIndex: staleInIndex.length,
+    previews,
+    previewOmitted: {
+      missingFromIndex: missingFromIndex.length - previews.missingFromIndex.length,
+      staleInIndex: staleInIndex.length - previews.staleInIndex.length,
+      emptyTextFiles: emptyTextFiles.length - previews.emptyTextFiles.length,
+    },
+    skippedByReason: skippedFileCounts(input.inventory.skippedFiles),
+    sourceDiagnostics: sourceDiagnostics(input.files, input.inventory.skippedFiles),
+    securityCheckedAt: input.checkedAt,
+    securityWarnings: [...input.securityWarnings].sort().slice(0, MAX_HEALTH_PREVIEW_ITEMS),
+  }
+}
+
+function indexMaintenanceSnapshot(
+  report: StorageMaintenanceReport,
+  checkedAt: string,
+): IndexMaintenanceSnapshot {
+  return {
+    schemaVersion: 1,
+    checkedAt,
+    status: report.status,
+    tableVersion: report.tableVersion,
+    mutationsSinceOptimization: report.mutationsSinceOptimization,
+    fragments: report.fragments,
+    fullTextIndex: report.fullTextIndex,
+    warning: report.warning,
+  }
+}
+
+function skippedFileCounts(skippedFiles: SourceInventory["skippedFiles"]): Record<string, number> {
+  const counts = new Map<string, number>()
+  for (const file of skippedFiles) {
+    counts.set(file.reason, (counts.get(file.reason) ?? 0) + 1)
+  }
+  return Object.fromEntries(
+    [...counts.entries()].sort(([left], [right]) => left.localeCompare(right)),
+  )
 }
 
 function* indexedFilesFromState(state: IngestionRunState): Generator<IndexManifestFile> {
@@ -928,6 +1026,9 @@ export async function audit(
 
   if (!table) {
     return {
+      mode: "deep",
+      inventoryVerified: true,
+      cost: "O(corpus)",
       discoveredFiles: inventory.discoveredFiles,
       supportedBytes: inventoryMetrics.supportedBytes,
       largestFileBytes: inventoryMetrics.largestFileBytes,
@@ -979,6 +1080,9 @@ export async function audit(
 
   throwIfAborted(signal)
   return {
+    mode: "deep",
+    inventoryVerified: true,
+    cost: "O(corpus)",
     discoveredFiles: inventory.discoveredFiles,
     supportedBytes: inventoryMetrics.supportedBytes,
     largestFileBytes: inventoryMetrics.largestFileBytes,

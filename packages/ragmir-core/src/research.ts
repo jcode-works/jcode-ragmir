@@ -390,27 +390,26 @@ async function researchHealthSnapshot(
     }
   }
 
-  const securityReport = await securityAudit(config.projectRoot, operationOptions)
-  throwIfAborted(signal)
+  const health = manifest?.health
   return {
-    indexAvailable: manifest !== null,
+    indexAvailable: manifest !== null && health !== undefined,
     audit: {
       mode: "manifest",
       inventoryVerified: false,
-      supportedFiles: manifest?.fileCount ?? 0,
-      supportedBytes: 0,
-      largestFileBytes: 0,
-      skippedFiles: 0,
-      unsupportedFiles: 0,
-      oversizedFiles: 0,
+      supportedFiles: health?.supportedFiles ?? 0,
+      supportedBytes: health?.supportedBytes ?? 0,
+      largestFileBytes: health?.largestFileBytes ?? 0,
+      skippedFiles: health?.skippedFiles ?? 0,
+      unsupportedFiles: health?.unsupportedFiles ?? 0,
+      oversizedFiles: health?.oversizedFiles ?? 0,
       indexedFiles: manifest?.fileCount ?? 0,
       totalChunks: manifest?.chunkCount ?? 0,
-      missingFromIndex: 0,
-      staleInIndex: manifest?.staleFiles?.length ?? 0,
-      emptyTextFiles: 0,
+      missingFromIndex: health?.missingFromIndex ?? 0,
+      staleInIndex: health?.staleInIndex ?? manifest?.staleFiles?.length ?? 0,
+      emptyTextFiles: health?.emptyTextFiles ?? 0,
     },
-    securityWarnings: securityReport.warnings,
-    sourceDiagnostics: emptySourceDiagnostics(),
+    securityWarnings: health?.securityWarnings ?? [],
+    sourceDiagnostics: health?.sourceDiagnostics ?? emptySourceDiagnostics(),
   }
 }
 

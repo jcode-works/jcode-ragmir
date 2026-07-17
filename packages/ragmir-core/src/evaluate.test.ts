@@ -518,7 +518,7 @@ describe("evaluateGoldenQueries", () => {
       qualityReportFingerprint: report.qualityReportFingerprint,
       rankingPolicyFingerprint: report.rankingPolicyFingerprint,
     })
-    expect((await doctor(root)).readiness.retrievalQualityVerified).toBe(true)
+    expect((await doctor(root, { deep: true })).readiness.retrievalQualityVerified).toBe(true)
 
     const manifest = await readIndexManifest(config)
     if (!manifest) {

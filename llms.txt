@@ -16,6 +16,9 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   checkpoint size. Rebuilds stay isolated until final manifest validation and activation.
 - CLI: `rgr preview`, `rgr search "query" --explain`, `rgr bases`, `rgr doctor`, `rgr audit`, and
   `rgr security-audit`
+- Lightweight health: `rgr status`, normal `rgr doctor`, and MCP context read compact manifest
+  metadata without opening the vector table. Use `rgr doctor --deep` or `rgr audit` for explicit
+  O(corpus) live diagnostics. Missing or invalid manifests are never ready.
 - Core behavior: cited retrieval only. `ask` returns evidence, while synthesis belongs to the calling
   agent or optional local chat add-on.
 - Consumer choice: use the AI or automation you already have through CLI, TypeScript, or MCP. Use a

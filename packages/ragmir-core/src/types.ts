@@ -182,7 +182,59 @@ export interface IndexManifest {
   tableName?: string
   indexedFiles?: IndexManifestFile[]
   staleFiles?: IndexManifestStaleFile[]
+  health?: IndexHealthSnapshot
+  maintenance?: IndexMaintenanceSnapshot
   qualityReport?: IndexQualityReport
+}
+
+export interface IndexHealthSnapshot {
+  schemaVersion: 1
+  checkedAt: string
+  discoveredFiles: number
+  supportedFiles: number
+  supportedBytes: number
+  largestFileBytes: number
+  skippedFiles: number
+  unsupportedFiles: number
+  oversizedFiles: number
+  sensitiveFiles: number
+  emptyTextFiles: number
+  missingFromIndex: number
+  staleInIndex: number
+  previews: {
+    missingFromIndex: string[]
+    staleInIndex: string[]
+    emptyTextFiles: string[]
+  }
+  previewOmitted: {
+    missingFromIndex: number
+    staleInIndex: number
+    emptyTextFiles: number
+  }
+  skippedByReason: Record<string, number>
+  sourceDiagnostics: SourceDiagnostics
+  securityCheckedAt: string
+  securityWarnings: string[]
+}
+
+export interface IndexMaintenanceSnapshot {
+  schemaVersion: 1
+  checkedAt: string
+  status: "missing" | "healthy" | "needed" | "completed" | "warning"
+  tableVersion: number | null
+  mutationsSinceOptimization: number
+  fragments: {
+    total: number
+    small: number
+    smallRatio: number
+  }
+  fullTextIndex: {
+    present: boolean
+    indexedRows: number
+    unindexedRows: number
+    complete: boolean
+  }
+  warning: string | null
 }
 
 export interface IndexManifestFile {
@@ -517,6 +569,16 @@ export interface KnowledgeBaseSourceCatalog {
     staleInIndex: number
     emptyTextFiles: number
   }
+  page: {
+    offset: number
+    limit: number
+    nextOffset: number | null
+  }
+}
+
+export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
+  offset?: number
+  limit?: number
 }
 
 export interface SearchOptions extends OperationOptions {
@@ -883,6 +945,9 @@ export interface AskResult {
 }
 
 export interface AuditReport {
+  mode: "deep"
+  inventoryVerified: true
+  cost: "O(corpus)"
   discoveredFiles: number
   supportedBytes: number
   largestFileBytes: number
@@ -905,6 +970,10 @@ export interface DestroyIndexResult {
 }
 
 export interface DoctorReport {
+  mode: "manifest" | "deep"
+  inventoryVerified: boolean
+  securityVerified: boolean
+  cost: "O(1)" | "O(corpus)"
   projectRoot: string
   initialized: boolean
   packageManager: PackageManager
@@ -947,6 +1016,10 @@ export interface DoctorReport {
     acceptedRisks: string[]
   }
   nextSteps: string[]
+}
+
+export interface DoctorOptions extends OperationOptions {
+  deep?: boolean
 }
 
 export interface SecurityAuditReport {
@@ -997,4 +1070,8 @@ export interface SecurityAuditReport {
   }
   recommendations: string[]
   warnings: string[]
+}
+
+export interface SecurityAuditOptions extends OperationOptions {
+  deep?: boolean
 }

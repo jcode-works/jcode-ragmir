@@ -1,16 +1,17 @@
 import { loadConfig } from "./config.js"
 import { doctor } from "./doctor.js"
-import { audit } from "./ingest.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
+import { readIndexManifestFilePage, readIndexManifestHeader } from "./store.js"
 import type {
   KnowledgeBaseContextReport,
   KnowledgeBaseSourceCatalog,
+  KnowledgeBaseSourceCatalogOptions,
   OperationOptions,
-  SkippedSourceFile,
 } from "./types.js"
 
 const SOURCE_CATALOG_LIMIT = 50
+const MAX_SOURCE_CATALOG_LIMIT = 100
 const RAGMIR_MCP_TOOLS = [
   "ragmir_status",
   "ragmir_route_prompt",
@@ -66,50 +67,72 @@ export async function getKnowledgeBaseContext(
 
 export async function getKnowledgeBaseSourceCatalog(
   cwd = process.cwd(),
-  options: OperationOptions = {},
+  options: KnowledgeBaseSourceCatalogOptions = {},
 ): Promise<KnowledgeBaseSourceCatalog> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const config = await loadConfig(cwd)
   throwIfAborted(signal)
-  const report = await audit(config.projectRoot, signal ? { signal } : {})
+  const offset = sourceCatalogOffset(options.offset)
+  const limit = sourceCatalogLimit(options.limit)
+  const [manifest, filePage] = await Promise.all([
+    readIndexManifestHeader(config),
+    readIndexManifestFilePage(config, offset, limit),
+  ])
   throwIfAborted(signal)
   const identity = knowledgeBaseIdentity(config.projectRoot)
-  const indexedFiles = report.indexedFiles.slice(0, SOURCE_CATALOG_LIMIT)
-  const missingFromIndex = report.missingFromIndex.slice(0, SOURCE_CATALOG_LIMIT)
-  const staleInIndex = report.staleInIndex.slice(0, SOURCE_CATALOG_LIMIT)
-  const emptyTextFiles = report.emptyTextFiles.slice(0, SOURCE_CATALOG_LIMIT)
+  const health = manifest?.health
+  const indexedFiles = (filePage?.files ?? []).map((file) => ({
+    source: file.relativePath,
+    chunks: file.chunkCount,
+  }))
+  const missingFromIndex = health?.previews.missingFromIndex.slice(0, limit) ?? []
+  const staleInIndex = health?.previews.staleInIndex.slice(0, limit) ?? []
+  const emptyTextFiles = health?.previews.emptyTextFiles.slice(0, limit) ?? []
 
   return {
     knowledgeBaseId: identity?.id ?? null,
     totals: {
-      indexedFiles: report.indexedFiles.length,
-      chunks: report.totalChunks,
-      missingFromIndex: report.missingFromIndex.length,
-      staleInIndex: report.staleInIndex.length,
-      emptyTextFiles: report.emptyTextFiles.length,
-      skippedFiles: report.skippedFiles.length,
+      indexedFiles: manifest?.fileCount ?? 0,
+      chunks: manifest?.chunkCount ?? 0,
+      missingFromIndex: health?.missingFromIndex ?? 0,
+      staleInIndex: health?.staleInIndex ?? 0,
+      emptyTextFiles: health?.emptyTextFiles ?? 0,
+      skippedFiles: health?.skippedFiles ?? 0,
     },
     indexedFiles,
     missingFromIndex,
     staleInIndex,
     emptyTextFiles,
-    skippedByReason: skippedCounts(report.skippedFiles),
+    skippedByReason: health?.skippedByReason ?? {},
     omitted: {
-      indexedFiles: report.indexedFiles.length - indexedFiles.length,
-      missingFromIndex: report.missingFromIndex.length - missingFromIndex.length,
-      staleInIndex: report.staleInIndex.length - staleInIndex.length,
-      emptyTextFiles: report.emptyTextFiles.length - emptyTextFiles.length,
+      indexedFiles: Math.max(0, (manifest?.fileCount ?? 0) - indexedFiles.length),
+      missingFromIndex: Math.max(0, (health?.missingFromIndex ?? 0) - missingFromIndex.length),
+      staleInIndex: Math.max(0, (health?.staleInIndex ?? 0) - staleInIndex.length),
+      emptyTextFiles: Math.max(0, (health?.emptyTextFiles ?? 0) - emptyTextFiles.length),
+    },
+    page: {
+      offset,
+      limit,
+      nextOffset: filePage?.nextOffset ?? null,
     },
   }
 }
 
-function skippedCounts(skippedFiles: SkippedSourceFile[]): Record<string, number> {
-  const counts = new Map<string, number>()
-  for (const skipped of skippedFiles) {
-    counts.set(skipped.reason, (counts.get(skipped.reason) ?? 0) + 1)
+function sourceCatalogOffset(value: number | undefined): number {
+  const offset = value ?? 0
+  if (!Number.isSafeInteger(offset) || offset < 0) {
+    throw new Error("Source catalog offset must be a non-negative integer.")
   }
-  return Object.fromEntries(
-    [...counts.entries()].sort(([left], [right]) => left.localeCompare(right)),
-  )
+  return offset
+}
+
+function sourceCatalogLimit(value: number | undefined): number {
+  const limit = value ?? SOURCE_CATALOG_LIMIT
+  if (!Number.isSafeInteger(limit) || limit <= 0 || limit > MAX_SOURCE_CATALOG_LIMIT) {
+    throw new Error(
+      `Source catalog limit must be a positive integer no greater than ${MAX_SOURCE_CATALOG_LIMIT}.`,
+    )
+  }
+  return limit
 }

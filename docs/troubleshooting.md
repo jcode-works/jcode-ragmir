@@ -4,9 +4,13 @@ Start with the smallest diagnostic:
 
 ```bash
 rgr doctor
+rgr doctor --deep
 rgr audit --unsupported
 rgr security-audit
 ```
+
+The first command reads the last successful manifest health snapshot. Use `--deep` only when you
+need a live O(corpus) inventory and executable security probes. `rgr audit` is also O(corpus).
 
 ## The project is not initialized
 

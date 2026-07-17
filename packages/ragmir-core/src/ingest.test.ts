@@ -54,6 +54,11 @@ describe("ingest", () => {
     await writeFile(path.join(root, ".ragmir", "raw", "evidence.md"), "Changed version.\n", "utf8")
     const report = await audit(root)
 
+    expect(report).toMatchObject({
+      mode: "deep",
+      inventoryVerified: true,
+      cost: "O(corpus)",
+    })
     expect(report.missingFromIndex).toEqual([])
     expect(report.discoveredFiles).toBe(2)
     expect(report.supportedBytes).toBeGreaterThan(0)
@@ -599,6 +604,18 @@ describe("ingest", () => {
       coverage: 1,
     })
     expect(manifest?.chunkCount).toBe(result.chunks)
+    expect(manifest?.health).toMatchObject({
+      schemaVersion: 1,
+      supportedFiles: 1,
+      missingFromIndex: 0,
+      staleInIndex: 0,
+      emptyTextFiles: 0,
+      securityWarnings: [],
+    })
+    expect(manifest?.maintenance).toMatchObject({
+      schemaVersion: 1,
+      fullTextIndex: { complete: true },
+    })
   })
 
   it("does not create a LanceDB version for a no-op ingest", async () => {

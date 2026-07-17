@@ -84,11 +84,13 @@ It also exposes two bounded resources:
 | Resource | Use |
 | --- | --- |
 | `ragmir://context` | Active base identity, readiness, freshness, coverage, and available operations. |
-| `ragmir://sources` | Source coverage, skipped-file counts, and index drift, with per-file lists capped at 50. |
+| `ragmir://sources` | Manifest source coverage, skipped-file counts, and index drift, with the first 50 files returned without scanning chunks. |
 
 Read `ragmir://context` first when the client supports resources. This gives an agent enough context
 to choose the next operation without chaining status, doctor, and audit calls. Totals in
 `ragmir://sources` stay complete even when detail lists are truncated.
+The TypeScript `sources({ offset, limit })` method can request later pages directly from the
+manifest file snapshot without materializing the complete source list.
 
 Use compact retrieval first, then pass a returned citation to `ragmir_expand` when the agent needs
 the exact chunk or a bounded neighbor window. Search, ask, research, expansion, audit, and evaluation

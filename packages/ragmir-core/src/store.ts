@@ -10,6 +10,8 @@ import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import { isIndexQualityReport } from "./quality-report.js"
 import type {
   Config,
+  IndexHealthSnapshot,
+  IndexMaintenanceSnapshot,
   IndexManifest,
   IndexManifestFile,
   SourceLocationKind,
@@ -53,6 +55,14 @@ export interface IndexReadSnapshot {
   manifestFingerprint: string | null
   tableName: string
   table: lancedb.Table | null
+}
+
+export interface IndexManifestFilePage {
+  files: IndexManifestFile[]
+  total: number
+  offset: number
+  limit: number
+  nextOffset: number | null
 }
 
 export async function connectStore(config: Config): Promise<lancedb.Connection> {
@@ -249,6 +259,40 @@ export async function readIndexManifestHeader(config: Config): Promise<IndexMani
   }
 }
 
+export async function readIndexManifestFilePage(
+  config: Config,
+  offset: number,
+  limit: number,
+): Promise<IndexManifestFilePage | null> {
+  if (!Number.isSafeInteger(offset) || offset < 0) {
+    throw new Error("Index manifest file page offset must be a non-negative integer.")
+  }
+  if (!Number.isSafeInteger(limit) || limit <= 0) {
+    throw new Error("Index manifest file page limit must be a positive integer.")
+  }
+
+  publishIndexReadDiagnostics({ kind: "manifest-read", projectRoot: config.projectRoot })
+  try {
+    const raw = await readRawIndexManifest(config)
+    if (!isIndexManifest(raw)) {
+      return null
+    }
+    const files = raw.indexedFilesSnapshot
+      ? await readIndexFileSnapshotPage(raw.indexedFilesSnapshot, config, offset, limit)
+      : (raw.indexedFiles?.slice(offset, offset + limit) ?? null)
+    if (!files || offset > raw.fileCount || offset + files.length > raw.fileCount) {
+      return null
+    }
+    const nextOffset = offset + files.length < raw.fileCount ? offset + files.length : null
+    return { files, total: raw.fileCount, offset, limit, nextOffset }
+  } catch (error) {
+    if (error instanceof SyntaxError || (isNodeError(error) && error.code === "ENOENT")) {
+      return null
+    }
+    throw error
+  }
+}
+
 export async function loadIndexReadSnapshot(
   config: Config,
   connection?: lancedb.Connection,
@@ -330,7 +374,103 @@ function isIndexManifest(
       isIndexFilesSnapshotFilename(value.indexedFilesSnapshot)) &&
     !("indexedFiles" in value && "indexedFilesSnapshot" in value) &&
     (!("staleFiles" in value) ||
-      (Array.isArray(value.staleFiles) && value.staleFiles.every(isIndexManifestStaleFile)))
+      (Array.isArray(value.staleFiles) && value.staleFiles.every(isIndexManifestStaleFile))) &&
+    (!("health" in value) || isIndexHealthSnapshot(value.health)) &&
+    (!("maintenance" in value) || isIndexMaintenanceSnapshot(value.maintenance))
+  )
+}
+
+function isIndexHealthSnapshot(value: unknown): value is IndexHealthSnapshot {
+  if (!isRecord(value) || !isRecord(value.previews) || !isRecord(value.previewOmitted)) {
+    return false
+  }
+  return (
+    value.schemaVersion === 1 &&
+    typeof value.checkedAt === "string" &&
+    isNonNegativeInteger(value.discoveredFiles) &&
+    isNonNegativeInteger(value.supportedFiles) &&
+    isNonNegativeNumber(value.supportedBytes) &&
+    isNonNegativeNumber(value.largestFileBytes) &&
+    isNonNegativeInteger(value.skippedFiles) &&
+    isNonNegativeInteger(value.unsupportedFiles) &&
+    isNonNegativeInteger(value.oversizedFiles) &&
+    isNonNegativeInteger(value.sensitiveFiles) &&
+    isNonNegativeInteger(value.emptyTextFiles) &&
+    isNonNegativeInteger(value.missingFromIndex) &&
+    isNonNegativeInteger(value.staleInIndex) &&
+    isStringArray(value.previews.missingFromIndex) &&
+    isStringArray(value.previews.staleInIndex) &&
+    isStringArray(value.previews.emptyTextFiles) &&
+    isNonNegativeInteger(value.previewOmitted.missingFromIndex) &&
+    isNonNegativeInteger(value.previewOmitted.staleInIndex) &&
+    isNonNegativeInteger(value.previewOmitted.emptyTextFiles) &&
+    isStringCountRecord(value.skippedByReason) &&
+    isSourceDiagnostics(value.sourceDiagnostics) &&
+    typeof value.securityCheckedAt === "string" &&
+    isStringArray(value.securityWarnings)
+  )
+}
+
+function isIndexMaintenanceSnapshot(value: unknown): value is IndexMaintenanceSnapshot {
+  if (!isRecord(value) || !isRecord(value.fragments) || !isRecord(value.fullTextIndex)) {
+    return false
+  }
+  return (
+    value.schemaVersion === 1 &&
+    typeof value.checkedAt === "string" &&
+    ["missing", "healthy", "needed", "completed", "warning"].includes(String(value.status)) &&
+    (value.tableVersion === null || isNonNegativeInteger(value.tableVersion)) &&
+    isNonNegativeInteger(value.mutationsSinceOptimization) &&
+    isNonNegativeInteger(value.fragments.total) &&
+    isNonNegativeInteger(value.fragments.small) &&
+    isNonNegativeNumber(value.fragments.smallRatio) &&
+    typeof value.fullTextIndex.present === "boolean" &&
+    isNonNegativeInteger(value.fullTextIndex.indexedRows) &&
+    isNonNegativeInteger(value.fullTextIndex.unindexedRows) &&
+    typeof value.fullTextIndex.complete === "boolean" &&
+    (value.warning === null || typeof value.warning === "string")
+  )
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string")
+}
+
+function isStringCountRecord(value: unknown): value is Record<string, number> {
+  return isRecord(value) && Object.values(value).every(isNonNegativeInteger)
+}
+
+function isSourceDiagnostics(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    Array.isArray(value.duplicateCandidates) &&
+    value.duplicateCandidates.every(
+      (entry) => isRecord(entry) && typeof entry.key === "string" && isStringArray(entry.files),
+    ) &&
+    isSourcePathCandidates(value.archiveCandidates) &&
+    isSourcePathCandidates(value.mirrorCandidates)
+  )
+}
+
+function isSourcePathCandidates(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (entry) =>
+        isRecord(entry) &&
+        typeof entry.relativePath === "string" &&
+        typeof entry.reason === "string",
+    )
   )
 }
 
@@ -753,6 +893,75 @@ async function readIndexFileSnapshot(
       return null
     }
     throw error
+  }
+}
+
+async function readIndexFileSnapshotPage(
+  filename: string,
+  config: Config,
+  offset: number,
+  limit: number,
+): Promise<IndexManifestFile[] | null> {
+  if (!isIndexFilesSnapshotFilename(filename)) {
+    return null
+  }
+  const values: IndexManifestFile[] = []
+  const stream = createReadStream(path.join(config.storageDir, filename))
+  stream.setEncoding("utf8")
+  let buffered = ""
+  let lineNumber = 0
+  let previousKey: string | null = null
+  const applyLine = (line: string): "continue" | "done" | "invalid" => {
+    let value: unknown
+    try {
+      value = JSON.parse(line) as unknown
+    } catch {
+      return "invalid"
+    }
+    if (!isIndexManifestFile(value)) {
+      return "invalid"
+    }
+    const key = `${value.relativePath}\0${value.checksum}`
+    if (previousKey !== null && key <= previousKey) {
+      return "invalid"
+    }
+    previousKey = key
+    if (lineNumber >= offset) {
+      values.push(value)
+    }
+    lineNumber += 1
+    return values.length >= limit ? "done" : "continue"
+  }
+  try {
+    for await (const chunk of stream) {
+      buffered += typeof chunk === "string" ? chunk : chunk.toString("utf8")
+      let lineEnd = buffered.indexOf("\n")
+      while (lineEnd >= 0) {
+        const line = buffered.slice(0, lineEnd)
+        buffered = buffered.slice(lineEnd + 1)
+        if (!line) {
+          return null
+        }
+        const outcome = applyLine(line)
+        if (outcome === "invalid") {
+          return null
+        }
+        if (outcome === "done") {
+          stream.destroy()
+          return values
+        }
+        lineEnd = buffered.indexOf("\n")
+      }
+    }
+    if (buffered) {
+      const outcome = applyLine(buffered)
+      if (outcome === "invalid") {
+        return null
+      }
+    }
+    return lineNumber >= offset ? values : null
+  } finally {
+    stream.destroy()
   }
 }
 

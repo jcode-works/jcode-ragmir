@@ -213,13 +213,19 @@ and compacts LanceDB after 20 mutation batches or when fragment health crosses i
 `rgr storage optimize --dry-run --json` to inspect the active table, then omit `--dry-run` for an
 explicit maintenance pass. The same maintenance pass creates or refreshes adaptive vector and
 `relativePath` scalar indices, and reports their indexed and unindexed rows. Completed rebuilds
-retain active, resumable, rollback, and leased
-generations, then bound ordinary generations to three after a five-minute reader grace period.
+retain active, resumable, rollback, and leased generations, then bound ordinary generations to
+three after a five-minute reader grace period.
 Inspect roles and reclaimable bytes with `rgr storage generations --json`; use
 `rgr storage gc --dry-run --json` before explicit cleanup. During incremental ingestion, a changed file that fails keeps its last
 known good rows searchable and explicitly stale by default. Repair replaces them without duplicate
 IDs, while actual source deletion removes them. Use `--incremental-failure-policy remove-stale` only
 when an operator prefers missing evidence to stale evidence.
+
+`rgr status` and the MCP context resource read only the compact activation manifest and durable
+progress state. They do not open LanceDB or read chunk text. `rgr doctor` uses the same constant-cost
+snapshot by default; use `rgr doctor --deep` for a live O(corpus) source inventory and executable
+security probes. `rgr audit` remains the explicit deep O(corpus) source-to-index comparison. A
+missing, malformed, or legacy manifest is never reported ready even if a LanceDB table exists.
 
 ### Search scanned PDFs
 
