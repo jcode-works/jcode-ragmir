@@ -191,7 +191,10 @@ committed batch are not parsed or embedded again after a restart. A full `--rebu
 isolated generation and activates it only after row and manifest validation, so an interrupted
 rebuild leaves the previous searchable index active. After activation, older generated tables stay
 available so searches that already opened them can finish safely. `rgr destroy-index` removes all
-generated index storage. During incremental ingestion, a changed file that fails keeps its last
+generated index storage. At the end of ingestion, Ragmir refreshes incomplete full-text coverage
+and compacts LanceDB after 20 mutation batches or when fragment health crosses its threshold. Run
+`rgr storage optimize --dry-run --json` to inspect the active table, then omit `--dry-run` for an
+explicit maintenance pass. During incremental ingestion, a changed file that fails keeps its last
 known good rows searchable and explicitly stale by default. Repair replaces them without duplicate
 IDs, while actual source deletion removes them. Use `--incremental-failure-policy remove-stale` only
 when an operator prefers missing evidence to stale evidence.

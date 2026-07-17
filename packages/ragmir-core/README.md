@@ -32,8 +32,10 @@ npx rgr search "Which decision changed the rollout?"
 Setup keeps configuration, the index, helpers, reports, and metadata-only access logs under ignored
 `.ragmir/` state. Ingestion is incremental, resumable, and serialized across local writer
 processes. Source, chunk, vector, concurrency, and batch windows are bounded, with durable progress
-committed per file. Failed changed files keep explicitly stale last-known-good rows by default; repair or
-source deletion reconciles them deterministically.
+committed per file. Completed ingestion refreshes incomplete full-text coverage and runs bounded
+LanceDB maintenance when mutation or fragment thresholds are reached. Inspect it with
+`npx rgr storage optimize --dry-run --json`. Failed changed files keep explicitly stale
+last-known-good rows by default; repair or source deletion reconciles them deterministically.
 Returned citations expose only verifiable coordinates: source lines for line-preserving text, PDF
 pages, PPTX slides, XLSX sheets and cells, and EPUB spine positions.
 Run `npx rgr audit --unsupported` to compare the selected files with the index and see what was

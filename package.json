@@ -40,6 +40,7 @@
     "bench:quality": "pnpm --filter @jcode.labs/ragmir bench:quality",
     "bench:scale": "pnpm --filter @jcode.labs/ragmir bench:scale",
     "bench:smoke": "pnpm --filter @jcode.labs/ragmir bench:smoke",
+    "bench:storage": "pnpm --filter @jcode.labs/ragmir bench:storage",
     "audit:security": "pnpm audit --audit-level moderate",
     "build": "pnpm --filter @jcode.labs/ragmir-landing build && pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm --filter @jcode.labs/ragmir build",
     "check": "pnpm --filter @jcode.labs/ragmir-landing check && pnpm --filter @jcode.labs/ragmir-tts check && pnpm --filter @jcode.labs/ragmir-chat check && pnpm --filter @jcode.labs/ragmir check",

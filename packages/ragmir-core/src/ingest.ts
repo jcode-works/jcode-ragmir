@@ -38,6 +38,7 @@ import {
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
 import { redactDocument, totalRedactions } from "./redaction.js"
+import { maintainStorageTable } from "./storage-maintenance.js"
 import {
   activeIndexTableName,
   dropRowsTable,
@@ -209,6 +210,7 @@ async function ingestUnlocked(
       })
     let removalApplied = false
     let lexicalIndexWarning: string | null = null
+    let storageMutations = 0
     const failurePolicy = incrementalFailurePolicy(options, config)
 
     for (const fileWindow of ingestionWindows(pendingFiles, state.batchSize, config)) {
@@ -262,6 +264,7 @@ async function ingestUnlocked(
             connection,
           )
           removalApplied = true
+          storageMutations += 1
           lexicalIndexWarning ??= writeResult.lexicalIndexWarning
         }
 
@@ -298,10 +301,15 @@ async function ingestUnlocked(
         config,
         connection,
       )
+      storageMutations += 1
       lexicalIndexWarning ??= writeResult.lexicalIndexWarning
     }
 
     const manifest = await manifestForState(state, config, connection)
+    const maintenance = await maintainStorageTable(state.tableName, config, connection, {
+      additionalMutations: storageMutations,
+    })
+    lexicalIndexWarning ??= maintenance.warning
     await validateIngestionTable(state, manifest, config, connection)
     await writeEmptyTextFiles(emptyTextRecords(state), config)
     await writeIndexManifest(manifest, config, indexedFilesFromState(state))

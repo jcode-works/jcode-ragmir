@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
+import { maintainOpenStorageTable } from "./storage-maintenance.js"
 import {
   countRows,
   openRowsTable,
@@ -51,6 +52,24 @@ function sampleRow(
     embeddingProvider: config.embeddingProvider,
     embeddingModel: config.embeddingModel,
   }
+}
+
+async function fullTextEvidence(table: NonNullable<Awaited<ReturnType<typeof openRowsTable>>>) {
+  const rows = await table
+    .search("maintenance baseline", "fts", "searchText")
+    .select(["relativePath", "lineStart", "lineEnd", "_score"])
+    .limit(5)
+    .toArray()
+  return rows.flatMap((row) => {
+    if (
+      typeof row.relativePath !== "string" ||
+      typeof row.lineStart !== "number" ||
+      typeof row.lineEnd !== "number"
+    ) {
+      return []
+    }
+    return [`${row.relativePath}:${row.lineStart}-${row.lineEnd}`]
+  })
 }
 
 describe("store", () => {
@@ -135,6 +154,113 @@ describe("store", () => {
     const result = await writeRows([sampleRow(".ragmir/raw/a.md", 0, [0.1, 0.2], config)], config)
     expect(result.vectorIndexWarning).toBeNull()
     expect(result.lexicalIndexWarning).toBeNull()
+  })
+
+  it("should compact fragments and fully refresh FTS after twenty mutation batches", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-maintenance-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const stablePath = ".ragmir/raw/stable.md"
+    const mutablePath = ".ragmir/raw/mutable.md"
+    await writeRows(
+      [
+        {
+          ...sampleRow(stablePath, 0, [0.1, 0.2], config),
+          searchText: "Evidence\nmaintenance baseline",
+          text: "maintenance baseline",
+        },
+        sampleRow(mutablePath, 0, [0.3, 0.4], config),
+      ],
+      config,
+    )
+
+    for (let mutation = 1; mutation <= 21; mutation += 1) {
+      await updateRowsInTable(
+        [
+          {
+            ...sampleRow(mutablePath, 0, [0.3, 0.4], config),
+            checksum: `mutation-${mutation}`,
+            searchText: `Evidence\nmutable content ${mutation}`,
+            text: `mutable content ${mutation}`,
+          },
+        ],
+        [mutablePath],
+        config.tableName,
+        config,
+      )
+    }
+
+    const table = await openRowsTable(config)
+    expect(table).not.toBeNull()
+    if (!table) {
+      return
+    }
+    const versionBefore = await table.version()
+    const fragmentsBefore = (await table.stats()).fragmentStats
+    const coverageBefore = await table.indexStats("searchText_idx")
+    const evidenceBefore = await fullTextEvidence(table)
+    expect(coverageBefore?.numUnindexedRows).toBeGreaterThan(0)
+
+    const dryRun = await maintainOpenStorageTable(table, config.tableName, config, {
+      additionalMutations: 21,
+      dryRun: true,
+    })
+    expect(dryRun.plannedActions).toEqual([
+      "compact-fragments",
+      "prune-old-versions",
+      "refresh-full-text-index",
+    ])
+    expect(await table.version()).toBe(versionBefore)
+
+    const report = await maintainOpenStorageTable(table, config.tableName, config, {
+      additionalMutations: 21,
+    })
+    const coverageAfter = await table.indexStats("searchText_idx")
+    const fragmentsAfter = (await table.stats()).fragmentStats
+    const evidenceAfter = await fullTextEvidence(table)
+
+    expect(report.status).toBe("completed")
+    expect(report.mutationsSinceOptimization).toBe(0)
+    expect(report.completedActions).toEqual([
+      "compact-fragments",
+      "prune-old-versions",
+      "refresh-full-text-index",
+    ])
+    expect(coverageAfter).toEqual(
+      expect.objectContaining({ numIndexedRows: 2, numUnindexedRows: 0 }),
+    )
+    expect(fragmentsAfter.numSmallFragments).toBeLessThanOrEqual(fragmentsBefore.numSmallFragments)
+    expect(evidenceAfter).toEqual(evidenceBefore)
+    expect(evidenceAfter).toEqual([`${stablePath}:1-1`])
+  })
+
+  it("should keep the active table readable when optional compaction fails", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-maintenance-failure-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await writeRows(
+      [
+        {
+          ...sampleRow(".ragmir/raw/stable.md", 0, [0.1, 0.2], config),
+          searchText: "Evidence\nmaintenance baseline",
+          text: "maintenance baseline",
+        },
+      ],
+      config,
+    )
+    const table = await openRowsTable(config)
+    expect(table).not.toBeNull()
+    if (!table) {
+      return
+    }
+    vi.spyOn(table, "optimize").mockRejectedValueOnce(new Error("simulated optimize failure"))
+
+    const report = await maintainOpenStorageTable(table, config.tableName, config, { force: true })
+
+    expect(report.status).toBe("warning")
+    expect(report.warning).toContain("simulated optimize failure")
+    await expect(table.countRows()).resolves.toBe(1)
+    await expect(fullTextEvidence(table)).resolves.toEqual([".ragmir/raw/stable.md:1-1"])
   })
 
   it("should replace all rows for a source in one table version when content shrinks", async () => {

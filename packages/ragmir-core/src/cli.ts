@@ -48,6 +48,7 @@ import {
   SUPPORTED_AGENT_TARGETS,
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
+import { optimizeStorage } from "./storage-maintenance.js"
 import { countRows } from "./store.js"
 import type { IncrementalFailurePolicy, PreviewChunksOptions, ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
@@ -1123,6 +1124,28 @@ program
     }
   })
 
+const storageCommand = program.command("storage").description("Inspect and maintain local storage.")
+
+storageCommand
+  .command("optimize")
+  .description("Compact LanceDB fragments, prune old versions, and refresh index coverage.")
+  .option("--dry-run", "Report planned maintenance without creating a LanceDB version.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { dryRun?: boolean; json?: boolean }, command: Command) => {
+    const report = await optimizeStorage({
+      cwd: projectRoot(command),
+      ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+    })
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2))
+    } else {
+      printStorageMaintenance(report)
+    }
+    if (report.status === "warning") {
+      process.exitCode = 1
+    }
+  })
+
 program
   .command("destroy-index")
   .description("Remove the generated local vector index from Ragmir storage.")
@@ -1795,6 +1818,28 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log("nextSteps:")
   for (const step of report.nextSteps) {
     console.log(`  - ${step}`)
+  }
+}
+
+function printStorageMaintenance(report: Awaited<ReturnType<typeof optimizeStorage>>): void {
+  console.log(`status=${report.status}`)
+  console.log(`tableName=${report.tableName}`)
+  console.log(`dryRun=${report.dryRun}`)
+  console.log(`tableVersion=${report.tableVersion ?? "none"}`)
+  console.log(`totalRows=${report.totalRows}`)
+  console.log(`mutationsSinceOptimization=${report.mutationsSinceOptimization}`)
+  console.log(`fragments.total=${report.fragments.total}`)
+  console.log(`fragments.small=${report.fragments.small}`)
+  console.log(`fragments.smallRatio=${report.fragments.smallRatio}`)
+  console.log(`fullTextIndex.present=${report.fullTextIndex.present}`)
+  console.log(`fullTextIndex.indexedRows=${report.fullTextIndex.indexedRows}`)
+  console.log(`fullTextIndex.unindexedRows=${report.fullTextIndex.unindexedRows}`)
+  console.log(`fullTextIndex.complete=${report.fullTextIndex.complete}`)
+  console.log(`reasons=${report.reasons.join(",")}`)
+  console.log(`plannedActions=${report.plannedActions.join(",")}`)
+  console.log(`completedActions=${report.completedActions.join(",")}`)
+  if (report.warning) {
+    console.log(pc.yellow(`warning: ${report.warning}`))
   }
 }
 

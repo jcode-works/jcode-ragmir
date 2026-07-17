@@ -70,6 +70,9 @@ Maintainers can reproduce the 25-file, 50-MB-per-file memory gate with
 The metadata gate for 100,000 files and one million chunks is
 `pnpm bench:ingestion-metadata -- --stress`; it enforces a 256-MiB peak RSS budget.
 The 100,000-file fast-fingerprint gate is `pnpm bench:discovery -- --stress`.
+The LanceDB maintenance gate is `pnpm bench:storage`; it verifies full
+FTS coverage, stable citations, bounded fragment/version growth, and at most 10% search p95
+regression after 24 mutation batches.
 
 Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
 text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and
@@ -91,6 +94,20 @@ active until the new table and manifest pass row-count, checksum, and duplicate-
 final atomic manifest replacement activates the generation. Re-run the command after interruption
 to resume the staged generation. Older generated tables remain available for searches that already
 opened them; `rgr destroy-index` removes all generated index storage.
+
+Ragmir checks LanceDB maintenance after every completed ingestion. It refreshes an absent or
+incomplete `searchText_idx` before activation and runs compaction after 20 mutation batches or when
+at least eight fragments are 25% small fragments. Optional maintenance failures return a warning
+while the validated table remains readable. Operators can inspect or force the same process:
+
+```bash
+rgr storage optimize --dry-run --json
+rgr storage optimize --json
+```
+
+The dry run acquires the local writer lock for a consistent report but creates no LanceDB version.
+The JSON report includes table version, pending mutation count, fragment health, indexed and
+unindexed FTS rows, reasons, planned actions, completed actions, and any retryable operator warning.
 
 Ingestion, generation activation, quality-report persistence, and index destruction share one
 private local writer lock. Concurrent readers remain available. Contention waits for a bounded
@@ -148,6 +165,7 @@ rgr install-agent --agents codex,claude
 rgr serve-mcp
 rgr evaluate --golden .ragmir/golden.json --fail-under 0.8
 rgr usage-report --days 30
+rgr storage optimize --dry-run --json
 rgr destroy-index --yes
 ```
 
@@ -164,6 +182,6 @@ rgr destroy-index --yes
   every threshold stores a fingerprint in the active manifest. `rgr doctor` reports retrieval
   quality as verified only while that report still matches the golden file, corpus, model revision,
   retrieval profile, and index policy.
-- `usage-report --days` accepts an integer from 1 to 3650; `limits` and `destroy-index` expose the
-  other local maintenance operations.
+- `usage-report --days` accepts an integer from 1 to 3650; `limits`, `storage optimize`, and
+  `destroy-index` expose the other local maintenance operations.
 - Add `--json` to machine-readable commands. Do not parse human-readable output in automation.

@@ -69,6 +69,7 @@
     "bench:quality": "pnpm build && node benchmarks/quality.mjs",
     "bench:scale": "pnpm build && node benchmarks/run.mjs --profile scale",
     "bench:smoke": "pnpm build && node benchmarks/verify.mjs && node benchmarks/run.mjs --profile smoke",
+    "bench:storage": "pnpm build && node benchmarks/storage-maintenance.mjs",
     "build": "tsc -p tsconfig.json",
     "check": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && tsc -p tsconfig.json --noEmit",
     "mcp:smoke": "pnpm build && node scripts/mcp-smoke.mjs",

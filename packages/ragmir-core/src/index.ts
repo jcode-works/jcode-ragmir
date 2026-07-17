@@ -75,6 +75,13 @@ export type {
 } from "./sources.js"
 export { addSourceEntries, listSourceEntries } from "./sources.js"
 export type {
+  OptimizeStorageOptions,
+  StorageMaintenanceAction,
+  StorageMaintenanceReason,
+  StorageMaintenanceReport,
+} from "./storage-maintenance.js"
+export { optimizeStorage } from "./storage-maintenance.js"
+export type {
   AccessLogAction,
   AccessLogUsageOptions,
   AccessLogUsageReport,
