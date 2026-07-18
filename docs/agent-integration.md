@@ -66,13 +66,44 @@ from different bases labeled rather than silently merging citations.
 
 ## Team knowledge bases
 
-Ragmir keeps one local index per developer. Synchronize one source-of-truth folder with Git, Drive,
-or a team script, and keep the Ragmir version and tracked configuration aligned.
-
-On one workstation, export a metadata-only snapshot under ignored local state:
+Ragmir keeps one private local index per developer. For a Git-backed team, check out the branch the
+team declared authoritative, configure its upstream once, then use one command:
 
 ```bash
-rgr team snapshot --label alice --output .ragmir/team/alice.json
+rgr team sync
+```
+
+The command fetches only that upstream branch, compares Git history, and fast-forwards the checked
+out branch only when the worktree is clean, the local branch has no unpublished commit, and history
+has not diverged. It then runs incremental ingestion and reports `current`, `updated`, or one clear
+action. It never stashes, resets, rebases, creates a merge commit, deletes the active index, or
+chooses another branch.
+
+This keeps the normal team loop small:
+
+1. A developer pushes a branch and opens or updates the merge request.
+2. The team reviews and merges it into the declared upstream branch.
+3. Other developers run `rgr team sync`; safe updates and local reindexing happen together.
+
+Use `--no-pull` to fetch and compare while keeping branch updates manual. Use `--check` to preview
+without changing the worktree or index, `--no-fetch` for an explicitly offline run, `--strict` in
+CI, and `--json` for automation. A dirty, ahead, diverged, detached, or untracked branch is never
+rewritten. A failed fetch keeps the last valid local index available and reports that upstream
+freshness is unverified. A failed ingestion keeps the previous validated index instead of deleting
+it first.
+
+The ignored `.ragmir/config.json` remains local. If every workstation needs the exact same source
+contract, version a reviewed template in the repository and apply it during setup. `rgr team sync`
+synchronizes tracked sources through Git; it does not commit or distribute private Ragmir state.
+
+### Advanced drift diagnostics
+
+Snapshots remain available for a non-Git authority such as Drive, or when the team needs an exact
+configuration and per-file comparison. They are not part of the normal Git workflow. On one
+authorized workstation:
+
+```bash
+rgr team snapshot --label local --output .ragmir/team/local.json
 ```
 
 Share that file only with teammates authorized for the corpus. It contains relative paths,
@@ -80,40 +111,38 @@ SHA-256 checksums, readiness, version, and index settings, never source text or 
 path. On another workstation:
 
 ```bash
-rgr team compare .ragmir/team/alice.json --local-label christophe
+rgr team compare .ragmir/team/local.json --local-label peer
 ```
 
 The result distinguishes configuration drift, local-only files, peer-only files, and changed files.
-It provides ordered commands for readiness, upgrade, ingestion, or rebuild work. Ragmir never
-chooses which copy is correct; use the declared Git commit, Drive revision, or team folder as the
-authority, synchronize it, ingest again, then compare fresh snapshots until
+It provides ordered commands for readiness, upgrade, ingestion, or rebuild work. Use the declared
+Drive revision, team folder, or Git commit as the authority, then compare fresh snapshots until
 `status=synchronized`. Operational readiness and privacy review are independent: a matching index
 with local extractor or permission warnings remains synchronized, while the comparison exposes
 per-side security advisory counts and recommends `rgr security-audit`. Do not rebuild a healthy
-index only to clear an advisory. Existing v2.19 snapshots are interpreted from their stored health
-metadata, so teammates can upgrade at different times without regenerating them first.
+index only to clear an advisory. Existing v2.19 snapshots remain compatible.
 
-Version stable directory or glob contracts instead of rewriting a tracked config with the files
-found on the current machine. The lower-level `corpusFingerprint` returned by `rgr status --json`,
-`status()`, or `ragmir_status` remains useful for a quick equality check. Matching values prove the
-same indexed relative paths and source bytes only when both reports are ready with no missing or
-stale files. Use `rgr team compare` when values differ and the team needs the exact cause.
+Use stable directory or glob contracts instead of rewriting local config from files found on one
+machine. The lower-level `corpusFingerprint` returned by `rgr status --json`, `status()`, or
+`ragmir_status` remains useful for a quick equality check. Matching values prove the same indexed
+relative paths and source bytes only when both reports are ready with no missing or stale files.
+Use `rgr team compare` only when values differ and the team needs the exact cause.
 
 Use `sourceFingerprintMode: "strict"` when a synchronization tool can preserve file metadata while
 replacing its content. Older manifests return a `null` fingerprint until the next successful
 ingestion.
 
 Do not synchronize `.ragmir/storage/` between active writers. A team bootstrap can call
-`initProject`, `addSourceEntries`, and `createRagmirClient`, but the application or sync tool remains
-responsible for distributing the source files.
+`initProject`, `addSourceEntries`, and `syncTeamKnowledge`; each workstation still owns its index.
 
 ### Agent behavior on team drift
 
-An agent using the bundled Ragmir skill should check readiness before relying on retrieval. When a
-peer snapshot is available, it should run the comparison and warn the user in the user's language
-when `status` is not `synchronized`. It should summarize the exact drift and suggested commands,
-never silently pick a winner or overwrite source files. It should describe security advisories as
-separate, non-blocking follow-ups when the operational indexes already match.
+An agent using the bundled Ragmir skill should run `rgr team sync --json` before relying on a
+Git-backed shared knowledge base. When `synchronized` is false, it should warn the user in the
+user's language, present the first recommended action, and continue only with an explicit note when
+the last valid local index may be older than upstream. It must never resolve Git history, stash,
+reset, rebase, or overwrite source files. Snapshot comparison remains the advanced fallback for an
+authorized non-Git source or exact drift investigation.
 
 ## MCP tools
 

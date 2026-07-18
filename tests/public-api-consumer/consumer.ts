@@ -22,7 +22,9 @@ import {
   research,
   search,
   securityAudit,
+  syncTeamKnowledge,
   type TeamSnapshot,
+  type TeamSyncReport,
   upgradeProject,
   type Config,
   type AccessLogWriterMetrics,
@@ -126,6 +128,7 @@ void accessLogUsageReport({ cwd, ...operationOptions })
 void createTeamSnapshot({ cwd, label: "local" }).then((snapshot: TeamSnapshot) =>
   compareTeamSnapshots(snapshot, snapshot),
 )
+void syncTeamKnowledge({ cwd, check: true }).then((report: TeamSyncReport) => report.synchronized)
 void inspectUpgrade(cwd)
 void upgradeProject({ cwd })
 void createMcpServer(cwd)

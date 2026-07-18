@@ -242,13 +242,17 @@ describe("landing public contract", () => {
   })
 
   it("should explain the team workflow positively and concisely in both locales", () => {
-    expect(en.faq_team_answer).toContain("metadata-only team comparison")
-    expect(fr.faq_team_answer).toContain("comparaison d'équipe sans contenu source")
+    expect(en.faq_team_answer).toContain("advanced metadata-only comparisons")
+    expect(fr.faq_team_answer).toContain("comparaisons avancées sans contenu source")
     for (const answer of [en.faq_team_answer, fr.faq_team_answer]) {
       expect(answer).toContain("Git")
       expect(answer).toContain("Ragmir")
+      expect(answer).toContain("rgr team sync")
+      expect(answer).toContain("--no-pull")
       expect(answer.length).toBeLessThan(500)
     }
+    expect(en.faq_offline_answer).toContain("--no-fetch")
+    expect(fr.faq_offline_answer).toContain("--no-fetch")
   })
 
   it("should keep visible FAQs and localized FAQ structured data on one content source", () => {

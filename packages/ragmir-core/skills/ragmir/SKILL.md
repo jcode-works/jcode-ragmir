@@ -48,7 +48,8 @@ acceptable. Normal confidential indexing keeps remote model loading disabled.
 | Readiness | `rgr doctor` or `ragmir_status` |
 | Repair setup or stale data | `rgr doctor --fix` |
 | Check upgrade compatibility | `rgr upgrade --check`; run `rgr upgrade` when action is required |
-| Compare team indexes | `rgr team snapshot` and `rgr team compare` |
+| Sync Git-backed team knowledge | `rgr team sync --json` |
+| Diagnose exact or non-Git team drift | `rgr team snapshot` and `rgr team compare` |
 | Check unindexed or unsupported files | `rgr audit --unsupported` |
 | Preview redacted chunks before indexing | `rgr preview --path <prefix> --json` |
 | Check privacy posture | `rgr security-audit` |
@@ -80,18 +81,34 @@ When a monorepo has a root Ragmir base and nested app bases, select the base bef
 
 ## Team synchronization
 
-When the task involves shared project knowledge, check that the local index is ready before relying
-on retrieval. If a teammate provided an authorized snapshot, run:
+When the task involves a Git-backed team knowledge base, run the single high-level flow before
+relying on retrieval:
+
+```sh
+pnpm exec rgr team sync --json
+```
+
+The current branch upstream is the declared authority. Ragmir fetches it, fast-forwards only when
+the worktree is clean and history has not diverged, then refreshes the local index incrementally.
+It never stashes, resets, rebases, creates a merge commit, or deletes the active index. Use
+`--no-pull` when the user wants remote inspection and local ingestion without an automatic branch
+update. Use `--no-fetch` only for an explicitly offline run.
+
+If `synchronized` is false, warn the user in the language they are using and present the first
+`recommendedActions` item. Dirty, ahead, diverged, detached, and no-upstream states require a normal
+Git or merge-request decision. A fetch or ingestion failure must leave the last valid local index
+available when one exists; describe it as local evidence whose upstream freshness is unverified.
+Never resolve Git history or overwrite source files on the user's behalf.
+
+Snapshots are an advanced fallback for a non-Git authority or an authorized exact configuration
+and per-file diagnosis. If a teammate provided one, run:
 
 ```sh
 pnpm exec rgr team compare .ragmir/team/peer.json --local-label local --json
 ```
 
-If the result is not `synchronized`, warn the user in the language they are using. Summarize
-configuration drift plus local-only, peer-only, and changed files, then present the ordered
-`recommendedActions`. Never decide which source copy is correct, overwrite a source file, or ingest
-an unreviewed peer copy. The declared Git commit, Drive revision, or team folder remains the
-authority.
+Summarize configuration drift plus local-only, peer-only, and changed files. Never ingest an
+unreviewed peer copy. The declared Drive revision or team folder remains authoritative.
 
 To create a shareable diagnostic without source text or absolute project paths:
 
