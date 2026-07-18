@@ -11,6 +11,7 @@ import { indexPolicyFingerprint } from "./index-policy.js"
 import { writeIndexManifest } from "./store.js"
 import { testConfig } from "./test-support/config.js"
 import type { IndexManifest } from "./types.js"
+import { vectorModelFingerprint } from "./vector-index.js"
 
 const tempDirs: string[] = []
 
@@ -28,9 +29,25 @@ function baseManifest(overrides: Partial<IndexManifest> = {}): IndexManifest {
     ragmirVersion: "0.4.12",
     embeddingProvider: "local-hash",
     embeddingModel: "intfloat/multilingual-e5-small",
+    embeddingModelRevision: config.embeddingModelRevision,
+    embeddingModelDigest: config.embeddingModelDigest,
     indexPolicyFingerprint: indexPolicyFingerprint(config),
     vectorDimension: 384,
     vectorDistanceMetric: "l2",
+    vectorIndex: {
+      policyVersion: 1,
+      strategy: "exact",
+      indexName: null,
+      indexType: null,
+      column: "vector",
+      distanceMetric: "l2",
+      dimension: 384,
+      modelFingerprint: vectorModelFingerprint(config, 384),
+      indexedRows: 1,
+      unindexedRows: 0,
+      coverage: 1,
+      parameters: {},
+    },
     chunkSize: 1200,
     chunkOverlap: 200,
     fileCount: 1,
@@ -123,6 +140,31 @@ describe("getIndexFreshnessWarning", () => {
     const warning = await getIndexFreshnessWarning(config)
     expect(warning).not.toBeNull()
     expect(warning).toContain("vector distance metric")
+  })
+
+  it("warns when vector index coverage is incomplete", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-freshness-vector-coverage-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const manifest = baseManifest()
+    const vectorIndex = manifest.vectorIndex
+    if (!vectorIndex) {
+      throw new Error("Expected the fixture manifest to include vector index metadata.")
+    }
+    await writeIndexManifest(
+      {
+        ...manifest,
+        vectorIndex: {
+          ...vectorIndex,
+          indexedRows: 0,
+          unindexedRows: 1,
+          coverage: 0,
+        },
+      },
+      config,
+    )
+
+    expect(await getIndexFreshnessWarning(config)).toContain("coverage is incomplete")
   })
 })
 

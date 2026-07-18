@@ -33,7 +33,7 @@
     "url": "https://github.com/jcode-works/jcode-ragmir/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "exports": {
     ".": {

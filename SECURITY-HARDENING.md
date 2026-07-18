@@ -11,6 +11,8 @@ of an agent that receives retrieved passages.
 - `.ragmir/` is generated locally and ignored by Git.
 - `local-hash` retrieval works without a model or network connection.
 - Built-in redaction runs before indexing.
+- Custom redaction expressions are rejected before matching when their syntax or repetition can
+  cause catastrophic backtracking.
 - Secret-like filenames are skipped and unsupported files are reported.
 - Access logs contain metadata and salted query identifiers, not raw prompts or retrieved text.
 - MCP tools advertise non-destructive behavior, and every tool or resource JSON response is
@@ -32,13 +34,18 @@ rgr security-audit --strict
 ```
 
 `doctor` reports missing setup and stale indexes. `audit --unsupported` exposes files that Ragmir did
-not index. The strict audit is the local readiness check before using a sensitive corpus.
+not index. The security audit checks the config, raw documents, storage, source list, access log and
+model directory for permissions, Git-ignore coverage and tracked files. It also reports configured
+extractors, which execute with the current operator's filesystem and process authority. The strict
+audit is the local readiness check before using a sensitive corpus and disables those extractors.
 
 ## Recommended operation
 
 - Store the repository and `.ragmir/` on an encrypted disk when at-rest protection matters.
 - Use one checkout per trust boundary.
 - Keep raw documents, environment files, credentials, and generated state out of commits.
+- Treat an audit warning about a tracked private path as an exposure: remove it from Git history as
+  appropriate and rotate any credential that reached a remote.
 - Treat a team file-sync service as a separate trust boundary. Ragmir does not upload the corpus,
   but a Google Drive account or another sync tool follows its own access and retention policy.
 - Synchronize source files, not an actively written `.ragmir/storage/` directory.

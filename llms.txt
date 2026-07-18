@@ -14,18 +14,30 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - Resumable ingestion: `rgr ingest` commits 25 files per durable batch by default. Re-run it after an
   interruption, inspect progress with `rgr status --json`, and use `--batch-size` to change the
   checkpoint size. Rebuilds stay isolated until final manifest validation and activation.
+- Optional ingestion observability: `rgr ingest --metrics --json` attributes queue, write-lock,
+  discovery, hashing, parsing, redaction, chunking, embedding, Lance payload write, and maintenance
+  time, plus throughput and bounded counters. Diagnostics omit project roots, paths, queries, and
+  source text; timers and RSS samples stay disabled unless requested or locally subscribed.
 - CLI: `rgr preview`, `rgr search "query" --explain`, `rgr bases`, `rgr doctor`, `rgr audit`, and
   `rgr security-audit`
+- Lightweight health: `rgr status`, normal `rgr doctor`, and MCP context read compact manifest
+  metadata without opening the vector table. Use `rgr doctor --deep` or `rgr audit` for explicit
+  O(corpus) live diagnostics. Missing or invalid manifests are never ready.
 - Core behavior: cited retrieval only. `ask` returns evidence, while synthesis belongs to the calling
   agent or optional local chat add-on.
 - Consumer choice: use the AI or automation you already have through CLI, TypeScript, or MCP. Use a
   local consumer or optional Chat when no retrieved passage may leave the machine.
-- Persistent API: `createRagmirClient()` reuses one local connection in a stateful Node.js worker,
-  supports cancellation and timeouts, and closes gracefully after active operations.
+- Persistent API: `createRagmirClient()` reuses one local connection and immutable read snapshot in
+  a stateful Node.js worker, refreshes after atomic generation replacement, supports cancellation
+  and timeouts, flushes metadata-only logs during close, and releases the model only after the final
+  owner and active inference lease finish.
 - Service boundary: Ragmir does not open an HTTP port. Network transports, authentication, and
   authorization belong to the embedding application.
-- Default retrieval: local-hash, with no model download. Semantic embeddings and local GGUF chat are
-  explicit opt-ins.
+- Default retrieval: local-hash, with no model download or Transformers.js, ONNX Runtime, or Sharp
+  resolution. Semantic embeddings and local GGUF chat are explicit opt-ins.
+- Embedding identity: bundled Transformers profiles use pinned model commits. Explicit model pull
+  records a canonical artifact digest, and model revision plus digest participate in index, vector,
+  and quality fingerprints. Changing either requires a rebuild.
 - Optional packages: `@jcode.labs/ragmir-chat` offers `lite` Qwen, default `fast` Gemma, and explicit
   `quality` Gemma profiles; `@jcode.labs/ragmir-tts` supports offline `en`, `fr`, and `es`, plus
   explicit online Edge voices for `ja`, `th`, and `zh`.
@@ -34,23 +46,44 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - Privacy boundary: the corpus and index stay local. A cloud agent receives retrieved passages only
   when the user chooses that workflow, under that provider's data policy.
 - OCR boundary: embedded PDF text comes first; a configured local executable runs only for blank
-  pages. Ragmir has no cloud OCR integration.
-- Retrieval inspection: preview redacted chunks without writing storage; optionally expose RRF
-  contributions and filter by source or structural context.
+  pages. Generated setup batches bounded page groups and caches page text privately by source,
+  engine version, language, DPI, parser policy, and command identity. OCR diagnostics contain counts
+  and timings, not content. Ragmir has no cloud OCR integration.
+- Retrieval inspection: preview redacted chunks without writing storage; optionally expose RRF,
+  FTS/fallback and lexical-coverage diagnostics, filter candidates and hydrated neighbors by source
+  or structural context, or force exact vector search for ANN diagnostics. Exact file paths use a
+  bounded scalar variant; exact phrases, identifiers and rare terms expand the lexical pool only
+  when it cannot fill `topK`. Diversification backfills ranked
+  non-overlapping chunks after its source-diverse pass.
+- Workload admission: search, embedding, and ingestion have separate bounded process-local queues
+  per project root. Overload and queue timeout are retryable structured errors; explained searches
+  expose queue wait, and shutdown drains accepted work before closing storage.
+- Research: language-aware query variants use deterministic weighted cross-query RRF. The normal
+  path reads manifest health; a full source audit is explicit. Timeout, code-file, code-byte,
+  concurrency, evidence, and MCP byte budgets stay bounded and are reported.
+- Adaptive indexing: exhaustive vector search stays active below 100,000 rows. Larger tables use a
+  benchmarked IVF-PQ policy only with complete coverage; storage maintenance reports and repairs
+  vector, full-text, and relative-path index coverage.
 - Monorepos: the nearest configured base is active, nested indexes remain isolated, and generated MCP
   helpers pin a distinct base root.
 - Team use: Ragmir has no built-in cloud sync. Synchronize the same source-of-truth folder with an
   existing tool such as Google Drive or a team script, align the version, configuration, embedding
   provider, and model, then ingest and audit on each workstation. Missing, partial, or extra files
-  produce different local indexes; never treat `.ragmir/storage/` as a shared database.
+  produce different local indexes. Version stable directory or glob contracts instead of generated
+  machine-specific file lists. Compare `corpusFingerprint` only when both indexes are ready with no
+  missing or stale files; matching values prove the same indexed relative paths and source bytes.
+  Use `sourceFingerprintMode: "strict"` when a sync tool can preserve metadata while replacing
+  content. Never treat `.ragmir/storage/` as a shared database. Older manifests expose a `null`
+  fingerprint until the next successful ingestion.
 - MCP resources: `ragmir://context` gives bounded readiness and capability context;
   `ragmir://sources` gives capped source detail with complete totals.
 - MCP safety: all ten tools advertise non-destructive behavior; every tool and resource JSON
-  response is byte-bounded. Search, ask, research, and evaluation conservatively advertise
-  open-world behavior because explicitly enabled semantic models may download public weights.
-  Tools that can initialize local state or append metadata-only logs use conservative read-only and
-  idempotency hints. Each server refreshes its lazy client after effective configuration changes and
-  closes it during shutdown.
+  response is byte-bounded. Budget pressure selects typed summaries with exact scalar values,
+  omission counters, and the best search citation instead of shortening identifiers or paths.
+  Search, ask, research, and evaluation conservatively advertise open-world behavior because
+  explicitly enabled semantic models may download public weights. Tools that can initialize local
+  state or append metadata-only logs use conservative read-only and idempotency hints. Each server
+  refreshes its lazy client after effective configuration changes and closes it during shutdown.
 
 ## Documentation
 

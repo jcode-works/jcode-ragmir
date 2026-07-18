@@ -19,11 +19,18 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   limits belong to the embedding application.
 - The default `local-hash` path works offline with no account, API key, or model download.
 - Semantic Transformers.js embeddings are an explicit opt-in and require a rebuilt index.
+- Vector search stays exhaustive below 100,000 rows. Larger tables use a benchmarked IVF-PQ policy
+  only with complete coverage, with an explicit exact diagnostic mode.
 - `@jcode.labs/ragmir-chat` adds optional local GGUF synthesis: `lite` uses Qwen, while default
   `fast` and explicit `quality` use Gemma.
 - `@jcode.labs/ragmir-tts` supports offline English, French, and Spanish; explicit online Edge mode
   also supports Japanese, Thai, and Chinese.
 - Chat profiles and TTS models are not Core or MCP requirements.
+- MCP byte budgets select typed summaries with exact scalar values, omission counters, and the best
+  search citation instead of shortening identifiers or paths.
+- Optional ingestion metrics attribute phase time, throughput, cache state, and peak RSS locally.
+  Their bounded diagnostic omits project roots, source paths, queries, and source text; collection
+  stays disabled unless requested or subscribed.
 - Ragmir is not a hosted document store, cloud-sync service, agent-memory replacement, or universal
   code-search replacement.
 
@@ -32,10 +39,15 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - Ragmir has no built-in cloud sync. Teams synchronize one source-of-truth folder with an existing
   tool such as Google Drive or a team script, then build a separate local index per developer.
 - Keep the Ragmir version, configuration, embedding provider, and model aligned. Sync before
-  ingestion and run `rgr audit` afterwards; missing, partial, or extra source files create different
-  local indexes.
+  ingestion and run `rgr audit` afterwards. Version stable directory or glob contracts instead of
+  generated machine-specific file lists. Compare `corpusFingerprint` only when both indexes are
+  ready with no missing or stale files; matching values identify the same indexed relative paths
+  and source bytes. Use `sourceFingerprintMode: "strict"` when a sync tool can preserve metadata
+  while replacing content.
 - The TypeScript API can automate local setup and ingestion. Ragmir remains the retrieval layer,
   not the source-file synchronization layer.
+- Never share an actively written `.ragmir/storage/` directory. Older manifests return a `null`
+  corpus fingerprint until the next successful ingestion.
 
 ## Privacy boundary
 

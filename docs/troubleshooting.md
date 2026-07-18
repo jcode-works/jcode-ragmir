@@ -4,9 +4,13 @@ Start with the smallest diagnostic:
 
 ```bash
 rgr doctor
+rgr doctor --deep
 rgr audit --unsupported
 rgr security-audit
 ```
+
+The first command reads the last successful manifest health snapshot. Use `--deep` only when you
+need a live O(corpus) inventory and executable security probes. `rgr audit` is also O(corpus).
 
 ## The project is not initialized
 
@@ -30,6 +34,13 @@ If the durable ingestion state is invalid or inconsistent with the current confi
 ignores it and starts a new safe run. It does not resume from untrusted table names or staged
 manifest paths.
 
+## The activation manifest was recovered
+
+If `rgr doctor` reports that the canonical activation manifest is missing or invalid, Ragmir uses
+the last validated previous generation and keeps readiness false. Run `rgr ingest --rebuild` to
+write a new canonical manifest. If both canonical and previous manifests are invalid, retrieval
+does not fall back to an unverified default table.
+
 ## A PDF or image has no text
 
 `rgr ingest --json` reports `emptyTextFiles`. For scanned PDFs, run:
@@ -40,7 +51,10 @@ rgr ocr setup
 rgr ingest
 ```
 
-OCR is local and opt-in. Images and legacy `.doc` files need explicitly configured local extractors.
+OCR is local and opt-in. Generated PDF OCR runs in bounded page groups and resumes from private
+content-addressed cache entries. Use `rgr ingest --json` or `rgr preview --json` to inspect OCR cache
+hits, batches, subprocesses, and duration without exposing page text in diagnostics. Images and
+legacy `.doc` files need explicitly configured local extractors.
 
 ## Search is weak
 
@@ -49,13 +63,30 @@ First confirm source coverage with `rgr audit`. Then try a specific query, `--co
 ## Team members get different results
 
 Confirm the shared source folder finished synchronizing, then compare the Ragmir version,
-configuration, embedding provider, model, and `rgr sources list` output. Missing, partial, or extra
-files create different local indexes. Run `rgr ingest` and `rgr audit` after synchronization; do not
-share an actively written `.ragmir/storage/` directory.
+configuration, embedding provider, model, and `rgr sources list` output. Run `rgr ingest` and
+`rgr audit`, then compare `corpusFingerprint` from `rgr status --json`. Matching values prove the
+same indexed relative paths and source bytes only when both reports have `ready=true` and zero
+missing or stale files. A different value identifies corpus divergence, not which machine is
+correct. Keep tracked config based on stable directories or globs, not a generated enumeration of
+locally present files. Do not share an actively written `.ragmir/storage/` directory.
+If an index created before corpus fingerprints were introduced reports `null`, run `rgr ingest`
+once with the current Ragmir version to write the fingerprint into its local manifest.
 
 ## Strict audit fails
 
 Run `rgr security-audit --strict`. It reports the exact local control that conflicts with the strict profile. Strict mode requires ignored local state, redaction, bounded MCP output, and no external extractors.
+
+The audit also reports tracked private paths and local extractor authority. Move tracked private
+data out of Git, add the containing path to `.gitignore`, and rotate any credential that reached a
+remote. External extractors run with the current operator's filesystem and process permissions;
+strict privacy disables them.
+
+## Configuration rejects a regex or environment variable
+
+Custom redaction expressions that are invalid or may cause catastrophic backtracking are rejected
+before content processing. Replace nested or ambiguous repetition with bounded, linear patterns.
+Invalid `RAGMIR_*` values now name the failing variable instead of silently falling back; correct or
+unset the override and rerun the command.
 
 ## Chat or audio is not ready
 

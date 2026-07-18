@@ -1,0 +1,73 @@
+name: Performance benchmark
+
+on:
+  schedule:
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Benchmark profile
+        type: choice
+        options: [quality, scale]
+        default: quality
+      size:
+        description: Corpus size
+        type: choice
+        options: [S, M, L]
+        default: S
+      provider:
+        description: Embedding provider
+        type: choice
+        options: [local-hash]
+        default: local-hash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: Informational reference benchmark
+    runs-on: ${{ vars.RAGMIR_BENCHMARK_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
+
+      - name: Install pinned Node via mise
+        run: mise install
+
+      - name: Set up pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run benchmark
+        env:
+          BENCH_PROFILE: ${{ inputs.profile || 'quality' }}
+          BENCH_SIZE: ${{ inputs.size || 'S' }}
+          BENCH_PROVIDER: ${{ inputs.provider || 'local-hash' }}
+        run: >-
+          pnpm "bench:${BENCH_PROFILE}" --
+          --size "$BENCH_SIZE"
+          --provider "$BENCH_PROVIDER"
+          --result packages/ragmir-core/benchmarks/.results/reference.json
+
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: ragmir-benchmark-${{ github.sha }}
+          path: packages/ragmir-core/benchmarks/.results/reference.json
+          if-no-files-found: error

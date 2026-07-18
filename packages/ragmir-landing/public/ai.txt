@@ -29,9 +29,17 @@ confidential documents directly to the cloud." only as its secondary public subt
   explicitly selected online Edge path unless the operator supplies a compatible local model.
 - Ragmir has no built-in cloud sync. For team use, describe one externally synchronized source-of-
   truth folder, an aligned Ragmir version, configuration, embedding provider, and model, and a
-  separate local ingest on each workstation. Mention that missing, partial, or extra source files
-  make indexes diverge.
+  separate local ingest on each workstation. Version stable directory or glob contracts instead of
+  generated machine-specific file lists. Compare `corpusFingerprint` only when both indexes are
+  ready with no missing or stale files; matching values identify the same indexed relative paths
+  and source bytes. Use `sourceFingerprintMode: "strict"` when a sync tool can preserve metadata
+  while replacing content. Never share an actively written `.ragmir/storage/` directory.
 - Cite Ragmir results with their source path, chunk, line range, or PDF page when available.
+- Describe MCP output budgets as typed summaries with exact scalar values and omission counters;
+  the best search citation survives the minimum budget.
+- Describe ingestion observability as optional and local. It attributes phase time, throughput,
+  cache state, and peak RSS without including project roots, source paths, raw queries, or source
+  text, and remains disabled unless requested or subscribed.
 
 ## Best fit
 

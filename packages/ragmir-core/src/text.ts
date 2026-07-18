@@ -5,10 +5,12 @@ export function normalizeForMatch(text: string): string {
     .replace(/\p{Diacritic}/gu, "")
 }
 
-export function tokenize(text: string): string[] {
+const wordSegmenters = new Map<string, Intl.Segmenter>()
+
+export function tokenize(text: string, locale = "und"): string[] {
   const normalized = normalizeForMatch(text)
   const tokens: string[] = []
-  const segmenter = new Intl.Segmenter("und", { granularity: "word" })
+  const segmenter = wordSegmenter(locale)
 
   for (const segment of segmenter.segment(normalized)) {
     if (!segment.isWordLike) {
@@ -21,4 +23,14 @@ export function tokenize(text: string): string[] {
   }
 
   return tokens
+}
+
+function wordSegmenter(locale: string): Intl.Segmenter {
+  const cached = wordSegmenters.get(locale)
+  if (cached) {
+    return cached
+  }
+  const segmenter = new Intl.Segmenter(locale, { granularity: "word" })
+  wordSegmenters.set(locale, segmenter)
+  return segmenter
 }

@@ -1,9 +1,12 @@
 import { execFile } from "node:child_process"
+import { existsSync } from "node:fs"
 import { chmod, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { doctor } from "./doctor.js"
 import { initProject } from "./init.js"
+import { search } from "./query.js"
 import { securityAudit } from "./security.js"
 
 const tempDirs: string[] = []
@@ -142,6 +145,112 @@ describe("securityAudit", () => {
     expect(report.warnings).toContain("The configured storageDir is not ignored by Git.")
     expect(report.warnings).toContain("The configured accessLogPath is not ignored by Git.")
   })
+
+  it("should audit ignore, tracked, and permission state for every private path", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-private-paths-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await mkdir(path.join(root, "private-data"), { recursive: true })
+    await mkdir(path.join(root, "private-index"), { recursive: true })
+    await writeFile(path.join(root, "private-data", "secret.md"), "private fixture", "utf8")
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({
+        rawDir: "private-data",
+        storageDir: "private-index",
+        sourcesFile: "private-sources.txt",
+        accessLogPath: "private-access.log",
+        embeddingModelPath: "private-models",
+      }),
+    )
+    await writeFile(path.join(root, ".gitignore"), ".ragmir/\nprivate-index/\n", "utf8")
+    await runGit(root, ["init", "--quiet"])
+    await runGit(root, ["add", "private-data/secret.md"])
+
+    const report = await securityAudit(root)
+    const rawPath = report.privatePaths.find((entry) => entry.kind === "raw")
+    const storagePath = report.privatePaths.find((entry) => entry.kind === "storage")
+
+    expect(report.privatePaths.map((entry) => entry.kind)).toEqual([
+      "config",
+      "raw",
+      "storage",
+      "sources",
+      "access-log",
+      "embedding-models",
+    ])
+    expect(rawPath).toMatchObject({ insideProject: true, gitIgnored: false, gitTracked: true })
+    expect(storagePath).toMatchObject({ insideProject: true, gitIgnored: true, gitTracked: false })
+    expect(report.warnings).toContain(
+      "The configured rawDir is tracked by Git and may expose private Ragmir data.",
+    )
+    expect(report.warnings).toContain("The configured sourcesFile is not ignored by Git.")
+    expect(report.warnings).toContain("The configured embeddingModelPath is not ignored by Git.")
+  })
+
+  it("should report external extractor authority and strict-profile disabling", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-extractors-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    const configPath = path.join(root, ".ragmir", "config.json")
+    await writeFile(configPath, JSON.stringify({ pdfOcrCommand: ["local-ocr", "{input}"] }), "utf8")
+
+    const enabled = await securityAudit(root)
+    expect(enabled.externalExtractors).toEqual({
+      configured: true,
+      enabled: ["pdf-ocr"],
+      disabledByStrictProfile: false,
+      executeWithOperatorAuthority: true,
+    })
+    expect(enabled.warnings).toContain(
+      "External extractors are configured and execute with the operator's filesystem and process authority.",
+    )
+
+    await writeFile(
+      configPath,
+      JSON.stringify({ privacyProfile: "strict", pdfOcrCommand: ["local-ocr", "{input}"] }),
+      "utf8",
+    )
+    const strict = await securityAudit(root)
+    expect(strict.externalExtractors).toMatchObject({
+      configured: true,
+      enabled: [],
+      disabledByStrictProfile: true,
+    })
+    expect(strict.warnings).toContain(
+      "External extractors were configured but are disabled by the strict privacy profile; they execute with operator authority when enabled.",
+    )
+  })
+
+  it.runIf(process.platform !== "win32")(
+    "should keep shared-directory modes and absent index state unchanged during read-only operations",
+    async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-read-only-"))
+      tempDirs.push(root)
+      const sharedDirectory = path.join(root, "shared")
+      const storageDirectory = path.join(sharedDirectory, "index")
+      await mkdir(path.join(root, ".ragmir"), { recursive: true })
+      await mkdir(sharedDirectory, { mode: 0o755 })
+      await chmod(sharedDirectory, 0o755)
+      await writeFile(
+        path.join(root, ".ragmir", "config.json"),
+        JSON.stringify({
+          rawDir: "shared",
+          storageDir: "shared/index",
+          accessLog: false,
+        }),
+        "utf8",
+      )
+      const beforeMode = (await stat(sharedDirectory)).mode & 0o777
+
+      await doctor(root)
+      await expect(search("missing evidence", { cwd: root })).resolves.toEqual([])
+      await securityAudit(root)
+
+      expect(existsSync(storageDirectory)).toBe(false)
+      expect((await stat(sharedDirectory)).mode & 0o777).toBe(beforeMode)
+    },
+  )
 
   it("respects Git glob negations for configured storage paths", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-gitignore-"))

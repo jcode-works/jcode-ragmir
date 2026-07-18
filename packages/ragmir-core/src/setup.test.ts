@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -60,12 +60,21 @@ describe("setupProject", () => {
   it("can preload and enable semantic embeddings during setup", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-semantic-"))
     tempDirs.push(root)
+    const modelRoot = path.join(root, ".ragmir", "models", "intfloat", "multilingual-e5-small")
+    await mkdir(path.join(modelRoot, "onnx"), { recursive: true })
+    await Promise.all([
+      writeFile(path.join(modelRoot, "config.json"), "{}\n"),
+      writeFile(path.join(modelRoot, "onnx", "model.onnx"), "test-model"),
+      writeFile(path.join(modelRoot, "tokenizer.json"), "{}\n"),
+    ])
 
     const result = await setupProject({ cwd: root, ingest: false, semantic: true })
     const config = JSON.parse(
       await readFile(path.join(root, ".ragmir", "config.json"), "utf8"),
     ) as {
       embeddingProvider: string
+      embeddingModelRevision: string
+      embeddingModelDigest: string | null
       embeddingModelPath: string
       transformersAllowRemoteModels: boolean
     }
@@ -73,15 +82,21 @@ describe("setupProject", () => {
     expect(result.semantic).toMatchObject({
       model: {
         embeddingModel: "intfloat/multilingual-e5-small",
+        embeddingModelRevision: expect.stringMatching(/^[0-9a-f]{40}$/u),
+        embeddingModelDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
         embeddingModelPath: path.join(root, ".ragmir/models"),
       },
       config: {
         embeddingProvider: "transformers",
+        embeddingModelRevision: expect.stringMatching(/^[0-9a-f]{40}$/u),
+        embeddingModelDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
         embeddingModelPath: ".ragmir/models",
         transformersAllowRemoteModels: false,
       },
     })
     expect(config.embeddingProvider).toBe("transformers")
+    expect(config.embeddingModelRevision).toMatch(/^[0-9a-f]{40}$/u)
+    expect(config.embeddingModelDigest).toMatch(/^sha256:[0-9a-f]{64}$/u)
     expect(config.embeddingModelPath).toBe(".ragmir/models")
     expect(config.transformersAllowRemoteModels).toBe(false)
   }, 15_000)

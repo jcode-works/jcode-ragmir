@@ -4,6 +4,9 @@ import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   accessLogUsageReport,
+  accessLogWriterMetrics,
+  flushAccessLog,
+  MAX_ACCESS_LOG_PENDING_EVENTS,
   MAX_USAGE_REPORT_DAYS,
   recordAccess,
   recordMcpOutput,
@@ -164,6 +167,31 @@ describe("accessLogUsageReport", () => {
 })
 
 describe("recordAccess retention", () => {
+  it("should bound queued events and expose explicit drop metrics", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-log-bounded-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const config = await loadConfig(root)
+    const eventCount = MAX_ACCESS_LOG_PENDING_EVENTS + 128
+    const writes = Array.from({ length: eventCount }, () =>
+      recordMcpOutput(config, {
+        tool: "ragmir_search",
+        retrievedBytes: 2,
+        returnedBytes: 1,
+        compacted: true,
+        truncated: false,
+      }),
+    )
+
+    expect(accessLogWriterMetrics(config).droppedEvents).toBeGreaterThan(0)
+    const metrics = await flushAccessLog(config)
+    await Promise.all(writes)
+
+    expect(metrics.pendingEvents).toBe(0)
+    expect(metrics.inFlightEvents).toBe(0)
+    expect(metrics.writtenEvents + metrics.droppedEvents).toBe(eventCount)
+  })
+
   it("trims the access log when it exceeds the size cap, keeping the most recent lines", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-access-log-trim-"))
     tempDirs.push(root)

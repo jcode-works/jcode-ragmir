@@ -35,7 +35,7 @@
       "id": "pdf-embedded-text-page-citation",
       "query": "Synthetic confidential PDF",
       "expectedPaths": ["raw/contracts/pdf-control-evidence.pdf"],
-      "expectedCitations": ["raw/contracts/pdf-control-evidence.pdf:p1:L1-L1#0"]
+      "expectedCitations": ["raw/contracts/pdf-control-evidence.pdf:p1#0"]
     }
   ]
 }

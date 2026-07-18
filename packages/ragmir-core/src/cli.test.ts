@@ -6,6 +6,7 @@ import {
   audioLanguage,
   parseAgentInstallMode,
   parseAgentInstallScope,
+  parseIncrementalFailurePolicy,
   parseNumber,
   parsePositiveInt,
   parseRecallThreshold,
@@ -56,6 +57,19 @@ describe("parseRecallThreshold", () => {
     expect(() => parseRecallThreshold("1.1")).toThrow("between 0 and 1")
     expect(() => parseRecallThreshold("abc")).toThrow("between 0 and 1")
     expect(() => parseRecallThreshold("   ")).toThrow("between 0 and 1")
+  })
+})
+
+describe("parseIncrementalFailurePolicy", () => {
+  it("should accept supported incremental ingestion policies", () => {
+    expect(parseIncrementalFailurePolicy("preserve-last-good")).toBe("preserve-last-good")
+    expect(parseIncrementalFailurePolicy("remove-stale")).toBe("remove-stale")
+  })
+
+  it("should reject an unsupported incremental ingestion policy", () => {
+    expect(() => parseIncrementalFailurePolicy("drop-everything")).toThrow(
+      "preserve-last-good or remove-stale",
+    )
   })
 })
 

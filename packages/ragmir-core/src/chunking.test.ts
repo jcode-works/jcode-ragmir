@@ -24,6 +24,23 @@ describe("chunkDocument", () => {
     expect(chunks.every((chunk) => chunk.text.length > 0)).toBe(true)
   })
 
+  it("should stop chunk allocation when the configured window is exhausted", () => {
+    const doc: ParsedDocument = {
+      file: {
+        absolutePath: "/tmp/bounded.md",
+        relativePath: ".ragmir/raw/bounded.md",
+        source: "bounded.md",
+        extension: ".md",
+        bytes: 100,
+        mtimeMs: 1,
+        checksum: "bounded",
+      },
+      text: "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda",
+    }
+
+    expect(() => chunkDocument(doc, 12, 0, { maxChunks: 2 })).toThrow("Chunk limit of 2 exceeded")
+  })
+
   it("records character and line spans for each chunk", () => {
     const doc: ParsedDocument = {
       file: {
@@ -79,6 +96,61 @@ describe("chunkDocument", () => {
 
     expect(chunks[0]).toEqual(expect.objectContaining({ pageStart: 1, pageEnd: 1 }))
     expect(chunks[1]).toEqual(expect.objectContaining({ pageStart: 2, pageEnd: 2 }))
+  })
+
+  it("should preserve page mappings with a large interval index", () => {
+    const pageTexts = Array.from(
+      { length: 1_000 },
+      (_entry, index) => `Page ${index + 1} bounded evidence`,
+    )
+    const text = pageTexts.join("\n\n")
+    let offset = 0
+    const pages = pageTexts.map((pageText, index) => {
+      const page = {
+        pageNumber: index + 1,
+        charStart: offset,
+        charEnd: offset + pageText.length,
+      }
+      offset = page.charEnd + 2
+      return page
+    })
+    const doc: ParsedDocument = {
+      file: {
+        absolutePath: "/tmp/large.pdf",
+        relativePath: ".ragmir/raw/large.pdf",
+        source: "large.pdf",
+        extension: ".pdf",
+        bytes: text.length,
+        mtimeMs: 1,
+        checksum: "large-pages",
+      },
+      text,
+      pages,
+    }
+
+    const chunks = chunkDocument(doc, 64, 0)
+
+    expect(chunks[0]).toEqual(expect.objectContaining({ pageStart: 1, pageEnd: 2 }))
+    expect(chunks.at(-1)).toEqual(expect.objectContaining({ pageStart: 999, pageEnd: 1_000 }))
+  })
+
+  it("should cancel while scanning a large document", () => {
+    const doc: ParsedDocument = {
+      file: {
+        absolutePath: "/tmp/cancel.md",
+        relativePath: ".ragmir/raw/cancel.md",
+        source: "cancel.md",
+        extension: ".md",
+        bytes: 100_000,
+        mtimeMs: 1,
+        checksum: "cancel",
+      },
+      text: "bounded evidence\n".repeat(8_000),
+    }
+
+    expect(() => chunkDocument(doc, 1_000, 100, { signal: abortAfterChecks(2) })).toThrow(
+      expect.objectContaining({ code: "ABORTED" }),
+    )
   })
 
   it("prefers CJK sentence boundaries", () => {
@@ -204,3 +276,20 @@ describe("chunkDocument", () => {
     )
   })
 })
+
+function abortAfterChecks(checksBeforeAbort: number): AbortSignal {
+  const signal = new AbortController().signal
+  let checks = 0
+  return new Proxy(signal, {
+    get(target, property) {
+      if (property === "aborted") {
+        checks += 1
+        return checks > checksBeforeAbort
+      }
+      if (property === "reason") {
+        return new Error("Cooperative chunking cancellation test.")
+      }
+      return Reflect.get(target, property, target)
+    },
+  })
+}
