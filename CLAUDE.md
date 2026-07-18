@@ -47,6 +47,12 @@ consumer local. Qwen and Gemma are optional Chat profiles, never Core or MCP req
 For repeated retrieval in a stateful Node.js process, use one `RagmirClient` per project root and
 close it during shutdown. Ragmir does not provide an HTTP server or fixed port; network-facing hosts
 own transport security, authentication, authorization, and rate limits.
+Team diagnostics exchange metadata-only snapshots of relative paths, checksums, readiness,
+versions, and configuration. Never include source text or absolute project paths, choose an
+authoritative copy, or modify peer sources during comparison.
+Package upgrades preserve the last validated index until an incompatible replacement passes staged
+generation validation and activates atomically. Older configs keep safe defaults; never require
+deleting `.ragmir/storage/` as the first repair step.
 
 <!-- gitnexus:start -->
 # GitNexus: Code Intelligence

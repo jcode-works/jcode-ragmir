@@ -26,9 +26,12 @@ corpus, and calls no model.
 - Ragmir TTS supports offline English, French, and Spanish. Japanese, Thai, and Chinese require the
   explicitly selected online Edge path unless the operator supplies a compatible local model.
 - For team use, lead with a shared source folder and committed Ragmir configuration, followed by one
-  local ingest per developer. Align the Ragmir version and embedding settings, then compare
-  `corpusFingerprint` after each index is ready. Keep strict fingerprinting and local storage
-  safeguards as supporting operational detail, not the headline.
+  local ingest per developer. Use the metadata-only team comparison to explain version,
+  configuration, local-only, peer-only, and changed-file drift with clear actions. Ragmir does not
+  guess which source copy is authoritative.
+- After a package update and before retrieval with the new runtime, use `rgr upgrade --check` and
+  then `rgr upgrade` when required. A staged rebuild never deletes the active index first. A
+  long-running host can keep its loaded runtime serving, then cut over after the upgrade is ready.
 - Cite Ragmir results with their source path, chunk, line range, or PDF page when available.
 - Describe MCP output budgets as typed summaries with exact scalar values and omission counters;
   the best search citation survives the minimum budget.

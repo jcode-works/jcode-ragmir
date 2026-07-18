@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import en from "../messages/en.json"
 import fr from "../messages/fr.json"
 import { findHeroDemoScenario, HERO_DEMO_SCENARIOS } from "./components/hero-demo-script.js"
+import { getFaqItems } from "./content/faq.js"
 import { getLocalizedUrl, loadTranslations, useTranslations } from "./i18n/utils.js"
 import { cn } from "./lib/utils.js"
 
@@ -90,12 +91,22 @@ describe("landing public contract", () => {
   })
 
   it("should explain the team workflow positively and concisely in both locales", () => {
-    expect(en.faq_team_answer).toContain("corpus fingerprint")
-    expect(fr.faq_team_answer).toContain("empreinte du corpus")
+    expect(en.faq_team_answer).toContain("metadata-only team comparison")
+    expect(fr.faq_team_answer).toContain("comparaison d'équipe sans contenu source")
     for (const answer of [en.faq_team_answer, fr.faq_team_answer]) {
       expect(answer).toContain("Git")
+      expect(answer).toContain("Ragmir")
       expect(answer.length).toBeLessThan(500)
     }
+  })
+
+  it("should keep visible FAQs and localized FAQ structured data on one content source", () => {
+    expect(getFaqItems(en)).toHaveLength(10)
+    expect(getFaqItems(fr)).toHaveLength(10)
+    expect(homePageSource).toContain('"@type": "FAQPage"')
+    expect(homePageSource).toContain("mainEntity: faqItems.map")
+    expect(homePageSource).toContain('"@type": "Question"')
+    expect(homePageSource).toContain('"@type": "Answer"')
   })
 
   it("should normalize localized internal URLs and preserve external URLs", () => {

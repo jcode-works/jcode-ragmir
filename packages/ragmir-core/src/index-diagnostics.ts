@@ -16,8 +16,9 @@ export const INDEX_SCHEMA_VERSION = 11
  * Detect a stale or incompatible index without re-scanning every source file.
  * Returns a human-readable warning when the stored manifest is missing, was
  * built with a different embedding provider/model, predates the current index
- * schema, or used different chunking settings. Returns `null` when the index is
- * fresh, so callers can treat the warning as purely informational.
+ * schema, or used different chunking settings. Each incompatible state points
+ * to the staged upgrade flow. Returns `null` when the index is fresh, so callers
+ * can treat the warning as purely informational.
  *
  * The hybrid lexical scan limit is also surfaced here so callers know when BM25
  * retrieval is truncating a large corpus and losing recall.
@@ -42,34 +43,34 @@ export function indexFreshnessWarning(
   }
 
   if (manifest.schemaVersion !== INDEX_SCHEMA_VERSION) {
-    return `Index schema is incompatible (stored v${manifest.schemaVersion}, current v${INDEX_SCHEMA_VERSION}). Rebuild with \`rgr ingest --rebuild\` to use the latest index format.`
+    return `Index schema is incompatible (stored v${manifest.schemaVersion}, current v${INDEX_SCHEMA_VERSION}). Run \`rgr upgrade\` to stage and activate the latest index format safely.`
   }
 
   if (manifest.embeddingProvider !== config.embeddingProvider) {
-    return `Index was built with embedding provider "${manifest.embeddingProvider}" but the active config uses "${config.embeddingProvider}". Rebuild with \`rgr ingest --rebuild\`.`
+    return `Index was built with embedding provider "${manifest.embeddingProvider}" but the active config uses "${config.embeddingProvider}". Run \`rgr upgrade\` to rebuild safely.`
   }
 
   if (manifest.embeddingModel !== config.embeddingModel) {
-    return `Index was built with embedding model "${manifest.embeddingModel}" but the active config uses "${config.embeddingModel}". Rebuild with \`rgr ingest --rebuild\` to refresh vectors.`
+    return `Index was built with embedding model "${manifest.embeddingModel}" but the active config uses "${config.embeddingModel}". Run \`rgr upgrade\` to refresh vectors safely.`
   }
 
   if (manifest.embeddingModelRevision !== config.embeddingModelRevision) {
-    return `Index was built with embedding revision "${manifest.embeddingModelRevision ?? "unknown"}" but the active config uses "${config.embeddingModelRevision}". Rebuild with \`rgr ingest --rebuild\` to refresh vectors.`
+    return `Index was built with embedding revision "${manifest.embeddingModelRevision ?? "unknown"}" but the active config uses "${config.embeddingModelRevision}". Run \`rgr upgrade\` to refresh vectors safely.`
   }
 
   if (manifest.embeddingModelDigest !== config.embeddingModelDigest) {
-    return "Index embedding artifact identity differs from the active config. Rebuild with `rgr ingest --rebuild`."
+    return "Index embedding artifact identity differs from the active config. Run `rgr upgrade` to rebuild safely."
   }
 
   if (
     manifest.vectorDistanceMetric !== undefined &&
     manifest.vectorDistanceMetric !== VECTOR_DISTANCE_METRIC
   ) {
-    return `Index was built with vector distance metric "${manifest.vectorDistanceMetric}" but the active code uses "${VECTOR_DISTANCE_METRIC}". Rebuild with \`rgr ingest --rebuild\`.`
+    return `Index was built with vector distance metric "${manifest.vectorDistanceMetric}" but the active code uses "${VECTOR_DISTANCE_METRIC}". Run \`rgr upgrade\` to rebuild safely.`
   }
 
   if (manifest.chunkCount > 0 && !manifest.vectorIndex) {
-    return "Index vector strategy metadata is missing. Rebuild with `rgr ingest --rebuild`."
+    return "Index vector strategy metadata is missing. Run `rgr upgrade` to rebuild safely."
   }
 
   if (manifest.vectorIndex) {
@@ -80,7 +81,7 @@ export function indexFreshnessWarning(
       manifest.vectorIndex.modelFingerprint !==
         vectorModelFingerprint(config, manifest.vectorIndex.dimension)
     ) {
-      return "Index vector strategy is incompatible with the active model, dimension, or metric. Rebuild with `rgr ingest --rebuild`."
+      return "Index vector strategy is incompatible with the active model, dimension, or metric. Run `rgr upgrade` to rebuild safely."
     }
     if (manifest.vectorIndex.coverage < 1 || manifest.vectorIndex.unindexedRows > 0) {
       return "Active vector index coverage is incomplete. Run `rgr storage optimize` before searching."
@@ -88,12 +89,12 @@ export function indexFreshnessWarning(
   }
 
   if (manifest.chunkSize !== config.chunkSize || manifest.chunkOverlap !== config.chunkOverlap) {
-    return `Index was built with chunkSize=${manifest.chunkSize}/chunkOverlap=${manifest.chunkOverlap} but the active config uses chunkSize=${config.chunkSize}/chunkOverlap=${config.chunkOverlap}. Rebuild with \`rgr ingest --rebuild\`.`
+    return `Index was built with chunkSize=${manifest.chunkSize}/chunkOverlap=${manifest.chunkOverlap} but the active config uses chunkSize=${config.chunkSize}/chunkOverlap=${config.chunkOverlap}. Run \`rgr upgrade\` to rebuild safely.`
   }
 
   const activeFingerprint = indexPolicyFingerprint(config)
   if (manifest.indexPolicyFingerprint !== activeFingerprint) {
-    return "Index content policy differs from the active parsing, redaction, chunking, or embedding policy. Rebuild with `rgr ingest --rebuild`."
+    return "Index content policy differs from the active parsing, redaction, chunking, or embedding policy. Run `rgr upgrade` to rebuild safely."
   }
 
   return null

@@ -2,6 +2,7 @@
 import { CommandCopyToast } from "../../components/command-copy-toast"
 import { LibrarySection } from "../../components/library-section"
 import { LandingNavbar } from "../../components/landing-navbar"
+import { getFaqItems } from "../../content/faq"
 import Agents from "../../components/sections/agents.astro"
 import ClosingCta from "../../components/sections/closing-cta.astro"
 import Faq from "../../components/sections/faq.astro"
@@ -30,6 +31,7 @@ const alternateLocales = locales.map((entry) => ({
 const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
+const faqItems = getFaqItems(translations)
 const sourceDescription =
   "Open-source TypeScript RAG library, CLI, and local MCP server for cited offline retrieval from confidential project files."
 const structuredData = [
@@ -99,6 +101,22 @@ const structuredData = [
     maintainer: {
       "@id": "https://ragmir.com/#jb-thery",
     },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${pageUrl}#faq`,
+    url: `${pageUrl}#faq`,
+    inLanguage: locale,
+    isPartOf: { "@id": "https://ragmir.com/#website" },
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
   },
   {
     "@context": "https://schema.org",
