@@ -38,6 +38,14 @@ const commandCopySource = readFileSync(
   fileURLToPath(new URL("./components/command-copy.tsx", import.meta.url)),
   "utf8",
 )
+const closingCtaSource = readFileSync(
+  fileURLToPath(new URL("./components/sections/closing-cta.astro", import.meta.url)),
+  "utf8",
+)
+const footerSource = readFileSync(
+  fileURLToPath(new URL("./components/sections/footer.astro", import.meta.url)),
+  "utf8",
+)
 const textareaSource = readFileSync(
   fileURLToPath(new URL("./components/ui/textarea.tsx", import.meta.url)),
   "utf8",
@@ -146,6 +154,20 @@ describe("landing public contract", () => {
     expect(homePageSource).toMatch(localizedWebPageId)
     expect(homePageSource).toContain('about: { "@id": "https://ragmir.com/#source" }')
     expect(teamPageSource).toContain('url: "https://github.com/jb-thery"')
+  })
+
+  it("should expose AGPL and commercial licensing consistently", () => {
+    expect(en.closing_open_source).toBe("AGPL-3.0 open source")
+    expect(fr.closing_open_source).toBe("Open source AGPL-3.0")
+    expect(en.footer_link_commercial_license).toBe("Commercial license")
+    expect(fr.footer_link_commercial_license).toBe("Licence commerciale")
+    expect(closingCtaSource).toContain('t("closing_open_source")')
+    expect(footerSource).toContain("COMMERCIAL-LICENSE.md")
+    expect(homePageSource).toContain(
+      'license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE"',
+    )
+    expect(homePageSource).toContain("usageInfo:")
+    expect(homePageSource).toContain("COMMERCIAL-LICENSE.md")
   })
 
   it("should provide every localized key referenced by hero scenarios", () => {

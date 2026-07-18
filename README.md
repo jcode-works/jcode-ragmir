@@ -4,7 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![CI](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
-[![MIT](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
+[![AGPL-3.0](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
 **Confidential local RAG for coding agents, scripts, and Node.js applications.**
 
@@ -97,7 +97,7 @@ citation before proposing an edit.
 | Model-agnostic Core | Cited retrieval for any compatible agent, script, CLI, MCP client, or TypeScript application |
 | Production-grade ingestion | Bounded memory and concurrency, per-file durable progress, atomic rebuild activation, and local writer serialization |
 | Inspectable retrieval | Hybrid ranking explanations, explicit evidence thresholds, stable tie-breaks, and exact vector diagnostics |
-| Open source | MIT-licensed packages, a static telemetry-free website, and no hosted Ragmir account |
+| Open source | `AGPL-3.0-only` packages, commercial licensing for proprietary use, and no hosted Ragmir account |
 
 The default `local-hash` provider needs no model download and does not load Transformers.js, ONNX
 Runtime, or Sharp. Semantic Transformers.js embeddings are an explicit option. Below 100,000 rows,
@@ -286,6 +286,16 @@ Redaction reduces accidental exposure but is not a compliance certification. Rev
 
 Installing Core does not install Chat or TTS.
 
+## Licensing
+
+Ragmir `v3.0.0` and later are available under
+[GNU AGPL v3.0 only](./LICENSE). Organizations that want to integrate, redistribute, modify, or
+operate Ragmir under proprietary terms can request a separate
+[commercial license](./COMMERCIAL-LICENSE.md) from JCode Works.
+
+Releases before `v3.0.0` keep the license published with those releases. Third-party dependencies
+and model files keep their own licenses.
+
 ## Examples and documentation
 
 | Resource | Use it for |
@@ -310,5 +320,5 @@ lint, dependency audit, type checks, coverage, builds, public API and MCP smoke 
 validation, semantic-release checks, and signed release-artifact generation. CI adds the portable
 offline installation matrix and CodeQL analysis.
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md), [RELEASING.md](./RELEASING.md), and the
-[MIT License](./LICENSE).
+See [CONTRIBUTING.md](./CONTRIBUTING.md), [RELEASING.md](./RELEASING.md), the
+[AGPL-3.0-only license](./LICENSE), and the [commercial licensing option](./COMMERCIAL-LICENSE.md).

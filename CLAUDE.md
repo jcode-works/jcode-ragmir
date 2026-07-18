@@ -12,6 +12,9 @@ pnpm example
 Use `pnpm --filter @jcode.labs/ragmir <script>` for Core-only work. The pinned Node version lives in
 `mise.toml`; activate mise in your shell or run local workspace commands with that pinned version.
 Published packages require Node.js 22 or later, matching their manifests and release gate.
+Ragmir source is `AGPL-3.0-only` from v3.0.0 onward, with a separate commercial licensing option.
+Keep package metadata, license files, public documentation, and release notes aligned. External code
+contributions need confirmed rights for both licensing paths before merge.
 
 ## Workspace
 
