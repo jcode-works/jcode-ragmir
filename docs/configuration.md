@@ -44,17 +44,21 @@ with the variable name instead of silently reverting to a different value.
 ### Stable team source configuration
 
 Keep a shared source contract stable across workstations. Prefer canonical directories and globs,
-such as `../design-system/docs/**/*.md`, over a script that expands the files currently present and
-rewrites a tracked configuration file. A missing sibling repository should produce an explicit
-local coverage difference, not permanent configuration churn in Git.
+such as `../design-system/docs/**/*.md`, over a script that expands files found on one machine. A
+missing sibling repository should produce an explicit local coverage difference, not configuration
+churn.
 
-The active `.ragmir/config.json` stays local and ignored. A project can version its own template,
-copy that template locally, and keep machine-specific discovery outside the tracked file. After
-source synchronization, ingest locally, export a metadata-only snapshot with `rgr team snapshot`,
-and inspect exact drift with `rgr team compare`. The comparison reports source-contract, version,
-embedding, chunking, retrieval, and privacy differences plus changed or one-sided paths. The
-lower-level `corpusFingerprint` remains a quick equality check. Use `sourceFingerprintMode:
-"strict"` when a synchronization tool can preserve file metadata while replacing its content.
+The active `.ragmir/config.json` stays local and ignored. A project can version a reviewed template,
+copy it locally during setup, and keep machine-specific paths outside that template. Git-backed
+teams use `rgr team sync` for the normal loop: fetch the current branch upstream, apply only a safe
+fast-forward, then ingest locally. `--no-pull` keeps branch updates manual, and `--check` previews
+without changing the worktree or index.
+
+When Git is current but two results still differ, use the advanced `rgr team snapshot` and
+`rgr team compare` commands to inspect source-contract, version, embedding, chunking, retrieval,
+privacy, and per-file drift. The lower-level `corpusFingerprint` remains a quick equality check.
+Use `sourceFingerprintMode: "strict"` when synchronization can preserve file metadata while
+replacing content.
 
 ### Workload admission
 

@@ -110,6 +110,15 @@ export {
   writeTeamSnapshot,
 } from "./team-diagnostics.js"
 export type {
+  SyncTeamKnowledgeOptions,
+  TeamSyncGitReport,
+  TeamSyncGitState,
+  TeamSyncIndexReport,
+  TeamSyncReport,
+  TeamSyncStatus,
+} from "./team-sync.js"
+export { syncTeamKnowledge } from "./team-sync.js"
+export type {
   AccessLogAction,
   AccessLogUsageOptions,
   AccessLogUsageReport,

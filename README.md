@@ -40,7 +40,7 @@ Outcome: Core installed with the repository's package manager; useful sources se
 1) Which repository/monorepo base should own the knowledge base, and are nested app bases wanted?
 2) Which clients: Claude Code, Codex, Kimi, OpenCode, Cline, another MCP client, or none?
 3) Keep default offline local-hash, or allow one semantic-model download for better natural-language retrieval?
-4) Solo or team use? If team, what Git/Drive/folder revision is authoritative and who may receive metadata-only snapshots?
+4) Solo or team? If team, is Git upstream authoritative, and should safe pulls be automatic or disabled with --no-pull?
 5) Core only, or optional Chat? For Chat choose lite (~0.49 GB), fast (~3.35 GB), or quality (~5.15 GB).
 6) Optional TTS? Ask language (en/fr/es offline; ja/th/zh require explicit Edge unless a local model is supplied) and whether text may reach Edge.
 7) Which private/external folders are allowed, which must never be indexed, and may I install packages, edit local config, and run approved downloads now?
@@ -53,7 +53,7 @@ Outcome: Core installed with the repository's package manager; useful sources se
 - Run preview and audit --unsupported before ingest. Review redactions, unsupported/oversized files, duplicates, chunks, and sensitive paths. Fix config first, then ingest.
 - For an existing install, use rgr upgrade and doctor --fix as indicated. Never delete the active index first. Rebuild only for incompatible embedding, chunk, or index-policy changes.
 - Enable semantic retrieval, preload Chat, or preload TTS only after consent. Use non-sensitive TTS preload text.
-- For teams, ingest locally, create an ignored metadata-only snapshot, compare it, explain every drift, and never choose authority automatically.
+- For Git teams, run rgr team sync. It safely pulls and ingests; --no-pull keeps Git manual. Snapshots are advanced diagnostics.
 
 4. Prove the result:
 - Run rgr doctor --deep, rgr audit --unsupported, and rgr security-audit.
@@ -158,27 +158,25 @@ resource budgets, and monorepo routing.
 
 ```mermaid
 flowchart LR
-    A["Shared source folder"] --> B["Versioned Ragmir config"]
-    B --> C["Local ingest per developer"]
-    C --> D["Ready index"]
-    D --> E["Export team snapshot"]
-    E --> F["Compare and resolve exact drift"]
+    A["Merge into the declared upstream"] --> B["rgr team sync"]
+    B --> C["Safe Git fast-forward"]
+    C --> D["Incremental local ingest"]
+    D --> E["Ready private index"]
 ```
 
-Teams use Git, Drive, or their existing file workflow to synchronize one source of truth, commit the
-same Ragmir source globs and configuration, then build one local index per developer:
+Git-backed teams build one private index per developer and use one command after reviewed changes
+land through a merge request:
 
 ```bash
-pnpm exec rgr team snapshot --label alice --output .ragmir/team/alice.json
-pnpm exec rgr team compare .ragmir/team/alice.json --local-label christophe
+pnpm exec rgr team sync
 ```
 
-The comparison names configuration differences plus local-only, peer-only, and changed files, then
-gives ordered repair steps. It never guesses which copy is authoritative: the team keeps that
-decision in Git, Drive, or its existing source workflow. `ready` means the index can serve and be
-compared; privacy warnings are reported as non-blocking security advisories with a separate
-`rgr security-audit` action. Existing v2.19 snapshots remain comparable without reindexing.
-Detailed safeguards live in the
+Ragmir fetches the current branch upstream, fast-forwards only a clean non-divergent branch, then
+reindexes changed sources incrementally. Dirty, ahead, diverged, detached, offline, and no-upstream
+states never rewrite history and return one action. Use `--no-pull` to keep branch updates manual or
+`--check` to preview. Advanced `team snapshot` and `team compare` diagnostics remain available for
+non-Git sources or exact drift analysis, including existing v2.19 snapshots. Detailed safeguards
+live in the
 [team guide](./docs/agent-integration.md#team-knowledge-bases) and
 [configuration reference](./docs/configuration.md#stable-team-source-configuration).
 

@@ -65,9 +65,9 @@ and omits the production sitemap.
 - Lead with model-agnostic Core: cited local retrieval through a library, CLI, and MCP.
 - Present preferred cloud agents, local consumers, and model-free automation as clear choices.
 - Keep Chat, TTS, semantic embeddings, model downloads, Edge speech, OCR, and IndexNow explicit.
-- Explain team use positively and briefly: synchronize sources and configuration, ingest locally per
-  developer, then use the metadata-only team comparison to understand exact drift. Keep low-level
-  safeguards in focused guides.
+- Explain team use positively and briefly: merge reviewed changes upstream, run `rgr team sync`,
+  receive a ready private local index. Keep snapshots and low-level safeguards in focused advanced
+  guides.
 - Keep visible FAQ copy and `FAQPage` JSON-LD generated from the same localized content source.
 - Keep English and French messages aligned, and ground every claim in current code and tests.
 - Never claim hosted storage, universal formats, blanket compliance, or guaranteed confidentiality.
