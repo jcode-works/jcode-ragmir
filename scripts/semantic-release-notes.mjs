@@ -51,8 +51,8 @@ export function generateNotes(_pluginConfig, context) {
 }
 
 function curatedRelease(commits = []) {
-  for (let index = commits.length - 1; index >= 0; index -= 1) {
-    const sections = parseSections(commits[index]?.message ?? "")
+  for (const commit of commits) {
+    const sections = parseSections(commit?.message ?? "")
     if (sections !== null) return sections
   }
 
