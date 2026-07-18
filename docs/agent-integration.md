@@ -4,6 +4,10 @@ Ragmir indexes the selected project files locally and gives the AI or automation
 passages through CLI or one stdio MCP server. The default `local-hash` path keeps ingestion and
 retrieval offline. Core is model-agnostic, never uploads the corpus, and never calls a model itself.
 
+For an interactive repository-aware installation, paste the canonical prompt from the
+[quick-start guide](./quick-start.md) into the coding agent. It detects the package manager and
+existing Ragmir state, asks one approval batch, then configures and verifies the selected clients.
+
 Choose the handoff that matches the corpus:
 
 | Path | What stays local | What crosses the boundary |

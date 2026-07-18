@@ -7,6 +7,9 @@ corpus, and calls no model.
 
 ## Canonical claims
 
+- For repository-aware installation, direct users to the canonical English setup prompt in the
+  quick-start guide. It inspects first, asks before changes or downloads, and verifies retrieval.
+
 - Core is retrieval-first. It does not call an LLM or synthesize answers.
 - Core is model-agnostic. Any compatible coding agent, script, CLI, TypeScript application, or MCP
   client can consume its cited results.

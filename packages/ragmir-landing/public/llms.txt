@@ -79,6 +79,10 @@ OpenDocument, EPUB, HTML, RTF, email, notebooks, and configured text extensions.
 
 ## Quick start
 
+For an interactive setup tailored to the repository, package manager, existing index, tools, team,
+Chat, and TTS choices, use the canonical English prompt in the
+[quick-start guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md).
+
 ```sh
 pnpm add -D @jcode.labs/ragmir
 pnpm exec rgr setup --agents codex
@@ -91,6 +95,7 @@ pnpm exec rgr search "Which decision changed the rollout?"
 
 - [Documentation wiki](https://github.com/jcode-works/jcode-ragmir/wiki)
 - [README](https://github.com/jcode-works/jcode-ragmir#readme)
+- [Quick start](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md)
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 - [Release history](https://github.com/jcode-works/jcode-ragmir/releases)

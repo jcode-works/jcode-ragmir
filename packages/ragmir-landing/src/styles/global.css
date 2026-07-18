@@ -50,7 +50,7 @@
   --border: rgba(255, 255, 255, 0.12);
   --input: rgba(0, 0, 0, 0.14);
   --ring: rgba(255, 255, 255, 0.52);
-  --radius: 999px;
+  --radius: 0.375rem;
 }
 
 html,
@@ -77,7 +77,7 @@ button,
 input,
 select,
 textarea {
-  font: inherit;
+  font-family: inherit;
 }
 
 .display-title {

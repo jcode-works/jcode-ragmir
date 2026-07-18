@@ -87,12 +87,12 @@ const featureGroups = [
 
     <div class="grid auto-rows-fr gap-4 lg:grid-cols-3">
       {featureGroups.map((group) => (
-        <article class="grid h-full grid-rows-[auto_auto_auto_auto_1fr] rounded-xl border border-border bg-card/82 p-5 text-card-foreground shadow-xl shadow-black/20 backdrop-blur-xl md:p-6">
+        <article class="grid h-full grid-rows-[auto_auto_auto_auto_1fr] rounded-md border border-border bg-card/82 p-5 text-card-foreground shadow-xl shadow-black/20 backdrop-blur-xl md:p-6">
           <div class="flex items-center justify-between gap-3">
-            <div class="flex size-11 items-center justify-center rounded-lg border border-border bg-muted/60">
+            <div class="flex size-11 items-center justify-center rounded-sm border border-border bg-muted/60">
               <group.icon class="size-5 text-[var(--accent-title)]" aria-hidden="true" />
             </div>
-            <span class="rounded-full border border-border bg-muted/55 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            <span class="rounded-sm border border-border bg-muted/55 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-muted-foreground">
               {group.badge}
             </span>
           </div>
