@@ -37,12 +37,22 @@
 - Package READMEs are brief npm entrypoints that link to the root README.
 - Keep `llms.txt` and `context7.json` aligned with public documentation and generated-output exclusions.
 - When code changes public behavior, commands, configuration, supported formats, architecture, or product claims, update the relevant docs and landing in the same change. For internal-only changes, verify both surfaces and leave them unchanged when no update is needed.
+- Lead public documentation with the value proposition, a working quick start, and the strongest
+  guarantees. Move operational depth to focused guides instead of repeating it across READMEs.
+- Present team use as a positive workflow: shared sources and configuration, one local ingest per
+  developer, then a corpus-fingerprint check. Keep low-level safeguards in the team and
+  configuration guides rather than turning team collaboration into the dominant public section.
 
 ## Validation
 
 - Run the smallest relevant check while editing and `pnpm validate` before a release pull request.
 - Reconcile `git status` with the intended scope before staging. Never stage secrets or generated local state.
 - Use Conventional Commits. Commit and push only when the user authorizes them.
+- Every commit promoted to `main` that can trigger semantic-release must include these exact body
+  sections with at least one bullet each: `Release highlights:`, `Release details:`, and
+  `Verification:`. Highlights state user outcomes, details group the meaningful work by product
+  area, and verification names the gates actually run. Never reduce a release to a generic subject
+  line or raw commit list.
 
 ## Code conventions
 

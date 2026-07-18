@@ -1,11 +1,9 @@
 # Ragmir
 
-Ragmir is an open-source local-first retrieval toolkit for Node.js. It indexes files selected by the
-project, keeps generated state under ignored local `.ragmir/` folders, and returns source-backed
-passages through CLI, TypeScript, or a read-focused MCP server. It does not provide a hosted document
-store.
-
-Public subtagline: **Stop sending confidential documents directly to the cloud.**
+Ragmir is an open-source confidential local RAG for coding agents, scripts, and Node.js
+applications. It turns selected project files into cited evidence indexed and retrieved locally
+through CLI, TypeScript, or a read-focused MCP server. Core works offline by default, never uploads
+the corpus, and calls no model.
 
 ## Core facts
 
@@ -66,15 +64,13 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   vector, full-text, and relative-path index coverage.
 - Monorepos: the nearest configured base is active, nested indexes remain isolated, and generated MCP
   helpers pin a distinct base root.
-- Team use: Ragmir has no built-in cloud sync. Synchronize the same source-of-truth folder with an
-  existing tool such as Google Drive or a team script, align the version, configuration, embedding
-  provider, and model, then ingest and audit on each workstation. Missing, partial, or extra files
-  produce different local indexes. Version stable directory or glob contracts instead of generated
-  machine-specific file lists. Compare `corpusFingerprint` only when both indexes are ready with no
-  missing or stale files; matching values prove the same indexed relative paths and source bytes.
-  Use `sourceFingerprintMode: "strict"` when a sync tool can preserve metadata while replacing
-  content. Never treat `.ragmir/storage/` as a shared database. Older manifests expose a `null`
-  fingerprint until the next successful ingestion.
+- Team use: synchronize one source-of-truth folder with Git, Drive, or the team's existing file
+  workflow, commit stable source globs and Ragmir configuration, then ingest locally per developer.
+  Align the version and embedding settings, and compare `corpusFingerprint` only when each index is
+  ready with no missing or stale files. Matching values confirm the same relative paths and source
+  bytes. Use `sourceFingerprintMode: "strict"` when synchronization can preserve metadata while
+  replacing content, and keep actively written `.ragmir/storage/` directories local to each
+  workstation.
 - MCP resources: `ragmir://context` gives bounded readiness and capability context;
   `ragmir://sources` gives capped source detail with complete totals.
 - MCP safety: all ten tools advertise non-destructive behavior; every tool and resource JSON
