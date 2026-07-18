@@ -15,7 +15,7 @@ module.exports = {
         ],
       },
     ],
-    "@semantic-release/release-notes-generator",
+    "./scripts/semantic-release-notes.mjs",
     [
       "@semantic-release/exec",
       {

@@ -15,6 +15,10 @@ const teamPageSource = readFileSync(
   fileURLToPath(new URL("./pages/[...locale]/team.astro", import.meta.url)),
   "utf8",
 )
+const heroSource = readFileSync(
+  fileURLToPath(new URL("./components/sections/hero.astro", import.meta.url)),
+  "utf8",
+)
 const localizedWebPageId = /"@id": `\$\{pageUrl\}#webpage`/
 
 describe("landing public contract", () => {
@@ -22,11 +26,16 @@ describe("landing public contract", () => {
     expect(Object.keys(fr).sort()).toEqual(Object.keys(en).sort())
   })
 
-  it("should keep the public secondary tagline exact in both locales", () => {
-    expect(en.hero_subtagline).toBe("Stop sending confidential documents directly to the cloud.")
-    expect(fr.hero_subtagline).toBe(
-      "Arrêtez d'envoyer les documents confidentiels directement dans le cloud.",
-    )
+  it("should keep a prominent headline and one concise, neutral-color description", () => {
+    expect(en.hero_title).toBe("Confidential local RAG for your coding agents.")
+    expect(fr.hero_title).toBe("Un RAG local et confidentiel pour vos agents de code.")
+    expect(en.hero_description).toContain("Ragmir turns specs")
+    expect(fr.hero_description).toContain("Ragmir transforme les spécifications")
+    expect(heroSource).toContain('{t("hero_title")}')
+    expect(heroSource).toContain('{t("hero_description")}')
+    expect(heroSource).not.toContain("hero_title_line")
+    expect(heroSource).not.toContain("hero_subtagline")
+    expect(heroSource).not.toContain("text-[var(--accent-title)]")
   })
 
   it("should lead homepage metadata with the library, CLI, and local MCP server", () => {
@@ -80,12 +89,12 @@ describe("landing public contract", () => {
     ).toBe(true)
   })
 
-  it("should document the team corpus equivalence safeguards in both locales", () => {
+  it("should explain the team workflow positively and concisely in both locales", () => {
     expect(en.faq_team_answer).toContain("corpus fingerprint")
     expect(fr.faq_team_answer).toContain("empreinte du corpus")
     for (const answer of [en.faq_team_answer, fr.faq_team_answer]) {
-      expect(answer).toContain("sourceFingerprintMode")
-      expect(answer).toContain(".ragmir/storage")
+      expect(answer).toContain("Git")
+      expect(answer.length).toBeLessThan(500)
     }
   })
 

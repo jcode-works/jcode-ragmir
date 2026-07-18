@@ -223,7 +223,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
     script: "text-cyan-300",
     tree: "text-sky-300/90",
     output: "text-muted-foreground",
-    mcp: "text-[var(--accent-title)]",
+    mcp: "text-white",
     citation: "font-semibold text-yellow-300",
     insight: "text-emerald-300",
     change: "text-cyan-300",
@@ -253,7 +253,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
         <span className="truncate font-mono text-[0.65rem] text-muted-foreground">
           {activeScenario.terminalTitle}
         </span>
-        <span className="font-mono text-[0.6rem] font-bold uppercase tracking-wider text-[var(--accent-title)]">
+        <span className="font-mono text-[0.6rem] font-bold uppercase tracking-wider text-white/80">
           {t(activeScenario.badgeKey)}
         </span>
       </div>

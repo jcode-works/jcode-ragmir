@@ -1,52 +1,36 @@
 # Document evidence benchmark
 
-A deterministic, public-safe benchmark for the retrieval and citation quality coding agents receive
-from Ragmir's confidential local RAG pipeline.
+A deterministic, public-safe benchmark for the retrieval and citation quality a coding agent
+receives from Ragmir. Six golden queries require the expected path and an exact file, line, chunk,
+or PDF-page citation. The fictional corpus runs offline with `local-hash`.
 
-Use this example when you want to prove more than "a relevant file appeared." Its six golden queries
-check that Ragmir retrieves the expected path and an exact verifiable file, line, chunk, or PDF-page
-citation.
-Every document is fictional and safe to commit. The benchmark keeps its corpus and generated index
-on the machine and runs the default `local-hash` retrieval offline.
+## What passes
 
-## What it measures
-
-| Signal | What a passing result means |
+| Signal | Requirement |
 | --- | --- |
-| `Recall@K` | An expected source path appears within the configured top K results |
-| Exact text citation | The expected `relative/path:Lx-Ly#chunkIndex` is returned |
-| Exact PDF citation | The expected `relative/path:pN#chunkIndex` is returned without invented source lines |
+| Recall@K | An expected source appears in the configured top K |
+| Text citation | Exact `relative/path:Lx-Ly#chunkIndex` |
+| PDF citation | Exact `relative/path:pN#chunkIndex`, with no invented source lines |
 
-The corpus is intentionally small enough for each source to fit in one chunk. That makes citation
-expectations stable while exercising the same ingestion and evaluation code used for private
-knowledge bases.
+Each source fits in one chunk so citation expectations stay stable while exercising the production
+ingestion and evaluation pipeline.
 
-## Corpus
-
-| Fictional source | Evidence type |
+| Fictional source | Evidence |
 | --- | --- |
 | `raw/contracts/master-services-agreement.md` | Contract and residency obligations |
-| `raw/contracts/pdf-control-evidence.pdf` | Embedded PDF text with a page citation |
+| `raw/contracts/pdf-control-evidence.pdf` | Embedded PDF text and page citation |
 | `raw/rfp/security-questionnaire.md` | Security and hosting requirements |
 | `raw/runbooks/incident-response-runbook.md` | Operational evidence collection |
 | `raw/specs/agent-integration-spec.md` | Agent and retrieval boundaries |
 | `raw/legal-tax/residency-review-note.md` | Professional-review disclaimer |
 
-[`golden-queries.json`](./golden-queries.json) maps each test query to its expected path and exact
-citation.
+[`golden-queries.json`](./golden-queries.json) maps questions to expected paths and citations.
 
-## Run the benchmark
-
-From the repository root, install dependencies and build the packages:
+## Run it
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-```
-
-Then run the benchmark from this directory:
-
-```bash
 cd packages/ragmir-core/examples/document-evidence-benchmark
 node ../../dist/cli.js init
 node ../../dist/cli.js ingest --rebuild
@@ -54,40 +38,17 @@ node ../../dist/cli.js evaluate --golden golden-queries.json --json
 node ../../dist/cli.js evaluate --golden golden-queries.json --fail-under 1
 ```
 
-The last command exits non-zero unless every golden query succeeds at the configured threshold.
-Keep the JSON output when you need machine-readable evidence for CI or a retrieval-quality review.
+The final command fails unless every query meets the threshold. Keep JSON output when CI or a
+retrieval review needs machine-readable evidence.
 
-## Read a failure
+On failure, run `rgr audit`, inspect returned paths and citations, then decide whether retrieval,
+chunking, the corpus, or the intended expectation changed. Update a golden query only for an
+intentional behavior change; never lower `--fail-under` to hide a regression.
 
-1. Check `rgr audit` for missing, stale, or skipped source files.
-2. Inspect the failed query's returned paths and citations in JSON output.
-3. Decide whether the corpus, expected citation, chunking, or retrieval mode changed.
-4. Update a golden expectation only when the intended product behavior changed.
+For private evaluation, copy the `.ragmir/config.json`, `golden-queries.json`, and `raw/` structure
+into an ignored workspace. Record the smallest expected source set and exact coordinates only when
+the source is stable. Never commit private documents, queries, or reports.
 
-Do not lower `--fail-under` merely to make a regression pass.
-
-## Adapt it to a private corpus
-
-Copy the structure, not the fictional documents:
-
-```text
-private-evaluation/
-├── .ragmir/config.json
-├── golden-queries.json
-└── raw/
-```
-
-For each important question, record the smallest set of expected source paths. Add exact citations
-when the source is stable enough to make line, page, and chunk boundaries meaningful. Keep private
-contracts, RFPs, runbooks, tax notes, scans, golden queries, and evaluation reports outside Git or
-under ignored local state.
-
-## Safety
-
-- The committed corpus contains no customer or production data.
-- The benchmark uses the offline `local-hash` provider and needs no model download.
-- Generated `.ragmir/storage` and evaluation output stay local and ignored.
-- A perfect synthetic score proves this fixture, not universal retrieval quality.
-
-Return to the [Ragmir Core README](../../README.md) or try the
-[confidential local RAG demo](../sovereign-rag-demo/README.md) for a broader CLI walkthrough.
+A perfect score proves this fixture, not universal retrieval quality. Continue with the
+[confidential local RAG demo](../sovereign-rag-demo/README.md) or
+[Core README](../../README.md).

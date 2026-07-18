@@ -1,42 +1,29 @@
 # Confidential local RAG demo
 
-A complete, fictional workspace for learning how agents and scripts retrieve cited local project
-context with Ragmir.
-
-Use this example to ingest several file types, search with citations, inspect privacy posture, find
-an unsupported file, evaluate golden queries, and prepare agent access. It keeps the fictional
-corpus and generated index on the machine, runs with offline `local-hash` retrieval, and contains no
-customer or production data.
+A complete fictional workspace for learning how agents and scripts retrieve cited project evidence
+with Ragmir. It covers multiple formats, privacy checks, unsupported files, golden queries, and
+agent access while keeping corpus and index local with offline `local-hash` retrieval.
 
 ## Scenario
 
-The corpus models an operations team reviewing whether an evidence workflow can stay local:
-
-| File | Role in the scenario |
+| File | Role |
 | --- | --- |
 | `raw/operations-brief.md` | Approval, ownership, and operating requirements |
 | `raw/dataset-inventory.csv` | Accepted and rejected datasets |
 | `raw/incident-timeline.jsonl` | Time-ordered operational evidence |
 | `raw/security-policy.yaml` | Model-loading and security rules |
-| `raw/review-notes.evidence` | Custom text extension configured for this project |
-| `raw/facility-scan.heic` | Deliberately unsupported file used by the audit example |
+| `raw/review-notes.evidence` | Project-configured text extension |
+| `raw/facility-scan.heic` | Deliberately unsupported audit fixture |
 
-## Run the full workflow
-
-From the repository root:
+## Run the workflow
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-```
-
-Then enter this example and run the local CLI build:
-
-```bash
 cd packages/ragmir-core/examples/sovereign-rag-demo
 node ../../dist/cli.js init
 
-# POSIX only: this example deliberately uses a custom tracked rawDir.
+# POSIX only: Git and npm archives do not preserve this fixture's intended mode.
 chmod 700 raw
 
 node ../../dist/cli.js security-audit
@@ -49,101 +36,54 @@ node ../../dist/cli.js audit --unsupported
 node ../../dist/cli.js status
 ```
 
-`init` is idempotent. Git and npm archives cannot preserve the example's intended `0700` raw-folder
-mode, so the explicit `chmod` keeps the raw corpus owner-only on POSIX systems.
+`init` is idempotent. The security audit intentionally warns that `.ragmir/` is not fully ignored
+because this public fixture commits its configuration and source list. Generated storage, models,
+reports, audio, logs, and salts remain ignored. Private projects should ignore the complete
+`.ragmir/` directory.
 
-The security audit still reports that `.ragmir/` is not fully ignored. That warning is expected only
-for this public fixture because it deliberately commits `.ragmir/config.json` and
-`.ragmir/sources.txt`. Generated storage, models, reports, audio, logs, and salts remain ignored.
-Normal private projects should ignore the complete `.ragmir/` directory.
+Expected results:
 
-## What to look for
+- search and ask identify source paths and chunks;
+- `ask` returns evidence, not a generated answer;
+- `research` combines bounded queries and source diagnostics;
+- every golden query finds its expected source;
+- the audit explains why HEIC was skipped and suggests local OCR;
+- status confirms the active provider and local index.
 
-- Search and ask output identify the source path and chunk.
-- `ask` returns cited passages, not a generated answer from a hosted LLM.
-- `research` combines several retrieval queries and reports source diagnostics.
-- The audit surfaces the fixture-specific tracked-config warning described above.
-- The golden evaluation finds the expected sources for all four questions.
-- `audit --unsupported` explains why the HEIC fixture was skipped and recommends local OCR.
-- `status` confirms the active provider and local index state.
+Useful queries include `dataset residency`, `incident containment evidence`,
+`who owns the usage review`, and `what documents support sovereign deployment`.
 
-## Useful queries
+## Connect an agent
 
-```text
-offline retrieval approval
-dataset residency
-incident containment evidence
-who owns the usage review
-what documents support sovereign deployment
-```
-
-Try a precise query first, then compare it with `research --compact` when the question spans several
-files.
-
-## Give the demo to an agent
-
-In a real project, `rgr setup` generates an MCP helper under `.ragmir/`. After setup, an
-MCP-compatible agent can follow a prompt like:
+In a real project, `rgr setup` writes an ignored MCP helper. A compatible agent can then follow:
 
 ```text
-Use Ragmir to inspect the local knowledge base, search for "offline retrieval approval", and write a
-cited Markdown report under .ragmir/reports/demo-sovereign-rag.md. Mention any unsupported or stale
-files reported by the audit.
+Use Ragmir to search for "offline retrieval approval" and write a cited report under
+.ragmir/reports/demo-sovereign-rag.md. Mention unsupported or stale files reported by the audit.
 ```
 
-The report path stays under ignored local state. Do not commit generated reports that may contain
-retrieved project evidence.
+Keep retrieved reports under ignored local state.
 
 ## Compare semantic retrieval
 
-The committed configuration uses:
+The committed configuration uses offline lexical/hash retrieval:
 
 ```json
-{
-  "embeddingProvider": "local-hash"
-}
+{ "embeddingProvider": "local-hash" }
 ```
 
-This is offline lexical/hash retrieval, not model-semantic search. To run a deliberate semantic
-comparison, configure a Transformers.js model, preload it under `.ragmir/models`, and rebuild:
+For a deliberate semantic comparison, prepare a Transformers.js model locally, set
+`embeddingProvider`, `embeddingModel`, `embeddingModelRevision`, `embeddingModelPath`, and
+`transformersAllowRemoteModels: false`, then rebuild and rerun evaluation. Keep remote loading off.
+A lower semantic score is a tuning signal, never a reason to weaken a quality gate.
 
-```json
-{
-  "embeddingProvider": "transformers",
-  "embeddingModel": "intfloat/multilingual-e5-small",
-  "embeddingModelRevision": "main",
-  "embeddingModelPath": ".ragmir/models",
-  "transformersAllowRemoteModels": false
-}
-```
-
-```bash
-node ../../dist/cli.js ingest --rebuild
-node ../../dist/cli.js evaluate --golden golden-queries.json --json
-```
-
-Keep remote model loading disabled for an offline comparison. A lower semantic score may indicate
-that queries or thresholds need tuning, not that a gate should be weakened.
-
-## Generated state and cleanup
-
-All runtime state stays under the ignored directory:
-
-```text
-.ragmir/
-```
-
-Remove only the generated index when you want a clean rerun:
+All generated state stays under `.ragmir/`. Reset only the index with:
 
 ```bash
 node ../../dist/cli.js destroy-index --yes
 ```
 
-Never replace the fictional fixtures in this package with real confidential documents. Use a
-separate ignored workspace for private dogfooding.
-
-## Continue exploring
-
-- [Library API demo](../library-api-demo/README.md): call the public TypeScript API.
-- [Document evidence benchmark](../document-evidence-benchmark/README.md): require exact paths and citations.
-- [Ragmir Core README](../../README.md): installation, MCP, OCR, and privacy reference.
+Never replace the fictional fixtures with confidential documents. Continue with the
+[Library API demo](../library-api-demo/README.md),
+[Document evidence benchmark](../document-evidence-benchmark/README.md), or
+[Core README](../../README.md).

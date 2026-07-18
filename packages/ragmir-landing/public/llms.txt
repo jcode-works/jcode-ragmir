@@ -1,12 +1,9 @@
 # Ragmir
 
-Ragmir is an open-source confidential local RAG for your coding agents and scripts on Node.js. It
-indexes selected project files on the user's machine, keeps the corpus and generated index under
-ignored `.ragmir/` state, and retrieves source-backed passages offline by default through a CLI,
-TypeScript API, or local read-focused MCP server. Core does not upload source documents to a hosted
-RAG service.
-
-Public subtagline: **Stop sending confidential documents directly to the cloud.**
+Ragmir is an open-source confidential local RAG for coding agents, scripts, and Node.js
+applications. It turns selected project files into cited evidence indexed and retrieved locally
+through a CLI, TypeScript API, or read-focused MCP server. Core works offline by default, never
+uploads the corpus, and calls no model.
 
 ## Product boundary
 
@@ -34,20 +31,15 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - Ragmir is not a hosted document store, cloud-sync service, agent-memory replacement, or universal
   code-search replacement.
 
-## Team use
+## Team workflow
 
-- Ragmir has no built-in cloud sync. Teams synchronize one source-of-truth folder with an existing
-  tool such as Google Drive or a team script, then build a separate local index per developer.
-- Keep the Ragmir version, configuration, embedding provider, and model aligned. Sync before
-  ingestion and run `rgr audit` afterwards. Version stable directory or glob contracts instead of
-  generated machine-specific file lists. Compare `corpusFingerprint` only when both indexes are
-  ready with no missing or stale files; matching values identify the same indexed relative paths
-  and source bytes. Use `sourceFingerprintMode: "strict"` when a sync tool can preserve metadata
-  while replacing content.
-- The TypeScript API can automate local setup and ingestion. Ragmir remains the retrieval layer,
-  not the source-file synchronization layer.
-- Never share an actively written `.ragmir/storage/` directory. Older manifests return a `null`
-  corpus fingerprint until the next successful ingestion.
+- Teams synchronize one source-of-truth folder with Git, Drive, or their existing file workflow,
+  commit stable source globs and Ragmir configuration, then ingest locally per developer.
+- Align the Ragmir version and embedding settings. Compare `corpusFingerprint` after each index is
+  ready with no missing or stale files to confirm the same relative paths and source bytes.
+- Use `sourceFingerprintMode: "strict"` when synchronization can replace content without changing
+  metadata, and keep actively written `.ragmir/storage/` directories local to each workstation.
+- The TypeScript API can automate the same setup, ingest, audit, and status flow.
 
 ## Privacy boundary
 
@@ -68,8 +60,8 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - CI jobs and internal automations that consume cited JSON evidence before applying deterministic
   rules or requesting human approval.
 
-For structured code navigation, prefer a dedicated repository index. For a tiny text corpus, pass
-the text directly when that is simpler and safe.
+Ragmir works alongside repository indexes and agent memory, adding cited retrieval for the project
+documents around the code.
 
 ## Supported content
 

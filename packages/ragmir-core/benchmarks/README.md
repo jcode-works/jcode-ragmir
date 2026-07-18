@@ -1,80 +1,58 @@
 # Ragmir Core benchmarks
 
-This directory contains the reproducible performance and retrieval-quality harness. Generated
-corpora and raw results are deliberately excluded from Git.
+Reproducible performance, scale, storage, and retrieval-quality harnesses for Ragmir Core. Generated
+corpora, model caches, and raw results stay outside Git.
 
-## Commands
+## Run a benchmark
+
+| Command | Measures |
+| --- | --- |
+| `pnpm bench:smoke` | Fast functional calibration, not product-claim evidence |
+| `pnpm bench:quality` | Recall@10, false positives, citations, and deterministic fingerprints |
+| `pnpm bench:quality -- --size XS --profile fast` | Focused quality profile |
+| `pnpm bench:scale -- --size M` | S/M/L ingestion and retrieval scale |
+| `pnpm bench:vector-index -- --sizes S,M,L` | Exact, IVF-PQ, HNSW-SQ, and path-index tradeoffs |
+| `pnpm bench:observability` | Diagnostic completeness, privacy, and disabled-path cost |
+| `pnpm bench:parsers [-- --stress]` | Office, EPUB, PDF throughput, memory, citations, and malformed input |
+| `pnpm bench:compare -- --baseline baseline.json --current current.json` | Comparable result regression |
+
+Additional root scripts cover CLI startup, discovery, ingestion memory, metadata, local-hash
+runtime, storage maintenance, status, runtime reuse, OCR cache, generation retention, concurrency,
+and explicit reranker, compression, hashing, and content-dedup experiments.
+
+## Claim rules
+
+- `bench:quality` requires clean indexes with matching corpus and quality fingerprints. It separates
+  p50/p95 latency from deterministic quality and evaluates vector-only, lexical-only, current
+  hybrid, and experimental lexical weights.
+- `bench:vector-index` uses deterministic 384-dimensional tables, 10 warm-ups, 100 samples, and five
+  measured repetitions. A candidate fails if it loses at least 0.01 Recall@10, has incomplete
+  coverage, misses the M/L latency gate, or does not improve p95. `--quick` is calibration only.
+- `bench:observability` rejects diagnostics that reveal project roots, source paths, or source text,
+  and enforces a 100 ns inactive-probe budget.
+- Parser stress fixtures are 45 MB to 50 MB and enforce the 768 MiB ingestion memory budget.
+- Results from different machine fingerprints are inconclusive unless comparison is explicitly
+  allowed.
+
+Every JSON result records commit, runtime, machine, corpus hash, provider, model revision, samples,
+quality metrics, latency percentiles, throughput, process resources, and physical source/index
+sizes. Scale runs also count manifest reads and table opens for persistent and one-shot searches.
+The deterministic corpus covers prose, code-like Markdown, JSON, JSONL, HTML, YAML, CSV, XML, PDF,
+DOCX, XLSX, PPTX, and EPUB.
+
+Use Transformers only with a model already present locally:
 
 ```bash
-pnpm bench:smoke
-pnpm bench:quality
-pnpm bench:quality -- --size XS --profile fast
-pnpm bench:scale -- --size M
-pnpm bench:vector-index -- --sizes S,M,L
-pnpm bench:observability
-pnpm bench:parsers
-pnpm bench:parsers -- --stress
-pnpm bench:compare -- --baseline baseline.json --current current.json
+pnpm bench:quality -- --provider transformers --model-path /absolute/path/to/models
 ```
 
-`bench:smoke` is a fast functional check and is not eligible for product claims. `bench:quality`
-evaluates two clean S indexes and fails unless their corpus and quality fingerprints match and all
-quality gates pass. It accepts `fast`, `balanced`, `quality`, or `custom` with `--profile`, records
-p50/p95 latency separately from its deterministic quality fingerprint, and reports Recall@10 plus
-false positives for vector-only, lexical-only, current hybrid, and experimental lexical weights.
-Variant comparisons rerank the bounded, post-abstention candidate pool returned by a top-100
-search; they are diagnostic evidence, not an automatic production-policy change. `bench:scale`
-accepts `S`, `M`, or `L`; the default is `S` and uses the full warm-up and repetition policy.
+Remote model downloads remain disabled. `--keep` preserves the temporary project for inspection.
 
-`bench:vector-index` builds deterministic 384-dimensional S/M/L tables and compares exhaustive
-search, IVF-PQ, HNSW-SQ, and `relativePath` BTree lookup. It records build time, p50/p95/p99,
-throughput, Recall@10 against exact ground truth, index coverage, RSS checkpoints, table bytes,
-physical bytes, and machine metadata. A full run uses 10 warm-ups, 100 samples, and five measured repetitions. It fails
-if the selected strategy does not improve p95, loses 0.01 or more Recall@10, has incomplete
-coverage, or misses the M/L latency gate. `--quick` is for calibration and is not claim-eligible;
-`--nprobes`, `--refine-factor`, and `--ef` support explicit tuning runs.
+## Experimental harnesses
 
-`bench:observability` verifies privacy-safe ingestion diagnostics, complete phase attribution,
-throughput counters, and the disabled hot-path probe. It fails when diagnostics expose a project
-root, source path, or source text, or when the inactive probe exceeds 100 ns per call.
+The local-hash, reranker, index-compression, and content-dedup experiments compare candidate designs
+against clean baselines. They gate reproducibility, retrieval quality, citations, latency, memory,
+storage, deletion behavior, and interrupted writes where relevant. A passing experiment is evidence
+for review, not an automatic production-policy change.
 
-`bench:parsers` measures DOCX, XLSX, PPTX, EPUB, and PDF throughput, peak RSS, chunk citation
-coordinates, and malformed-input rejection in isolated processes. The `--stress` profile uses
-source fixtures between 45 MB and 50 MB and enforces the 768 MiB ingestion memory budget.
-
-Use `--provider transformers` only when the configured model is already present locally. Remote
-model downloads remain disabled. Pass its cache with `--model-path /absolute/path/to/models` when
-it is not under the invoking repository's `.ragmir/models`. Use `--keep` to preserve the generated
-temporary project for manual inspection.
-
-Every JSON result records the commit, runtime, machine, corpus hash, provider, model revision,
-sample counts, quality metrics, latency percentiles, throughput, process resource usage, and
-physical source/index sizes. Scale results also count manifest reads and table opens for persistent
-and one-shot search series. Results from different machine fingerprints are inconclusive unless
-the comparison is explicitly allowed.
-
-The generated corpus includes prose, code-like Markdown, JSON, JSONL, HTML, YAML, CSV, XML, PDF,
-DOCX, XLSX, PPTX, and EPUB fixtures. S/M/L are targets, and the result records the actual chunk
-count produced by the current parser and chunker.
-
-`bench:cli-startup` measures the lightweight packaged entry for `--version` and `route-prompt`.
-It records p95 process startup latency and peak RSS, and enforces the CLI startup budget used by
-release validation.
-
-`bench:local-hash-experiment` compares the previous SHA-256 feature adapter with the versioned
-integer-hash prototype. It gates throughput, explicit temporary allocations, reproducibility,
-retrieval quality, and citation accuracy against clean quality scorecards supplied through
-`--baseline` and `--candidate`. Capture both scorecards with `bench:quality` while each adapter is
-active; generated results remain excluded from release artifacts.
-
-`bench:reranker-experiment` evaluates a pinned, quantized local cross-encoder over the first 20
-retrieval candidates. It prepares the ignored model cache once, proves subsequent offline loading,
-and compares Recall@K, nDCG@10, citations, p50/p95/p99 latency, peak RSS, model size, and cold start.
-
-`bench:index-compression-experiment` compares float32 and float16 vector storage against the same
-exact-search reference on M and L. It sweeps IVF-PQ query profiles and HNSW-SQ `ef`, prunes obsolete
-versions before measuring physical bytes, and retains only recall-safe Pareto improvements.
-
-`bench:content-dedup-experiment` compares duplicated source rows with canonical content plus source
-aliases on a mirror-heavy corpus. It gates physical storage, join latency, ranking, citations,
-single-source deletion, last-source deletion, and an injected stop between cross-table commits.
+See the [root README](../../../README.md) for the public guarantees these benchmarks support.
