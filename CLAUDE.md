@@ -35,7 +35,9 @@ Every commit promoted to `main` that can trigger semantic-release must include t
 sections with at least one bullet each: `Release highlights:`, `Release details:`, and
 `Verification:`. Highlights state user outcomes, details group meaningful work by product area,
 and verification names the gates actually run. Never reduce a release to a generic subject line or
-raw commit list.
+raw commit list. Keep commit body lines within Commitlint's 100-character limit. When a release
+bullet wraps, indent every continuation line by at least two spaces; the release notes generator
+joins those lines into one complete public bullet.
 
 ## Boundaries
 
