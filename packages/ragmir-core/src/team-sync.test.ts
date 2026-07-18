@@ -14,7 +14,7 @@ afterEach(async () => {
   }
 })
 
-describe("team sync", () => {
+describe.sequential("team sync", () => {
   it("should fast-forward and refresh the local index when the upstream update is safe", async () => {
     const fixture = await createGitFixture()
     await updateRemote(fixture, "Approved release train v2.\n")
@@ -238,7 +238,7 @@ async function createGitFixture(): Promise<GitFixture> {
   const author = path.join(root, "author")
   const local = path.join(root, "local")
   await mkdir(author, { recursive: true })
-  await git(root, ["init", "--bare", remote])
+  await git(root, ["init", "--bare", "--initial-branch=main", remote])
   await git(author, ["init", "--initial-branch=main"])
   await configureGitIdentity(author)
   await configureRagmir(author)
