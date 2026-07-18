@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const corePackageRoot = path.join(repoRoot, "packages", "ragmir-core")
-const cliPath = path.join(corePackageRoot, "dist", "cli.js")
+const cliPath = path.join(corePackageRoot, "dist", "cli-entry.js")
 const chatCliPath = path.join(repoRoot, "packages", "ragmir-chat", "dist", "cli.js")
 const ttsCliPath = path.join(repoRoot, "packages", "ragmir-tts", "dist", "cli.js")
 const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-smoke-"))
@@ -248,6 +248,26 @@ try {
     '"serve-mcp"',
     "generated MCP config should launch the Ragmir MCP server",
   )
+  const runnerPath = path.join(tempRoot, ".ragmir", "run.cjs")
+  const runnerVersion = await runProcess(process.execPath, [runnerPath, "--version"], tempRoot)
+  if (!/^\d+\.\d+\.\d+/u.test(runnerVersion.stdout.trim())) {
+    throw new Error(`generated runner should execute installed CLI, got ${runnerVersion.stdout}`)
+  }
+  const runnerRoute = parseJson(
+    (
+      await runProcess(
+        process.execPath,
+        [runnerPath, "route-prompt", "--json", "find indexed architecture evidence"],
+        tempRoot,
+      )
+    ).stdout,
+    "generated runner route JSON",
+  )
+  if (runnerRoute.shouldUseRagmir !== true) {
+    throw new Error(
+      `generated runner should route local evidence, got ${JSON.stringify(runnerRoute)}`,
+    )
+  }
 
   await configureProject(tempRoot)
   await writeFixtureDocuments(tempRoot)
@@ -294,6 +314,11 @@ try {
   if (typeof statusJson.chunksIndexed !== "number" || statusJson.chunksIndexed <= 0) {
     throw new Error(`status --json should expose chunksIndexed, got ${statusJson.chunksIndexed}`)
   }
+  if (!/^[0-9a-f]{64}$/u.test(statusJson.corpusFingerprint)) {
+    throw new Error(
+      `status --json should expose corpusFingerprint, got ${statusJson.corpusFingerprint}`,
+    )
+  }
   if (statusJson.knowledgeBaseId !== ".") {
     throw new Error(
       `status --json should identify the active root base, got ${statusJson.knowledgeBaseId}`,
@@ -304,6 +329,12 @@ try {
       `status --json should expose mcpMaxOutputBytes, got ${statusJson.mcpMaxOutputBytes}`,
     )
   }
+  const statusText = (await runKb(["status"], tempRoot)).stdout
+  assertIncludes(
+    statusText,
+    `corpusFingerprint=${statusJson.corpusFingerprint}`,
+    "status should expose corpusFingerprint",
+  )
 
   const limitsJson = parseJson((await runKb(["limits", "--json"], tempRoot)).stdout, "limits JSON")
   if (
@@ -640,11 +671,16 @@ async function smokeExampleWorkspace() {
       await chmod(path.join(exampleTemp, "raw"), 0o700)
     }
 
-    const security = await runKb(["security-audit", "--strict"], exampleTemp)
+    const security = await runKbFailure(["security-audit", "--strict"], exampleTemp)
     assertIncludes(
       security.stdout,
       "llmGeneration=false",
       "example security audit should keep LLM generation outside core",
+    )
+    assertIncludes(
+      security.stdout,
+      "warning: The configured rawDir is not ignored by Git.",
+      "strict security audit should reject the intentionally public example corpus",
     )
 
     const ingest = await runKb(["ingest"], exampleTemp)
@@ -825,7 +861,7 @@ async function smokeDocumentBenchmark() {
     const pdfCase = evaluation.cases?.find(
       (testCase) => testCase.id === "pdf-embedded-text-page-citation",
     )
-    if (!pdfCase?.matchedCitations?.includes("raw/contracts/pdf-control-evidence.pdf:p1:L1-L1#0")) {
+    if (!pdfCase?.matchedCitations?.includes("raw/contracts/pdf-control-evidence.pdf:p1#0")) {
       throw new Error(
         `document benchmark should extract embedded PDF text with a page citation, got ${JSON.stringify(pdfCase)}`,
       )

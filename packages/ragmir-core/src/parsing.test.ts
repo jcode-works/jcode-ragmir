@@ -1,9 +1,11 @@
 import { existsSync } from "node:fs"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { strToU8, zipSync } from "fflate"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { chunkDocument } from "./chunking.js"
+import { citationForCoordinates } from "./citation.js"
 import { MAX_EXTERNAL_TEXT_STDIO_BYTES } from "./limits.js"
 import { parseFile } from "./parsing.js"
 import type { SourceFile } from "./types.js"
@@ -109,6 +111,33 @@ describe("parseFile", () => {
 
     expect(parsed.text).toContain("# Finance & Ops")
     expect(parsed.text).toContain("Invoice\t\t24000\tPaid")
+    expect(parsed.regions).toEqual([
+      expect.objectContaining({
+        contextPath: "Sheet: Finance & Ops",
+        location: {
+          kind: "sheet",
+          start: 1,
+          end: 1,
+          label: "Finance & Ops",
+          cellStart: "A1",
+          cellEnd: "D1",
+        },
+      }),
+    ])
+    const chunk = chunkDocument(parsed, 1_200, 0)[0]
+    expect(chunk).toEqual(
+      expect.objectContaining({
+        locationKind: "sheet",
+        locationLabel: "Finance & Ops",
+        cellStart: "A1",
+        cellEnd: "D1",
+      }),
+    )
+    expect(chunk?.lineStart).toBeUndefined()
+    expect(chunk?.lineEnd).toBeUndefined()
+    expect(chunk && citationForCoordinates(chunk)).toBe(
+      "dataset.xlsx:sheet=Finance%20%26%20Ops:cells=A1-D1#0",
+    )
   })
 
   it.each([
@@ -133,6 +162,28 @@ describe("parseFile", () => {
     )
   })
 
+  it("should cancel XLSX parsing between rows", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-xlsx-cancel-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "large.xlsx")
+    await writeFile(
+      filePath,
+      createXlsxPackage([
+        {
+          name: "Evidence",
+          rows: Array.from({ length: 100 }, (_entry, index) => [
+            `PARSER-ROW-${index}`,
+            "bounded evidence",
+          ]),
+        },
+      ]),
+    )
+
+    await expect(
+      parseFile(sourceFile(root, filePath, ".xlsx"), { signal: abortAfterChecks(10) }),
+    ).rejects.toMatchObject({ code: "ABORTED" })
+  })
+
   it("extracts text from pptx slides and speaker notes", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pptx-"))
     tempDirs.push(root)
@@ -153,6 +204,106 @@ describe("parseFile", () => {
 
     expect(parsed.text).toContain("Roadmap slide")
     expect(parsed.text).toContain("Speaker note insight")
+    expect(parsed.regions?.[0]).toEqual(
+      expect.objectContaining({
+        contextPath: "Slide 1",
+        location: expect.objectContaining({ kind: "slide", start: 1, end: 1 }),
+      }),
+    )
+  })
+
+  it("should associate PPTX speaker notes through slide relationships", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pptx-notes-relationships-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "related-notes.pptx")
+    const slideXml = (text: string) =>
+      strToU8(
+        `<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><a:p><a:r><a:t>${text}</a:t></a:r></a:p></p:sld>`,
+      )
+    const notesXml = (text: string) =>
+      strToU8(
+        `<p:notes xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><a:p><a:r><a:t>${text}</a:t></a:r></a:p></p:notes>`,
+      )
+    const relationshipsXml = (target: string) =>
+      strToU8(
+        `<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="${target}"/></Relationships>`,
+      )
+    await writeFile(
+      filePath,
+      zipSync({
+        "ppt/slides/slide1.xml": slideXml("First slide"),
+        "ppt/slides/slide2.xml": slideXml("Second slide"),
+        "ppt/slides/_rels/slide1.xml.rels": relationshipsXml("../notesSlides/notesSlide2.xml"),
+        "ppt/slides/_rels/slide2.xml.rels": relationshipsXml("../notesSlides/notesSlide1.xml"),
+        "ppt/notesSlides/notesSlide1.xml": notesXml("Second slide note"),
+        "ppt/notesSlides/notesSlide2.xml": notesXml("First slide note"),
+      }),
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".pptx"))
+    const firstRegion = parsed.regions?.[0]
+    const secondRegion = parsed.regions?.[1]
+
+    expect(firstRegion && parsed.text.slice(firstRegion.charStart, firstRegion.charEnd)).toContain(
+      "First slide note",
+    )
+    expect(
+      secondRegion && parsed.text.slice(secondRegion.charStart, secondRegion.charEnd),
+    ).toContain("Second slide note")
+  })
+
+  it("should preserve natural slide order from 1 through 12", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pptx-order-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "ordered.pptx")
+    const slideEntries = Object.fromEntries(
+      [1, 10, 11, 12, 2, 3, 4, 5, 6, 7, 8, 9].map((slide) => [
+        `ppt/slides/slide${slide}.xml`,
+        strToU8(
+          `<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><a:p><a:r><a:t>Slide ${slide} evidence</a:t></a:r></a:p></p:sld>`,
+        ),
+      ]),
+    )
+    await writeFile(filePath, zipSync(slideEntries))
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".pptx"))
+
+    expect(parsed.regions?.map((region) => region.location.start)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    ])
+    expect(parsed.text.indexOf("Slide 2 evidence")).toBeLessThan(
+      parsed.text.indexOf("Slide 10 evidence"),
+    )
+  })
+
+  it("should follow the explicit PPTX presentation order", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pptx-presentation-order-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "reordered.pptx")
+    const slideXml = (text: string) =>
+      strToU8(
+        `<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><a:p><a:r><a:t>${text}</a:t></a:r></a:p></p:sld>`,
+      )
+    await writeFile(
+      filePath,
+      zipSync({
+        "ppt/presentation.xml": strToU8(
+          '<p:presentation xmlns:p="urn:p" xmlns:r="urn:r"><p:sldIdLst><p:sldId r:id="rId2"/><p:sldId r:id="rId1"/></p:sldIdLst></p:presentation>',
+        ),
+        "ppt/_rels/presentation.xml.rels": strToU8(
+          '<Relationships><Relationship Id="rId1" Target="slides/slide1.xml"/><Relationship Id="rId2" Target="slides/slide2.xml"/></Relationships>',
+        ),
+        "ppt/slides/slide1.xml": slideXml("Originally first"),
+        "ppt/slides/slide2.xml": slideXml("Presented first"),
+      }),
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".pptx"))
+
+    expect(parsed.text.indexOf("Presented first")).toBeLessThan(
+      parsed.text.indexOf("Originally first"),
+    )
+    expect(parsed.regions?.map((region) => region.location.start)).toEqual([1, 2])
   })
 
   it("extracts text from PDF files", async () => {
@@ -214,6 +365,64 @@ describe("parseFile", () => {
     expect(parsed.pages?.[1]?.pageNumber).toBe(2)
   })
 
+  it("should batch and privately cache blank PDF pages by content and OCR policy", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pdf-ocr-cache-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "scan.pdf")
+    const counterPath = path.join(root, "ocr-calls.txt")
+    const ocrScriptPath = path.join(root, "ocr-batch-wrapper.mjs")
+    await writeFile(filePath, createBlankPdfPages(4))
+    await writeFile(
+      ocrScriptPath,
+      [
+        'import { appendFileSync } from "node:fs"',
+        `appendFileSync(${JSON.stringify(counterPath)}, process.env.RAGMIR_PDF_PAGES + "\\n")`,
+        'const pages = process.env.RAGMIR_PDF_PAGES.split(",").map(Number)',
+        'process.stdout.write(JSON.stringify({ subprocesses: 2, pages: pages.map((page) => ({ page, text: "Cached evidence page " + page })) }))',
+      ].join("\n"),
+    )
+    const file = sourceFile(root, filePath, ".pdf")
+    const options = {
+      projectRoot: root,
+      pdfOcrCommand: [process.execPath, ocrScriptPath, "--language", "eng", "{input}", "{pages}"],
+      pdfOcrTimeoutMs: 5_000,
+    }
+
+    const cold = await parseFile(file, options)
+    const warm = await parseFile(file, options)
+
+    expect(warm.text).toBe(cold.text)
+    expect(cold.ocr).toMatchObject({
+      pages: 4,
+      cacheHits: 0,
+      cacheMisses: 4,
+      batches: 1,
+      subprocesses: 3,
+    })
+    expect(warm.ocr).toMatchObject({
+      pages: 4,
+      cacheHits: 4,
+      cacheMisses: 0,
+      batches: 0,
+      subprocesses: 0,
+    })
+    const cacheRoot = path.join(root, ".ragmir", "ocr-cache")
+    const cacheEntries = (await readdir(cacheRoot, { recursive: true })).filter((entry) =>
+      entry.endsWith(".json"),
+    )
+    expect(cacheEntries).toHaveLength(4)
+    if (process.platform !== "win32") {
+      const firstEntry = cacheEntries[0]
+      if (!firstEntry) {
+        throw new Error("Expected a private OCR cache entry.")
+      }
+      expect((await stat(path.join(cacheRoot, firstEntry))).mode & 0o777).toBe(0o600)
+      expect((await stat(cacheRoot)).mode & 0o777).toBe(0o700)
+      expect((await stat(path.dirname(path.join(cacheRoot, firstEntry)))).mode & 0o777).toBe(0o700)
+    }
+    expect((await stat(counterPath)).size).toBeGreaterThan(0)
+  })
+
   it("uses an opt-in OCR command for image files", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-image-ocr-"))
     tempDirs.push(root)
@@ -271,6 +480,53 @@ describe("parseFile", () => {
     expect(parsed.text).toContain("SOVEREIGN REPORT")
   })
 
+  it("should follow EPUB spine order instead of lexical entry order", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-epub-spine-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "ordered.epub")
+    await writeFile(
+      filePath,
+      zipSync({
+        "META-INF/container.xml": strToU8(
+          '<container><rootfiles><rootfile full-path="OPS/book.opf"/></rootfiles></container>',
+        ),
+        "OPS/book.opf": strToU8(
+          '<package><manifest><item id="ten" href="chapter10.xhtml" media-type="application/xhtml+xml"/><item id="two" href="chapter2.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="ten"/><itemref idref="two"/></spine></package>',
+        ),
+        "OPS/chapter2.xhtml": strToU8("<html><body>Second in spine</body></html>"),
+        "OPS/chapter10.xhtml": strToU8("<html><body>First in spine</body></html>"),
+      }),
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".epub"))
+
+    expect(parsed.text.indexOf("First in spine")).toBeLessThan(
+      parsed.text.indexOf("Second in spine"),
+    )
+    expect(parsed.regions?.map((region) => region.location)).toEqual([
+      expect.objectContaining({ kind: "epub", start: 1, label: "OPS/chapter10.xhtml" }),
+      expect.objectContaining({ kind: "epub", start: 2, label: "OPS/chapter2.xhtml" }),
+    ])
+  })
+
+  it.each([
+    { extension: ".json", text: '{\n  "first": 1,\n\n  "second": 2\n}\n' },
+    { extension: ".yaml", text: "first: 1\n\nsecond: 2\n" },
+  ])("should omit line claims for transformed $extension", async ({ extension, text }) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-lines-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, `source${extension}`)
+    await writeFile(filePath, text, "utf8")
+
+    const parsed = await parseFile(sourceFile(root, filePath, extension))
+
+    expect(parsed.text).not.toBe(text.trimEnd())
+    expect(parsed.sourceLineCoordinates).toBe(false)
+    const chunk = chunkDocument(parsed, 1_200, 0)[0]
+    expect(chunk?.lineStart).toBeUndefined()
+    expect(chunk?.lineEnd).toBeUndefined()
+  })
+
   it("rejects archives with too many text entries", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-archive-limit-"))
     tempDirs.push(root)
@@ -317,6 +573,23 @@ function sourceFile(root: string, absolutePath: string, extension: string): Sour
     mtimeMs: 0,
     checksum: "test",
   }
+}
+
+function abortAfterChecks(checksBeforeAbort: number): AbortSignal {
+  const signal = new AbortController().signal
+  let checks = 0
+  return new Proxy(signal, {
+    get(target, property) {
+      if (property === "aborted") {
+        checks += 1
+        return checks > checksBeforeAbort
+      }
+      if (property === "reason") {
+        return new Error("Cooperative parser cancellation test.")
+      }
+      return Reflect.get(target, property, target)
+    },
+  })
 }
 
 function createDocxPackage(documentXml: string): Uint8Array {
@@ -502,6 +775,19 @@ trailer
 startxref
 190
 %%EOF`
+}
+
+function createBlankPdfPages(pageCount: number): string {
+  const pageObjects = Array.from(
+    { length: pageCount },
+    () => "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+  )
+  const pageReferences = pageObjects.map((_page, index) => `${index + 3} 0 R`).join(" ")
+  return createPdf([
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pageReferences}] /Count ${pageCount} >>`,
+    ...pageObjects,
+  ])
 }
 
 function createMixedPdf(): string {

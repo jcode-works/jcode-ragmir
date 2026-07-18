@@ -18,14 +18,16 @@
 - Ragmir Core stays retrieval-first: `local-hash` supports offline retrieval, `transformers` is the explicit semantic option, and local chat remains a separate add-on.
 - Long-running Node.js processes use one `RagmirClient` per project root and close it during shutdown. Keep the top-level API for one-shot scripts.
 - Ragmir does not provide an HTTP server or fixed port. A network-facing host owns transport security, authentication, authorization, and rate limits.
-- Ingestion is serialized per local index inside one Node.js process; do not claim a distributed writer lock.
+- Index writers are serialized across local OS processes through a private lock under `storageDir`; do not claim a distributed or shared-network-filesystem lock.
 - Public copy must lead with model-agnostic Core and the choice between the user's preferred AI or automation and a fully local consumer. Qwen and Gemma are optional Chat profiles, never Core or MCP requirements.
 
 ## Privacy and ingestion
 
 - Resolve project data from the caller’s working directory or explicit configuration, never from the package installation path.
 - Keep `.ragmir/` ignored. Use local-hash retrieval by default, redact before indexing, keep access logs metadata-only, and bound MCP retrieval.
+- Keep ingestion windows bounded independently by source bytes, estimated chunks, vector bytes, file count, and concurrency; commit durable progress per file.
 - External extraction remains opt-in. OCR only runs for blank PDF pages through a configured local command, never a shell or cloud service.
+- Emit line citations only when they map to source lines; use format-native page, slide, sheet/cell, and EPUB spine coordinates for transformed documents.
 - Do not claim universal binary support, blanket compliance, legal advice, or certification.
 
 ## Documentation

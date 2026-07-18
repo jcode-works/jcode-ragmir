@@ -28,6 +28,7 @@ export function testConfig(
     embeddingProvider: DEFAULT_CONFIG.embeddingProvider,
     embeddingModel: DEFAULT_CONFIG.embeddingModel,
     embeddingModelRevision: DEFAULT_CONFIG.embeddingModelRevision,
+    embeddingModelDigest: DEFAULT_CONFIG.embeddingModelDigest,
     transformersAllowRemoteModels: DEFAULT_CONFIG.transformersAllowRemoteModels,
     redaction: {
       ...DEFAULT_CONFIG.redaction,
@@ -42,7 +43,10 @@ export function testConfig(
     maxFileBytes: DEFAULT_CONFIG.maxFileBytes,
     ingestConcurrency: DEFAULT_CONFIG.ingestConcurrency,
     embeddingBatchSize: DEFAULT_CONFIG.embeddingBatchSize,
+    sourceFingerprintMode: DEFAULT_CONFIG.sourceFingerprintMode,
+    incrementalFailurePolicy: DEFAULT_CONFIG.incrementalFailurePolicy,
     hybridTextScanLimit: DEFAULT_CONFIG.hybridTextScanLimit,
+    workloadLimits: structuredClone(DEFAULT_CONFIG.workloadLimits),
     includeExtensions: [...DEFAULT_CONFIG.includeExtensions],
     pdfOcrCommand: [...DEFAULT_CONFIG.pdfOcrCommand],
     pdfOcrTimeoutMs: DEFAULT_CONFIG.pdfOcrTimeoutMs,

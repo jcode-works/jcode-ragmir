@@ -1,4 +1,16 @@
-import type { Config, RedactionCount, RedactionPattern } from "./types.js"
+import safeRegex from "safe-regex2"
+import { MAX_REDACTION_PATTERN_CHARACTERS } from "./defaults.js"
+import type {
+  Config,
+  ParsedDocument,
+  ParsedRegion,
+  RedactionCount,
+  RedactionPattern,
+} from "./types.js"
+
+const MAX_REDACTION_FLAGS_CHARACTERS = 8
+const REDACTION_FLAGS_PATTERN = /^[dgimsuvy]*$/u
+const compiledPatterns = new WeakMap<RedactionPattern, RegExp>()
 
 const BUILT_IN_PATTERNS: RedactionPattern[] = [
   {
@@ -79,17 +91,30 @@ const BUILT_IN_PATTERNS: RedactionPattern[] = [
     verify: "luhn",
   },
 ]
+const BUILT_IN_PATTERN_SET = new Set<RedactionPattern>(BUILT_IN_PATTERNS)
 
 export function redactText(
   input: string,
   config: Config,
 ): { text: string; counts: RedactionCount[] } {
+  const { text, counts } = redactTextWithMetadata(input, config)
+  return { text, counts }
+}
+
+interface RedactionMetadata {
+  text: string
+  counts: RedactionCount[]
+  preservesSourceLineCoordinates: boolean
+}
+
+function redactTextWithMetadata(input: string, config: Config): RedactionMetadata {
   if (!config.redaction.enabled) {
-    return { text: input, counts: [] }
+    return { text: input, counts: [], preservesSourceLineCoordinates: true }
   }
 
   let text = input
   const counts: RedactionCount[] = []
+  let preservesSourceLineCoordinates = true
   const patterns = [
     ...(config.redaction.builtIn ? BUILT_IN_PATTERNS : []),
     ...config.redaction.patterns,
@@ -104,14 +129,100 @@ export function redactText(
         return match
       }
       count += 1
-      return pattern.replacement ?? `[REDACTED_${pattern.name.toUpperCase()}]`
+      const replacement = pattern.replacement ?? `[REDACTED_${pattern.name.toUpperCase()}]`
+      if (match.includes("\n") || replacement.includes("\n")) {
+        preservesSourceLineCoordinates = false
+      }
+      return replacement
     })
     if (count > 0) {
       counts.push({ name: pattern.name, count })
     }
   }
 
-  return { text, counts }
+  return { text, counts, preservesSourceLineCoordinates }
+}
+
+export function redactDocument(
+  document: ParsedDocument,
+  config: Config,
+): { document: ParsedDocument; counts: RedactionCount[] } {
+  const sourceRegions = document.regions ?? pageRegions(document)
+  if (sourceRegions.length === 0) {
+    const redacted = redactTextWithMetadata(document.text, config)
+    return {
+      document: {
+        ...document,
+        text: redacted.text,
+        sourceLineCoordinates:
+          document.sourceLineCoordinates === true && redacted.preservesSourceLineCoordinates,
+      },
+      counts: redacted.counts,
+    }
+  }
+
+  let text = ""
+  let cursor = 0
+  const regions: ParsedRegion[] = []
+  const counts = new Map<string, number>()
+  let preservesSourceLineCoordinates = true
+  const appendRedacted = (value: string): void => {
+    const redacted = redactTextWithMetadata(value, config)
+    text += redacted.text
+    preservesSourceLineCoordinates &&= redacted.preservesSourceLineCoordinates
+    for (const count of redacted.counts) {
+      counts.set(count.name, (counts.get(count.name) ?? 0) + count.count)
+    }
+  }
+
+  for (const region of [...sourceRegions].sort((left, right) => left.charStart - right.charStart)) {
+    if (region.charStart < cursor || region.charEnd < region.charStart) {
+      throw new Error("Parsed source regions must be ordered and non-overlapping.")
+    }
+    appendRedacted(document.text.slice(cursor, region.charStart))
+    const charStart = text.length
+    appendRedacted(document.text.slice(region.charStart, region.charEnd))
+    regions.push({ ...region, charStart, charEnd: text.length })
+    cursor = region.charEnd
+  }
+  appendRedacted(document.text.slice(cursor))
+
+  const redactionCounts = [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, count]) => ({ name, count }))
+  const pages = document.pages
+    ? regions.flatMap((region) =>
+        region.location.kind === "page"
+          ? [
+              {
+                pageNumber: region.location.start,
+                charStart: region.charStart,
+                charEnd: region.charEnd,
+              },
+            ]
+          : [],
+      )
+    : undefined
+  return {
+    document: {
+      ...document,
+      text,
+      regions,
+      ...(pages ? { pages } : {}),
+      sourceLineCoordinates:
+        document.sourceLineCoordinates === true && preservesSourceLineCoordinates,
+    },
+    counts: redactionCounts,
+  }
+}
+
+function pageRegions(document: ParsedDocument): ParsedRegion[] {
+  return (document.pages ?? []).map((page) => ({
+    charStart: page.charStart,
+    charEnd: page.charEnd,
+    contextPath: `Page ${page.pageNumber}`,
+    location: { kind: "page", start: page.pageNumber, end: page.pageNumber },
+  }))
 }
 
 /**
@@ -146,6 +257,37 @@ export function totalRedactions(counts: RedactionCount[]): number {
 }
 
 function compilePattern(pattern: RedactionPattern): RegExp {
+  const cached = compiledPatterns.get(pattern)
+  if (cached) {
+    return cached
+  }
+  const safetyError = BUILT_IN_PATTERN_SET.has(pattern)
+    ? null
+    : redactionPatternSafetyError(pattern.pattern, pattern.flags)
+  if (safetyError) {
+    throw new Error(`Redaction pattern "${pattern.name}" is invalid: ${safetyError}`)
+  }
   const flags = pattern.flags?.includes("g") ? pattern.flags : `${pattern.flags ?? ""}g`
-  return new RegExp(pattern.pattern, flags)
+  const compiled = new RegExp(pattern.pattern, flags)
+  compiledPatterns.set(pattern, compiled)
+  return compiled
+}
+
+export function redactionPatternSafetyError(pattern: string, flags?: string): string | null {
+  if (pattern.length > MAX_REDACTION_PATTERN_CHARACTERS) {
+    return `pattern must contain at most ${MAX_REDACTION_PATTERN_CHARACTERS} characters`
+  }
+  if (
+    flags !== undefined &&
+    (flags.length > MAX_REDACTION_FLAGS_CHARACTERS || !REDACTION_FLAGS_PATTERN.test(flags))
+  ) {
+    return "flags must be unique JavaScript regular-expression flags"
+  }
+  try {
+    const normalizedFlags = flags?.includes("g") ? flags : `${flags ?? ""}g`
+    new RegExp(pattern, normalizedFlags)
+  } catch {
+    return "pattern or flags cannot be compiled"
+  }
+  return safeRegex(pattern) ? null : "pattern may cause catastrophic backtracking"
 }

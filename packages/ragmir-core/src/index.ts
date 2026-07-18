@@ -1,4 +1,5 @@
-export { accessLogUsageReport } from "./access-log.js"
+export type { AccessLogWriterMetrics } from "./access-log.js"
+export { accessLogUsageReport, accessLogWriterMetrics, flushAccessLog } from "./access-log.js"
 export type { RagmirClientOptions } from "./client.js"
 export { createRagmirClient, RagmirClient } from "./client.js"
 export { loadConfig } from "./config.js"
@@ -13,12 +14,21 @@ export { clearTransformersCache, pullEmbeddingModel } from "./embeddings.js"
 export type { RagmirErrorCode } from "./errors.js"
 export { isRagmirError, normalizeRagmirError, RagmirError } from "./errors.js"
 export { evaluateGoldenQueries } from "./evaluate.js"
+export type {
+  CollectGenerationGarbageOptions,
+  GenerationGarbageCollectionReport,
+  GenerationInventoryItem,
+  GenerationRole,
+} from "./generation-retention.js"
+export { collectGenerationGarbage } from "./generation-retention.js"
 export {
   getIndexFreshnessWarning,
   getLexicalScanWarning,
   INDEX_SCHEMA_VERSION,
 } from "./index-diagnostics.js"
 export { audit, ingest } from "./ingest.js"
+export type { IngestionDiagnosticsEvent } from "./ingestion-metrics.js"
+export { INGESTION_DIAGNOSTICS_CHANNEL } from "./ingestion-metrics.js"
 export { getIngestionProgress } from "./ingestion-state.js"
 export { initProject } from "./init.js"
 export { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
@@ -28,12 +38,14 @@ export type {
   ConfigurePdfOcrOptions,
   ConfigurePdfOcrResult,
   ExtractPdfPageOptions,
+  ExtractPdfPagesOptions,
+  ExtractPdfPagesResult,
   OcrExecutableStatus,
   PdfOcrEngine,
   PdfOcrEngineSelection,
   PdfOcrStatus,
 } from "./ocr.js"
-export { configurePdfOcr, extractPdfPage, inspectPdfOcr } from "./ocr.js"
+export { configurePdfOcr, extractPdfPage, extractPdfPages, inspectPdfOcr } from "./ocr.js"
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
 export { previewChunks } from "./preview.js"
@@ -75,16 +87,25 @@ export type {
 } from "./sources.js"
 export { addSourceEntries, listSourceEntries } from "./sources.js"
 export type {
+  OptimizeStorageOptions,
+  StorageMaintenanceAction,
+  StorageMaintenanceReason,
+  StorageMaintenanceReport,
+} from "./storage-maintenance.js"
+export { optimizeStorage } from "./storage-maintenance.js"
+export type {
   AccessLogAction,
   AccessLogUsageOptions,
   AccessLogUsageReport,
   AskResult,
+  AuditOptions,
   AuditReport,
   ChunkStats,
   CodeEvidence,
   CompactSearchResult,
   Config,
   DestroyIndexResult,
+  DoctorOptions,
   DoctorReport,
   EvaluationCaseResult,
   EvaluationOptions,
@@ -92,13 +113,21 @@ export type {
   ExpandCitationOptions,
   ExpandedCitation,
   GoldenQuery,
+  IncrementalFailurePolicy,
+  IndexHealthSnapshot,
+  IndexMaintenanceSnapshot,
   IndexManifest,
   IndexManifestFile,
+  IndexManifestStaleFile,
+  IngestionEmbeddingModelState,
   IngestionFileStage,
   IngestionLimitsReport,
+  IngestionMetrics,
+  IngestionPhaseDurations,
   IngestionProgress,
   IngestionRunMode,
   IngestionRunStatus,
+  IngestionThroughputMetrics,
   IngestOptions,
   IngestResult,
   KnowledgeBaseContextReport,
@@ -106,10 +135,12 @@ export type {
   KnowledgeBaseInfo,
   KnowledgeBaseInventory,
   KnowledgeBaseSourceCatalog,
+  KnowledgeBaseSourceCatalogOptions,
   McpOutputTool,
   McpOutputUsageReport,
   OperationOptions,
   ParsedPage,
+  PdfOcrMetrics,
   PreviewChunk,
   PreviewChunksOptions,
   PreviewFile,
@@ -120,13 +151,24 @@ export type {
   ResearchOptions,
   ResearchReport,
   RetrievalProfile,
+  RuntimeInfo,
+  RuntimePackageVersion,
   SearchContextChunk,
   SearchOptions,
   SearchResult,
   SearchScoreExplanation,
+  SecurityAuditOptions,
   SecurityAuditReport,
   SourceDiagnostics,
   SourceDuplicateCandidate,
   SourcePathCandidate,
+  VectorIndexManifest,
+  VectorIndexParameters,
+  VectorIndexStrategy,
 } from "./types.js"
+export type {
+  AdaptiveIndexAction,
+  AdaptiveIndexMaintenanceReport,
+  ScalarIndexStatus,
+} from "./vector-index.js"
 export { VERSION } from "./version.js"

@@ -6,27 +6,49 @@ import { recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
 import { disposeTransformersCache } from "./embeddings.js"
+import { withIndexWriteLock } from "./index-write-lock.js"
 import { readIngestionState } from "./ingestion-state.js"
-import type { DestroyIndexResult } from "./types.js"
+import { operationSignal } from "./operation.js"
+import { SOURCE_FINGERPRINT_CACHE_FILENAME } from "./source-fingerprint-cache.js"
+import type { DestroyIndexResult, OperationOptions } from "./types.js"
 
-export async function destroyIndex(cwd = process.cwd()): Promise<DestroyIndexResult> {
+export async function destroyIndex(
+  cwd = process.cwd(),
+  options: OperationOptions = {},
+): Promise<DestroyIndexResult> {
   const config = await loadConfig(cwd)
-  const existed = existsSync(config.storageDir)
-  const hasIngestionState = existed && (await readIngestionState(config)) !== null
+  const existedBeforeLock = existsSync(config.storageDir)
+  const signal = operationSignal(options)
+  await assertSafeIndexStoragePath(config.projectRoot, config.storageDir, existedBeforeLock)
 
-  await assertSafeIndexStorage(config.projectRoot, config.storageDir, existed, hasIngestionState)
+  return withIndexWriteLock(config.storageDir, signal, async () => {
+    const hasIngestionState = (await readIngestionState(config)) !== null
+    const hasManifest = existsSync(path.join(config.storageDir, INDEX_MANIFEST_FILENAME))
+    const hasFingerprintCache = existsSync(
+      path.join(config.storageDir, SOURCE_FINGERPRINT_CACHE_FILENAME),
+    )
+    const existed = existedBeforeLock || hasIngestionState || hasManifest || hasFingerprintCache
 
-  await recordAccess(config, { action: "destroy-index" })
-  await rm(config.storageDir, { recursive: true, force: true })
-  // Release any cached Transformers.js pipelines so a subsequent re-ingest with
-  // a different embedding config does not pin stale ONNX weights in memory.
-  await disposeTransformersCache()
+    await assertSafeIndexStorage(
+      config.projectRoot,
+      config.storageDir,
+      existed,
+      hasIngestionState,
+      hasFingerprintCache,
+    )
 
-  return {
-    storageDir: config.storageDir,
-    removed: existed,
-    note: "Generated index removed. For forensic deletion guarantees, keep .ragmir/ on an encrypted volume and rotate/destroy the volume key.",
-  }
+    await recordAccess(config, { action: "destroy-index" })
+    await rm(config.storageDir, { recursive: true, force: true })
+    // Release any cached Transformers.js pipelines so a subsequent re-ingest with
+    // a different embedding config does not pin stale ONNX weights in memory.
+    await disposeTransformersCache()
+
+    return {
+      storageDir: config.storageDir,
+      removed: existed,
+      note: "Generated index removed. For forensic deletion guarantees, keep .ragmir/ on an encrypted volume and rotate/destroy the volume key.",
+    }
+  })
 }
 
 async function assertSafeIndexStorage(
@@ -34,6 +56,26 @@ async function assertSafeIndexStorage(
   storageDir: string,
   existed: boolean,
   hasIngestionState: boolean,
+  hasFingerprintCache: boolean,
+): Promise<void> {
+  await assertSafeIndexStoragePath(projectRoot, storageDir, existed)
+
+  if (
+    existed &&
+    !hasIngestionState &&
+    !hasFingerprintCache &&
+    !existsSync(path.join(storageDir, INDEX_MANIFEST_FILENAME))
+  ) {
+    throw new Error(
+      `Refusing to remove ${JSON.stringify(storageDir)} because it contains neither ${INDEX_MANIFEST_FILENAME} nor a valid ingestion state.`,
+    )
+  }
+}
+
+async function assertSafeIndexStoragePath(
+  projectRoot: string,
+  storageDir: string,
+  existed: boolean,
 ): Promise<void> {
   const resolvedProjectRoot = await realpath(projectRoot)
   const resolvedStorageDir = existed ? await realpath(storageDir) : path.resolve(storageDir)
@@ -47,16 +89,6 @@ async function assertSafeIndexStorage(
   ) {
     throw new Error(
       `Refusing to remove unsafe storageDir ${JSON.stringify(storageDir)}. Configure a dedicated Ragmir index directory.`,
-    )
-  }
-
-  if (
-    existed &&
-    !hasIngestionState &&
-    !existsSync(path.join(resolvedStorageDir, INDEX_MANIFEST_FILENAME))
-  ) {
-    throw new Error(
-      `Refusing to remove ${JSON.stringify(storageDir)} because it contains neither ${INDEX_MANIFEST_FILENAME} nor a valid ingestion state.`,
     )
   }
 }

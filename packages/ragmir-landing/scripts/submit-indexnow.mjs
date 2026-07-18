@@ -63,12 +63,14 @@ async function extractUrlsFromSitemap() {
   const sitemapContent = await fetchSitemapContent()
   const parsed = await parseStringPromise(sitemapContent)
   const urlMap = {}
+  let hasMissingLastmod = false
   for (const entry of parsed.urlset.url) {
     const url = entry.loc[0]
-    const lastmod = entry.lastmod ? entry.lastmod[0] : new Date().toISOString()
+    const lastmod = entry.lastmod?.[0] ?? null
+    hasMissingLastmod ||= lastmod === null
     urlMap[url] = lastmod
   }
-  return urlMap
+  return { urlMap, hasMissingLastmod }
 }
 
 function filterModifiedUrls(currentUrls, cachedUrls) {
@@ -76,10 +78,10 @@ function filterModifiedUrls(currentUrls, cachedUrls) {
   const newUrls = []
 
   for (const [url, lastmod] of Object.entries(currentUrls)) {
-    if (!cachedUrls[url]) {
+    if (!Object.hasOwn(cachedUrls, url)) {
       newUrls.push({ url, lastmod })
       modified.push(url)
-    } else if (cachedUrls[url] !== lastmod) {
+    } else if (lastmod !== null && cachedUrls[url] !== lastmod) {
       modified.push(url)
     }
   }
@@ -154,8 +156,12 @@ async function main() {
 
   console.log("IndexNow Smart Submission for Ragmir\n")
 
-  const currentUrls = await extractUrlsFromSitemap()
+  const { urlMap: currentUrls, hasMissingLastmod } = await extractUrlsFromSitemap()
   console.log(`Found ${Object.keys(currentUrls).length} URLs in sitemap`)
+
+  if (hasMissingLastmod && !skipCache) {
+    console.warn("Sitemap entries omit <lastmod>; use --all after publishing changed pages.")
+  }
 
   const cachedUrls = clearCache ? {} : loadCache()
   console.log(`Cached URLs: ${Object.keys(cachedUrls).length}`)

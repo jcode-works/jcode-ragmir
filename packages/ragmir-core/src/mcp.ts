@@ -4,18 +4,24 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { z } from "zod"
-import { accessLogUsageReport, MAX_USAGE_REPORT_DAYS, recordMcpOutput } from "./access-log.js"
-import { createRagmirClient, type RagmirClient } from "./client.js"
+import {
+  accessLogUsageReportWithConfig,
+  MAX_USAGE_REPORT_DAYS,
+  recordMcpOutput,
+} from "./access-log.js"
+import { RagmirClient } from "./client.js"
 import { findProjectConfig, loadConfig } from "./config.js"
-import { RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
-import { evaluateGoldenQueries } from "./evaluate.js"
-import { audit } from "./ingest.js"
+import { MAX_SEARCH_TOP_K, RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
+import { evaluateGoldenQueriesWithConfig } from "./evaluate.js"
+import { auditWithConfig } from "./ingest.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import type {
   BoundedJsonMetadata,
   BudgetedMcpResult,
+  CompactJsonValue,
   McpAskPayload,
+  McpExpandedCitationPayload,
   McpResearchPayload,
   McpSearchPayload,
 } from "./mcp-output.js"
@@ -29,15 +35,32 @@ import {
   MIN_MCP_OUTPUT_BYTES,
   resolveMcpOutputBudget,
 } from "./mcp-output.js"
+import {
+  compactAuditOutput,
+  compactContextOutput,
+  compactEvaluationOutput,
+  compactRouteOutput,
+  compactSecurityOutput,
+  compactSourcesOutput,
+  compactStatusOutput,
+  compactUsageOutput,
+  mcpPreviewLimit,
+} from "./mcp-summaries.js"
 import { routePrompt } from "./prompt-routing.js"
 import { compactResearchReport, compactSearchResults } from "./research.js"
-import { securityAudit } from "./security.js"
+import { securityAuditWithConfig } from "./security.js"
 import type { AskResult, Config } from "./types.js"
 import { VERSION } from "./version.js"
 
 const MAX_MCP_INPUT_CHARACTERS = 20_000
 const MAX_MCP_PATH_CHARACTERS = 500
 const MAX_MCP_OUTPUT_BYTES = 1_048_576
+const MAX_MCP_OPERATION_TIMEOUT_MS = 2_147_483_647
+const MAX_MCP_CODE_EVIDENCE = 100
+const MAX_MCP_CODE_SCAN_FILES = 10_000
+const MAX_MCP_CODE_SCAN_BYTES = 256 * 1024 * 1024
+const MAX_MCP_CODE_SCAN_CONCURRENCY = 16
+const MAX_MCP_CONTEXT_RADIUS = 3
 const STRICT_MCP_FRESHNESS_WARNING =
   "Index freshness requires attention. Run `rgr doctor` locally for detailed diagnostics."
 const STRICT_MCP_NEXT_STEP = "Run `rgr doctor` locally for detailed next steps."
@@ -60,8 +83,8 @@ const POTENTIALLY_NETWORKED_TOOL_ANNOTATIONS = {
 const queryToolInputSchema = z
   .object({
     query: z.string().trim().min(1).max(MAX_MCP_INPUT_CHARACTERS),
-    topK: z.number().int().positive().optional(),
-    contextRadius: z.number().int().min(0).optional(),
+    topK: z.number().int().positive().max(MAX_SEARCH_TOP_K).optional(),
+    contextRadius: z.number().int().min(0).max(MAX_MCP_CONTEXT_RADIUS).optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
     includePaths: z.array(z.string().min(1).max(MAX_MCP_PATH_CHARACTERS)).max(20).optional(),
     excludePaths: z.array(z.string().min(1).max(MAX_MCP_PATH_CHARACTERS)).max(20).optional(),
@@ -77,8 +100,14 @@ const askToolInputSchema = queryToolInputSchema.extend({
 const researchToolInputSchema = z
   .object({
     query: z.string().trim().min(1).max(MAX_MCP_INPUT_CHARACTERS),
-    topK: z.number().int().positive().optional(),
+    topK: z.number().int().positive().max(MAX_SEARCH_TOP_K).optional(),
     includeCode: z.boolean().optional(),
+    fullAudit: z.boolean().optional(),
+    timeoutMs: z.number().int().positive().max(MAX_MCP_OPERATION_TIMEOUT_MS).optional(),
+    codeTopK: z.number().int().positive().max(MAX_MCP_CODE_EVIDENCE).optional(),
+    codeScanMaxFiles: z.number().int().positive().max(MAX_MCP_CODE_SCAN_FILES).optional(),
+    codeScanMaxBytes: z.number().int().positive().max(MAX_MCP_CODE_SCAN_BYTES).optional(),
+    codeScanConcurrency: z.number().int().positive().max(MAX_MCP_CODE_SCAN_CONCURRENCY).optional(),
     compact: z.boolean().optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
     includePaths: z.array(z.string().min(1).max(MAX_MCP_PATH_CHARACTERS)).max(20).optional(),
@@ -94,7 +123,7 @@ const searchToolInputSchema = queryToolInputSchema.extend({
 const evaluateToolInputSchema = z
   .object({
     goldenPath: z.string().min(1).max(MAX_MCP_PATH_CHARACTERS),
-    topK: z.number().int().positive().optional(),
+    topK: z.number().int().positive().max(MAX_SEARCH_TOP_K).optional(),
     failUnder: z.number().min(0).max(1).optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
   })
@@ -121,7 +150,7 @@ const promptRouteInputSchema = z
 const expandToolInputSchema = z
   .object({
     citation: z.string().min(1).max(2_000),
-    contextRadius: z.number().int().min(0).max(3).optional(),
+    contextRadius: z.number().int().min(0).max(MAX_MCP_CONTEXT_RADIUS).optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
   })
   .strict()
@@ -181,7 +210,7 @@ export function createMcpClientLifecycle(cwd: string): McpClientLifecycle {
           if (closing) {
             throw new Error("The MCP server is closed.")
           }
-          return createRagmirClient({ cwd })
+          return RagmirClient.createWithConfig(effectiveConfig)
         })()
         clientPromise = pending
         clientConfigSignature = signature
@@ -255,6 +284,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         output,
         mcpOutputBudget(config.mcpMaxOutputBytes),
         "ragmir://context",
+        compactContextOutput(output),
       )
     },
   )
@@ -271,14 +301,13 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     async (uri, { signal }) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
+      const budget = mcpOutputBudget(config.mcpMaxOutputBytes)
       const client = await clientLifecycle.getClient(config)
-      const sources = await abortableMcpOperation(client.sources({ signal }), signal)
-      return jsonResource(
-        uri,
-        sources,
-        mcpOutputBudget(config.mcpMaxOutputBytes),
-        "ragmir://sources",
+      const sources = await abortableMcpOperation(
+        client.sources({ signal, limit: mcpPreviewLimit(budget) }),
+        signal,
       )
+      return jsonResource(uri, sources, budget, "ragmir://sources", compactSourcesOutput(sources))
     },
   )
 
@@ -286,7 +315,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_status",
     {
       title: "Ragmir Status",
-      description: "Show active Ragmir configuration and indexed chunk count.",
+      description: "Show active Ragmir configuration, readiness, corpus fingerprint, and counts.",
       inputSchema: z.object({}).strict(),
       annotations: LOCAL_NON_DESTRUCTIVE_TOOL_ANNOTATIONS,
     },
@@ -312,6 +341,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         embeddingProvider: config.embeddingProvider,
         embeddingModel: strict ? privateMcpPath(config.embeddingModel) : config.embeddingModel,
         embeddingModelRevision: config.embeddingModelRevision,
+        embeddingModelDigest: config.embeddingModelDigest,
         embeddingModelPath: strict
           ? privateProjectPath(config.projectRoot, config.embeddingModelPath)
           : config.embeddingModelPath,
@@ -323,6 +353,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         maxFileBytes: config.maxFileBytes,
         ingestConcurrency: config.ingestConcurrency,
         embeddingBatchSize: config.embeddingBatchSize,
+        incrementalFailurePolicy: config.incrementalFailurePolicy,
         includeExtensions: config.includeExtensions,
         pdfOcrCommand: config.pdfOcrCommand,
         pdfOcrTimeoutMs: config.pdfOcrTimeoutMs,
@@ -331,10 +362,17 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         legacyWordCommand: config.legacyWordCommand,
         legacyWordTimeoutMs: config.legacyWordTimeoutMs,
         ingestionLimits: ingestionLimits(config),
+        ready: context.ready,
+        corpusFingerprint: context.corpusFingerprint,
         chunksIndexed: context.coverage.chunksIndexed,
       }
 
-      return boundedJsonResult(output, mcpOutputBudget(config.mcpMaxOutputBytes), "ragmir_status")
+      return boundedJsonResult(
+        output,
+        mcpOutputBudget(config.mcpMaxOutputBytes),
+        "ragmir_status",
+        compactStatusOutput(output),
+      )
     },
   )
 
@@ -350,10 +388,12 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     async ({ prompt }, { signal }) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
+      const decision = routePrompt(prompt)
       return boundedJsonResult(
-        routePrompt(prompt),
+        decision,
         mcpOutputBudget(config.mcpMaxOutputBytes),
         "ragmir_route_prompt",
+        compactRouteOutput(decision),
       )
     },
   )
@@ -382,8 +422,9 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     ) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const options = await searchOptions(
-        cwd,
+      const budget = mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes)
+      const options = searchOptionsWithConfig(
+        config,
         topK,
         contextRadius,
         includePaths,
@@ -391,6 +432,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         contextPaths,
         explain,
       )
+      options.topK = Math.min(options.topK ?? 1, mcpPreviewLimit(budget))
       const client = await clientLifecycle.getClient(config)
       const results = await client.search(query, { ...options, signal })
       const compactResults = compactSearchResults(results)
@@ -398,7 +440,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       const preferred: McpSearchPayload = compactOutput ? compactResults : results
       const bounded = budgetMcpJson({
         tool: "ragmir_search",
-        maxBytes: mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
+        maxBytes: budget,
         fullValue: results,
         preferredValue: preferred,
         compactValue: compactResults,
@@ -434,8 +476,9 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     ) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const options = await searchOptions(
-        cwd,
+      const budget = mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes)
+      const options = searchOptionsWithConfig(
+        config,
         topK,
         contextRadius,
         includePaths,
@@ -443,6 +486,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         contextPaths,
         explain,
       )
+      options.topK = Math.min(options.topK ?? 1, mcpPreviewLimit(budget))
       const cancellableOptions = { ...options, signal }
       const client = await clientLifecycle.getClient(config)
       let fullPayload: AskResult
@@ -464,7 +508,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       const compactOutput = config.privacyProfile === "strict" || compact === true
       const bounded = budgetMcpJson({
         tool: "ragmir_ask",
-        maxBytes: mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
+        maxBytes: budget,
         fullValue: fullPayload,
         preferredValue: compactOutput ? compactPayload : fullPayload,
         compactValue: compactPayload,
@@ -481,27 +525,51 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     {
       title: "Ragmir Research",
       description:
-        "Run an audit-backed multi-query research pass with cited evidence and optional code matches.",
+        "Run a bounded multi-query research pass with cited evidence and optional code matches.",
       inputSchema: researchToolInputSchema,
       annotations: POTENTIALLY_NETWORKED_TOOL_ANNOTATIONS,
     },
     async (
-      { query, topK, includeCode, compact, maxBytes, includePaths, excludePaths, contextPaths },
+      {
+        query,
+        topK,
+        includeCode,
+        fullAudit,
+        timeoutMs,
+        codeTopK,
+        codeScanMaxFiles,
+        codeScanMaxBytes,
+        codeScanConcurrency,
+        compact,
+        maxBytes,
+        includePaths,
+        excludePaths,
+        contextPaths,
+      },
       { signal },
     ) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const options = await searchOptions(
-        cwd,
+      const budget = mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes)
+      const previewLimit = mcpPreviewLimit(budget)
+      const options = searchOptionsWithConfig(
+        config,
         topK,
         undefined,
         includePaths,
         excludePaths,
         contextPaths,
       )
+      options.topK = Math.min(options.topK ?? 1, previewLimit)
       const researchOptions: Parameters<RagmirClient["research"]>[1] = { signal }
       addOption(researchOptions, "topK", options.topK)
       addOption(researchOptions, "includeCode", includeCode)
+      addOption(researchOptions, "fullAudit", fullAudit)
+      addOption(researchOptions, "timeoutMs", timeoutMs)
+      addOption(researchOptions, "codeTopK", Math.min(codeTopK ?? previewLimit, previewLimit))
+      addOption(researchOptions, "codeScanMaxFiles", codeScanMaxFiles)
+      addOption(researchOptions, "codeScanMaxBytes", codeScanMaxBytes)
+      addOption(researchOptions, "codeScanConcurrency", codeScanConcurrency)
       addOption(researchOptions, "includePaths", options.includePaths)
       addOption(researchOptions, "excludePaths", options.excludePaths)
       addOption(researchOptions, "contextPaths", options.contextPaths)
@@ -512,7 +580,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       const preferred: McpResearchPayload = compactOutput ? compactResult : result
       const bounded = budgetMcpJson({
         tool: "ragmir_research",
-        maxBytes: mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
+        maxBytes: budget,
         fullValue: result,
         preferredValue: preferred,
         compactValue: compactResult,
@@ -540,7 +608,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         signal,
         ...(contextRadius === undefined ? {} : { contextRadius }),
       })
-      const bounded = budgetMcpJson({
+      const bounded = budgetMcpJson<McpExpandedCitationPayload>({
         tool: "ragmir_expand",
         maxBytes: mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
         fullValue: expanded,
@@ -564,12 +632,12 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     async ({ maxBytes }, { signal }) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const report = await abortableMcpOperation(audit(cwd, { signal }), signal)
-      return boundedJsonResult(
-        report,
-        mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
-        "ragmir_audit",
+      const budget = mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes)
+      const report = await abortableMcpOperation(
+        auditWithConfig(config, { signal, previewLimit: mcpPreviewLimit(budget) }),
+        signal,
       )
+      return boundedJsonResult(report, budget, "ragmir_audit", compactAuditOutput(report))
     },
   )
 
@@ -577,7 +645,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_evaluate",
     {
       title: "Ragmir Evaluate",
-      description: "Measure retrieval recall against a local golden query file.",
+      description: "Measure retrieval quality against a local golden query file.",
       inputSchema: evaluateToolInputSchema,
       annotations: POTENTIALLY_NETWORKED_TOOL_ANNOTATIONS,
     },
@@ -585,25 +653,27 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
       try {
+        const budget = mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes)
         const options = evaluationOptions(cwd, goldenPath, topK, config.mcpMaxTopK)
         const result = await abortableMcpOperation(
-          evaluateGoldenQueries({ ...options, signal }),
+          evaluateGoldenQueriesWithConfig(
+            { ...options, signal, caseDetailLimit: mcpPreviewLimit(budget) },
+            config,
+          ),
           signal,
         )
         const safeResult = { ...result, goldenPath: options.goldenPath }
+        const legacyRecallPassed = failUnder === undefined || result.recall >= failUnder
         const output =
           failUnder === undefined
             ? safeResult
             : {
                 ...safeResult,
                 minimumRecall: failUnder,
-                passed: result.recall >= failUnder,
+                legacyRecallPassed,
+                passed: result.passed && legacyRecallPassed,
               }
-        return boundedJsonResult(
-          output,
-          mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes),
-          "ragmir_evaluate",
-        )
+        return boundedJsonResult(output, budget, "ragmir_evaluate", compactEvaluationOutput(output))
       } catch (error) {
         if (signal.aborted || config.privacyProfile !== "strict") {
           throw error
@@ -626,7 +696,10 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     async (_input, { signal }) => {
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
-      const report = await abortableMcpOperation(securityAudit(cwd, { signal }), signal)
+      const report = await abortableMcpOperation(
+        securityAuditWithConfig(config, { signal }),
+        signal,
+      )
       const output =
         config.privacyProfile !== "strict"
           ? report
@@ -645,6 +718,10 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
                 ...report.accessLog,
                 path: privateProjectPath(config.projectRoot, report.accessLog.path),
               },
+              privatePaths: report.privatePaths.map((entry) => ({
+                ...entry,
+                path: privateProjectPath(config.projectRoot, entry.path),
+              })),
               storage: {
                 ...report.storage,
                 path: privateProjectPath(config.projectRoot, report.storage.path),
@@ -654,6 +731,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         output,
         mcpOutputBudget(config.mcpMaxOutputBytes),
         "ragmir_security_audit",
+        compactSecurityOutput(output),
       )
     },
   )
@@ -668,17 +746,17 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     },
     async ({ days }, { signal }) => {
       throwIfMcpAborted(signal)
-      const options: Parameters<typeof accessLogUsageReport>[0] = { cwd }
-      options.signal = signal
-      if (days !== undefined) {
-        options.days = days
-      }
+      const options = { cwd, signal, ...(days === undefined ? {} : { days }) }
       const config = await loadConfig(cwd)
-      const report = await abortableMcpOperation(accessLogUsageReport(options), signal)
+      const report = await abortableMcpOperation(
+        accessLogUsageReportWithConfig(config, options),
+        signal,
+      )
       return boundedJsonResult(
         report,
         mcpOutputBudget(config.mcpMaxOutputBytes),
         "ragmir_usage_report",
+        compactUsageOutput(report),
       )
     },
   )
@@ -721,11 +799,12 @@ function jsonResource(
   value: unknown,
   maxBytes: number,
   source: string,
+  compact: CompactJsonValue,
 ): {
   contents: Array<{ uri: string; mimeType: string; text: string }>
   _meta: { "ragmir/output": BoundedJsonMetadata }
 } {
-  const bounded = fitMcpJsonOutput(value, maxBytes, source)
+  const bounded = fitMcpJsonOutput(value, maxBytes, source, compact)
   return {
     contents: [
       {
@@ -742,11 +821,12 @@ function boundedJsonResult(
   value: unknown,
   maxBytes: number,
   source: string,
+  compact: CompactJsonValue,
 ): {
   content: [{ type: "text"; text: string }]
   _meta: { "ragmir/output": BoundedJsonMetadata }
 } {
-  const bounded = fitMcpJsonOutput(value, maxBytes, source)
+  const bounded = fitMcpJsonOutput(value, maxBytes, source, compact)
   return {
     content: [{ type: "text", text: bounded.text }],
     _meta: { "ragmir/output": bounded.metadata },
@@ -824,6 +904,34 @@ export async function searchOptions(
   explain?: boolean
 }> {
   const config = await loadConfig(cwd)
+  return searchOptionsWithConfig(
+    config,
+    topK,
+    contextRadius,
+    includePaths,
+    excludePaths,
+    contextPaths,
+    explain,
+  )
+}
+
+function searchOptionsWithConfig(
+  config: Config,
+  topK: number | undefined,
+  contextRadius?: number | undefined,
+  includePaths?: string[] | undefined,
+  excludePaths?: string[] | undefined,
+  contextPaths?: string[] | undefined,
+  explain?: boolean | undefined,
+): {
+  cwd: string
+  topK?: number
+  contextRadius?: number
+  includePaths?: string[]
+  excludePaths?: string[]
+  contextPaths?: string[]
+  explain?: boolean
+} {
   const boundedTopK = Math.min(topK ?? config.topK, config.mcpMaxTopK)
   const boundedContextRadius =
     contextRadius === undefined ? undefined : Math.min(Math.max(0, contextRadius), 3)
@@ -836,7 +944,7 @@ export async function searchOptions(
     contextPaths?: string[]
     explain?: boolean
   } = {
-    cwd,
+    cwd: config.projectRoot,
     topK: boundedTopK,
   }
   addOption(result, "contextRadius", boundedContextRadius)

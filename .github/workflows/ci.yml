@@ -42,6 +42,63 @@ jobs:
       - name: Validate repository
         run: pnpm validate
 
+  portability:
+    name: Portability (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux x64, Node 22
+            os: ubuntu-latest
+            platform: linux
+            architecture: x64
+          - label: macOS ARM64, Node 22
+            os: macos-14
+            platform: darwin
+            architecture: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
+
+      - name: Install pinned Node via mise
+        run: mise install
+
+      - name: Set up pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+
+      - name: Verify runtime matrix
+        env:
+          EXPECTED_PLATFORM: ${{ matrix.platform }}
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+        run: >-
+          node -e 'if (process.versions.node.split(".")[0] !== "22" ||
+          process.platform !== process.env.EXPECTED_PLATFORM ||
+          process.arch !== process.env.EXPECTED_ARCHITECTURE) process.exit(1)'
+
+      - name: Preload dependency store
+        run: pnpm fetch --frozen-lockfile
+
+      - name: Install dependencies without registry access
+        run: pnpm install --offline --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Prove packaged local-hash offline runtime
+        run: pnpm offline:smoke
+
+      - name: Prove local-hash avoids semantic native runtimes
+        run: pnpm bench:local-hash-runtime
+
   commitlint:
     name: Commitlint
     if: github.event_name == 'pull_request'

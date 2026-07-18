@@ -11,11 +11,13 @@ import {
   audioLanguage,
   parseAgentInstallMode,
   parseAgentInstallScope,
+  parseIncrementalFailurePolicy,
   parseNonNegativeInt,
   parseNumber,
   parsePositiveInt,
   parseRecallThreshold,
 } from "./cli-options.js"
+import { readBoundedStdin } from "./cli-stdin.js"
 import { loadConfig } from "./config.js"
 import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js"
 import { destroyIndex } from "./destroy.js"
@@ -23,14 +25,22 @@ import { doctor } from "./doctor.js"
 import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
-import { getIndexFreshnessWarning, getLexicalScanWarning } from "./index-diagnostics.js"
+import { collectGenerationGarbage } from "./generation-retention.js"
+import { indexFreshnessWarning } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
 import { initProject } from "./init.js"
 import { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
-import { configurePdfOcr, extractPdfPage, inspectPdfOcr, parsePdfOcrEngine } from "./ocr.js"
+import {
+  configurePdfOcr,
+  extractPdfPage,
+  extractPdfPages,
+  inspectPdfOcr,
+  parsePdfOcrEngine,
+  parsePdfOcrPages,
+} from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
 import { previewChunks } from "./preview.js"
 import { routePrompt } from "./prompt-routing.js"
@@ -47,8 +57,9 @@ import {
   SUPPORTED_AGENT_TARGETS,
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
-import { countRows } from "./store.js"
-import type { PreviewChunksOptions, ResearchReport } from "./types.js"
+import { optimizeStorage } from "./storage-maintenance.js"
+import { readIndexManifestHeader } from "./store.js"
+import type { IncrementalFailurePolicy, PreviewChunksOptions, ResearchReport } from "./types.js"
 import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
@@ -85,7 +96,12 @@ modelsCommand
     const cwd = projectRoot(command)
     const config = await loadConfig(cwd)
     const result = await pullEmbeddingModel(config)
-    const semanticConfig = options.enable ? await enableSemanticEmbeddings(cwd) : null
+    const semanticConfig = options.enable
+      ? await enableSemanticEmbeddings(cwd, {
+          embeddingModelRevision: result.embeddingModelRevision,
+          embeddingModelDigest: result.embeddingModelDigest,
+        })
+      : null
     if (options.json) {
       console.log(JSON.stringify(semanticConfig ? { ...result, semanticConfig } : result, null, 2))
       return
@@ -93,6 +109,8 @@ modelsCommand
 
     console.log(pc.green("Embedding model ready."))
     console.log(`embeddingModel=${result.embeddingModel}`)
+    console.log(`embeddingModelRevision=${result.embeddingModelRevision}`)
+    console.log(`embeddingModelDigest=${result.embeddingModelDigest}`)
     console.log(`embeddingModelPath=${result.embeddingModelPath}`)
     if (semanticConfig) {
       console.log(`semanticConfig=${semanticConfig.configPath}`)
@@ -130,10 +148,10 @@ ocrCommand
 
 ocrCommand
   .command("setup")
-  .description("Detect a local PDF OCR engine and write a safe page-aware configuration.")
+  .description("Detect a local PDF OCR engine and write a safe batched-page configuration.")
   .option("--engine <engine>", "OCR engine: auto, ocrmypdf, or tesseract.", "auto")
   .option("--language <codes>", "Tesseract language codes such as eng, fra, or eng+fra.", "eng")
-  .option("--timeout-ms <number>", "Per-page OCR timeout in milliseconds.", parsePositiveInt)
+  .option("--timeout-ms <number>", "Per-batch OCR timeout in milliseconds.", parsePositiveInt)
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -198,12 +216,42 @@ ocrCommand
     },
   )
 
+ocrCommand
+  .command("extract-pages", { hidden: true })
+  .requiredOption("--engine <engine>", "OCR engine: ocrmypdf or tesseract.")
+  .requiredOption("--language <codes>", "Tesseract language codes.")
+  .requiredOption("--input <path>", "PDF file to process.")
+  .requiredOption("--pages <numbers>", "Comma-separated one-based PDF page numbers.")
+  .option("--timeout-ms <number>", "OCR timeout in milliseconds.", parsePositiveInt)
+  .action(
+    async (
+      options: {
+        engine: string
+        language: string
+        input: string
+        pages: string
+        timeoutMs?: number
+      },
+      command: Command,
+    ) => {
+      const extractOptions: Parameters<typeof extractPdfPages>[0] = {
+        engine: parsePdfOcrEngine(options.engine),
+        language: options.language,
+        input: path.resolve(projectRoot(command), options.input),
+        pages: parsePdfOcrPages(options.pages),
+      }
+      addOption(extractOptions, "timeoutMs", options.timeoutMs)
+      process.stdout.write(JSON.stringify(await extractPdfPages(extractOptions)))
+    },
+  )
+
 program
   .command("doctor")
   .description("Diagnose setup, index freshness, privacy posture, and next steps.")
   .option("--fix", "Create missing scaffolding, install the agent kit, and rebuild stale indexes.")
+  .option("--deep", "Run the O(corpus) source inventory and executable security probes.")
   .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { fix?: boolean; json?: boolean }, command: Command) => {
+  .action(async (options: { fix?: boolean; deep?: boolean; json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
     if (options.fix) {
       const result = await setupProject({ cwd })
@@ -215,7 +263,7 @@ program
       return
     }
 
-    const report = await doctor(cwd)
+    const report = await doctor(cwd, { deep: options.deep === true })
     if (options.json) {
       console.log(JSON.stringify(report, null, 2))
       return
@@ -379,16 +427,30 @@ program
   .description("Parse changed documents, redact, chunk, embed locally, and update LanceDB.")
   .option("--rebuild", "Force a full local index rebuild instead of reusing unchanged rows.")
   .option("--batch-size <number>", "Files committed per resumable batch.", parsePositiveInt)
+  .option(
+    "--incremental-failure-policy <policy>",
+    "Preserve last-good rows after a file failure, or remove stale rows.",
+    parseIncrementalFailurePolicy,
+  )
+  .option("--metrics", "Collect privacy-safe phase and throughput metrics.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
-      options: { rebuild?: boolean; batchSize?: number; json?: boolean },
+      options: {
+        rebuild?: boolean
+        batchSize?: number
+        incrementalFailurePolicy?: IncrementalFailurePolicy
+        metrics?: boolean
+        json?: boolean
+      },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
       const ingestOptions: Parameters<typeof ingest>[0] = { cwd }
       addOption(ingestOptions, "rebuild", options.rebuild)
       addOption(ingestOptions, "batchSize", options.batchSize)
+      addOption(ingestOptions, "incrementalFailurePolicy", options.incrementalFailurePolicy)
+      addOption(ingestOptions, "collectMetrics", options.metrics)
       const result = await ingest(ingestOptions)
       if (options.json) {
         console.log(JSON.stringify(result, null, 2))
@@ -400,7 +462,7 @@ program
 
       console.log(
         pc.green(
-          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} errors=${result.errors.length}`,
+          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} staleLastKnownGood=${result.staleLastKnownGood.length} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} ocrPages=${result.ocr.pages} ocrCacheHits=${result.ocr.cacheHits} ocrBatches=${result.ocr.batches} ocrSubprocesses=${result.ocr.subprocesses} ocrDurationMs=${result.ocr.durationMs} errors=${result.errors.length}`,
         ),
       )
       printUnsupportedSummary(result.unsupportedExtensions)
@@ -410,6 +472,9 @@ program
       }
       if (result.lexicalIndexWarning) {
         console.log(pc.yellow(result.lexicalIndexWarning))
+      }
+      if (result.storageWarning) {
+        console.log(pc.yellow(result.storageWarning))
       }
       if (result.unsupportedFiles > 0 || result.oversizedFiles > 0 || result.sensitiveFiles > 0) {
         const auditCommand = await rgrCommand(cwd, ["audit", "--unsupported"])
@@ -473,6 +538,11 @@ program
         console.log(
           `\n${pc.cyan(file.relativePath)} chunks=${file.chunkStats.count} redactions=${file.redactions} minChars=${file.chunkStats.minChars} p50Chars=${file.chunkStats.p50Chars} p95Chars=${file.chunkStats.p95Chars} maxChars=${file.chunkStats.maxChars} contextualRatio=${file.chunkStats.contextualRatio.toFixed(3)}`,
         )
+        if (file.ocr) {
+          console.log(
+            `ocrPages=${file.ocr.pages} ocrCacheHits=${file.ocr.cacheHits} ocrBatches=${file.ocr.batches} ocrSubprocesses=${file.ocr.subprocesses} ocrDurationMs=${file.ocr.durationMs}`,
+          )
+        }
         for (const chunk of file.chunks) {
           const context = chunk.contextPath ? ` context=${chunk.contextPath}` : ""
           console.log(`\n${pc.dim(chunk.citation)}${context}`)
@@ -523,6 +593,7 @@ program
     [],
   )
   .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
+  .option("--exact-vector-search", "Bypass ANN and use exhaustive vector search for diagnostics.")
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
@@ -535,6 +606,7 @@ program
         excludePath: string[]
         contextPath: string[]
         explain?: boolean
+        exactVectorSearch?: boolean
         compact?: boolean
         json?: boolean
       },
@@ -557,8 +629,6 @@ program
         process.exitCode = 1
         return
       }
-
-      await printStaleIndexWarnings(cwd)
 
       for (const [index, result] of outputResults.entries()) {
         const distance = result.distance === null ? "n/a" : result.distance.toFixed(4)
@@ -610,6 +680,7 @@ program
     [],
   )
   .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
+  .option("--exact-vector-search", "Bypass ANN and use exhaustive vector search for diagnostics.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -621,6 +692,7 @@ program
         excludePath: string[]
         contextPath: string[]
         explain?: boolean
+        exactVectorSearch?: boolean
         json?: boolean
       },
       command: Command,
@@ -651,10 +723,20 @@ program
 
 program
   .command("research")
-  .description("Run an audit-backed multi-query research pass with cited evidence.")
+  .description("Run a bounded multi-query research pass with cited evidence.")
   .argument("<query>", "Research question or topic.")
   .option("-k, --top-k <number>", "Maximum number of evidence passages to keep.", parsePositiveInt)
   .option("--no-code", "Skip the lightweight repository code search.")
+  .option("--full-audit", "Run a full source inventory instead of manifest health checks.")
+  .option("--timeout-ms <number>", "Bound the complete research operation.", parsePositiveInt)
+  .option("--code-top-k <number>", "Maximum number of code matches to keep.", parsePositiveInt)
+  .option("--code-scan-max-files <number>", "Maximum code files to read.", parsePositiveInt)
+  .option("--code-scan-max-bytes <number>", "Maximum total code bytes to read.", parsePositiveInt)
+  .option(
+    "--code-scan-concurrency <number>",
+    "Maximum concurrent code file reads.",
+    parsePositiveInt,
+  )
   .option(
     "--include-path <prefix>",
     "Use only indexed source paths under this prefix. Repeat for multiple prefixes.",
@@ -681,6 +763,12 @@ program
       options: {
         topK?: number
         code?: boolean
+        fullAudit?: boolean
+        timeoutMs?: number
+        codeTopK?: number
+        codeScanMaxFiles?: number
+        codeScanMaxBytes?: number
+        codeScanConcurrency?: number
         includePath: string[]
         excludePath: string[]
         contextPath: string[]
@@ -693,6 +781,12 @@ program
       const researchOptions: Parameters<typeof research>[1] = { cwd }
       addOption(researchOptions, "topK", options.topK)
       addOption(researchOptions, "includeCode", options.code)
+      addOption(researchOptions, "fullAudit", options.fullAudit)
+      addOption(researchOptions, "timeoutMs", options.timeoutMs)
+      addOption(researchOptions, "codeTopK", options.codeTopK)
+      addOption(researchOptions, "codeScanMaxFiles", options.codeScanMaxFiles)
+      addOption(researchOptions, "codeScanMaxBytes", options.codeScanMaxBytes)
+      addOption(researchOptions, "codeScanConcurrency", options.codeScanConcurrency)
       addPathFilters(researchOptions, options)
       const report = await research(query, researchOptions)
       const output = options.compact ? compactResearchReport(report) : report
@@ -744,7 +838,7 @@ program
 
 program
   .command("evaluate")
-  .description("Measure retrieval recall against a JSON golden query file.")
+  .description("Measure retrieval quality against a JSON golden query file.")
   .requiredOption(
     "--golden <path>",
     "JSON file with queries and expected paths or exact path:Lx-Ly#chunk citations.",
@@ -756,7 +850,7 @@ program
   )
   .option(
     "--fail-under <recall>",
-    "Exit non-zero only when recall is below this threshold from 0 to 1.",
+    "Legacy average-recall gate from 0 to 1, combined with golden-file quality gates.",
     parseRecallThreshold,
   )
   .option("--json", "Print machine-readable JSON.")
@@ -773,9 +867,13 @@ program
       addOption(evaluationOptions, "topK", options.topK)
       const result = await evaluateGoldenQueries(evaluationOptions)
       const minimumRecall = options.failUnder
-      const passed = minimumRecall === undefined || result.recall >= minimumRecall
+      const legacyRecallPassed = minimumRecall === undefined || result.recall >= minimumRecall
+      const passed = result.passed && legacyRecallPassed
       if (options.json) {
-        const payload = minimumRecall === undefined ? result : { ...result, minimumRecall, passed }
+        const payload =
+          minimumRecall === undefined
+            ? result
+            : { ...result, minimumRecall, legacyRecallPassed, passed }
         console.log(JSON.stringify(payload, null, 2))
         if (!passed) {
           process.exitCode = 1
@@ -786,10 +884,17 @@ program
       const thresholdSummary =
         minimumRecall === undefined
           ? ""
-          : ` minimumRecall=${minimumRecall.toFixed(3)} passed=${passed}`
+          : ` minimumRecall=${minimumRecall.toFixed(3)} legacyRecallPassed=${legacyRecallPassed}`
       console.log(
-        `golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} hitRate=${result.hitRate.toFixed(3)} recall=${result.recall.toFixed(3)} precision=${result.precision.toFixed(3)} mrr=${result.meanReciprocalRank.toFixed(3)} ndcg=${result.ndcg.toFixed(3)} p50Ms=${result.p50LatencyMs.toFixed(1)} p95Ms=${result.p95LatencyMs.toFixed(1)}${thresholdSummary}`,
+        `golden=${result.goldenPath} total=${result.total} hits=${result.hits} misses=${result.misses} hitRate=${result.hitRate.toFixed(3)} recallAt1=${result.recallAt[1].toFixed(3)} recallAt3=${result.recallAt[3].toFixed(3)} recallAt5=${result.recallAt[5].toFixed(3)} recallAt10=${result.recallAt[10].toFixed(3)} precisionAt5=${result.precisionAt5.toFixed(3)} mrrAt10=${result.meanReciprocalRankAt10.toFixed(3)} ndcgAt10=${result.ndcgAt10.toFixed(3)} exactCitationRate=${result.exactCitationRate?.toFixed(3) ?? "n/a"} falsePositiveRate=${result.falsePositiveRate?.toFixed(3) ?? "n/a"} passed=${passed} p50Ms=${result.p50LatencyMs.toFixed(1)} p95Ms=${result.p95LatencyMs.toFixed(1)}${thresholdSummary}`,
       )
+      for (const gate of result.gates.filter((candidate) => !candidate.passed)) {
+        console.log(
+          pc.red(
+            `failedGate=${gate.metric} direction=${gate.direction} threshold=${gate.threshold.toFixed(3)} actual=${gate.actual?.toFixed(3) ?? "n/a"}`,
+          ),
+        )
+      }
       for (const testCase of result.cases) {
         const label = testCase.id ? `${testCase.id}: ${testCase.query}` : testCase.query
         const status = testCase.hit ? pc.green("hit") : pc.red("miss")
@@ -818,7 +923,7 @@ program
 
 program
   .command("audit")
-  .description("Compare supported files on disk with the current vector index.")
+  .description("Run a deep O(corpus) comparison of source files and the current vector index.")
   .option("--unsupported", "List skipped file paths and reasons.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { unsupported?: boolean; json?: boolean }, command: Command) => {
@@ -828,6 +933,9 @@ program
       console.log(JSON.stringify(report, null, 2))
       return
     }
+    console.log(`mode=${report.mode}`)
+    console.log(`cost=${report.cost}`)
+    console.log(`inventoryVerified=${report.inventoryVerified}`)
     console.log(`discoveredFiles=${report.discoveredFiles}`)
     console.log(`supportedFiles=${report.supportedFiles.length}`)
     console.log(`supportedBytes=${report.supportedBytes}`)
@@ -935,8 +1043,16 @@ program
     }
 
     console.log(`maxFileBytes=${report.maxFileBytes}`)
+    console.log(`hardMaxFileBytes=${report.hardMaxFileBytes}`)
     console.log(`maxFiles=${report.maxFiles ?? "unbounded"}`)
     console.log(`maxCorpusBytes=${report.maxCorpusBytes ?? "unbounded"}`)
+    console.log(`maxFileBatchSize=${report.maxFileBatchSize}`)
+    console.log(`maxIngestConcurrency=${report.maxIngestConcurrency}`)
+    console.log(`maxEmbeddingBatchSize=${report.maxEmbeddingBatchSize}`)
+    console.log(`maxSourceWindowBytes=${report.maxSourceWindowBytes}`)
+    console.log(`maxChunkWindow=${report.maxChunkWindow}`)
+    console.log(`maxChunksPerFile=${report.maxChunksPerFile}`)
+    console.log(`maxVectorBytesPerFile=${report.maxVectorBytesPerFile}`)
     console.log(`maxPdfPages=${report.maxPdfPages}`)
     console.log(`maxPdfTextCharacters=${report.maxPdfTextCharacters}`)
     console.log(`maxOfficeTextEntries=${report.maxOfficeTextEntries}`)
@@ -971,13 +1087,25 @@ program
 
 program
   .command("status")
-  .description("Show active configuration and index row count.")
+  .description("Show active configuration, readiness, corpus fingerprint, and index counts.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
     const config = await loadConfig(cwd)
     const identity = knowledgeBaseIdentity(config.projectRoot)
-    const rows = await countRows(config)
+    const manifest = await readIndexManifestHeader(config)
+    const health = manifest?.health
+    const freshnessWarning = indexFreshnessWarning(config, manifest)
+    const ready =
+      manifest !== null &&
+      health !== undefined &&
+      manifest.chunkCount > 0 &&
+      health.missingFromIndex === 0 &&
+      health.staleInIndex === 0 &&
+      health.emptyTextFiles === 0 &&
+      health.oversizedFiles === 0 &&
+      health.securityWarnings.length === 0 &&
+      freshnessWarning === null
     const ingestion = await getIngestionProgress(config)
     const status = {
       knowledgeBaseId: identity?.id ?? null,
@@ -1000,6 +1128,7 @@ program
       maxFileBytes: config.maxFileBytes,
       ingestConcurrency: config.ingestConcurrency,
       embeddingBatchSize: config.embeddingBatchSize,
+      incrementalFailurePolicy: config.incrementalFailurePolicy,
       includeExtensions: config.includeExtensions,
       pdfOcrCommand: config.pdfOcrCommand,
       pdfOcrTimeoutMs: config.pdfOcrTimeoutMs,
@@ -1007,7 +1136,14 @@ program
       imageOcrTimeoutMs: config.imageOcrTimeoutMs,
       legacyWordCommand: config.legacyWordCommand,
       legacyWordTimeoutMs: config.legacyWordTimeoutMs,
-      chunksIndexed: rows,
+      manifestFound: manifest !== null,
+      ready,
+      corpusFingerprint: manifest?.corpusFingerprint ?? null,
+      indexFreshnessWarning: freshnessWarning,
+      indexedFiles: manifest?.fileCount ?? 0,
+      chunksIndexed: manifest?.chunkCount ?? 0,
+      health: health ?? null,
+      maintenance: manifest?.maintenance ?? null,
       ingestion,
     }
     if (options.json) {
@@ -1035,6 +1171,7 @@ program
     console.log(`maxFileBytes=${config.maxFileBytes}`)
     console.log(`ingestConcurrency=${config.ingestConcurrency}`)
     console.log(`embeddingBatchSize=${config.embeddingBatchSize}`)
+    console.log(`incrementalFailurePolicy=${config.incrementalFailurePolicy}`)
     console.log(`includeExtensions=${config.includeExtensions.join(",")}`)
     console.log(`pdfOcrCommand=${config.pdfOcrCommand.join(" ")}`)
     console.log(`pdfOcrTimeoutMs=${config.pdfOcrTimeoutMs}`)
@@ -1042,7 +1179,14 @@ program
     console.log(`imageOcrTimeoutMs=${config.imageOcrTimeoutMs}`)
     console.log(`legacyWordCommand=${config.legacyWordCommand.join(" ")}`)
     console.log(`legacyWordTimeoutMs=${config.legacyWordTimeoutMs}`)
-    console.log(`chunksIndexed=${rows}`)
+    console.log(`manifestFound=${manifest !== null}`)
+    console.log(`ready=${ready}`)
+    console.log(`corpusFingerprint=${manifest?.corpusFingerprint ?? "unavailable"}`)
+    console.log(`indexedFiles=${manifest?.fileCount ?? 0}`)
+    console.log(`chunksIndexed=${manifest?.chunkCount ?? 0}`)
+    if (freshnessWarning) {
+      console.log(`indexFreshnessWarning=${freshnessWarning}`)
+    }
     if (ingestion) {
       console.log(`ingestionRunId=${ingestion.runId}`)
       console.log(`ingestionStatus=${ingestion.status}`)
@@ -1050,7 +1194,7 @@ program
       console.log(`ingestionResumed=${ingestion.resumed}`)
       console.log(`ingestionBatchSize=${ingestion.batchSize}`)
       console.log(
-        `ingestionProgress=${ingestion.indexedFiles}/${ingestion.totalFiles} indexed, ${ingestion.errorFiles} errors, ${ingestion.pendingFiles} pending`,
+        `ingestionProgress=${ingestion.indexedFiles}/${ingestion.totalFiles} indexed, ${ingestion.errorFiles} errors, ${ingestion.staleFiles} stale, ${ingestion.pendingFiles} pending`,
       )
       console.log(`ingestionLastActivityAt=${ingestion.lastActivityAt}`)
     }
@@ -1086,6 +1230,67 @@ program
       }
     }
     if (options.strict && report.warnings.length > 0) {
+      process.exitCode = 1
+    }
+  })
+
+const storageCommand = program.command("storage").description("Inspect and maintain local storage.")
+
+storageCommand
+  .command("optimize")
+  .description("Compact LanceDB fragments, prune old versions, and refresh index coverage.")
+  .option("--dry-run", "Report planned maintenance without creating a LanceDB version.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { dryRun?: boolean; json?: boolean }, command: Command) => {
+    const report = await optimizeStorage({
+      cwd: projectRoot(command),
+      ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+    })
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2))
+    } else {
+      printStorageMaintenance(report)
+    }
+    if (report.status === "warning") {
+      process.exitCode = 1
+    }
+  })
+
+storageCommand
+  .command("gc")
+  .description("Inspect or reclaim expired local index generations.")
+  .option("--dry-run", "Report generation roles and reclaimable bytes without deleting tables.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { dryRun?: boolean; json?: boolean }, command: Command) => {
+    const report = await collectGenerationGarbage({
+      cwd: projectRoot(command),
+      ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+    })
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2))
+    } else {
+      printGenerationGarbageCollection(report)
+    }
+    if (report.warning) {
+      process.exitCode = 1
+    }
+  })
+
+storageCommand
+  .command("generations")
+  .description("Show active, resumable, rollback, leased, retained, and orphaned generations.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }, command: Command) => {
+    const report = await collectGenerationGarbage({
+      cwd: projectRoot(command),
+      dryRun: true,
+    })
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2))
+    } else {
+      printGenerationGarbageCollection(report)
+    }
+    if (report.warning) {
       process.exitCode = 1
     }
   })
@@ -1449,11 +1654,7 @@ async function promptInput(promptParts: string[] | undefined): Promise<string> {
     return ""
   }
 
-  const chunks: Buffer[] = []
-  for await (const chunk of process.stdin) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-  }
-  return Buffer.concat(chunks).toString("utf8")
+  return readBoundedStdin(process.stdin)
 }
 
 function withTopK(cwd: string, topK: number | undefined): { cwd: string; topK?: number } {
@@ -1469,6 +1670,7 @@ function withSearchOptions(
     excludePath?: string[]
     contextPath?: string[]
     explain?: boolean
+    exactVectorSearch?: boolean
   },
 ): {
   cwd: string
@@ -1478,6 +1680,7 @@ function withSearchOptions(
   excludePaths?: string[]
   contextPaths?: string[]
   explain?: boolean
+  vectorSearchMode?: "exact"
 } {
   const result: {
     cwd: string
@@ -1487,11 +1690,15 @@ function withSearchOptions(
     excludePaths?: string[]
     contextPaths?: string[]
     explain?: boolean
+    vectorSearchMode?: "exact"
   } = { cwd }
   addOption(result, "topK", options.topK)
   addOption(result, "contextRadius", options.contextRadius)
   addPathFilters(result, options)
   addOption(result, "explain", options.explain)
+  if (options.exactVectorSearch) {
+    result.vectorSearchMode = "exact"
+  }
   return result
 }
 
@@ -1701,26 +1908,27 @@ function isTtsModule(value: unknown): value is TtsModule {
   )
 }
 
-async function printStaleIndexWarnings(cwd: string): Promise<void> {
-  const config = await loadConfig(cwd)
-  const freshnessWarning = await getIndexFreshnessWarning(config)
-  if (freshnessWarning) {
-    console.error(pc.yellow(freshnessWarning))
-    return
-  }
-  const chunkCount = await countRows(config)
-  const lexicalScanWarning = getLexicalScanWarning(config, chunkCount)
-  if (lexicalScanWarning) {
-    console.error(pc.yellow(lexicalScanWarning))
-  }
-}
-
 function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
+  console.log(`mode=${report.mode}`)
+  console.log(`cost=${report.cost}`)
+  console.log(`inventoryVerified=${report.inventoryVerified}`)
+  console.log(`securityVerified=${report.securityVerified}`)
   console.log(`projectRoot=${report.projectRoot}`)
   console.log(`initialized=${report.initialized}`)
   console.log(`ready=${report.ready}`)
   console.log(`packageManager=${report.packageManager}`)
   console.log(`runCommand=${report.runCommand}`)
+  console.log(`runtime.ragmir=${report.runtime.ragmir}`)
+  console.log(`runtime.node=${report.runtime.node}`)
+  console.log(`runtime.v8=${report.runtime.v8}`)
+  console.log(`runtime.napi=${report.runtime.napi ?? "unavailable"}`)
+  console.log(`runtime.platform=${report.runtime.platform}`)
+  console.log(`runtime.architecture=${report.runtime.architecture}`)
+  for (const [name, dependency] of Object.entries(report.runtime.dependencies)) {
+    console.log(
+      `runtime.dependencies.${name}=${dependency ? `${dependency.name}@${dependency.version}` : "unavailable"}`,
+    )
+  }
   console.log(`agentKitInstalled=${report.agentKitInstalled}`)
   console.log(`agentIntegration.ready=${report.agentIntegration.ready}`)
   console.log(`agentIntegration.runnerReady=${report.agentIntegration.runnerReady}`)
@@ -1748,6 +1956,7 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`chunksIndexed=${report.chunksIndexed}`)
   console.log(`missingFromIndex=${report.missingFromIndex}`)
   console.log(`staleInIndex=${report.staleInIndex}`)
+  console.log(`corpusFingerprint=${report.corpusFingerprint ?? "unavailable"}`)
   console.log(`securityWarnings=${report.securityWarnings.length}`)
   if (report.securityWarnings.length > 0) {
     for (const warning of report.securityWarnings) {
@@ -1758,9 +1967,66 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   if (report.indexFreshness.warning) {
     console.log(pc.yellow(`indexFreshness: ${report.indexFreshness.warning}`))
   }
+  console.log(`readiness.retrievalQualityVerified=${report.readiness.retrievalQualityVerified}`)
   console.log("nextSteps:")
   for (const step of report.nextSteps) {
     console.log(`  - ${step}`)
+  }
+}
+
+function printStorageMaintenance(report: Awaited<ReturnType<typeof optimizeStorage>>): void {
+  console.log(`status=${report.status}`)
+  console.log(`tableName=${report.tableName}`)
+  console.log(`dryRun=${report.dryRun}`)
+  console.log(`tableVersion=${report.tableVersion ?? "none"}`)
+  console.log(`totalRows=${report.totalRows}`)
+  console.log(`mutationsSinceOptimization=${report.mutationsSinceOptimization}`)
+  console.log(`fragments.total=${report.fragments.total}`)
+  console.log(`fragments.small=${report.fragments.small}`)
+  console.log(`fragments.smallRatio=${report.fragments.smallRatio}`)
+  console.log(`fullTextIndex.present=${report.fullTextIndex.present}`)
+  console.log(`fullTextIndex.indexedRows=${report.fullTextIndex.indexedRows}`)
+  console.log(`fullTextIndex.unindexedRows=${report.fullTextIndex.unindexedRows}`)
+  console.log(`fullTextIndex.complete=${report.fullTextIndex.complete}`)
+  if (report.adaptiveIndices) {
+    console.log(`vectorIndex.strategy=${report.adaptiveIndices.vectorIndex.strategy}`)
+    console.log(`vectorIndex.indexType=${report.adaptiveIndices.vectorIndex.indexType ?? "none"}`)
+    console.log(`vectorIndex.coverage=${report.adaptiveIndices.vectorIndex.coverage}`)
+    console.log(`vectorIndex.indexedRows=${report.adaptiveIndices.vectorIndex.indexedRows}`)
+    console.log(`vectorIndex.unindexedRows=${report.adaptiveIndices.vectorIndex.unindexedRows}`)
+    console.log(`relativePathIndex.present=${report.adaptiveIndices.relativePathIndex.present}`)
+    console.log(`relativePathIndex.coverage=${report.adaptiveIndices.relativePathIndex.coverage}`)
+    console.log(`adaptivePlannedActions=${report.adaptiveIndices.plannedActions.join(",")}`)
+    console.log(`adaptiveCompletedActions=${report.adaptiveIndices.completedActions.join(",")}`)
+    if (report.adaptiveIndices.warning) {
+      console.log(pc.yellow(`vectorIndex.warning: ${report.adaptiveIndices.warning}`))
+    }
+  }
+  console.log(`reasons=${report.reasons.join(",")}`)
+  console.log(`plannedActions=${report.plannedActions.join(",")}`)
+  console.log(`completedActions=${report.completedActions.join(",")}`)
+  if (report.warning) {
+    console.log(pc.yellow(`warning: ${report.warning}`))
+  }
+}
+
+function printGenerationGarbageCollection(
+  report: Awaited<ReturnType<typeof collectGenerationGarbage>>,
+): void {
+  console.log(`activeTableName=${report.activeTableName}`)
+  console.log(`resumableTableName=${report.resumableTableName ?? "none"}`)
+  console.log(`rollbackTableName=${report.rollbackTableName ?? "none"}`)
+  console.log(`generations=${report.generations.length}`)
+  console.log(`reclaimableBytes=${report.reclaimableBytes}`)
+  console.log(`reclaimedBytes=${report.reclaimedBytes}`)
+  console.log(`deletedTables=${report.deletedTables.join(",")}`)
+  for (const generation of report.generations) {
+    console.log(
+      `generation=${generation.tableName} role=${generation.role} bytes=${generation.bytes} ageMs=${generation.ageMs} leased=${generation.leased} reclaimable=${generation.reclaimable} deleted=${generation.deleted}`,
+    )
+  }
+  if (report.warning) {
+    console.log(pc.yellow(`warning: ${report.warning}`))
   }
 }
 
@@ -1771,7 +2037,10 @@ function printResearchReport(
   console.log(`ready=${report.ready}`)
   console.log(`generatedQueries=${report.generatedQueries.length}`)
   console.log(
-    `audit.supportedFiles=${report.audit.supportedFiles} audit.supportedBytes=${report.audit.supportedBytes} audit.largestFileBytes=${report.audit.largestFileBytes} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.oversizedFiles=${report.audit.oversizedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`,
+    `audit.mode=${report.audit.mode} audit.inventoryVerified=${report.audit.inventoryVerified} audit.supportedFiles=${report.audit.supportedFiles} audit.supportedBytes=${report.audit.supportedBytes} audit.largestFileBytes=${report.audit.largestFileBytes} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.oversizedFiles=${report.audit.oversizedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`,
+  )
+  console.log(
+    `budgets.timeoutMs=${report.budgets.timeoutMs ?? "none"} budgets.evidenceTopK=${report.budgets.evidenceTopK} budgets.codeEvidenceTopK=${report.budgets.codeEvidenceTopK} budgets.codeFiles=${report.budgets.codeFilesScanned}/${report.budgets.codeScanMaxFiles} budgets.codeBytes=${report.budgets.codeBytesScanned}/${report.budgets.codeScanMaxBytes} budgets.codeConcurrency=${report.budgets.codeScanConcurrency} budgets.codeTruncated=${report.budgets.codeScanTruncated}`,
   )
   console.log(`securityWarnings=${report.securityWarnings.length}`)
   console.log(
@@ -1792,7 +2061,7 @@ function printResearchReport(
     for (const [index, evidence] of report.evidence.entries()) {
       const distance = evidence.distance === null ? "n/a" : evidence.distance.toFixed(4)
       console.log(
-        `  [${index + 1}] ${evidence.relativePath} chunk=${evidence.chunkIndex} distance=${distance}`,
+        `  [${index + 1}] ${evidence.relativePath} chunk=${evidence.chunkIndex} distance=${distance} researchScore=${evidence.researchScore.toFixed(6)} bestRank=${evidence.bestRank}`,
       )
       console.log(`      ${researchEvidencePreview(evidence)}`)
     }
@@ -1803,7 +2072,7 @@ function printResearchReport(
     console.log(pc.cyan("Code Evidence:"))
     for (const evidence of report.codeEvidence.slice(0, 10)) {
       console.log(
-        `  - ${evidence.relativePath}:${evidence.lineNumber} terms=${evidence.matchedTerms.join(",")}`,
+        `  - ${evidence.relativePath}:${evidence.lineNumber} score=${evidence.score} terms=${evidence.matchedTerms.join(",")}`,
       )
       console.log(`      ${evidence.snippet}`)
     }

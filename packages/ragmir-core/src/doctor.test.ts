@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
 import { doctor } from "./doctor.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
@@ -34,6 +35,15 @@ describe("doctor", () => {
     expect(uninitialized.initialized).toBe(false)
     expect(uninitialized.ready).toBe(false)
     expect(uninitialized.packageManager).toBe("pnpm")
+    expect(uninitialized.runtime).toMatchObject({
+      node: process.versions.node,
+      platform: process.platform,
+      architecture: process.arch,
+      dependencies: {
+        lanceDb: { version: expect.any(String) },
+        lanceDbNative: { version: expect.any(String) },
+      },
+    })
     expect(uninitialized.agentKitInstalled).toBe(false)
     expect(uninitialized.agentIntegration.ready).toBe(false)
     expect(uninitialized.nextSteps).toEqual([
@@ -43,14 +53,19 @@ describe("doctor", () => {
     await initProject(root)
     const initialized = await doctor(root)
     expect(initialized.initialized).toBe(true)
+    expect(initialized.mode).toBe("manifest")
+    expect(initialized.cost).toBe("O(1)")
     expect(initialized.supportedFiles).toBe(0)
     expect(initialized.nextSteps).toEqual([
-      'Add supported files under .ragmir/raw/ or list extra source paths in the "sources" array of .ragmir/config.json.',
+      "Run `pnpm exec rgr doctor --deep` for an O(corpus) source and security audit.",
+      "Run `pnpm exec rgr ingest` to create a current manifest before relying on status or search.",
     ])
 
     await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
     await writeFile(path.join(root, ".ragmir", "raw", "evidence.md"), "Local evidence.\n", "utf8")
-    const withEvidence = await doctor(root)
+    const withEvidence = await doctor(root, { deep: true })
+    expect(withEvidence.mode).toBe("deep")
+    expect(withEvidence.cost).toBe("O(corpus)")
     expect(withEvidence.supportedFiles).toBe(1)
     expect(withEvidence.chunksIndexed).toBe(0)
     expect(withEvidence.nextSteps).toContain(
@@ -72,6 +87,7 @@ describe("doctor", () => {
     )
     expect(ready.indexFreshness.manifestFound).toBe(true)
     expect(ready.indexFreshness.warning).toBeNull()
+    expect(ready.corpusFingerprint).toMatch(/^[0-9a-f]{64}$/u)
     expect(ready.readiness).toEqual(
       expect.objectContaining({
         operationalReady: true,
@@ -119,5 +135,22 @@ describe("doctor", () => {
     expect(report.readiness.coverageComplete).toBe(false)
     expect(report.ready).toBe(false)
     expect(report.nextSteps.some((step) => step.includes("produced no indexable text"))).toBe(true)
+  })
+
+  it("should recover the previous manifest without reporting the index ready", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-legacy-table-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await writeFile(path.join(root, ".ragmir", "raw", "evidence.md"), "Indexed evidence.\n")
+    await ingest({ cwd: root })
+    await rm(path.join(root, ".ragmir", "storage", INDEX_MANIFEST_FILENAME))
+
+    const report = await doctor(root)
+
+    expect(report.indexFreshness.manifestFound).toBe(true)
+    expect(report.indexFreshness.warning).toContain("recovered the last validated generation")
+    expect(report.ready).toBe(false)
+    expect(report.readiness.operationalReady).toBe(true)
+    expect(report.readiness.indexPolicyCurrent).toBe(false)
   })
 })

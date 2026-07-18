@@ -230,7 +230,7 @@ export async function installSkill(options: InstallSkillOptions = {}): Promise<I
   await copyBundledSkills(targetDir)
   await writeFile(
     runnerPath,
-    ragmirRunnerSource(VERSION, path.join(PACKAGE_ROOT, "dist", "cli.js")),
+    ragmirRunnerSource(VERSION, path.join(PACKAGE_ROOT, "dist", "cli-entry.js")),
     { encoding: "utf8", mode: 0o755 },
   )
 
@@ -836,6 +836,7 @@ function ragmirRunnerSource(version: string, installedCliPath: string): string {
 const { spawnSync } = require("node:child_process")
 const { existsSync, readFileSync } = require("node:fs")
 const path = require("node:path")
+const { pathToFileURL } = require("node:url")
 
 const PACKAGE_SPEC = ${JSON.stringify(packageSpec)}
 const INSTALLED_CLI = ${JSON.stringify(installedCliPath)}
@@ -854,17 +855,7 @@ function isRagmirWorkspaceCli(cliPath) {
 }
 
 function resolveCommand() {
-  const localBin = path.join(
-    projectRoot,
-    "node_modules",
-    ".bin",
-    process.platform === "win32" ? "rgr.cmd" : "rgr",
-  )
-  if (existsSync(localBin)) {
-    return { mode: "local-bin", command: localBin, args: [], requiresDownload: false }
-  }
-
-  const workspaceCli = path.join(projectRoot, "packages", "ragmir-core", "dist", "cli.js")
+  const workspaceCli = path.join(projectRoot, "packages", "ragmir-core", "dist", "cli-entry.js")
   if (isRagmirWorkspaceCli(workspaceCli)) {
     return {
       mode: "workspace",
@@ -883,12 +874,38 @@ function resolveCommand() {
     }
   }
 
+  const localBin = path.join(
+    projectRoot,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "rgr.cmd" : "rgr",
+  )
+  if (existsSync(localBin)) {
+    return { mode: "local-bin", command: localBin, args: [], requiresDownload: false }
+  }
+
   return {
     mode: "npm-cache",
     command: process.platform === "win32" ? "npx.cmd" : "npx",
     args: ["--yes", "--package", PACKAGE_SPEC, "rgr"],
     requiresDownload: true,
   }
+}
+
+function canImportDirectly(selection) {
+  return (
+    (selection.mode === "workspace" || selection.mode === "installed-package") &&
+    selection.command === process.execPath &&
+    selection.args.length === 1
+  )
+}
+
+async function runDirect(selection, commandArgs) {
+  const cliPath = selection.args[0]
+  process.chdir(projectRoot)
+  process.env.${RAGMIR_PROJECT_ROOT_ENV} = projectRoot
+  process.argv = [process.execPath, cliPath, ...commandArgs]
+  await import(pathToFileURL(cliPath).href)
 }
 
 const selected = resolveCommand()
@@ -911,6 +928,11 @@ if (commandArgs[0] === PROBE_ARG) {
     }),
   )
   process.exitCode = available ? 0 : 1
+} else if (canImportDirectly(selected)) {
+  runDirect(selected, commandArgs).catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })
 } else {
   const result = spawnSync(selected.command, [...selected.args, ...commandArgs], {
     cwd: projectRoot,

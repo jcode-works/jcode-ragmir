@@ -1,10 +1,15 @@
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { createRagmirClient } from "./client.js"
-import type { RagmirError } from "./errors.js"
+import { loadConfig } from "./config.js"
+import { isRagmirError, type RagmirError } from "./errors.js"
 import { initProject } from "./init.js"
+import { search } from "./query.js"
+import { INDEX_READ_DIAGNOSTICS_CHANNEL, type IndexReadDiagnosticsEvent } from "./store.js"
+import { workloadSnapshot } from "./workload.js"
 
 const tempDirs: string[] = []
 
@@ -48,6 +53,74 @@ describe("RagmirClient", () => {
     } satisfies Partial<RagmirError>)
   })
 
+  it("should reuse one immutable read snapshot until an atomic generation change", async () => {
+    const root = await projectWithEvidence("ragmir-client-snapshot-")
+    const client = await createRagmirClient({ cwd: root })
+    await client.ingest()
+    const events: IndexReadDiagnosticsEvent[] = []
+    const onDiagnostic = (event: unknown): void => {
+      if (isIndexReadDiagnosticsEvent(event, root)) {
+        events.push(event)
+      }
+    }
+    subscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+
+    try {
+      const cold = await client.search("production approval")
+      const warm = await client.search("production approval")
+
+      expect(JSON.stringify(warm)).toBe(JSON.stringify(cold))
+      expect(events.filter((event) => event.kind === "manifest-read")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+
+      await writeFile(
+        path.join(root, ".ragmir", "raw", "decision.md"),
+        "The refreshed rollout requires signed phoenix approval before production deployment.\n",
+        "utf8",
+      )
+      const writer = await createRagmirClient({ cwd: root })
+      await writer.ingest({ rebuild: true })
+      await writer.close()
+      events.length = 0
+
+      const refreshed = await client.search("phoenix approval")
+
+      expect(refreshed[0]?.text).toContain("phoenix")
+      expect(events.filter((event) => event.kind === "table-close")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "manifest-read")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+    } finally {
+      unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+      await client.close()
+    }
+  })
+
+  it("should read one manifest and open one table for a one-shot search", async () => {
+    const root = await projectWithEvidence("ragmir-one-shot-snapshot-")
+    const client = await createRagmirClient({ cwd: root })
+    await client.ingest()
+    await client.close()
+    const events: IndexReadDiagnosticsEvent[] = []
+    const onDiagnostic = (event: unknown): void => {
+      if (isIndexReadDiagnosticsEvent(event, root)) {
+        events.push(event)
+      }
+    }
+    subscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+
+    try {
+      await search("production approval", { cwd: root })
+
+      expect(events.filter((event) => event.kind === "connection-open")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "connection-close")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "manifest-read")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-close")).toHaveLength(1)
+    } finally {
+      unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    }
+  })
+
   it("should serialize concurrent ingestion in one Node.js process", async () => {
     const root = await projectWithEvidence("ragmir-client-concurrent-")
     const firstClient = await createRagmirClient({ cwd: root })
@@ -73,6 +146,55 @@ describe("RagmirClient", () => {
     await expect(ingestion).resolves.toMatchObject({ indexedFiles: 1 })
     await expect(closing).resolves.toBeUndefined()
     expect(client.isClosed).toBe(true)
+  })
+
+  it("should drain bounded queued work before closing", async () => {
+    const root = await projectWithEvidence("ragmir-client-close-queue-")
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({
+        workloadLimits: {
+          search: { concurrency: 1, maxQueue: 16, queueTimeoutMs: 5_000 },
+        },
+      }),
+    )
+    const client = await createRagmirClient({ cwd: root })
+    await client.ingest()
+
+    const searches = Array.from({ length: 10 }, () => client.search("production approval"))
+    const closing = client.close()
+
+    await expect(Promise.all(searches)).resolves.toHaveLength(10)
+    await expect(closing).resolves.toBeUndefined()
+    const config = await loadConfig(root)
+    expect(workloadSnapshot(config, "search")).toMatchObject({ active: 0, queued: 0 })
+    expect(workloadSnapshot(config, "embedding")).toMatchObject({ active: 0, queued: 0 })
+  }, 10_000)
+
+  it("should reject a 100-request burst at the configured queue boundary", async () => {
+    const root = await projectWithEvidence("ragmir-client-overload-")
+    const client = await createRagmirClient({ cwd: root })
+    await client.ingest()
+
+    const settled = await Promise.allSettled(
+      Array.from({ length: 100 }, () => client.search("production approval", { explain: true })),
+    )
+    const fulfilled = settled.filter((result) => result.status === "fulfilled")
+    const overloaded = settled.filter(
+      (result) =>
+        result.status === "rejected" &&
+        isRagmirError(result.reason) &&
+        result.reason.code === "OVERLOADED",
+    )
+
+    expect(fulfilled).toHaveLength(72)
+    expect(fulfilled.some((result) => (result.value[0]?.score?.workloadQueueMs ?? 0) > 0)).toBe(
+      true,
+    )
+    expect(overloaded).toHaveLength(28)
+    await client.close()
+    const config = await loadConfig(root)
+    expect(workloadSnapshot(config, "search")).toMatchObject({ active: 0, queued: 0 })
   })
 
   it("should expose stable abort and validation errors", async () => {
@@ -114,3 +236,19 @@ describe("RagmirClient", () => {
     await client.close()
   })
 })
+
+function isIndexReadDiagnosticsEvent(
+  event: unknown,
+  projectRoot: string,
+): event is IndexReadDiagnosticsEvent {
+  return (
+    typeof event === "object" &&
+    event !== null &&
+    "kind" in event &&
+    ["connection-open", "connection-close", "manifest-read", "table-open", "table-close"].includes(
+      String(event.kind),
+    ) &&
+    "projectRoot" in event &&
+    event.projectRoot === projectRoot
+  )
+}
