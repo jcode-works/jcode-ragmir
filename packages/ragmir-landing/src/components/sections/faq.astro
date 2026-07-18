@@ -30,7 +30,7 @@ const faqItems = getFaqItems(translations)
     <div class="grid gap-3">
       {faqItems.map((item) => (
         <details
-          class="group rounded-md border border-border bg-card/82 p-5 shadow-xl shadow-black/20 backdrop-blur-xl open:bg-card"
+          class="group rounded-lg border border-border bg-card/82 p-5 shadow-xl shadow-black/20 backdrop-blur-xl open:bg-card"
         >
           <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-bold text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {item.question}
