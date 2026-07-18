@@ -62,17 +62,30 @@ First confirm source coverage with `rgr audit`. Then try a specific query, `--co
 
 ## Team members get different results
 
-Export a snapshot on one ready workstation, then compare it on the other:
+For a Git-backed repository, start with the single safe path:
 
 ```bash
-rgr team snapshot --label alice --output .ragmir/team/alice.json
-rgr team compare .ragmir/team/alice.json --local-label christophe
+rgr team sync --json
 ```
 
-The report names version and configuration drift plus local-only, peer-only, and changed files. Do
-not pick the side with more files automatically. Confirm the declared Git commit, Drive revision,
-or shared folder, synchronize both workstations, run the recommended ingest or rebuild command, and
-compare fresh snapshots. Keep tracked config based on stable directories or globs, and never share
+`current` and `updated` mean the fetched upstream and local index are aligned. `dirty`, `ahead`,
+`diverged`, `detached`, and `no-upstream` never modify the branch; follow the first
+`recommendedActions` item through the normal Git or merge-request workflow. `fetch-failed` keeps
+the last valid local index, but its upstream freshness is unverified. Use `--no-pull` when branch
+updates must remain manual and `--check` for a no-worktree-change preview.
+
+The active `.ragmir/config.json` is intentionally local and ignored. If results still differ after
+Git is current, verify that both workstations use the same reviewed source-contract template and
+Ragmir version. For an exact diagnosis or a non-Git authority, use the advanced snapshot flow:
+
+```bash
+rgr team snapshot --label local --output .ragmir/team/local.json
+rgr team compare .ragmir/team/local.json --local-label peer
+```
+
+The comparison names configuration drift plus local-only, peer-only, and changed files. Do not pick
+the side with more files automatically. Confirm the declared Drive revision, shared folder, or Git
+commit, apply the recommended ingest or rebuild command, and compare fresh snapshots. Never share
 an actively written `.ragmir/storage/` directory.
 
 If the comparison reports `status=synchronized` together with security advisories, the indexed
