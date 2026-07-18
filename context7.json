@@ -19,6 +19,7 @@
   ],
   "excludeFiles": ["CHANGELOG.md", "pnpm-lock.yaml"],
   "rules": [
+    "Ragmir v3.0.0 and later are licensed under AGPL-3.0-only, with a separate commercial licensing option from JCode Works for proprietary use. Earlier releases keep their published license.",
     "Use the canonical English setup prompt in docs/quick-start.md for a repository-aware installation; it detects the package manager and existing state, asks before changes or downloads, and verifies retrieval.",
     "Ragmir Core returns cited retrieval context only; it does not synthesize answers itself.",
     "Any compatible coding agent, script, CLI, TypeScript application, or MCP client can consume Core results; use a local consumer when no passage may leave the machine.",

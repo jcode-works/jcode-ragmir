@@ -3,7 +3,7 @@
   "version": "0.4.12",
   "description": "Optional local audio for reviewed, cited output from coding-agent Ragmir workflows.",
   "type": "module",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "author": {
     "name": "Jean-Baptiste Thery",
     "url": "https://github.com/jb-thery"
@@ -44,7 +44,10 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "COMMERCIAL-LICENSE.md",
+    "NOTICE"
   ],
   "publishConfig": {
     "access": "public"

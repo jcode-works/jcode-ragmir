@@ -15,6 +15,9 @@ Do not publish from a local machine.
 7. Build and deploy the static landing through the external deployment process, then verify the
    published package version and canonical site URL.
 
+For every release, verify that npm metadata declares `AGPL-3.0-only` and that each tarball contains
+`LICENSE`, `COMMERCIAL-LICENSE.md`, and `NOTICE`. The protected validation gate enforces this policy.
+
 The workflow runs `pnpm validate`, then semantic-release derives the next version from
 Conventional Commits. It prepares and publishes, in order, `@jcode.labs/ragmir-tts`,
 `@jcode.labs/ragmir-chat`, and `@jcode.labs/ragmir`, all with npm provenance. Installing Core still
@@ -60,6 +63,10 @@ commit subjects. Keep each line within the repository's commitlint limit.
 - `fix:` and `docs:` create patch releases.
 - `feat!:` or a `BREAKING CHANGE:` footer creates a major release.
 - `scope: landing` is ignored for npm versioning because the landing is not an npm package.
+
+The first AGPL release is `v3.0.0` because changing the public license from MIT is a breaking legal
+change. Release notes must state that earlier versions keep their original license and link to the
+commercial licensing option.
 
 For CLI compatibility releases, make the migration explicit in the Conventional Commit body or
 footer. For example, the `ragmir` to `rgr` rename must mention that `ragmir` remains as a deprecated

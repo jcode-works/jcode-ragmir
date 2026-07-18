@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 [![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
-[![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-tts)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
+[![AGPL-3.0](https://img.shields.io/npm/l/@jcode.labs/ragmir-tts)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
 Optional text-to-speech for Ragmir workflows. The default Transformers.js path renders reviewed
 text as WAV on the workstation after an explicit model preload. Edge MP3 is a separate online mode
@@ -130,4 +130,7 @@ npx rgr-tts render ./public-announcement.md \
 There is no silent fallback to Edge. Keep model state and generated audio under ignored `.ragmir/`
 paths and review audio before sharing it.
 
-Ragmir TTS is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
+Ragmir TTS is open source under
+[AGPL-3.0-only](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE). A separate
+[commercial license](https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md)
+is available for proprietary use.

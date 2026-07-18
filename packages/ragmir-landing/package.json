@@ -4,6 +4,7 @@
   "private": true,
   "description": "Static site for Ragmir, confidential local RAG with offline cited retrieval for coding agents and scripts.",
   "type": "module",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "build": "node scripts/astro-no-telemetry.mjs check && node scripts/astro-no-telemetry.mjs build",
     "check": "node scripts/astro-no-telemetry.mjs check",
