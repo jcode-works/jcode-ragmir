@@ -1087,7 +1087,7 @@ program
 
 program
   .command("status")
-  .description("Show active configuration and index row count.")
+  .description("Show active configuration, readiness, corpus fingerprint, and index counts.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
@@ -1138,6 +1138,7 @@ program
       legacyWordTimeoutMs: config.legacyWordTimeoutMs,
       manifestFound: manifest !== null,
       ready,
+      corpusFingerprint: manifest?.corpusFingerprint ?? null,
       indexFreshnessWarning: freshnessWarning,
       indexedFiles: manifest?.fileCount ?? 0,
       chunksIndexed: manifest?.chunkCount ?? 0,
@@ -1180,6 +1181,7 @@ program
     console.log(`legacyWordTimeoutMs=${config.legacyWordTimeoutMs}`)
     console.log(`manifestFound=${manifest !== null}`)
     console.log(`ready=${ready}`)
+    console.log(`corpusFingerprint=${manifest?.corpusFingerprint ?? "unavailable"}`)
     console.log(`indexedFiles=${manifest?.fileCount ?? 0}`)
     console.log(`chunksIndexed=${manifest?.chunkCount ?? 0}`)
     if (freshnessWarning) {
@@ -1954,6 +1956,7 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`chunksIndexed=${report.chunksIndexed}`)
   console.log(`missingFromIndex=${report.missingFromIndex}`)
   console.log(`staleInIndex=${report.staleInIndex}`)
+  console.log(`corpusFingerprint=${report.corpusFingerprint ?? "unavailable"}`)
   console.log(`securityWarnings=${report.securityWarnings.length}`)
   if (report.securityWarnings.length > 0) {
     for (const warning of report.securityWarnings) {

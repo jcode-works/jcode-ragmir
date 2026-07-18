@@ -153,6 +153,7 @@ export async function doctorWithConfig(
     chunksIndexed,
     missingFromIndex,
     staleInIndex,
+    corpusFingerprint: manifest?.corpusFingerprint ?? null,
     securityWarnings,
     indexFreshness,
     ready: operationalReady && indexPolicyCurrent && privacyCompliant,

@@ -10,6 +10,7 @@ import {
   readIngestionState,
   writeIngestionState,
 } from "../dist/ingestion-state.js"
+import { summarizeIndexedCorpus } from "../dist/quality-report.js"
 import { writeIndexManifest } from "../dist/store.js"
 
 const fileCount = positiveInteger(process.argv[2], "fileCount")
@@ -53,6 +54,7 @@ try {
     fileRows: generatedFileRows(state.files, chunksPerFile),
   })
   recordRss("validated", rssCheckpoints)
+  const corpus = summarizeIndexedCorpus(manifestFiles(state.files))
   await writeIndexManifest(
     {
       schemaVersion: 8,
@@ -62,8 +64,9 @@ try {
       embeddingModel: "benchmark",
       chunkSize: 1_200,
       chunkOverlap: 200,
-      fileCount,
-      chunkCount,
+      fileCount: corpus.fileCount,
+      chunkCount: corpus.chunkCount,
+      corpusFingerprint: corpus.corpusFingerprint,
       tableName: config.tableName,
     },
     config,
@@ -77,6 +80,7 @@ try {
       peakRssKiB: usage.maxRSS,
       peakRssBytes: usage.maxRSS * 1_024,
       wallMs: performance.now() - startedAt,
+      corpusFingerprint: corpus.corpusFingerprint,
       rssCheckpoints,
       progress,
     })}\n`,

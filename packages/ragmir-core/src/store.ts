@@ -522,6 +522,9 @@ function isIndexManifest(
     typeof value.chunkOverlap === "number" &&
     typeof value.fileCount === "number" &&
     typeof value.chunkCount === "number" &&
+    (!("corpusFingerprint" in value) ||
+      (typeof value.corpusFingerprint === "string" &&
+        /^[0-9a-f]{64}$/u.test(value.corpusFingerprint))) &&
     (!("tableName" in value) || typeof value.tableName === "string") &&
     (!("indexedFiles" in value) ||
       (Array.isArray(value.indexedFiles) && value.indexedFiles.every(isIndexManifestFile))) &&

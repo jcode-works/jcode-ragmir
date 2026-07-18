@@ -536,6 +536,20 @@ describe("index manifest", () => {
     expect(await readIndexManifest(config)).toBeNull()
   })
 
+  it("should reject a malformed optional corpus fingerprint", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-index-manifest-fingerprint-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await mkdir(config.storageDir, { recursive: true })
+    await writeFile(
+      path.join(config.storageDir, INDEX_MANIFEST_FILENAME),
+      JSON.stringify({ ...sampleManifest, corpusFingerprint: "invalid" }),
+      "utf8",
+    )
+
+    expect(await readIndexManifest(config)).toBeNull()
+  })
+
   it.each([
     { phase: "before-write" as const, selected: "old" as const },
     { phase: "before-sync" as const, selected: "old" as const },

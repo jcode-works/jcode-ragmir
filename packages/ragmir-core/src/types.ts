@@ -161,7 +161,8 @@ export interface VectorIndexManifest {
  * Manifest written next to the LanceDB table at each ingest. It captures the
  * configuration that produced the indexed vectors so callers can detect a
  * stale index cheaply (without re-scanning every file's checksum) when the
- * embedding model, provider, chunking, or Ragmir schema has changed.
+ * embedding model, provider, chunking, or Ragmir schema has changed. The
+ * corpus fingerprint identifies indexed relative paths and source bytes.
  */
 export interface IndexManifest {
   schemaVersion: number
@@ -179,6 +180,7 @@ export interface IndexManifest {
   chunkOverlap: number
   fileCount: number
   chunkCount: number
+  corpusFingerprint?: string
   tableName?: string
   indexedFiles?: IndexManifestFile[]
   staleFiles?: IndexManifestStaleFile[]
@@ -575,6 +577,7 @@ export interface KnowledgeBaseContextReport {
   privacyProfile: PrivacyProfile
   retrievalProfile: RetrievalProfile
   embeddingProvider: EmbeddingProvider
+  corpusFingerprint: string | null
   ready: boolean
   coverage: {
     supportedFiles: number
@@ -1066,6 +1069,7 @@ export interface DoctorReport {
   chunksIndexed: number
   missingFromIndex: number
   staleInIndex: number
+  corpusFingerprint: string | null
   securityWarnings: string[]
   indexFreshness: {
     manifestFound: boolean

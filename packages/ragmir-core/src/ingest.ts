@@ -43,6 +43,7 @@ import {
 } from "./ingestion-state.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
+import { summarizeIndexedCorpus } from "./quality-report.js"
 import { redactDocument, totalRedactions } from "./redaction.js"
 import { securityAuditWithConfig } from "./security.js"
 import type { StorageMaintenanceReport } from "./storage-maintenance.js"
@@ -683,12 +684,7 @@ async function manifestForState(
   config: Config,
   connection: Connection | undefined,
 ): Promise<IndexManifest> {
-  let fileCount = 0
-  let chunkCount = 0
-  for (const file of indexedFilesFromState(state)) {
-    fileCount += 1
-    chunkCount += file.chunkCount
-  }
+  const corpus = summarizeIndexedCorpus(indexedFilesFromState(state))
   const staleFiles = state.files
     .flatMap((file) =>
       file.staleLastKnownGood && file.lastGoodChecksum !== null && file.error !== null
@@ -706,7 +702,7 @@ async function manifestForState(
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
   const table = await openRowsTableByName(state.tableName, config, connection)
   const [firstRow] = table ? ((await table.query().limit(1).toArray()) as VectorRow[]) : []
-  if (chunkCount > 0 && !firstRow) {
+  if (corpus.chunkCount > 0 && !firstRow) {
     throw new Error("Cannot write an index manifest without indexed rows.")
   }
   return {
@@ -722,8 +718,9 @@ async function manifestForState(
     vectorDistanceMetric: VECTOR_DISTANCE_METRIC,
     chunkSize: config.chunkSize,
     chunkOverlap: config.chunkOverlap,
-    fileCount,
-    chunkCount,
+    fileCount: corpus.fileCount,
+    chunkCount: corpus.chunkCount,
+    corpusFingerprint: corpus.corpusFingerprint,
     tableName: state.tableName,
     ...(staleFiles.length > 0 ? { staleFiles } : {}),
   }

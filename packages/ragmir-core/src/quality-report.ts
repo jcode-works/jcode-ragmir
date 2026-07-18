@@ -3,7 +3,13 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { isRecord } from "./guards.js"
 import { rankingPolicyFingerprint, rankingPolicyFor } from "./ranking.js"
-import type { Config, IndexManifest, IndexQualityReport, QualityMetricThresholds } from "./types.js"
+import type {
+  Config,
+  IndexManifest,
+  IndexManifestFile,
+  IndexQualityReport,
+  QualityMetricThresholds,
+} from "./types.js"
 
 export function fingerprintIndexManifest(manifest: IndexManifest): string {
   return sha256(
@@ -26,6 +32,26 @@ export function fingerprintIndexManifest(manifest: IndexManifest): string {
       staleFiles: manifest.staleFiles ?? [],
     }),
   )
+}
+
+export function summarizeIndexedCorpus(files: Iterable<IndexManifestFile>): {
+  fileCount: number
+  chunkCount: number
+  corpusFingerprint: string
+} {
+  const digest = createHash("sha256")
+  let fileCount = 0
+  let chunkCount = 0
+  digest.update("ragmir-indexed-corpus-v1\0")
+  for (const file of files) {
+    fileCount += 1
+    chunkCount += file.chunkCount
+    digest.update(`${Buffer.byteLength(file.relativePath, "utf8")}:`)
+    digest.update(file.relativePath, "utf8")
+    digest.update(`${Buffer.byteLength(file.checksum, "utf8")}:`)
+    digest.update(file.checksum, "utf8")
+  }
+  return { fileCount, chunkCount, corpusFingerprint: digest.digest("hex") }
 }
 
 export async function fingerprintFile(filePath: string, signal?: AbortSignal): Promise<string> {

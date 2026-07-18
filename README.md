@@ -143,12 +143,18 @@ developer the same source folder through a tool such as the Google Drive desktop
 script, keep the Ragmir version, configuration, embedding provider, and model aligned, then ingest
 locally. The result is an equivalent local index on each workstation, not a shared database.
 
-Always sync before `rgr ingest`, then run `rgr audit`. A missing, partially synced, or extra file in
-the selected raw or source folder makes that developer's index diverge. Ragmir hashes content on
-first discovery and whenever file identity or metadata changes. Set `sourceFingerprintMode` to
-`strict` when every inventory must reread every byte, including when a sync tool preserves metadata.
-Teams can automate setup with `initProject`, `addSourceEntries`, and `createRagmirClient`; Ragmir
-remains the local retrieval layer, not the synchronization layer.
+Keep shared source configuration stable: version directory or glob contracts, not a generated list
+of files that changes according to which sibling repositories exist on one machine. Always sync
+before `rgr ingest`, then run `rgr audit` and compare `corpusFingerprint` from `rgr status --json`.
+Only treat matching fingerprints as proof when both indexes report `ready=true` with no missing or
+stale files. The fingerprint covers sorted project-relative paths and source-content checksums, so
+checkout roots, timestamps, and local index layout do not affect it. A missing, partially synced,
+extra, renamed, or changed indexed file does.
+
+Set `sourceFingerprintMode` to `strict` when every inventory must reread every byte, including when
+a sync tool preserves metadata. Teams can automate setup with `initProject`, `addSourceEntries`, and
+`createRagmirClient`; Ragmir remains the local retrieval layer, not the synchronization layer. Never
+synchronize an actively written `.ragmir/storage/` directory.
 
 ### Audit a knowledge base
 

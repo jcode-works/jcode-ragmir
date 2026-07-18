@@ -39,11 +39,40 @@ describe("context resources", () => {
 
     expect(context.knowledgeBaseId).toBe(".")
     expect(context.ready).toBe(true)
+    expect(context.corpusFingerprint).toMatch(/^[0-9a-f]{64}$/u)
     expect(context.coverage.indexedFiles).toBe(1)
     expect(context.coverage.chunksIndexed).toBeGreaterThan(0)
     expect(context.routing.discoverCommand).toBe("rgr bases --json")
     expect(context.tools).toContain("ragmir_search")
     expect(context.resources).toEqual(["ragmir://context", "ragmir://sources"])
+  })
+
+  it("should match corpus fingerprints across independent roots with identical files", async () => {
+    const firstRoot = await mkdtemp(path.join(os.tmpdir(), "ragmir-corpus-first-"))
+    const secondRoot = await mkdtemp(path.join(os.tmpdir(), "ragmir-corpus-second-"))
+    tempDirs.push(firstRoot, secondRoot)
+    await Promise.all([initProject(firstRoot), initProject(secondRoot)])
+    const firstPath = path.join(".ragmir", "raw", "a-policy.md")
+    const secondPath = path.join(".ragmir", "raw", "z-decision.md")
+    await writeFile(path.join(firstRoot, firstPath), "Shared local policy.\n", "utf8")
+    await writeFile(path.join(firstRoot, secondPath), "Shared local decision.\n", "utf8")
+    await writeFile(path.join(secondRoot, secondPath), "Shared local decision.\n", "utf8")
+    await writeFile(path.join(secondRoot, firstPath), "Shared local policy.\n", "utf8")
+    await Promise.all([ingest({ cwd: firstRoot }), ingest({ cwd: secondRoot })])
+
+    const first = await getKnowledgeBaseContext(firstRoot)
+    const second = await getKnowledgeBaseContext(secondRoot)
+
+    expect(first.ready).toBe(true)
+    expect(second.ready).toBe(true)
+    expect(second.corpusFingerprint).toBe(first.corpusFingerprint)
+
+    await writeFile(path.join(secondRoot, secondPath), "Different local decision.\n", "utf8")
+    await ingest({ cwd: secondRoot })
+
+    expect((await getKnowledgeBaseContext(secondRoot)).corpusFingerprint).not.toBe(
+      first.corpusFingerprint,
+    )
   })
 
   it("should cap source details while preserving complete totals", async () => {

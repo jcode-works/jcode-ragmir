@@ -41,6 +41,20 @@ custom extensions at 128, redaction patterns at 64, and external commands at 128
 `mcpMaxOutputBytes` cannot exceed 1 MiB. Invalid environment overrides fail configuration loading
 with the variable name instead of silently reverting to a different value.
 
+### Stable team source configuration
+
+Keep a shared source contract stable across workstations. Prefer canonical directories and globs,
+such as `../design-system/docs/**/*.md`, over a script that expands the files currently present and
+rewrites a tracked configuration file. A missing sibling repository should produce an explicit
+local coverage difference, not permanent configuration churn in Git.
+
+The active `.ragmir/config.json` stays local and ignored. A project can version its own template,
+copy that template locally, and keep machine-specific discovery outside the tracked file. After
+source synchronization, ingest locally and compare `corpusFingerprint` from `rgr status --json`.
+Matching fingerprints prove the indexed relative paths and source bytes are the same only when both
+indexes are ready and report no missing or stale files. Keep the Ragmir version, configuration,
+embedding provider, and model aligned separately.
+
 ### Workload admission
 
 Ragmir keeps independent process-local queues per project root. Search defaults to 8 active and 64

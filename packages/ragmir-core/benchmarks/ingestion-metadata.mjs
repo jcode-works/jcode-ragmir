@@ -54,6 +54,7 @@ const report = {
     worker.peakRssBytes <= budgetBytes &&
     worker.progress.totalFiles === fileCount &&
     worker.progress.chunksIndexed === fileCount * chunksPerFile &&
+    /^[0-9a-f]{64}$/u.test(worker.corpusFingerprint) &&
     (scaling?.passed ?? true),
 }
 

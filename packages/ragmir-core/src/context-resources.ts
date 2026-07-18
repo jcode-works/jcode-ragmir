@@ -53,6 +53,7 @@ export async function getKnowledgeBaseContextWithConfig(
     privacyProfile: config.privacyProfile,
     retrievalProfile: config.retrievalProfile,
     embeddingProvider: config.embeddingProvider,
+    corpusFingerprint: report.corpusFingerprint,
     ready: report.ready,
     coverage: {
       supportedFiles: report.supportedFiles,

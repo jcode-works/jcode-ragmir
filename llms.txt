@@ -69,7 +69,10 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
 - Team use: Ragmir has no built-in cloud sync. Synchronize the same source-of-truth folder with an
   existing tool such as Google Drive or a team script, align the version, configuration, embedding
   provider, and model, then ingest and audit on each workstation. Missing, partial, or extra files
-  produce different local indexes; never treat `.ragmir/storage/` as a shared database.
+  produce different local indexes. Version stable directory or glob contracts instead of generated
+  machine-specific file lists. Compare `corpusFingerprint` only when both indexes are ready with no
+  missing or stale files; matching values prove the same indexed relative paths and source bytes.
+  Never treat `.ragmir/storage/` as a shared database.
 - MCP resources: `ragmir://context` gives bounded readiness and capability context;
   `ragmir://sources` gives capped source detail with complete totals.
 - MCP safety: all ten tools advertise non-destructive behavior; every tool and resource JSON

@@ -63,9 +63,14 @@ First confirm source coverage with `rgr audit`. Then try a specific query, `--co
 ## Team members get different results
 
 Confirm the shared source folder finished synchronizing, then compare the Ragmir version,
-configuration, embedding provider, model, and `rgr sources list` output. Missing, partial, or extra
-files create different local indexes. Run `rgr ingest` and `rgr audit` after synchronization; do not
-share an actively written `.ragmir/storage/` directory.
+configuration, embedding provider, model, and `rgr sources list` output. Run `rgr ingest` and
+`rgr audit`, then compare `corpusFingerprint` from `rgr status --json`. Matching values prove the
+same indexed relative paths and source bytes only when both reports have `ready=true` and zero
+missing or stale files. A different value identifies corpus divergence, not which machine is
+correct. Keep tracked config based on stable directories or globs, not a generated enumeration of
+locally present files. Do not share an actively written `.ragmir/storage/` directory.
+If an index created before corpus fingerprints were introduced reports `null`, run `rgr ingest`
+once with the current Ragmir version to write the fingerprint into its local manifest.
 
 ## Strict audit fails
 

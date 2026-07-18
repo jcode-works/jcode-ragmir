@@ -67,11 +67,16 @@ truth folder with an existing tool, for example the Google Drive desktop app or 
 let each developer build a local index. Keep the Ragmir version, configuration, embedding provider,
 and model aligned so those indexes remain equivalent.
 
-Sync before `rgr ingest`, then check `rgr audit`. Missing, partial, or extra files in a selected raw
-or source folder create different local evidence. Do not synchronize `.ragmir/storage/` between
-active writers. A team bootstrap can call `initProject`, `addSourceEntries`, and
-`createRagmirClient`, but the application or sync tool remains responsible for distributing the
-source files.
+Version stable directory or glob contracts instead of rewriting a tracked config with the files
+found on the current machine. Sync before `rgr ingest`, check `rgr audit`, then compare the
+`corpusFingerprint` returned by `rgr status --json`, `status()`, or `ragmir_status`. Matching values
+prove the same indexed relative paths and source bytes only when both reports are ready with no
+missing or stale files. Missing, partial, extra, renamed, or changed indexed files produce different
+values. Absolute checkout roots, timestamps, and local index layout do not.
+
+Do not synchronize `.ragmir/storage/` between active writers. A team bootstrap can call
+`initProject`, `addSourceEntries`, and `createRagmirClient`, but the application or sync tool remains
+responsible for distributing the source files.
 
 ## MCP tools
 

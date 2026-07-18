@@ -314,6 +314,11 @@ try {
   if (typeof statusJson.chunksIndexed !== "number" || statusJson.chunksIndexed <= 0) {
     throw new Error(`status --json should expose chunksIndexed, got ${statusJson.chunksIndexed}`)
   }
+  if (!/^[0-9a-f]{64}$/u.test(statusJson.corpusFingerprint)) {
+    throw new Error(
+      `status --json should expose corpusFingerprint, got ${statusJson.corpusFingerprint}`,
+    )
+  }
   if (statusJson.knowledgeBaseId !== ".") {
     throw new Error(
       `status --json should identify the active root base, got ${statusJson.knowledgeBaseId}`,
@@ -324,6 +329,12 @@ try {
       `status --json should expose mcpMaxOutputBytes, got ${statusJson.mcpMaxOutputBytes}`,
     )
   }
+  const statusText = (await runKb(["status"], tempRoot)).stdout
+  assertIncludes(
+    statusText,
+    `corpusFingerprint=${statusJson.corpusFingerprint}`,
+    "status should expose corpusFingerprint",
+  )
 
   const limitsJson = parseJson((await runKb(["limits", "--json"], tempRoot)).stdout, "limits JSON")
   if (

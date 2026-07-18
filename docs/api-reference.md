@@ -106,9 +106,12 @@ it. A dead local owner is recovered automatically, while bounded contention retu
 Cancellation is cooperative between filesystem, parsing, embedding, storage, retrieval, and
 diagnostic phases.
 
-`status()` reads compact manifest health without opening the vector table. `sources({ offset,
-limit })` streams only the requested page from the manifest file snapshot; `limit` defaults to 50
-and is capped at 100. Totals remain complete, and `page.nextOffset` is `null` on the final page.
+`status()` reads compact manifest health, including the local `corpusFingerprint`, without opening
+the vector table. The fingerprint identifies sorted indexed relative paths and source bytes while
+excluding absolute roots, timestamps, and index layout. Compare it only when both status reports are
+ready with no missing or stale files. `sources({ offset, limit })` streams only the requested page
+from the manifest file snapshot; `limit` defaults to 50 and is capped at 100. Totals remain complete,
+and `page.nextOffset` is `null` on the final page.
 
 `RagmirError.code` is one of `ABORTED`, `CLIENT_CLOSED`, `INDEX_BUSY`, `INTERNAL`,
 `INVALID_ARGUMENT`, `OVERLOADED`, or `TIMEOUT`. `retryable` is true for cancellation, timeout,

@@ -20,11 +20,13 @@ interface McpStatusOutput {
   redactionEnabled: boolean
   mcpMaxTopK: number
   mcpMaxOutputBytes: number
+  ready: boolean
+  corpusFingerprint: string | null
   chunksIndexed: number
 }
 
 export function compactStatusOutput(value: McpStatusOutput): CompactJsonValue {
-  const omittedFields = Math.max(0, Object.keys(value).length - 10)
+  const omittedFields = Math.max(0, Object.keys(value).length - 12)
   return {
     value: {
       knowledgeBaseId: value.knowledgeBaseId,
@@ -36,6 +38,8 @@ export function compactStatusOutput(value: McpStatusOutput): CompactJsonValue {
       redactionEnabled: value.redactionEnabled,
       mcpMaxTopK: value.mcpMaxTopK,
       mcpMaxOutputBytes: value.mcpMaxOutputBytes,
+      ready: value.ready,
+      corpusFingerprint: value.corpusFingerprint,
       chunksIndexed: value.chunksIndexed,
       omittedFields,
     },
@@ -65,6 +69,7 @@ export function compactContextOutput(value: KnowledgeBaseContextReport): Compact
       knowledgeBaseId: value.knowledgeBaseId,
       privacyProfile: value.privacyProfile,
       retrievalProfile: value.retrievalProfile,
+      corpusFingerprint: value.corpusFingerprint,
       ready: value.ready,
       coverage: value.coverage,
       indexFreshness: value.indexFreshness,

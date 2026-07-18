@@ -87,6 +87,7 @@ describe("doctor", () => {
     )
     expect(ready.indexFreshness.manifestFound).toBe(true)
     expect(ready.indexFreshness.warning).toBeNull()
+    expect(ready.corpusFingerprint).toMatch(/^[0-9a-f]{64}$/u)
     expect(ready.readiness).toEqual(
       expect.objectContaining({
         operationalReady: true,

@@ -319,7 +319,8 @@ describe("MCP protocol contract", () => {
     const { client } = await connectTestClient(root)
 
     const status = await jsonToolResult(client, "ragmir_status", {})
-    expect(status).toMatchObject({ chunksIndexed: 1 })
+    expect(status).toMatchObject({ chunksIndexed: 1, ready: true })
+    expect(status.corpusFingerprint).toMatch(/^[0-9a-f]{64}$/u)
 
     const route = await jsonToolResult(client, "ragmir_route_prompt", {
       prompt: "Use Ragmir to find cited evidence in this local repository about release policy.",

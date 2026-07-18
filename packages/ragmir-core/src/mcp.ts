@@ -315,7 +315,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_status",
     {
       title: "Ragmir Status",
-      description: "Show active Ragmir configuration and indexed chunk count.",
+      description: "Show active Ragmir configuration, readiness, corpus fingerprint, and counts.",
       inputSchema: z.object({}).strict(),
       annotations: LOCAL_NON_DESTRUCTIVE_TOOL_ANNOTATIONS,
     },
@@ -362,6 +362,8 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         legacyWordCommand: config.legacyWordCommand,
         legacyWordTimeoutMs: config.legacyWordTimeoutMs,
         ingestionLimits: ingestionLimits(config),
+        ready: context.ready,
+        corpusFingerprint: context.corpusFingerprint,
         chunksIndexed: context.coverage.chunksIndexed,
       }
 
