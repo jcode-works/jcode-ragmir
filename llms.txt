@@ -8,6 +8,8 @@ the corpus, and calls no model.
 ## Core facts
 
 - Install: `pnpm add -D @jcode.labs/ragmir`
+- Licensing: v3.0.0 and later use AGPL-3.0-only. JCode Works offers a separate commercial license
+  for proprietary use, while earlier releases keep their published license.
 - Agent-guided setup: use the canonical English prompt in
   https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/quick-start.md
 - First use: `pnpm exec rgr setup && pnpm exec rgr ingest`

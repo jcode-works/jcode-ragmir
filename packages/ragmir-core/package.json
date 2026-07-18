@@ -3,7 +3,7 @@
   "version": "0.4.12",
   "description": "Confidential local RAG for coding agents, with offline cited retrieval through CLI, MCP, and TypeScript.",
   "type": "module",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "author": {
     "name": "Jean-Baptiste Thery",
     "url": "https://github.com/jb-thery"
@@ -56,7 +56,10 @@
     "dist",
     "skills",
     "examples",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "COMMERCIAL-LICENSE.md",
+    "NOTICE"
   ],
   "publishConfig": {
     "access": "public"

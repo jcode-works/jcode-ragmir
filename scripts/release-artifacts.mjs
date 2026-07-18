@@ -9,6 +9,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const artifactsDir = path.join(repoRoot, "release-artifacts")
 const corePackageDir = "packages/ragmir-core"
 const packageDirs = ["packages/ragmir-tts", "packages/ragmir-chat", corePackageDir]
+const requiredLicenseFiles = ["LICENSE", "COMMERCIAL-LICENSE.md", "NOTICE"]
 const corePackageJson = await readPackageJson(corePackageDir)
 
 await rm(artifactsDir, { recursive: true, force: true })
@@ -17,12 +18,24 @@ await mkdir(artifactsDir, { recursive: true })
 const packages = []
 for (const directory of packageDirs) {
   const manifest = await readPackageJson(directory)
+  if (manifest.license !== "AGPL-3.0-only") {
+    throw new Error(`${manifest.name} must declare AGPL-3.0-only before release`)
+  }
   const pack = run(
     "pnpm",
     ["pack", "--json", "--pack-destination", artifactsDir],
     packagePath(directory),
   )
   const packed = JSON.parse(pack.stdout)
+  const packedEntry = Array.isArray(packed) ? packed[0] : packed
+  const packedFiles = new Set(
+    Array.isArray(packedEntry?.files) ? packedEntry.files.map((file) => file.path) : [],
+  )
+  for (const requiredFile of requiredLicenseFiles) {
+    if (!packedFiles.has(requiredFile)) {
+      throw new Error(`${manifest.name} tarball is missing ${requiredFile}`)
+    }
+  }
   const tarball = tarballFilename(packed)
   if (!tarball) {
     throw new Error(
