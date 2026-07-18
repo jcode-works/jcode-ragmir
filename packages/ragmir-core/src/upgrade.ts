@@ -13,6 +13,8 @@ export interface UpgradeInspection {
   runtimeRagmirVersion: string
   indexedWithRagmirVersion: string | null
   ready: boolean
+  privacyCompliant: boolean
+  advisories: string[]
   reason: string | null
   recommendedCommand: "rgr upgrade"
   safeActivation: boolean
@@ -42,7 +44,9 @@ export async function inspectUpgrade(cwd = process.cwd()): Promise<UpgradeInspec
     status,
     runtimeRagmirVersion: VERSION,
     indexedWithRagmirVersion: manifest?.ragmirVersion ?? null,
-    ready: report.ready,
+    ready: status === "current",
+    privacyCompliant: report.readiness.privacyCompliant,
+    advisories: report.securityWarnings,
     reason: upgradeReason(report, status),
     recommendedCommand: "rgr upgrade",
     safeActivation: true,
@@ -86,7 +90,7 @@ function upgradeStatus(report: DoctorReport, manifestFound: boolean): UpgradeSta
   if (!report.readiness.indexPolicyCurrent) {
     return "rebuild-required"
   }
-  if (!report.ready) {
+  if (!report.readiness.operationalReady) {
     return "repair-required"
   }
   return "current"

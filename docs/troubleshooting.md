@@ -90,6 +90,9 @@ activates. If the process is interrupted, rerun the command to resume; do not de
 `.ragmir/storage/` first. A long-running host can keep its already loaded runtime serving during the
 rebuild, then restart or cut over once the upgrade reports `status=current` and `ready=true`. Use
 `rgr doctor --fix` for the same repair flow when setup or agent helpers also need attention.
+`privacyCompliant=false` and `advisory=...` can accompany `status=current`: retrieval is compatible,
+but a separate local security control still needs review. Run `rgr security-audit` for the exact
+follow-up instead of deleting a healthy index.
 
 ## Strict audit fails
 

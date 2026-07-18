@@ -78,6 +78,33 @@ describe("upgrade continuity", () => {
     })
   }, 20_000)
 
+  it("should report privacy warnings as non-blocking upgrade advisories", async () => {
+    const root = await upgradeFixture()
+    const config = await loadConfig(root)
+    const currentManifest = await readIndexManifest(config)
+    if (!currentManifest?.health) {
+      throw new Error("Expected an index health snapshot.")
+    }
+    const warning = "A configured local extractor executes with operator authority."
+    await writeIndexManifest(
+      {
+        ...currentManifest,
+        health: { ...currentManifest.health, securityWarnings: [warning] },
+      },
+      config,
+      currentManifest.indexedFiles,
+    )
+
+    await expect(inspectUpgrade(root)).resolves.toMatchObject({
+      status: "current",
+      ready: true,
+      privacyCompliant: false,
+      advisories: [warning],
+      reason: null,
+    })
+    await expect(search("continuity", { cwd: root })).resolves.toHaveLength(1)
+  }, 20_000)
+
   it("should stage a rebuild when an old index has no compatible manifest", async () => {
     const root = await upgradeFixture()
     const config = await loadConfig(root)
