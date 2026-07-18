@@ -19,6 +19,12 @@
 - Long-running Node.js processes use one `RagmirClient` per project root and close it during shutdown. Keep the top-level API for one-shot scripts.
 - Ragmir does not provide an HTTP server or fixed port. A network-facing host owns transport security, authentication, authorization, and rate limits.
 - Index writers are serialized across local OS processes through a private lock under `storageDir`; do not claim a distributed or shared-network-filesystem lock.
+- Team diagnostics exchange explicit metadata-only snapshots of relative paths, checksums, readiness,
+  versions, and configuration. Never include source text or absolute project paths, choose an
+  authoritative copy, or modify peer sources during comparison.
+- Package upgrades must preserve the last validated index until an incompatible replacement passes
+  staged-generation validation and activates atomically. Older configs keep safe defaults; never
+  require deleting `.ragmir/storage/` as the first repair step.
 - Public copy must lead with model-agnostic Core and the choice between the user's preferred AI or automation and a fully local consumer. Qwen and Gemma are optional Chat profiles, never Core or MCP requirements.
 
 ## Privacy and ingestion

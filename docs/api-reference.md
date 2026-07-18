@@ -120,6 +120,21 @@ overload, and busy-index errors. `isRagmirError(error)` narrows
 unknown failures, while `normalizeRagmirError(error)` preserves Ragmir errors and converts other
 failures into an `INTERNAL` `RagmirError` with the original cause.
 
+### Team diagnostics and upgrades
+
+`createTeamSnapshot({ cwd, label })` returns the same privacy-bounded snapshot as the CLI.
+`writeTeamSnapshot`, `readTeamSnapshot`, and `compareTeamSnapshots` support typed automation around
+the schema-validated exchange. A comparison returns exact configuration differences, local-only,
+peer-only, and changed paths plus recommended actions. It never includes source text or chooses an
+authoritative copy.
+
+`inspectUpgrade(cwd)` reports whether an index is current, missing, incompatible, or needs repair.
+`upgradeProject({ cwd })` refreshes managed helpers and safely ingests or rebuilds before returning
+the final doctor report. Call it after updating the package and before accepting retrieval on the
+new runtime. Rebuild activation never deletes the previous validated generation first. A host that
+needs uninterrupted retrieval can keep its already loaded runtime serving, then restart or cut over
+after the upgrade returns `status: "current"` and `ready: true`.
+
 The lock is local-machine coordination, not a distributed lock. Do not share one writable index
 directory across hosts or a network filesystem; build one local index per machine instead.
 
@@ -315,6 +330,8 @@ types that callers commonly compose explicitly.
 | Operations | `RagmirClientOptions`, `OperationOptions`, `DoctorOptions`, `SecurityAuditOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
 | Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `ExtractPdfPagesOptions`, `ExtractPdfPagesResult`, `PdfOcrMetrics`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
 | Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
+| Team diagnostics | `CreateTeamSnapshotOptions`, `TeamSnapshot`, `TeamSnapshotFile`, `TeamComparison`, `TeamComparisonStatus`, `TeamConfigurationDifference`, `TeamChangedFile` |
+| Upgrades | `UpgradeInspection`, `UpgradeOptions`, `UpgradeResult`, `UpgradeStatus` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |
 
 ## Chat: cited local generation

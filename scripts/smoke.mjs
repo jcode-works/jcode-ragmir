@@ -329,6 +329,35 @@ try {
       `status --json should expose mcpMaxOutputBytes, got ${statusJson.mcpMaxOutputBytes}`,
     )
   }
+  const teamSnapshotPath = path.join(tempRoot, ".ragmir", "team", "smoke.json")
+  const teamSnapshot = await runKb(
+    ["team", "snapshot", "--label", "smoke", "--output", teamSnapshotPath],
+    tempRoot,
+  )
+  assertIncludes(teamSnapshot.stdout, "Team snapshot ready.", "team snapshot should be created")
+  const teamComparison = parseJson(
+    (
+      await runKb(
+        ["team", "compare", teamSnapshotPath, "--local-label", "smoke", "--strict", "--json"],
+        tempRoot,
+      )
+    ).stdout,
+    "team comparison JSON",
+  )
+  if (!teamComparison.synchronized || teamComparison.status !== "synchronized") {
+    throw new Error(
+      `team comparison should confirm identical indexes, got ${JSON.stringify(teamComparison)}`,
+    )
+  }
+  const upgradeInspection = parseJson(
+    (await runKb(["upgrade", "--check", "--json"], tempRoot)).stdout,
+    "upgrade inspection JSON",
+  )
+  if (upgradeInspection.status !== "current" || upgradeInspection.ready !== true) {
+    throw new Error(
+      `upgrade --check should report a current index, got ${JSON.stringify(upgradeInspection)}`,
+    )
+  }
   const statusText = (await runKb(["status"], tempRoot)).stdout
   assertIncludes(
     statusText,
