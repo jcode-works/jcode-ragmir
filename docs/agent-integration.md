@@ -74,6 +74,10 @@ prove the same indexed relative paths and source bytes only when both reports ar
 missing or stale files. Missing, partial, extra, renamed, or changed indexed files produce different
 values. Absolute checkout roots, timestamps, and local index layout do not.
 
+Use `sourceFingerprintMode: "strict"` when a synchronization tool can preserve file metadata while
+replacing its content. Older manifests return a `null` fingerprint until the next successful
+ingestion.
+
 Do not synchronize `.ragmir/storage/` between active writers. A team bootstrap can call
 `initProject`, `addSourceEntries`, and `createRagmirClient`, but the application or sync tool remains
 responsible for distributing the source files.

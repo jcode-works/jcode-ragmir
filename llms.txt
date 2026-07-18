@@ -72,7 +72,9 @@ Public subtagline: **Stop sending confidential documents directly to the cloud.*
   produce different local indexes. Version stable directory or glob contracts instead of generated
   machine-specific file lists. Compare `corpusFingerprint` only when both indexes are ready with no
   missing or stale files; matching values prove the same indexed relative paths and source bytes.
-  Never treat `.ragmir/storage/` as a shared database.
+  Use `sourceFingerprintMode: "strict"` when a sync tool can preserve metadata while replacing
+  content. Never treat `.ragmir/storage/` as a shared database. Older manifests expose a `null`
+  fingerprint until the next successful ingestion.
 - MCP resources: `ragmir://context` gives bounded readiness and capability context;
   `ragmir://sources` gives capped source detail with complete totals.
 - MCP safety: all ten tools advertise non-destructive behavior; every tool and resource JSON

@@ -125,7 +125,13 @@ warm output remains identical without launching OCR subprocesses.
 Core installs and starts without either add-on. A hosted agent receives only the passages your
 integration gives it, under that provider's data policy. Use a local consumer when no passage may
 leave the workstation. Ragmir has no hosted storage or cloud-sync layer; teams synchronize source
-files separately and build one local index per developer.
+files separately and build one local index per developer. Keep shared directory or glob contracts
+stable, align the Ragmir version, configuration, embedding provider, and model, then compare
+`corpusFingerprint` from `rgr status --json` after both indexes are ready with no missing or stale
+files. Matching values identify the same indexed relative paths and source bytes. Use
+`sourceFingerprintMode: "strict"` when a synchronization tool can preserve metadata while replacing
+content, and never share an actively written `.ragmir/storage/` directory. Older manifests expose a
+`null` fingerprint until the next successful ingestion.
 
 Read the [configuration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md),
 [security hardening guide](https://github.com/jcode-works/jcode-ragmir/blob/main/SECURITY-HARDENING.md),

@@ -53,7 +53,8 @@ copy that template locally, and keep machine-specific discovery outside the trac
 source synchronization, ingest locally and compare `corpusFingerprint` from `rgr status --json`.
 Matching fingerprints prove the indexed relative paths and source bytes are the same only when both
 indexes are ready and report no missing or stale files. Keep the Ragmir version, configuration,
-embedding provider, and model aligned separately.
+embedding provider, and model aligned separately. Use `sourceFingerprintMode: "strict"` when a
+synchronization tool can preserve file metadata while replacing its content.
 
 ### Workload admission
 

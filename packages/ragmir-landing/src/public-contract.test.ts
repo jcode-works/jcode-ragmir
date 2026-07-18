@@ -46,6 +46,15 @@ describe("landing public contract", () => {
     ).toBe(true)
   })
 
+  it("should document the team corpus equivalence safeguards in both locales", () => {
+    expect(en.faq_team_answer).toContain("corpus fingerprint")
+    expect(fr.faq_team_answer).toContain("empreinte du corpus")
+    for (const answer of [en.faq_team_answer, fr.faq_team_answer]) {
+      expect(answer).toContain("sourceFingerprintMode")
+      expect(answer).toContain(".ragmir/storage")
+    }
+  })
+
   it("should normalize localized internal URLs and preserve external URLs", () => {
     expect([
       getLocalizedUrl("team", "en"),
