@@ -86,7 +86,8 @@ Top-level `ingest`, `search`, `ask`, and `research` functions remain available f
 - `rgr team snapshot` and `rgr team compare` explain configuration and per-file drift without
   sharing source text or guessing which copy is authoritative.
 - After a package update, `rgr upgrade --check` previews compatibility; `rgr upgrade` safely stages
-  any required rebuild without deleting the active index first.
+  any required rebuild without deleting the active index first. Privacy warnings remain visible as
+  non-blocking advisories and can be handled separately with `rgr security-audit`.
 
 The [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md),
 [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md), and

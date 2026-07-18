@@ -310,9 +310,13 @@ program
           `indexedWithRagmirVersion=${inspection.indexedWithRagmirVersion ?? "unavailable"}`,
         )
         console.log(`ready=${inspection.ready}`)
+        console.log(`privacyCompliant=${inspection.privacyCompliant}`)
         console.log(`safeActivation=${inspection.safeActivation}`)
         if (inspection.reason) {
           console.log(`reason=${inspection.reason}`)
+        }
+        for (const advisory of inspection.advisories) {
+          console.log(`advisory=${advisory}`)
         }
         return
       }
@@ -329,6 +333,7 @@ program
       console.log(`runtimeRagmirVersion=${result.runtimeRagmirVersion}`)
       console.log(`indexedWithRagmirVersion=${result.indexedWithRagmirVersion ?? "unavailable"}`)
       console.log(`ready=${result.ready}`)
+      console.log(`privacyCompliant=${result.privacyCompliant}`)
       console.log(`safeActivation=${result.safeActivation}`)
       console.log(`action=${result.action}`)
       console.log(
@@ -337,6 +342,9 @@ program
       console.log(`previousIndexKeptUntilActivation=${result.previousIndexKeptUntilActivation}`)
       if (result.reason) {
         console.log(`reason=${result.reason}`)
+      }
+      for (const advisory of result.advisories) {
+        console.log(`advisory=${advisory}`)
       }
       if (!result.ready) {
         process.exitCode = 1

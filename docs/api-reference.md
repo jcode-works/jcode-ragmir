@@ -129,6 +129,8 @@ peer-only, and changed paths plus recommended actions. It never includes source 
 authoritative copy.
 
 `inspectUpgrade(cwd)` reports whether an index is current, missing, incompatible, or needs repair.
+Its `ready` field covers upgrade and retrieval continuity; `privacyCompliant` and `advisories`
+surface independent local security follow-ups without turning a compatible index into a repair.
 `upgradeProject({ cwd })` refreshes managed helpers and safely ingests or rebuilds before returning
 the final doctor report. Call it after updating the package and before accepting retrieval on the
 new runtime. Rebuild activation never deletes the previous validated generation first. A host that
