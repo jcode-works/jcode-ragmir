@@ -42,11 +42,13 @@ Release highlights:
 - make the public documentation easier to scan without losing technical depth
 
 Release details:
-- **Documentation:** shorten every README and link advanced behavior to focused guides
+- **Documentation:** shorten every README and link advanced behavior to
+  focused guides without losing the complete public context
 - **Landing:** replace the repeated hero copy with one clear product statement
 
 Verification:
-- pass the complete pnpm validate release gate`,
+- pass the complete pnpm validate release gate and preserve wrapped
+  verification evidence`,
     },
   ],
   lastRelease: { gitTag: "v0.0.0" },
@@ -65,6 +67,14 @@ for (const expectedHeading of [
 }
 assert.match(generatedNotes, /Documentation/u)
 assert.match(generatedNotes, /Landing/u)
+assert.match(
+  generatedNotes,
+  /link advanced behavior to focused guides without losing the complete public context/u,
+)
+assert.match(
+  generatedNotes,
+  /pass the complete pnpm validate release gate and preserve wrapped verification evidence/u,
+)
 assert.throws(
   () => verifyRelease({}, { commits: [{ message: "fix(core): terse release" }] }),
   /Release commits must contain/u,

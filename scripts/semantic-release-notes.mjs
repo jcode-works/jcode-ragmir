@@ -71,7 +71,16 @@ function parseSections(message) {
       activeSection = SECTION_LABELS[label]
       continue
     }
-    if (activeSection && /^-\s+\S/u.test(line)) sections[activeSection].push(line.trim())
+    if (!activeSection) continue
+    if (/^-\s+\S/u.test(line)) {
+      sections[activeSection].push(line.trim())
+      continue
+    }
+    if (/^\s{2,}\S/u.test(line)) {
+      const entries = sections[activeSection]
+      const entryIndex = entries.length - 1
+      if (entryIndex >= 0) entries[entryIndex] = `${entries[entryIndex]} ${line.trim()}`
+    }
   }
 
   return Object.values(sections).every((entries) => entries.length > 0) ? sections : null
