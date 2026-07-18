@@ -66,7 +66,7 @@ export function LanguageSwitcher({
 
   return (
     <details className="group relative">
-      <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-full border border-border px-3 font-bold text-foreground text-xs outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+      <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-border px-3 font-bold text-foreground text-xs outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
         <Globe2 aria-hidden="true" className="size-4 text-muted-foreground" />
         <span className="sr-only">{label}</span>
         <span className="hidden sm:inline">{currentLabel}</span>
@@ -76,7 +76,7 @@ export function LanguageSwitcher({
           className="size-3.5 text-muted-foreground transition group-open:rotate-180"
         />
       </summary>
-      <div className="absolute right-0 mt-2 grid min-w-36 gap-1 rounded-lg border border-border bg-card p-1.5 shadow-2xl shadow-black/50">
+      <div className="absolute right-0 mt-2 grid min-w-36 gap-1 rounded-md border border-border bg-card p-1.5 shadow-2xl shadow-black/50">
         {alternateLocales.map((entry) => (
           <a
             aria-current={entry.locale === currentLocale ? "page" : undefined}
@@ -246,7 +246,7 @@ export function LandingNavbar({
             <button
               aria-expanded={menuOpen}
               aria-label={t("nav_menu")}
-              className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-10 items-center justify-center rounded-md border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setMenuOpen(true)}
               ref={menuTriggerRef}
               type="button"
@@ -284,7 +284,7 @@ export function LandingNavbar({
             <RagmirLogo />
             <button
               aria-label={t("nav_menu_close")}
-              className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-10 items-center justify-center rounded-md border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               onClick={closeMenu}
               tabIndex={menuOpen ? 0 : -1}
               type="button"
@@ -296,7 +296,7 @@ export function LandingNavbar({
           <nav aria-label={t("nav_aria_label")} className="flex flex-col gap-1">
             {navLinks.map((link) => (
               <a
-                className="rounded-lg px-3 py-3 font-bold text-base text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                className="rounded-md px-3 py-3 font-bold text-base text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 href={link.href}
                 key={link.href}
                 onClick={closeMenu}
