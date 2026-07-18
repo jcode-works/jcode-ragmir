@@ -129,7 +129,10 @@ pnpm exec rgr team compare .ragmir/team/alice.json --local-label christophe
 
 The comparison names configuration differences plus local-only, peer-only, and changed files, then
 gives ordered repair steps. It never guesses which copy is authoritative: the team keeps that
-decision in Git, Drive, or its existing source workflow. Detailed safeguards live in the
+decision in Git, Drive, or its existing source workflow. `ready` means the index can serve and be
+compared; privacy warnings are reported as non-blocking security advisories with a separate
+`rgr security-audit` action. Existing v2.19 snapshots remain comparable without reindexing.
+Detailed safeguards live in the
 [team guide](./docs/agent-integration.md#team-knowledge-bases) and
 [configuration reference](./docs/configuration.md#stable-team-source-configuration).
 

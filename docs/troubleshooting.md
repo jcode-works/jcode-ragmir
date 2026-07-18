@@ -75,6 +75,12 @@ or shared folder, synchronize both workstations, run the recommended ingest or r
 compare fresh snapshots. Keep tracked config based on stable directories or globs, and never share
 an actively written `.ragmir/storage/` directory.
 
+If the comparison reports `status=synchronized` together with security advisories, the indexed
+bytes and operational configuration match. Review each side with `rgr security-audit`; do not run a
+repair or rebuild only because an extractor or permission advisory remains. Ragmir also interprets
+v2.19.0 through v2.19.2 snapshots from their stored health fields, so an older snapshot that marked
+an advisory as `ready=false` can still be compared after upgrading.
+
 The lower-level `corpusFingerprint` in `rgr status --json` remains a quick equality signal. A
 different value identifies divergence, not which machine is correct.
 If an index created before corpus fingerprints were introduced reports `null`, run `rgr ingest`

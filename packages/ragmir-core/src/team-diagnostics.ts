@@ -16,6 +16,7 @@ const MAX_TEAM_SNAPSHOT_BYTES = 64 * 1024 * 1024
 const MAX_TEAM_LABEL_CHARACTERS = 80
 const MAX_TEAM_PATH_CHARACTERS = 4_096
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u
+const LEGACY_SECURITY_BLOCKING_SNAPSHOT_VERSIONS = new Set(["2.19.0", "2.19.1", "2.19.2"])
 
 const teamSnapshotFileSchema = z
   .object({
@@ -117,6 +118,10 @@ export interface TeamComparison {
   summary: string
   localLabel: string
   peerLabel: string
+  securityAdvisories: {
+    local: number
+    peer: number
+  }
   sameConfiguration: boolean
   sameCorpus: boolean
   authorityDecisionRequired: boolean
@@ -176,7 +181,7 @@ export async function createTeamSnapshot(
       label: normalizeTeamLabel(options.label ?? "local"),
       knowledgeBaseId: identity?.id ?? null,
       runtimeRagmirVersion: VERSION,
-      ready: report.ready,
+      ready: report.readiness.operationalReady && report.readiness.indexPolicyCurrent,
       freshnessWarning: report.indexFreshness.warning,
       configuration: {
         sources: sourceContract.sources,
@@ -307,16 +312,29 @@ export function compareTeamSnapshots(local: TeamSnapshot, peer: TeamSnapshot): T
     localOnly.length === 0 &&
     peerOnly.length === 0 &&
     changed.length === 0
-  const synchronized =
-    validatedLocal.ready && validatedPeer.ready && sameConfiguration && sameCorpus
+  const localReady = isTeamSnapshotOperational(validatedLocal)
+  const peerReady = isTeamSnapshotOperational(validatedPeer)
+  const synchronized = localReady && peerReady && sameConfiguration && sameCorpus
   const status = comparisonStatus(validatedLocal, validatedPeer, sameConfiguration, sameCorpus)
+  const advisoryCount =
+    validatedLocal.health.securityWarnings + validatedPeer.health.securityWarnings
 
   return {
     status,
     synchronized,
-    summary: comparisonSummary(status, localOnly.length, peerOnly.length, changed.length),
+    summary: comparisonSummary(
+      status,
+      localOnly.length,
+      peerOnly.length,
+      changed.length,
+      advisoryCount,
+    ),
     localLabel: validatedLocal.label,
     peerLabel: validatedPeer.label,
+    securityAdvisories: {
+      local: validatedLocal.health.securityWarnings,
+      peer: validatedPeer.health.securityWarnings,
+    },
     sameConfiguration,
     sameCorpus,
     authorityDecisionRequired:
@@ -386,11 +404,31 @@ function assertTeamSnapshotIntegrity(snapshot: TeamSnapshot): void {
       snapshot.health.missingFromIndex > 0 ||
       snapshot.health.staleInIndex > 0 ||
       snapshot.health.emptyTextFiles > 0 ||
-      snapshot.health.oversizedFiles > 0 ||
-      snapshot.health.securityWarnings > 0)
+      snapshot.health.oversizedFiles > 0)
   ) {
-    throw new Error("Team snapshot cannot be ready while freshness, coverage, or security fails.")
+    throw new Error("Team snapshot cannot be ready while freshness or coverage fails.")
   }
+}
+
+function isTeamSnapshotOperational(snapshot: TeamSnapshot): boolean {
+  const storedHealthIsOperational =
+    snapshot.corpus.fingerprint !== null &&
+    snapshot.corpus.chunksIndexed > 0 &&
+    snapshot.freshnessWarning === null &&
+    snapshot.health.missingFromIndex === 0 &&
+    snapshot.health.staleInIndex === 0 &&
+    snapshot.health.emptyTextFiles === 0 &&
+    snapshot.health.oversizedFiles === 0
+  if (!storedHealthIsOperational) {
+    return false
+  }
+  if (snapshot.ready) {
+    return true
+  }
+  return (
+    snapshot.health.securityWarnings > 0 &&
+    LEGACY_SECURITY_BLOCKING_SNAPSHOT_VERSIONS.has(snapshot.runtimeRagmirVersion)
+  )
 }
 
 function fingerprintTeamFiles(files: TeamSnapshotFile[]): string {
@@ -694,7 +732,7 @@ function comparisonStatus(
   sameConfiguration: boolean,
   sameCorpus: boolean,
 ): TeamComparisonStatus {
-  if (!local.ready || !peer.ready) {
+  if (!isTeamSnapshotOperational(local) || !isTeamSnapshotOperational(peer)) {
     return "not-ready"
   }
   if (!sameConfiguration) {
@@ -708,9 +746,14 @@ function comparisonSummary(
   localOnly: number,
   peerOnly: number,
   changed: number,
+  securityAdvisories: number,
 ): string {
   if (status === "synchronized") {
-    return "Both ready indexes use the same configuration and indexed source bytes."
+    const advisoryNote =
+      securityAdvisories > 0
+        ? ` ${securityAdvisories} non-blocking security ${securityAdvisories === 1 ? "advisory remains" : "advisories remain"} for separate review.`
+        : ""
+    return `Both operational indexes use the same configuration and indexed source bytes.${advisoryNote}`
   }
   if (status === "not-ready") {
     return "At least one index is not ready. Repair readiness before deciding whether corpora match."
@@ -728,10 +771,12 @@ function recommendedActions(
   sameCorpus: boolean,
 ): string[] {
   const actions: string[] = []
-  if (!local.ready) {
+  const localReady = isTeamSnapshotOperational(local)
+  const peerReady = isTeamSnapshotOperational(peer)
+  if (!localReady) {
     actions.push(`On ${local.label}, run \`rgr doctor --fix\` and \`rgr audit\` until ready=true.`)
   }
-  if (!peer.ready) {
+  if (!peerReady) {
     actions.push(`On ${peer.label}, run \`rgr doctor --fix\` and \`rgr audit\` until ready=true.`)
   }
   if (configurationDifferences.some((difference) => difference.scope === "runtime")) {
@@ -753,7 +798,16 @@ function recommendedActions(
     )
     actions.push("Run `rgr ingest` after source synchronization.")
   }
-  if (actions.length > 0) {
+  const advisoryLabels = new Set<string>()
+  for (const snapshot of [local, peer]) {
+    if (snapshot.health.securityWarnings > 0 && !advisoryLabels.has(snapshot.label)) {
+      advisoryLabels.add(snapshot.label)
+      actions.push(
+        `On ${snapshot.label}, review ${snapshot.health.securityWarnings} non-blocking security ${snapshot.health.securityWarnings === 1 ? "advisory" : "advisories"} with \`rgr security-audit\`.`,
+      )
+    }
+  }
+  if (!localReady || !peerReady || configurationDifferences.length > 0 || !sameCorpus) {
     actions.push("Export a fresh snapshot and compare again until status=synchronized.")
   }
   return actions

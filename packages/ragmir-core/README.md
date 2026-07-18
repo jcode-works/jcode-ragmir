@@ -84,7 +84,8 @@ Top-level `ingest`, `search`, `ask`, and `research` functions remain available f
 - `rgr security-audit` checks permissions, Git ignore coverage, tracked private paths, redaction,
   and local extractor authority.
 - `rgr team snapshot` and `rgr team compare` explain configuration and per-file drift without
-  sharing source text or guessing which copy is authoritative.
+  sharing source text or guessing which copy is authoritative. Operational readiness remains
+  separate from non-blocking security advisories, including for existing v2.19 snapshots.
 - After a package update, `rgr upgrade --check` previews compatibility; `rgr upgrade` safely stages
   any required rebuild without deleting the active index first. Privacy warnings remain visible as
   non-blocking advisories and can be handled separately with `rgr security-audit`.
@@ -105,6 +106,7 @@ Core installs and starts without either add-on. A hosted agent receives only pas
 integration sends under that provider's data policy; use a local consumer when no passage may leave
 the workstation. Teams synchronize their source folder and tracked configuration, then build one
 local index per developer. Exchange an authorized metadata-only snapshot and run `rgr team compare`
-to resolve exact drift. See the [team workflow](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#team-knowledge-bases).
+to resolve exact drift. Matching operational indexes remain synchronized when a privacy advisory
+needs separate review with `rgr security-audit`. See the [team workflow](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#team-knowledge-bases).
 
 Ragmir Core is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).

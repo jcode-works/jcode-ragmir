@@ -2,8 +2,10 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { loadConfig } from "./config.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { readIndexManifest, writeIndexManifest } from "./store.js"
 import {
   compareTeamSnapshots,
   createTeamSnapshot,
@@ -126,6 +128,46 @@ describe("team diagnostics", () => {
       sameConfiguration: true,
       sameCorpus: true,
     })
+  })
+
+  it("should synchronize operational indexes while surfacing privacy advisories", async () => {
+    const [root] = await teamRoots()
+    await writeEvidence(root, "decision.md", "Approved release train.\n")
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const manifest = await readIndexManifest(config)
+    if (!manifest?.health) {
+      throw new Error("Expected an index health snapshot.")
+    }
+    const warning = "A configured local extractor executes with operator authority."
+    await writeIndexManifest(
+      {
+        ...manifest,
+        health: { ...manifest.health, securityWarnings: [warning] },
+      },
+      config,
+      manifest.indexedFiles,
+    )
+
+    const snapshot = await createTeamSnapshot({ cwd: root, label: "Alice" })
+    const legacySnapshot = { ...snapshot, runtimeRagmirVersion: "2.19.2", ready: false }
+    const comparison = compareTeamSnapshots(legacySnapshot, legacySnapshot)
+    const currentNotReadyComparison = compareTeamSnapshots(
+      { ...snapshot, ready: false },
+      { ...snapshot, ready: false },
+    )
+
+    expect(snapshot).toMatchObject({ ready: true, health: { securityWarnings: 1 } })
+    expect(comparison).toMatchObject({
+      status: "synchronized",
+      synchronized: true,
+      securityAdvisories: { local: 1, peer: 1 },
+    })
+    expect(comparison.summary).toContain("non-blocking security advisories")
+    expect(comparison.recommendedActions).toEqual([
+      "On Alice, review 1 non-blocking security advisory with `rgr security-audit`.",
+    ])
+    expect(currentNotReadyComparison).toMatchObject({ status: "not-ready", synchronized: false })
   })
 
   it("should reject a snapshot when its file inventory was altered", async () => {
