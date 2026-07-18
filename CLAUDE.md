@@ -11,7 +11,7 @@ pnpm example
 
 Use `pnpm --filter @jcode.labs/ragmir <script>` for Core-only work. The pinned Node version lives in
 `mise.toml`; activate mise in your shell or run local workspace commands with that pinned version.
-Published packages retain their documented Node.js 20 compatibility.
+Published packages require Node.js 22 or later, matching their manifests and release gate.
 
 ## Workspace
 
@@ -26,6 +26,16 @@ commit them. The root README is the canonical documentation entrypoint; keep pac
 When code changes public behavior, commands, configuration, supported formats, architecture, or
 product claims, update the relevant docs and landing in the same change. For internal-only changes,
 verify both surfaces and leave them unchanged when no update is needed.
+Lead public documentation with the value proposition, a working quick start, and the strongest
+guarantees. Move operational depth to focused guides instead of repeating it across READMEs.
+Present team use as a positive workflow: shared sources and configuration, one local ingest per
+developer, then a corpus-fingerprint check. Keep low-level safeguards in focused guides.
+
+Every commit promoted to `main` that can trigger semantic-release must include these exact body
+sections with at least one bullet each: `Release highlights:`, `Release details:`, and
+`Verification:`. Highlights state user outcomes, details group meaningful work by product area,
+and verification names the gates actually run. Never reduce a release to a generic subject line or
+raw commit list.
 
 ## Boundaries
 
