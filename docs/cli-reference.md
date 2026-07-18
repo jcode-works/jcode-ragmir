@@ -100,7 +100,9 @@ rgr upgrade
 `upgrade --check` reports `current`, `index-required`, `rebuild-required`, or `repair-required`,
 including the version that wrote the active index. Run it after updating the package and before the
 first retrieval with the new runtime. Incompatible retrieval is refused with a direct `rgr upgrade`
-instruction instead of reading an untrusted layout.
+instruction instead of reading an untrusted layout. `ready` describes upgrade and retrieval
+continuity. `privacyCompliant` and repeated `advisory` lines report separate security follow-ups;
+they do not turn a compatible operational index into `repair-required`.
 
 `upgrade` refreshes managed agent helpers and performs any required ingest or rebuild. Schema,
 embedding, chunking, redaction, and index-policy changes use the staged-generation flow: Ragmir
@@ -109,7 +111,8 @@ duplicate-ID validation activates. Failed or interrupted rebuilds never activate
 and can resume. Older configs that omit newer optional fields receive current safe defaults.
 `rgr doctor --fix` uses the same repair path. A long-running host can keep its already loaded
 runtime on the previous generation, then restart or cut over after the upgrade reports
-`status=current` and `ready=true`.
+`status=current` and `ready=true`. Address any advisory with `rgr security-audit` or
+`rgr security-audit --strict`; deleting and rebuilding a healthy index is not required.
 
 ## Resumable ingestion
 

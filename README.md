@@ -160,7 +160,9 @@ Run this after updating the package and before the first retrieval with the new 
 agent helpers and stages any required rebuild in a separate generation. It never deletes the active
 index first: only a validated replacement activates, and interrupted or failed rebuilds remain
 resumable. A long-running host can keep its already loaded runtime serving the previous generation,
-then restart or cut over after `status=current` and `ready=true`.
+then restart or cut over after `status=current` and `ready=true`. Privacy or extractor warnings are
+reported separately as `advisory` lines and do not mislabel an operational index as needing repair;
+resolve them with `rgr security-audit` without discarding the working index.
 
 ### Semantic retrieval and scanned PDFs
 
