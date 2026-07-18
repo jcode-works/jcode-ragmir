@@ -30,6 +30,8 @@ const alternateLocales = locales.map((entry) => ({
 const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
+const sourceDescription =
+  "Open-source TypeScript RAG library, CLI, and local MCP server for cited offline retrieval from confidential project files."
 const structuredData = [
   {
     "@context": "https://schema.org",
@@ -37,7 +39,6 @@ const structuredData = [
     "@id": "https://ragmir.com/#organization",
     name: "JCode Labs",
     url: "https://github.com/jcode-works",
-    description: t("footer_text"),
     founder: {
       "@type": "Person",
       "@id": "https://ragmir.com/#jb-thery",
@@ -61,8 +62,8 @@ const structuredData = [
     "@id": "https://ragmir.com/#website",
     url: siteUrl,
     name: "Ragmir",
-    description: t("seo_home_description"),
-    inLanguage: locale,
+    description: sourceDescription,
+    inLanguage: ["en", "fr"],
     publisher: { "@id": "https://ragmir.com/#organization" },
   },
   {
@@ -70,17 +71,15 @@ const structuredData = [
     "@type": "SoftwareSourceCode",
     "@id": "https://ragmir.com/#source",
     name: "Ragmir",
-    description: t("seo_home_description"),
-    abstract: t("hero_description"),
-    url: pageUrl,
-    mainEntityOfPage: pageUrl,
+    description: sourceDescription,
+    abstract: sourceDescription,
+    url: siteUrl,
+    inLanguage: ["en", "fr"],
     codeRepository: "https://github.com/jcode-works/jcode-ragmir",
     codeSampleType: "full solution",
     runtimePlatform: "Node.js 22 on Linux x64 or macOS ARM64",
     programmingLanguage: "TypeScript",
-    keywords: t("seo_home_keywords")
-      .split(",")
-      .map((keyword) => keyword.trim()),
+    keywords: ["local RAG", "coding agents", "cited retrieval", "MCP", "TypeScript"],
     license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
     isAccessibleForFree: true,
     ...(publicVersion ? { version: publicVersion } : {}),
@@ -100,6 +99,18 @@ const structuredData = [
     maintainer: {
       "@id": "https://ragmir.com/#jb-thery",
     },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${pageUrl}#webpage`,
+    url: pageUrl,
+    name: t("seo_home_title"),
+    description: t("seo_home_description"),
+    inLanguage: locale,
+    isPartOf: { "@id": "https://ragmir.com/#website" },
+    about: { "@id": "https://ragmir.com/#source" },
+    publisher: { "@id": "https://ragmir.com/#organization" },
   },
 ]
 const localizedHomeUrl = `${getLocalizedUrl("/", locale)}#top`

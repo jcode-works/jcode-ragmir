@@ -29,8 +29,8 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
     {
       id: "mise",
       label: "mise",
-      add: "mise exec node@24 -- npm install -D @jcode.labs/ragmir",
-      exec: "mise exec node@24 -- npx",
+      add: "mise exec node@22 -- npm install -D @jcode.labs/ragmir",
+      exec: "mise exec node@22 -- npx",
     },
   ]
   const installSteps = [

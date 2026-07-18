@@ -1,9 +1,21 @@
+import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import en from "../messages/en.json"
 import fr from "../messages/fr.json"
 import { findHeroDemoScenario, HERO_DEMO_SCENARIOS } from "./components/hero-demo-script.js"
 import { getLocalizedUrl, loadTranslations, useTranslations } from "./i18n/utils.js"
 import { cn } from "./lib/utils.js"
+
+const homePageSource = readFileSync(
+  fileURLToPath(new URL("./pages/[...locale]/index.astro", import.meta.url)),
+  "utf8",
+)
+const teamPageSource = readFileSync(
+  fileURLToPath(new URL("./pages/[...locale]/team.astro", import.meta.url)),
+  "utf8",
+)
+const localizedWebPageId = /"@id": `\$\{pageUrl\}#webpage`/
 
 describe("landing public contract", () => {
   it("should keep English and French translation keys in parity", () => {
@@ -15,6 +27,28 @@ describe("landing public contract", () => {
     expect(fr.hero_subtagline).toBe(
       "Arrêtez d'envoyer les documents confidentiels directement dans le cloud.",
     )
+  })
+
+  it("should lead homepage metadata with the library, CLI, and local MCP server", () => {
+    expect(en.seo_home_title).toContain("RAG library")
+    expect(fr.seo_home_title).toContain("bibliothèque RAG")
+    expect(en.seo_home_description).toContain("TypeScript RAG library, CLI, and local MCP server")
+    expect(fr.seo_home_description).toContain(
+      "Bibliothèque TypeScript open source, CLI et serveur MCP local",
+    )
+    expect(en.hero_metric_mcp_value).toBe("Library + CLI + MCP")
+    expect(fr.hero_metric_mcp_value).toBe("Bibliothèque + CLI + MCP")
+    expect(en.seo_home_keywords).not.toContain("local RAG API")
+    expect(fr.seo_home_keywords).not.toContain("API RAG locale")
+  })
+
+  it("should keep shared entities stable and give each localized home page its own WebPage", () => {
+    expect(homePageSource).toContain('inLanguage: ["en", "fr"]')
+    expect(homePageSource).toContain("url: siteUrl")
+    expect(homePageSource).toContain('"@type": "WebPage"')
+    expect(homePageSource).toMatch(localizedWebPageId)
+    expect(homePageSource).toContain('about: { "@id": "https://ragmir.com/#source" }')
+    expect(teamPageSource).toContain('url: "https://github.com/jb-thery"')
   })
 
   it("should provide every localized key referenced by hero scenarios", () => {
