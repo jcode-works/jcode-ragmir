@@ -109,6 +109,22 @@ describe("PDF OCR onboarding", () => {
     ).resolves.toBe("Synthetic OCR text from Tesseract\n")
   })
 
+  it("should keep an empty OCR payload when the requested page has no text", async () => {
+    const root = await createTempRoot("ragmir-ocr-tesseract-empty-")
+    const binDir = await createFakeTools(root, {
+      tesseract: true,
+      pdftoppm: true,
+      emptyTesseractOutput: true,
+    })
+    process.env.PATH = binDir
+    const input = path.join(root, "scan.pdf")
+    await writeFile(input, "synthetic PDF fixture")
+
+    await expect(
+      extractPdfPage({ engine: "tesseract", input, page: 2, language: "eng" }),
+    ).resolves.toBe("")
+  })
+
   it("should extract multiple PDF pages through one bounded Tesseract batch", async () => {
     const root = await createTempRoot("ragmir-ocr-tesseract-batch-")
     const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
@@ -186,7 +202,12 @@ async function createTempRoot(prefix: string): Promise<string> {
 
 async function createFakeTools(
   root: string,
-  tools: { ocrmypdf?: boolean; tesseract?: boolean; pdftoppm?: boolean },
+  tools: {
+    ocrmypdf?: boolean
+    tesseract?: boolean
+    pdftoppm?: boolean
+    emptyTesseractOutput?: boolean
+  },
 ): Promise<string> {
   const binDir = path.join(root, "bin")
   await mkdir(binDir, { recursive: true })
@@ -200,7 +221,7 @@ if (args.includes("--list-langs")) {
   process.stdout.write("List of available languages (2):\\neng\\nfra\\n")
 } else if (args.includes("stdout")) {
   const pages = readFileSync(args[0], "utf8").trim().split("\\n").filter(Boolean)
-  process.stdout.write(pages.map(() => "Synthetic OCR text from Tesseract\\n").join("\\f") + "\\f")
+  process.stdout.write(${tools.emptyTesseractOutput ? '""' : 'pages.map(() => "Synthetic OCR text from Tesseract\\n").join("\\f") + "\\f"'})
 } else {
   process.stdout.write("tesseract 5.5.0\\n")
 }`,
