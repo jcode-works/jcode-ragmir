@@ -1,8 +1,11 @@
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
+import { loadConfig } from "./config.js"
+import { doctor } from "./doctor.js"
 import {
   evaluateGoldenQueries,
   MAX_GOLDEN_CASES,
@@ -13,6 +16,13 @@ import {
 } from "./evaluate.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { search } from "./query.js"
+import {
+  INDEX_READ_DIAGNOSTICS_CHANNEL,
+  type IndexReadDiagnosticsEvent,
+  readIndexManifest,
+  writeIndexManifest,
+} from "./store.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -180,6 +190,48 @@ describe("evaluateGoldenQueries", () => {
     expect(report.cases.every((result) => result.hit)).toBe(true)
     expect(report.cases.every((result) => result.reciprocalRank > 0)).toBe(true)
     expect(report.cases.every((result) => result.ndcg > 0)).toBe(true)
+  })
+
+  it("should use one connection and one table generation for one hundred cases", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-reuse-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    const goldenPath = path.join(root, "reused-golden.json")
+    await writeFile(
+      goldenPath,
+      JSON.stringify(
+        Array.from({ length: 100 }, (_value, index) => ({
+          id: `reused-${index}`,
+          query: "Which dataset was rejected for confidential tests?",
+          expectedPaths: ["raw/dataset-inventory.csv"],
+        })),
+      ),
+      "utf8",
+    )
+    await ingest({ cwd: root })
+    const events: IndexReadDiagnosticsEvent[] = []
+    const onDiagnostic = (event: unknown): void => {
+      if (isIndexReadDiagnosticsEvent(event, root)) {
+        events.push(event)
+      }
+    }
+    subscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+
+    try {
+      const report = await evaluateGoldenQueries({ cwd: root, goldenPath, caseDetailLimit: 2 })
+
+      expect(report.total).toBe(100)
+      expect(report.cases).toHaveLength(2)
+      expect(report.omittedCases).toBe(98)
+      expect(report.cases.every((result) => result.hit)).toBe(true)
+      expect(events.filter((event) => event.kind === "connection-open")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "connection-close")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-open")).toHaveLength(1)
+      expect(events.filter((event) => event.kind === "table-close")).toHaveLength(1)
+    } finally {
+      unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    }
   })
 
   it("caps query topK when a caller provides a maximum", async () => {
@@ -446,6 +498,129 @@ describe("evaluateGoldenQueries", () => {
     expect(caseResult?.reciprocalRank).toBe(0)
     expect(caseResult?.ndcg).toBe(0)
   })
+
+  it("should persist a compatible graded quality report and invalidate it when golden data changes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-quality-report-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const evidencePath = path.join(root, ".ragmir", "raw", "evidence.md")
+    await writeFile(evidencePath, "Retention policy requires seven years.\n", "utf8")
+    const goldenPath = path.join(root, "quality-golden.json")
+    const golden = {
+      topK: 5,
+      minimumCasesForVerification: 3,
+      thresholds: {
+        recallAt1: 1,
+        recallAt3: 1,
+        recallAt5: 1,
+        recallAt10: 1,
+        precisionAt5: 0.2,
+        meanReciprocalRankAt10: 1,
+        ndcgAt10: 1,
+        exactCitationRate: 1,
+        maximumFalsePositiveRate: 0,
+      },
+      queries: [
+        {
+          id: "graded-path",
+          query: "retention policy seven years",
+          expectedPaths: [".ragmir/raw/evidence.md"],
+          category: "exact-term",
+          locale: "en",
+          relevanceJudgments: [{ kind: "path", value: ".ragmir/raw/evidence.md", relevance: 3 }],
+        },
+        {
+          id: "exact-citation",
+          query: "retention policy seven years",
+          expectedPaths: [".ragmir/raw/evidence.md"],
+          expectedCitations: [".ragmir/raw/evidence.md:L1-L1#0"],
+          category: "citation",
+          locale: "en",
+        },
+        {
+          id: "hard-negative",
+          query: "quantum banana volcano",
+          expectedPaths: [],
+          answerable: false,
+          category: "hard-negative",
+          locale: "en",
+        },
+      ],
+    }
+    await writeFile(goldenPath, `${JSON.stringify(golden, null, 2)}\n`, "utf8")
+    await ingest({ cwd: root })
+
+    const report = await evaluateGoldenQueries({ cwd: root, goldenPath })
+
+    expect(report.passed).toBe(true)
+    expect(report.verificationEligible).toBe(true)
+    expect(report.reportStored).toBe(true)
+    expect(report.recallAt).toEqual({ 1: 1, 3: 1, 5: 1, 10: 1 })
+    expect(report.precisionAt5).toBe(0.2)
+    expect(report.exactCitationRate).toBe(1)
+    expect(report.falsePositiveRate).toBe(0)
+    expect(report.groups.categories["hard-negative"]?.falsePositiveRate).toBe(0)
+    const config = await loadConfig(root)
+    expect((await readIndexManifest(config))?.qualityReport).toMatchObject({
+      schemaVersion: 3,
+      qualityReportFingerprint: report.qualityReportFingerprint,
+      rankingPolicyFingerprint: report.rankingPolicyFingerprint,
+    })
+    expect((await doctor(root, { deep: true })).readiness.retrievalQualityVerified).toBe(true)
+
+    const manifest = await readIndexManifest(config)
+    if (!manifest) {
+      throw new Error("Expected an index manifest after quality evaluation.")
+    }
+    await writeIndexManifest(
+      {
+        ...manifest,
+        staleFiles: [
+          {
+            relativePath: ".ragmir/raw/evidence.md",
+            currentChecksum: "b".repeat(64),
+            lastGoodChecksum: manifest.indexedFiles?.[0]?.checksum ?? "a".repeat(64),
+            chunkCount: manifest.chunkCount,
+            error: "simulated parse failure",
+          },
+        ],
+      },
+      config,
+    )
+
+    const staleReport = await evaluateGoldenQueries({ cwd: root, goldenPath })
+    expect(staleReport.passed).toBe(true)
+    expect(staleReport.verificationEligible).toBe(false)
+    expect(staleReport.reportStored).toBe(false)
+    expect((await doctor(root)).readiness.retrievalQualityVerified).toBe(false)
+
+    await writeFile(goldenPath, `${JSON.stringify(golden, null, 2)}\n\n`, "utf8")
+
+    expect((await doctor(root)).readiness.retrievalQualityVerified).toBe(false)
+    await expect(search("retention policy", { cwd: root })).resolves.not.toEqual([])
+  })
+
+  it("should report independent quality gates", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-gates-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    await ingest({ cwd: root })
+
+    const report = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "golden-queries.json",
+      thresholds: { recallAt1: 0, precisionAt5: 1 },
+    })
+
+    expect(report.gates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metric: "recallAt1", passed: true }),
+        expect.objectContaining({ metric: "precisionAt5", passed: false }),
+      ]),
+    )
+    expect(report.passed).toBe(false)
+  })
 })
 
 async function copySovereignDemo(root: string): Promise<void> {
@@ -453,4 +628,20 @@ async function copySovereignDemo(root: string): Promise<void> {
     recursive: true,
   })
   await rm(path.join(root, ".ragmir", "storage"), { recursive: true, force: true })
+}
+
+function isIndexReadDiagnosticsEvent(
+  event: unknown,
+  projectRoot: string,
+): event is IndexReadDiagnosticsEvent {
+  return (
+    typeof event === "object" &&
+    event !== null &&
+    "kind" in event &&
+    ["connection-open", "connection-close", "manifest-read", "table-open", "table-close"].includes(
+      String(event.kind),
+    ) &&
+    "projectRoot" in event &&
+    event.projectRoot === projectRoot
+  )
 }

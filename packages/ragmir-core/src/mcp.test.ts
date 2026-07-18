@@ -1,3 +1,4 @@
+import { subscribe, unsubscribe } from "node:diagnostics_channel"
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -5,6 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js"
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { afterEach, describe, expect, it } from "vitest"
+import { CONFIG_LOAD_DIAGNOSTICS_CHANNEL, type ConfigLoadDiagnosticsEvent } from "./config.js"
 import { DEFAULT_CONFIG } from "./defaults.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
@@ -223,6 +225,56 @@ describe("MCP protocol contract", () => {
     await expect(lifecycle.getClient()).rejects.toThrow("MCP server is closed")
   })
 
+  it("should load configuration exactly once for each MCP request", async () => {
+    const root = await createProject("ragmir-mcp-config-snapshot-")
+    const evaluationDir = path.join(root, "evaluation")
+    await mkdir(evaluationDir, { recursive: true })
+    await writeFile(
+      path.join(evaluationDir, "golden.json"),
+      JSON.stringify([
+        {
+          query: "production approval",
+          expectedPaths: [".ragmir/raw/missing.md"],
+        },
+      ]),
+      "utf8",
+    )
+    const { client } = await connectTestClient(root)
+    const events: ConfigLoadDiagnosticsEvent[] = []
+    const onDiagnostic = (event: unknown): void => {
+      if (isConfigLoadDiagnosticsEvent(event, root)) {
+        events.push(event)
+      }
+    }
+    subscribe(CONFIG_LOAD_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    const requests = [
+      () => client.callTool({ name: "ragmir_search", arguments: { query: "approval" } }),
+      () => client.callTool({ name: "ragmir_status", arguments: {} }),
+      () =>
+        client.callTool({ name: "ragmir_route_prompt", arguments: { prompt: "find evidence" } }),
+      () => client.callTool({ name: "ragmir_audit", arguments: {} }),
+      () =>
+        client.callTool({
+          name: "ragmir_evaluate",
+          arguments: { goldenPath: "evaluation/golden.json" },
+        }),
+      () => client.callTool({ name: "ragmir_security_audit", arguments: {} }),
+      () => client.callTool({ name: "ragmir_usage_report", arguments: {} }),
+      () => client.readResource({ uri: "ragmir://context" }),
+      () => client.readResource({ uri: "ragmir://sources" }),
+    ]
+
+    try {
+      for (const request of requests) {
+        events.length = 0
+        await request()
+        expect(events).toHaveLength(1)
+      }
+    } finally {
+      unsubscribe(CONFIG_LOAD_DIAGNOSTICS_CHANNEL, onDiagnostic)
+    }
+  })
+
   it("should run server cleanup when the client transport closes", async () => {
     const root = await createProject("ragmir-mcp-transport-lifecycle-")
     const { client, server } = await connectTestClient(root)
@@ -267,7 +319,8 @@ describe("MCP protocol contract", () => {
     const { client } = await connectTestClient(root)
 
     const status = await jsonToolResult(client, "ragmir_status", {})
-    expect(status).toMatchObject({ chunksIndexed: 1 })
+    expect(status).toMatchObject({ chunksIndexed: 1, ready: true })
+    expect(status.corpusFingerprint).toMatch(/^[0-9a-f]{64}$/u)
 
     const route = await jsonToolResult(client, "ragmir_route_prompt", {
       prompt: "Use Ragmir to find cited evidence in this local repository about release policy.",
@@ -298,8 +351,23 @@ describe("MCP protocol contract", () => {
       query: "production release approval",
       topK: 1,
       includeCode: false,
+      timeoutMs: 10_000,
+      codeTopK: 1,
+      codeScanMaxFiles: 2,
+      codeScanMaxBytes: 1_000,
+      codeScanConcurrency: 1,
     })
-    expect(research).toMatchObject({ ready: true, evidence: expect.any(Array) })
+    expect(research).toMatchObject({
+      ready: true,
+      audit: { mode: "manifest", inventoryVerified: false },
+      evidence: expect.any(Array),
+      budgets: {
+        timeoutMs: 10_000,
+        evidenceTopK: 1,
+        codeEvidenceTopK: 1,
+        codeFilesScanned: 0,
+      },
+    })
 
     const expanded = await jsonToolResult(client, "ragmir_expand", {
       citation: search[0].citation,
@@ -370,10 +438,17 @@ describe("MCP protocol contract", () => {
       name: "ragmir_audit",
       arguments: { maxBytes: 1_024 },
     })
+    const auditPayload = JSON.parse(textContent(audit))
     expect(Buffer.byteLength(textContent(audit), "utf8")).toBeLessThanOrEqual(1_024)
+    expect(auditPayload).toMatchObject({
+      counts: { supportedFiles: 24 },
+      previews: { missingFromIndex: [], staleInIndex: [] },
+      omitted: { supportedFiles: 24 },
+    })
     expect(audit._meta?.["ragmir/output"]).toMatchObject({
       budgetBytes: 1_024,
       truncated: true,
+      retrievedBytes: expect.any(Number),
     })
 
     const evaluation = await client.callTool({
@@ -383,6 +458,11 @@ describe("MCP protocol contract", () => {
     const evaluationPayload = JSON.parse(textContent(evaluation))
     expect(Buffer.byteLength(textContent(evaluation), "utf8")).toBeLessThanOrEqual(1_024)
     expect(evaluationPayload.goldenPath).toBe(path.join("evaluation", "golden.json"))
+    expect(evaluationPayload).toMatchObject({
+      total: 16,
+      previews: { cases: [] },
+      omitted: { cases: 16 },
+    })
     expect(JSON.stringify(evaluationPayload)).not.toContain(root)
     expect(evaluation._meta?.["ragmir/output"]).toMatchObject({
       budgetBytes: 1_024,
@@ -397,13 +477,13 @@ describe("MCP protocol contract", () => {
     expect(sourceContent && "text" in sourceContent ? sourceContent.text : "").not.toContain(root)
     expect(sources._meta?.["ragmir/output"]).toMatchObject({
       budgetBytes: 1_024,
-      truncated: true,
+      truncated: false,
     })
   })
 
   it("should bound security and usage reports with the configured MCP budget", async () => {
-    const customPatterns = Array.from({ length: 100 }, (_value, index) => ({
-      name: `custom-pattern-${index}-${"description-".repeat(10)}`,
+    const customPatterns = Array.from({ length: 64 }, (_value, index) => ({
+      name: `custom-pattern-${index}-${"x".repeat(60)}`,
       pattern: `SECRET_${index}`,
     }))
     const root = await createProject("ragmir-mcp-report-budget-", {
@@ -592,3 +672,17 @@ describe("projectRelativeGoldenPath", () => {
     )
   })
 })
+
+function isConfigLoadDiagnosticsEvent(
+  event: unknown,
+  projectRoot: string,
+): event is ConfigLoadDiagnosticsEvent {
+  return (
+    typeof event === "object" &&
+    event !== null &&
+    "projectRoot" in event &&
+    event.projectRoot === projectRoot &&
+    "configPath" in event &&
+    typeof event.configPath === "string"
+  )
+}

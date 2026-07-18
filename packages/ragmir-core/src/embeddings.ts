@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto"
-import { mkdir } from "node:fs/promises"
+import { createReadStream } from "node:fs"
+import { mkdir, readdir, stat } from "node:fs/promises"
+import path from "node:path"
+import { throwIfAborted } from "./operation.js"
 import { tokenize } from "./text.js"
-import type { Config } from "./types.js"
+import type { Config, IngestionEmbeddingModelState } from "./types.js"
+import { runWorkload, type WorkloadAdmission } from "./workload.js"
 
 const LOCAL_HASH_DIMENSIONS = 384
 const LONG_TOKEN_MIN_LENGTH = 6
@@ -9,17 +13,13 @@ const LONG_TOKEN_WEIGHT = 1.4
 const CHARACTER_NGRAM_LENGTH = 3
 const CHARACTER_NGRAM_WEIGHT = 0.35
 /**
- * Maximum number of Transformers.js pipelines kept live in the process. Each
- * pipeline pins ONNX runtime weights (often hundreds of MB), so a long-lived
- * process such as the MCP server that changes embedding config could otherwise
- * leak memory. A small bound is enough: a single project uses one model at a
- * time; the cache is keyed by (model, path, allowRemoteModels).
+ * Maximum number of idle Transformers.js pipelines kept live in the process.
+ * Active leases may temporarily overlap during a model switch, but a retired
+ * pipeline is disposed as soon as its final lease is released.
  */
-const MAX_TRANSFORMERS_PIPELINES = 3
-const transformersPipelines = new Map<string, TransformersExtractor>()
-const pendingTransformersPipelines = new Map<string, Promise<TransformersExtractor>>()
-let transformersCacheGeneration = 0
-let transformersCacheMutationQueue = Promise.resolve()
+const MAX_TRANSFORMERS_PIPELINES = 1
+const transformersPipelines = new Map<string, TransformersPipelineEntry>()
+const transformersModelOwners = new Map<string, number>()
 
 declare global {
   var __ragmirTransformersEnvironmentQueue: Promise<void> | undefined
@@ -30,10 +30,26 @@ interface TransformersExtractor {
   dispose?: () => Promise<void>
 }
 
+interface TransformersPipelineEntry {
+  key: string
+  creation: Promise<TransformersExtractor>
+  leases: number
+  retired: boolean
+  idleWaiters: Array<() => void>
+  disposal: Promise<void> | undefined
+}
+
+interface TransformersPipelineLease {
+  extractor: TransformersExtractor
+  release(): Promise<void>
+}
+
 type EmbeddingInputType = "document" | "query"
 
 export interface PullEmbeddingModelResult {
   embeddingModel: string
+  embeddingModelRevision: string
+  embeddingModelDigest: string
   embeddingModelPath: string
 }
 
@@ -41,41 +57,79 @@ export async function embedTexts(
   texts: string[],
   config: Config,
   inputType: EmbeddingInputType = "document",
+  signal?: AbortSignal,
+  onAdmission?: (admission: WorkloadAdmission) => void,
 ): Promise<number[][]> {
   if (texts.length === 0) {
     return []
   }
+  return runWorkload(config, "embedding", signal, async (admission) => {
+    onAdmission?.(admission)
+    throwIfAborted(signal)
+    if (config.embeddingProvider === "local-hash") {
+      return texts.map(localHashEmbedding)
+    }
 
-  if (config.embeddingProvider === "local-hash") {
-    return texts.map(localHashEmbedding)
-  }
-
-  return embedWithTransformers(texts, config, inputType)
+    const embeddings = await embedWithTransformers(texts, config, inputType)
+    throwIfAborted(signal)
+    return embeddings
+  })
 }
 
 export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingModelResult> {
   await mkdir(config.embeddingModelPath, { recursive: true })
-  const extractor = await transformersExtractor({
+  const pullConfig = {
     ...config,
     embeddingProvider: "transformers",
     transformersAllowRemoteModels: true,
-  })
-  await extractor(["Ragmir semantic embedding model bootstrap."], {
-    pooling: "mean",
-    normalize: true,
-  })
-  return {
-    embeddingModel: config.embeddingModel,
-    embeddingModelPath: config.embeddingModelPath,
+  } satisfies Config
+  const lease = await acquireTransformersPipeline(pullConfig)
+  try {
+    await lease.extractor(["Ragmir semantic embedding model bootstrap."], {
+      pooling: "mean",
+      normalize: true,
+    })
+    const embeddingModelDigest = await resolveEmbeddingModelDigest(pullConfig)
+    if (
+      config.embeddingModelDigest !== null &&
+      config.embeddingModelDigest !== embeddingModelDigest
+    ) {
+      throw new Error(
+        `Embedding model digest mismatch: expected ${config.embeddingModelDigest}, received ${embeddingModelDigest}.`,
+      )
+    }
+    return {
+      embeddingModel: config.embeddingModel,
+      embeddingModelRevision: config.embeddingModelRevision,
+      embeddingModelDigest,
+      embeddingModelPath: config.embeddingModelPath,
+    }
+  } finally {
+    await lease.release()
+    await disposeTransformersModel(pullConfig)
   }
 }
 
-export async function embedText(text: string, config: Config): Promise<number[]> {
-  const [embedding] = await embedTexts([text], config, "query")
+export async function embedText(
+  text: string,
+  config: Config,
+  signal?: AbortSignal,
+  onAdmission?: (admission: WorkloadAdmission) => void,
+): Promise<number[]> {
+  const [embedding] = await embedTexts([text], config, "query", signal, onAdmission)
   if (!embedding) {
     throw new Error("No embedding returned for query.")
   }
   return embedding
+}
+
+export function embeddingModelState(
+  config: Config,
+): Exclude<IngestionEmbeddingModelState, "mixed" | "unused"> {
+  if (config.embeddingProvider === "local-hash") {
+    return "stateless"
+  }
+  return transformersPipelines.has(transformersCacheKey(config)) ? "warm" : "cold"
 }
 
 async function embedWithTransformers(
@@ -83,18 +137,22 @@ async function embedWithTransformers(
   config: Config,
   inputType: EmbeddingInputType,
 ): Promise<number[][]> {
-  const extractor = await transformersExtractor(config)
-  const preparedTexts = texts.map((text) =>
-    prepareEmbeddingText(text, config.embeddingModel, inputType),
-  )
-  const output = await extractor(preparedTexts, { pooling: "mean", normalize: true })
-  const rows = tensorToEmbeddingRows(output)
+  const lease = await acquireTransformersPipeline(config)
+  try {
+    const preparedTexts = texts.map((text) =>
+      prepareEmbeddingText(text, config.embeddingModel, inputType),
+    )
+    const output = await lease.extractor(preparedTexts, { pooling: "mean", normalize: true })
+    const rows = tensorToEmbeddingRows(output)
 
-  if (rows.length !== texts.length) {
-    throw new Error(`Expected ${texts.length} embeddings, received ${rows.length}.`)
+    if (rows.length !== texts.length) {
+      throw new Error(`Expected ${texts.length} embeddings, received ${rows.length}.`)
+    }
+
+    return rows
+  } finally {
+    await lease.release()
   }
-
-  return rows
 }
 
 export function prepareEmbeddingText(
@@ -111,38 +169,57 @@ export function prepareEmbeddingText(
   return text
 }
 
-async function transformersExtractor(config: Config): Promise<TransformersExtractor> {
-  const key = [
+async function acquireTransformersPipeline(config: Config): Promise<TransformersPipelineLease> {
+  const key = transformersCacheKey(config)
+  let entry = transformersPipelines.get(key)
+  if (entry) {
+    transformersPipelines.delete(key)
+    transformersPipelines.set(key, entry)
+  } else {
+    entry = {
+      key,
+      creation: createTransformersExtractor(config),
+      leases: 0,
+      retired: false,
+      idleWaiters: [],
+      disposal: undefined,
+    }
+    transformersPipelines.set(key, entry)
+    void entry.creation.catch(() => {
+      if (transformersPipelines.get(key) === entry) {
+        transformersPipelines.delete(key)
+      }
+    })
+    evictTransformersPipelines(key)
+  }
+
+  entry.leases += 1
+  try {
+    const extractor = await entry.creation
+    let released = false
+    return {
+      extractor,
+      async release() {
+        if (released) {
+          return
+        }
+        released = true
+        await releaseTransformersLease(entry)
+      },
+    }
+  } catch (error) {
+    await releaseTransformersLease(entry)
+    throw error
+  }
+}
+
+function transformersCacheKey(config: Config): string {
+  return [
     config.embeddingModel,
     config.embeddingModelRevision,
+    config.embeddingModelDigest ?? "unverified",
     config.embeddingModelPath,
-    String(config.transformersAllowRemoteModels),
   ].join("\n")
-  const cached = transformersPipelines.get(key)
-  if (cached) {
-    // Move to the end so the Map insertion order reflects recent use (LRU).
-    transformersPipelines.delete(key)
-    transformersPipelines.set(key, cached)
-    return cached
-  }
-
-  const pending = pendingTransformersPipelines.get(key)
-  if (pending) {
-    return pending
-  }
-
-  const generation = transformersCacheGeneration
-  const creation = createTransformersExtractor(config).then((extractor) =>
-    cacheTransformersPipeline(key, extractor, generation),
-  )
-  pendingTransformersPipelines.set(key, creation)
-  try {
-    return await creation
-  } finally {
-    if (pendingTransformersPipelines.get(key) === creation) {
-      pendingTransformersPipelines.delete(key)
-    }
-  }
 }
 
 async function createTransformersExtractor(config: Config): Promise<TransformersExtractor> {
@@ -168,42 +245,50 @@ async function createTransformersExtractor(config: Config): Promise<Transformers
   })
 }
 
-async function evictTransformersPipeline(): Promise<void> {
-  const evicted: TransformersExtractor[] = []
-  while (transformersPipelines.size >= MAX_TRANSFORMERS_PIPELINES) {
-    // Map iteration order is insertion order, so the first key is the least
-    // recently used entry.
-    const oldest = transformersPipelines.keys().next()
-    if (oldest.done) {
+function evictTransformersPipelines(retainedKey: string): void {
+  while (transformersPipelines.size > MAX_TRANSFORMERS_PIPELINES) {
+    const candidate = [...transformersPipelines.entries()].find(([key]) => key !== retainedKey)
+    if (!candidate) {
       break
     }
-    const extractor = transformersPipelines.get(oldest.value)
-    transformersPipelines.delete(oldest.value)
-    if (extractor) {
-      evicted.push(extractor)
-    }
+    void retireTransformersPipeline(candidate[1])
   }
-  await Promise.allSettled(evicted.map((extractor) => extractor.dispose?.()))
 }
 
-function cacheTransformersPipeline(
-  key: string,
-  extractor: TransformersExtractor,
-  generation: number,
-): Promise<TransformersExtractor> {
-  return withTransformersCacheMutation(async () => {
-    if (generation !== transformersCacheGeneration) {
-      await extractor.dispose?.()
-      throw new Error("Transformers cache was cleared while the pipeline was loading.")
+async function releaseTransformersLease(entry: TransformersPipelineEntry): Promise<void> {
+  entry.leases -= 1
+  if (entry.leases < 0) {
+    throw new Error("Transformers pipeline lease count became negative.")
+  }
+  if (entry.leases === 0) {
+    for (const resolve of entry.idleWaiters.splice(0)) {
+      resolve()
     }
-    await evictTransformersPipeline()
-    if (generation !== transformersCacheGeneration) {
-      await extractor.dispose?.()
-      throw new Error("Transformers cache was cleared while the pipeline was loading.")
+  }
+  if (entry.retired) {
+    await entry.disposal
+  }
+}
+
+function retireTransformersPipeline(entry: TransformersPipelineEntry): Promise<void> {
+  if (!entry.retired) {
+    entry.retired = true
+    if (transformersPipelines.get(entry.key) === entry) {
+      transformersPipelines.delete(entry.key)
     }
-    transformersPipelines.set(key, extractor)
-    return extractor
-  })
+  }
+  entry.disposal ??= (async () => {
+    if (entry.leases > 0) {
+      await new Promise<void>((resolve) => entry.idleWaiters.push(resolve))
+    }
+    try {
+      const extractor = await entry.creation
+      await extractor.dispose?.()
+    } catch {
+      // Failed pipeline creation has no live native session to release.
+    }
+  })()
+  return entry.disposal
 }
 
 /**
@@ -212,36 +297,116 @@ function cacheTransformersPipeline(
  * weights are not pinned in memory.
  */
 export function clearTransformersCache(): void {
-  const extractors = takeTransformersCache()
-  void disposeTransformersExtractors(extractors)
+  for (const entry of takeTransformersCache()) {
+    void retireTransformersPipeline(entry)
+  }
 }
 
 export async function disposeTransformersCache(): Promise<void> {
-  const extractors = takeTransformersCache()
-  await disposeTransformersExtractors(extractors)
+  await Promise.all(takeTransformersCache().map(retireTransformersPipeline))
 }
 
-function takeTransformersCache(): TransformersExtractor[] {
-  transformersCacheGeneration += 1
-  const extractors = [...transformersPipelines.values()]
+export async function disposeTransformersModel(config: Config): Promise<void> {
+  const entry = transformersPipelines.get(transformersCacheKey(config))
+  if (entry) {
+    await retireTransformersPipeline(entry)
+  }
+}
+
+export function retainEmbeddingModel(config: Config): () => Promise<void> {
+  if (config.embeddingProvider !== "transformers") {
+    return async () => undefined
+  }
+  const key = transformersCacheKey(config)
+  transformersModelOwners.set(key, (transformersModelOwners.get(key) ?? 0) + 1)
+  let released = false
+  return async () => {
+    if (released) {
+      return
+    }
+    released = true
+    const owners = transformersModelOwners.get(key) ?? 0
+    if (owners <= 1) {
+      transformersModelOwners.delete(key)
+      await disposeTransformersModel(config)
+      return
+    }
+    transformersModelOwners.set(key, owners - 1)
+  }
+}
+
+export function transformersCacheSnapshotForTests(): {
+  entries: number
+  activeLeases: number
+  owners: number
+} {
+  return {
+    entries: transformersPipelines.size,
+    activeLeases: [...transformersPipelines.values()].reduce(
+      (total, entry) => total + entry.leases,
+      0,
+    ),
+    owners: [...transformersModelOwners.values()].reduce((total, owners) => total + owners, 0),
+  }
+}
+
+function takeTransformersCache(): TransformersPipelineEntry[] {
+  const entries = [...transformersPipelines.values()]
   transformersPipelines.clear()
-  pendingTransformersPipelines.clear()
-  return extractors
+  return entries
 }
 
-function disposeTransformersExtractors(extractors: TransformersExtractor[]): Promise<void> {
-  return withTransformersCacheMutation(async () => {
-    await Promise.allSettled(extractors.map((extractor) => extractor.dispose?.()))
-  })
+async function resolveEmbeddingModelDigest(config: Config): Promise<string> {
+  const modelRoot = embeddingModelRoot(config)
+  const files = await modelArtifactFiles(modelRoot)
+  if (files.length === 0) {
+    throw new Error(`No embedding model artifacts found under ${modelRoot}.`)
+  }
+  const identity = createHash("sha256")
+  for (const filename of files) {
+    const relativePath = path.relative(modelRoot, filename).split(path.sep).join("/")
+    const metadata = await stat(filename)
+    const digest = await sha256File(filename)
+    identity.update(relativePath)
+    identity.update("\0")
+    identity.update(String(metadata.size))
+    identity.update("\0")
+    identity.update(digest)
+    identity.update("\n")
+  }
+  return `sha256:${identity.digest("hex")}`
 }
 
-function withTransformersCacheMutation<T>(operation: () => Promise<T>): Promise<T> {
-  const queued = transformersCacheMutationQueue.then(operation)
-  transformersCacheMutationQueue = queued.then(
-    () => undefined,
-    () => undefined,
-  )
-  return queued
+function embeddingModelRoot(config: Config): string {
+  const base = path.resolve(config.embeddingModelPath)
+  const root = path.resolve(base, config.embeddingModel)
+  if (root === base || !root.startsWith(`${base}${path.sep}`)) {
+    throw new Error("embeddingModel must resolve inside embeddingModelPath.")
+  }
+  return root
+}
+
+async function modelArtifactFiles(directory: string): Promise<string[]> {
+  const files: string[] = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const filename = path.join(directory, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...(await modelArtifactFiles(filename)))
+    } else if (entry.isFile()) {
+      files.push(filename)
+    } else if (entry.isSymbolicLink()) {
+      throw new Error(`Embedding model artifacts must not contain symbolic links: ${filename}`)
+    }
+  }
+  return files.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+}
+
+async function sha256File(filename: string): Promise<string> {
+  const hash = createHash("sha256")
+  for await (const chunk of createReadStream(filename)) {
+    hash.update(chunk)
+  }
+  return hash.digest("hex")
 }
 
 function withTransformersEnvironment<T>(operation: () => Promise<T>): Promise<T> {

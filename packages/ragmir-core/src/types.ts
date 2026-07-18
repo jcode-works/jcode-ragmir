@@ -31,6 +31,7 @@ export interface Config {
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
   embeddingModelRevision: string
+  embeddingModelDigest: string | null
   transformersAllowRemoteModels: boolean
   redaction: RedactionConfig
   accessLog: boolean
@@ -42,7 +43,10 @@ export interface Config {
   maxFileBytes: number
   ingestConcurrency: number
   embeddingBatchSize: number
+  sourceFingerprintMode: SourceFingerprintMode
+  incrementalFailurePolicy: IncrementalFailurePolicy
   hybridTextScanLimit: number
+  workloadLimits: WorkloadLimits
   includeExtensions: string[]
   pdfOcrCommand: string[]
   pdfOcrTimeoutMs: number
@@ -54,6 +58,17 @@ export interface Config {
 
 export type PrivacyProfile = "strict" | "private" | "trusted" | "custom"
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
+export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
+export type SourceFingerprintMode = "fast" | "strict"
+export type WorkloadKind = "search" | "embedding" | "ingestion"
+
+export interface WorkloadLimit {
+  concurrency: number
+  maxQueue: number
+  queueTimeoutMs: number
+}
+
+export type WorkloadLimits = Record<WorkloadKind, WorkloadLimit>
 
 export type AccessLogAction =
   | "ingest"
@@ -96,8 +111,16 @@ export interface McpOutputUsageReport {
 
 export interface IngestionLimitsReport {
   maxFileBytes: number
+  hardMaxFileBytes: number
   maxFiles: null
   maxCorpusBytes: null
+  maxFileBatchSize: number
+  maxIngestConcurrency: number
+  maxEmbeddingBatchSize: number
+  maxSourceWindowBytes: number
+  maxChunkWindow: number
+  maxChunksPerFile: number
+  maxVectorBytesPerFile: number
   maxPdfPages: number
   maxPdfTextCharacters: number
   maxOfficeTextEntries: number
@@ -109,11 +132,37 @@ export interface IngestionLimitsReport {
 
 export type EmbeddingProvider = "local-hash" | "transformers"
 
+export type VectorIndexStrategy = "exact" | "ivf-pq" | "hnsw-sq"
+
+export interface VectorIndexParameters {
+  numPartitions?: number
+  numSubVectors?: number
+  nprobes?: number
+  refineFactor?: number
+  ef?: number
+}
+
+export interface VectorIndexManifest {
+  policyVersion: 1
+  strategy: VectorIndexStrategy
+  indexName: string | null
+  indexType: string | null
+  column: "vector"
+  distanceMetric: string
+  dimension: number
+  modelFingerprint: string
+  indexedRows: number
+  unindexedRows: number
+  coverage: number
+  parameters: VectorIndexParameters
+}
+
 /**
  * Manifest written next to the LanceDB table at each ingest. It captures the
  * configuration that produced the indexed vectors so callers can detect a
  * stale index cheaply (without re-scanning every file's checksum) when the
- * embedding model, provider, chunking, or Ragmir schema has changed.
+ * embedding model, provider, chunking, or Ragmir schema has changed. The
+ * corpus fingerprint identifies indexed relative paths and source bytes.
  */
 export interface IndexManifest {
   schemaVersion: number
@@ -121,15 +170,73 @@ export interface IndexManifest {
   ragmirVersion: string
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
+  embeddingModelRevision?: string
+  embeddingModelDigest?: string | null
   indexPolicyFingerprint?: string
   vectorDimension?: number
   vectorDistanceMetric?: string
+  vectorIndex?: VectorIndexManifest
   chunkSize: number
   chunkOverlap: number
   fileCount: number
   chunkCount: number
+  corpusFingerprint?: string
   tableName?: string
   indexedFiles?: IndexManifestFile[]
+  staleFiles?: IndexManifestStaleFile[]
+  health?: IndexHealthSnapshot
+  maintenance?: IndexMaintenanceSnapshot
+  qualityReport?: IndexQualityReport
+}
+
+export interface IndexHealthSnapshot {
+  schemaVersion: 1
+  checkedAt: string
+  discoveredFiles: number
+  supportedFiles: number
+  supportedBytes: number
+  largestFileBytes: number
+  skippedFiles: number
+  unsupportedFiles: number
+  oversizedFiles: number
+  sensitiveFiles: number
+  emptyTextFiles: number
+  missingFromIndex: number
+  staleInIndex: number
+  previews: {
+    missingFromIndex: string[]
+    staleInIndex: string[]
+    emptyTextFiles: string[]
+  }
+  previewOmitted: {
+    missingFromIndex: number
+    staleInIndex: number
+    emptyTextFiles: number
+  }
+  skippedByReason: Record<string, number>
+  sourceDiagnostics: SourceDiagnostics
+  securityCheckedAt: string
+  securityWarnings: string[]
+}
+
+export interface IndexMaintenanceSnapshot {
+  schemaVersion: 1
+  checkedAt: string
+  status: "missing" | "healthy" | "needed" | "completed" | "warning"
+  tableVersion: number | null
+  mutationsSinceOptimization: number
+  fragments: {
+    total: number
+    small: number
+    smallRatio: number
+  }
+  fullTextIndex: {
+    present: boolean
+    indexedRows: number
+    unindexedRows: number
+    complete: boolean
+  }
+  warning: string | null
 }
 
 export interface IndexManifestFile {
@@ -138,6 +245,14 @@ export interface IndexManifestFile {
   chunkCount: number
   bytes?: number
   mtimeMs?: number
+}
+
+export interface IndexManifestStaleFile {
+  relativePath: string
+  currentChecksum: string
+  lastGoodChecksum: string
+  chunkCount: number
+  error: string
 }
 
 export interface RedactionConfig {
@@ -185,18 +300,51 @@ export interface SourceInventory {
   discoveredFiles: number
   supportedFiles: SourceFile[]
   skippedFiles: SkippedSourceFile[]
+  contentBytesRead: number
+  hashedFiles: number
+  reusedFingerprints: number
 }
 
 export interface ParsedDocument {
   file: SourceFile
   text: string
+  sourceLineCoordinates?: boolean
   pages?: ParsedPage[]
+  regions?: ParsedRegion[]
+  ocr?: PdfOcrMetrics
+}
+
+export interface PdfOcrMetrics {
+  pages: number
+  cacheHits: number
+  cacheMisses: number
+  batches: number
+  subprocesses: number
+  durationMs: number
 }
 
 export interface ParsedPage {
   pageNumber: number
   charStart: number
   charEnd: number
+}
+
+export type SourceLocationKind = "page" | "slide" | "sheet" | "epub"
+
+export interface SourceLocation {
+  kind: SourceLocationKind
+  start: number
+  end: number
+  label?: string
+  cellStart?: string
+  cellEnd?: string
+}
+
+export interface ParsedRegion {
+  charStart: number
+  charEnd: number
+  contextPath: string
+  location: SourceLocation
 }
 
 export interface TextChunk {
@@ -208,10 +356,16 @@ export interface TextChunk {
   text: string
   charStart: number
   charEnd: number
-  lineStart: number
-  lineEnd: number
+  lineStart?: number
+  lineEnd?: number
   pageStart?: number
   pageEnd?: number
+  locationKind?: SourceLocationKind
+  locationStart?: number
+  locationEnd?: number
+  locationLabel?: string
+  cellStart?: string
+  cellEnd?: string
   checksum: string
   bytes: number
   mtimeMs: number
@@ -244,7 +398,54 @@ export interface IngestOptions extends OperationOptions {
   cwd?: PathLike
   rebuild?: boolean
   batchSize?: number
+  incrementalFailurePolicy?: IncrementalFailurePolicy
+  collectMetrics?: boolean
   onProgress?: (progress: IngestionProgress) => void | Promise<void>
+}
+
+export type IngestionEmbeddingModelState = "unused" | "stateless" | "cold" | "warm" | "mixed"
+
+export interface IngestionPhaseDurations {
+  queueMs: number
+  writeLockWaitMs: number
+  discoveryMs: number
+  hashingMs: number
+  parsingMs: number
+  redactionMs: number
+  chunkingMs: number
+  embeddingMs: number
+  storageWriteMs: number
+  maintenanceMs: number
+  totalMs: number
+}
+
+export interface IngestionThroughputMetrics {
+  filesPerSecond: number
+  mebibytesPerSecond: number
+  chunksPerSecond: number
+  embeddingsPerSecond: number
+}
+
+export interface IngestionMetrics {
+  phaseDurations: IngestionPhaseDurations
+  throughput: IngestionThroughputMetrics
+  sourceBytesRead: number
+  storagePayloadBytes: number
+  peakRssBytes: number
+  candidateFiles: number
+  processedFiles: number
+  embeddedChunks: number
+  embeddingProvider: EmbeddingProvider
+  embeddingModelState: IngestionEmbeddingModelState
+  embeddingCacheHits: number
+  embeddingCacheMisses: number
+  embeddingQueueMs: number
+  fallbackFiles: number
+  errorCount: number
+  timeoutCount: number
+  truncationCount: number
+  maintenanceOperations: number
+  ocrSubprocesses: number
 }
 
 export interface IngestResult {
@@ -258,6 +459,7 @@ export interface IngestResult {
   indexedFiles: number
   rebuiltFiles: number
   reusedFiles: number
+  staleLastKnownGood: string[]
   policyRebuild: boolean
   chunks: number
   skippedFiles: number
@@ -267,9 +469,12 @@ export interface IngestResult {
   emptyTextFiles: string[]
   unsupportedExtensions: Array<{ extension: string; count: number }>
   redactions: number
+  ocr: PdfOcrMetrics
   vectorIndexWarning: string | null
   lexicalIndexWarning: string | null
+  storageWarning: string | null
   errors: Array<{ path: string; message: string }>
+  metrics?: IngestionMetrics
 }
 
 export type IngestionFileStage = "pending" | "parsed" | "embedded" | "indexed" | "error"
@@ -295,6 +500,7 @@ export interface IngestionProgress {
   embeddedFiles: number
   indexedFiles: number
   errorFiles: number
+  staleFiles: number
   chunksIndexed: number
   lastActivityAt: string
 }
@@ -313,8 +519,8 @@ export interface PreviewChunk {
   text: string
   charStart: number
   charEnd: number
-  lineStart: number
-  lineEnd: number
+  lineStart: number | null
+  lineEnd: number | null
   pageStart: number | null
   pageEnd: number | null
 }
@@ -326,6 +532,7 @@ export interface PreviewFile {
   bytes: number
   parsedChars: number
   redactions: number
+  ocr: PdfOcrMetrics | null
   chunkStats: ChunkStats
   chunks: PreviewChunk[]
   omittedChunks: number
@@ -370,6 +577,7 @@ export interface KnowledgeBaseContextReport {
   privacyProfile: PrivacyProfile
   retrievalProfile: RetrievalProfile
   embeddingProvider: EmbeddingProvider
+  corpusFingerprint: string | null
   ready: boolean
   coverage: {
     supportedFiles: number
@@ -411,6 +619,16 @@ export interface KnowledgeBaseSourceCatalog {
     staleInIndex: number
     emptyTextFiles: number
   }
+  page: {
+    offset: number
+    limit: number
+    nextOffset: number | null
+  }
+}
+
+export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
+  offset?: number
+  limit?: number
 }
 
 export interface SearchOptions extends OperationOptions {
@@ -421,6 +639,7 @@ export interface SearchOptions extends OperationOptions {
   excludePaths?: string[]
   contextPaths?: string[]
   explain?: boolean
+  vectorSearchMode?: "adaptive" | "exact"
 }
 
 export interface SearchContextChunk {
@@ -463,6 +682,18 @@ export interface SearchScoreExplanation {
   lexicalRank: number | null
   vectorDistance: number | null
   lexicalBackendScore: number | null
+  lexicalBackend: "fts" | "fallback"
+  lexicalFallbackActivated: boolean
+  lexicalFallbackReason: "fts-index-unavailable" | "fts-query-failed" | null
+  lexicalExactPathMatch: boolean
+  lexicalCandidateLimit: number
+  lexicalCandidatesMaterialized: number
+  lexicalQueryVariants: number
+  lexicalIndexedRows: number
+  lexicalUnindexedRows: number
+  lexicalCoverage: number
+  workloadQueueMs: number
+  rankingPolicyFingerprint: string
   matchedTerms: string[]
 }
 
@@ -515,6 +746,11 @@ export interface ResearchOptions extends OperationOptions {
   cwd?: PathLike
   topK?: number
   includeCode?: boolean
+  fullAudit?: boolean
+  codeTopK?: number
+  codeScanMaxFiles?: number
+  codeScanMaxBytes?: number
+  codeScanConcurrency?: number
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
@@ -533,6 +769,8 @@ export interface ResearchEvidence {
   pageStart: number | null
   pageEnd: number | null
   queries: string[]
+  bestRank: number
+  researchScore: number
 }
 
 export interface CodeEvidence {
@@ -540,6 +778,7 @@ export interface CodeEvidence {
   lineNumber: number
   snippet: string
   matchedTerms: string[]
+  score: number
 }
 
 export interface ResearchReport {
@@ -547,6 +786,8 @@ export interface ResearchReport {
   generatedQueries: string[]
   ready: boolean
   audit: {
+    mode: "manifest" | "full"
+    inventoryVerified: boolean
     supportedFiles: number
     supportedBytes: number
     largestFileBytes: number
@@ -563,6 +804,17 @@ export interface ResearchReport {
   sourceDiagnostics: SourceDiagnostics
   evidence: ResearchEvidence[]
   codeEvidence: CodeEvidence[]
+  budgets: {
+    timeoutMs: number | null
+    evidenceTopK: number
+    codeEvidenceTopK: number
+    codeScanMaxFiles: number
+    codeScanMaxBytes: number
+    codeScanConcurrency: number
+    codeFilesScanned: number
+    codeBytesScanned: number
+    codeScanTruncated: boolean
+  }
   gaps: string[]
   nextSteps: string[]
 }
@@ -572,10 +824,53 @@ export interface GoldenQuery {
   query: string
   expectedPaths: string[]
   expectedCitations?: string[]
+  answerable?: boolean
+  category?: string
+  locale?: string
+  relevanceJudgments?: RelevanceJudgment[]
+  maximumVectorDistance?: number
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
   topK?: number
+}
+
+export interface RelevanceJudgment {
+  kind: "path" | "citation"
+  value: string
+  relevance: 0 | 1 | 2 | 3
+}
+
+export interface QualityMetricThresholds {
+  recallAt1?: number
+  recallAt3?: number
+  recallAt5?: number
+  recallAt10?: number
+  precisionAt5?: number
+  meanReciprocalRankAt10?: number
+  ndcgAt10?: number
+  exactCitationRate?: number
+  maximumFalsePositiveRate?: number
+}
+
+export interface QualityGateResult {
+  metric: keyof QualityMetricThresholds
+  direction: "minimum" | "maximum"
+  threshold: number
+  actual: number | null
+  passed: boolean
+  applicable: boolean
+}
+
+export interface EvaluationGroupResult {
+  total: number
+  answerable: number
+  unanswerable: number
+  recallAt10: number
+  precisionAt5: number
+  meanReciprocalRankAt10: number
+  ndcgAt10: number
+  falsePositiveRate: number
 }
 
 export interface EvaluationOptions extends OperationOptions {
@@ -583,6 +878,9 @@ export interface EvaluationOptions extends OperationOptions {
   goldenPath: PathLike
   topK?: number
   maxTopK?: number
+  thresholds?: QualityMetricThresholds
+  persistCompatibleReport?: boolean
+  caseDetailLimit?: number
 }
 
 export interface EvaluationCaseResult {
@@ -598,12 +896,24 @@ export interface EvaluationCaseResult {
   matchedPaths: string[]
   matchedCitations: string[]
   expectedCitations?: string[]
+  answerable: boolean
+  category?: string
+  locale?: string
+  relevanceJudgments: RelevanceJudgment[]
+  abstained: boolean
+  falsePositive: boolean
+  pathHit: boolean
+  exactCitationHit: boolean | null
   hit: boolean
   bestRank: number | null
   reciprocalRank: number
   recall: number
   precision: number
   ndcg: number
+  recallAt: Record<1 | 3 | 5 | 10, number>
+  precisionAt5: number
+  reciprocalRankAt10: number
+  ndcgAt10: number
   latencyMs: number
 }
 
@@ -611,6 +921,12 @@ export interface EvaluationResult {
   goldenPath: string
   embeddingProvider: EmbeddingProvider
   embeddingModel: string
+  embeddingModelRevision: string
+  embeddingModelDigest: string | null
+  retrievalProfile: RetrievalProfile
+  rankingPolicyFingerprint: string
+  indexFingerprint: string
+  goldenFingerprint: string
   topK: number
   total: number
   hits: number
@@ -620,9 +936,58 @@ export interface EvaluationResult {
   precision: number
   meanReciprocalRank: number
   ndcg: number
+  recallAt: Record<1 | 3 | 5 | 10, number>
+  precisionAt5: number
+  meanReciprocalRankAt10: number
+  ndcgAt10: number
+  exactCitationRate: number | null
+  falsePositiveRate: number | null
+  abstentionAccuracy: number | null
+  thresholds: QualityMetricThresholds
+  gates: QualityGateResult[]
+  passed: boolean
+  verificationEligible: boolean
+  reportStored: boolean
+  qualityReportFingerprint: string | null
+  groups: {
+    categories: Record<string, EvaluationGroupResult>
+    locales: Record<string, EvaluationGroupResult>
+  }
   p50LatencyMs: number
   p95LatencyMs: number
   cases: EvaluationCaseResult[]
+  omittedCases?: number
+}
+
+export interface IndexQualityReport {
+  schemaVersion: 3
+  createdAt: string
+  goldenPath: string
+  goldenFingerprint: string
+  indexFingerprint: string
+  indexPolicyFingerprint: string
+  embeddingProvider: EmbeddingProvider
+  embeddingModel: string
+  embeddingModelRevision: string
+  embeddingModelDigest: string | null
+  retrievalProfile: RetrievalProfile
+  rankingPolicyFingerprint: string
+  total: number
+  metrics: {
+    recallAt1: number
+    recallAt3: number
+    recallAt5: number
+    recallAt10: number
+    precisionAt5: number
+    meanReciprocalRankAt10: number
+    ndcgAt10: number
+    exactCitationRate: number
+    falsePositiveRate: number
+  }
+  thresholds: Required<QualityMetricThresholds>
+  passed: true
+  verificationEligible: true
+  qualityReportFingerprint: string
 }
 
 export interface AskResult {
@@ -631,7 +996,14 @@ export interface AskResult {
   staleWarning: string | null
 }
 
+export interface AuditOptions extends OperationOptions {
+  previewLimit?: number
+}
+
 export interface AuditReport {
+  mode: "deep"
+  inventoryVerified: true
+  cost: "O(corpus)"
   discoveredFiles: number
   supportedBytes: number
   largestFileBytes: number
@@ -645,6 +1017,17 @@ export interface AuditReport {
   staleInIndex: string[]
   totalChunks: number
   chunkStats: ChunkStats
+  omitted?: {
+    indexedFiles: number
+    supportedFiles: number
+    skippedFiles: number
+    emptyTextFiles: number
+    duplicateCandidates: number
+    archiveCandidates: number
+    mirrorCandidates: number
+    missingFromIndex: number
+    staleInIndex: number
+  }
 }
 
 export interface DestroyIndexResult {
@@ -654,10 +1037,15 @@ export interface DestroyIndexResult {
 }
 
 export interface DoctorReport {
+  mode: "manifest" | "deep"
+  inventoryVerified: boolean
+  securityVerified: boolean
+  cost: "O(1)" | "O(corpus)"
   projectRoot: string
   initialized: boolean
   packageManager: PackageManager
   runCommand: string
+  runtime: RuntimeInfo
   agentKitInstalled: boolean
   agentIntegration: AgentIntegrationReport
   rawDir: string
@@ -681,6 +1069,7 @@ export interface DoctorReport {
   chunksIndexed: number
   missingFromIndex: number
   staleInIndex: number
+  corpusFingerprint: string | null
   securityWarnings: string[]
   indexFreshness: {
     manifestFound: boolean
@@ -698,6 +1087,32 @@ export interface DoctorReport {
   nextSteps: string[]
 }
 
+export interface RuntimePackageVersion {
+  name: string
+  version: string
+}
+
+export interface RuntimeInfo {
+  ragmir: string
+  node: string
+  v8: string
+  napi: string | null
+  platform: NodeJS.Platform
+  architecture: string
+  dependencies: {
+    lanceDb: RuntimePackageVersion | null
+    lanceDbNative: RuntimePackageVersion | null
+    apacheArrow: RuntimePackageVersion | null
+    transformers: RuntimePackageVersion | null
+    onnxRuntime: RuntimePackageVersion | null
+    sharp: RuntimePackageVersion | null
+  }
+}
+
+export interface DoctorOptions extends OperationOptions {
+  deep?: boolean
+}
+
 export interface SecurityAuditReport {
   projectRoot: string
   zeroTelemetry: true
@@ -707,6 +1122,7 @@ export interface SecurityAuditReport {
     embedding: EmbeddingProvider
     embeddingModel: string
     embeddingModelRevision: string
+    embeddingModelDigest: string | null
     embeddingModelPath: string
     transformersAllowRemoteModels: boolean
     llmGeneration: false
@@ -726,12 +1142,28 @@ export interface SecurityAuditReport {
     gitIgnored: boolean
     encryptedAtRest: "external-required"
   }
+  privatePaths: Array<{
+    kind: "config" | "raw" | "storage" | "sources" | "access-log" | "embedding-models"
+    path: string
+    insideProject: boolean
+    gitIgnored: boolean | null
+    gitTracked: boolean | null
+    permissionPrivate: boolean | null
+  }>
+  externalExtractors: {
+    configured: boolean
+    enabled: Array<"pdf-ocr" | "image-ocr" | "legacy-word">
+    disabledByStrictProfile: boolean
+    executeWithOperatorAuthority: true
+  }
   permissions: {
     checked: boolean
     configPrivate: boolean | null
     rawDirPrivate: boolean | null
     storageDirPrivate: boolean | null
+    sourcesFilePrivate: boolean | null
     accessLogPrivate: boolean | null
+    embeddingModelPathPrivate: boolean | null
   }
   mcp: {
     maxTopK: number
@@ -745,4 +1177,8 @@ export interface SecurityAuditReport {
   }
   recommendations: string[]
   warnings: string[]
+}
+
+export interface SecurityAuditOptions extends OperationOptions {
+  deep?: boolean
 }

@@ -38,12 +38,18 @@ describe("loadConfig", () => {
     expect(config.retrievalProfile).toBe("balanced")
     expect(config.acceptedRisks).toEqual([])
     expect(config.embeddingModel).toBe("intfloat/multilingual-e5-small")
-    expect(config.embeddingModelRevision).toBe("main")
+    expect(config.embeddingModelRevision).toMatch(/^[0-9a-f]{40}$/u)
+    expect(config.embeddingModelDigest).toBeNull()
     expect(config.transformersAllowRemoteModels).toBe(false)
     expect(config.redaction.enabled).toBe(true)
     expect(config.accessLog).toBe(true)
     expect(config.mcpMaxTopK).toBe(10)
     expect(config.mcpMaxOutputBytes).toBe(32_768)
+    expect(config.workloadLimits).toEqual({
+      search: { concurrency: 8, maxQueue: 64, queueTimeoutMs: 30_000 },
+      embedding: { concurrency: 1, maxQueue: 64, queueTimeoutMs: 30_000 },
+      ingestion: { concurrency: 1, maxQueue: 4, queueTimeoutMs: 120_000 },
+    })
     expect(config.sources).toEqual([])
     expect(config.includeExtensions).toEqual([])
     expect(config.pdfOcrCommand).toEqual([])
@@ -52,6 +58,20 @@ describe("loadConfig", () => {
     expect(config.imageOcrTimeoutMs).toBe(120_000)
     expect(config.legacyWordCommand).toEqual([])
     expect(config.legacyWordTimeoutMs).toBe(120_000)
+    expect(config.sourceFingerprintMode).toBe("fast")
+  })
+
+  it("should load strict source fingerprint mode", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-fingerprint-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir/config.json"),
+      JSON.stringify({ sourceFingerprintMode: "strict" }),
+      "utf8",
+    )
+
+    await expect(loadConfig(root)).resolves.toMatchObject({ sourceFingerprintMode: "strict" })
   })
 
   it("should select the nearest Ragmir config inside a monorepo", async () => {
@@ -190,6 +210,39 @@ describe("loadConfig", () => {
     }
   })
 
+  it("should validate and load a pinned embedding artifact digest", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-model-digest-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    const digest = `sha256:${"a".repeat(64)}`
+    await writeFile(
+      path.join(root, ".ragmir/config.json"),
+      JSON.stringify({ embeddingModelDigest: digest }),
+      "utf8",
+    )
+
+    await expect(loadConfig(root)).resolves.toMatchObject({ embeddingModelDigest: digest })
+    await writeFile(
+      path.join(root, ".ragmir/config.json"),
+      JSON.stringify({ embeddingModelDigest: "sha256:not-a-digest" }),
+      "utf8",
+    )
+    await expect(loadConfig(root)).rejects.toThrow()
+
+    await writeFile(path.join(root, ".ragmir/config.json"), JSON.stringify({}), "utf8")
+    const originalDigest = process.env.RAGMIR_EMBEDDING_MODEL_DIGEST
+    process.env.RAGMIR_EMBEDDING_MODEL_DIGEST = "sha256:not-an-env-digest"
+    try {
+      await expect(loadConfig(root)).rejects.toThrow()
+    } finally {
+      if (originalDigest === undefined) {
+        delete process.env.RAGMIR_EMBEDDING_MODEL_DIGEST
+      } else {
+        process.env.RAGMIR_EMBEDDING_MODEL_DIGEST = originalDigest
+      }
+    }
+  })
+
   it("loads optional PDF OCR command from config and env", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-"))
     tempDirs.push(root)
@@ -308,7 +361,22 @@ describe("loadConfig", () => {
     await expect(loadConfig(root)).rejects.toThrow("chunkOverlap must be lower than chunkSize.")
   })
 
-  it("overrides mcpMaxTopK from env and falls back to the default on invalid values", async () => {
+  it("should validate the incremental ingestion failure policy", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    const configPath = path.join(root, ".ragmir/config.json")
+
+    await writeFile(configPath, JSON.stringify({ incrementalFailurePolicy: "remove-stale" }))
+    await expect(loadConfig(root)).resolves.toMatchObject({
+      incrementalFailurePolicy: "remove-stale",
+    })
+
+    await writeFile(configPath, JSON.stringify({ incrementalFailurePolicy: "discard-all" }))
+    await expect(loadConfig(root)).rejects.toThrow()
+  })
+
+  it("overrides mcpMaxTopK from env and rejects invalid values", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "jcode-kb-"))
     tempDirs.push(root)
     await mkdir(path.join(root, ".ragmir"), { recursive: true })
@@ -319,7 +387,7 @@ describe("loadConfig", () => {
     try {
       expect((await loadConfig(root)).mcpMaxTopK).toBe(3)
       process.env.RAGMIR_MCP_MAX_TOP_K = "not-a-number"
-      expect((await loadConfig(root)).mcpMaxTopK).toBe(10)
+      await expect(loadConfig(root)).rejects.toThrow("RAGMIR_MCP_MAX_TOP_K")
     } finally {
       if (original === undefined) {
         delete process.env.RAGMIR_MCP_MAX_TOP_K
@@ -329,7 +397,7 @@ describe("loadConfig", () => {
     }
   })
 
-  it("should reject partial and unsafe integer environment overrides without library output", async () => {
+  it("should reject invalid environment overrides without library output", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-integer-env-"))
     tempDirs.push(root)
     await mkdir(path.join(root, ".ragmir"), { recursive: true })
@@ -338,17 +406,20 @@ describe("loadConfig", () => {
     const originalTopK = process.env.RAGMIR_TOP_K
     const originalOverlap = process.env.RAGMIR_CHUNK_OVERLAP
     const originalProvider = process.env.RAGMIR_EMBEDDING_PROVIDER
-    process.env.RAGMIR_CHUNK_OVERLAP = "1.5"
-    process.env.RAGMIR_EMBEDDING_PROVIDER = "remote"
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
     try {
+      process.env.RAGMIR_CHUNK_OVERLAP = "1.5"
+      await expect(loadConfig(root)).rejects.toThrow("RAGMIR_CHUNK_OVERLAP")
+      restoreEnv("RAGMIR_CHUNK_OVERLAP", originalOverlap)
+
+      process.env.RAGMIR_EMBEDDING_PROVIDER = "remote"
+      await expect(loadConfig(root)).rejects.toThrow("RAGMIR_EMBEDDING_PROVIDER")
+      restoreEnv("RAGMIR_EMBEDDING_PROVIDER", originalProvider)
+
       for (const topK of ["3junk", "1.5", "9007199254740992"]) {
         process.env.RAGMIR_TOP_K = topK
-        const config = await loadConfig(root)
-        expect(config.topK).toBe(8)
-        expect(config.chunkOverlap).toBe(200)
-        expect(config.embeddingProvider).toBe("local-hash")
+        await expect(loadConfig(root)).rejects.toThrow("RAGMIR_TOP_K")
       }
       expect(warn).not.toHaveBeenCalled()
       expect(error).not.toHaveBeenCalled()
@@ -372,9 +443,9 @@ describe("loadConfig", () => {
     try {
       expect((await loadConfig(root)).mcpMaxOutputBytes).toBe(8_192)
       process.env.RAGMIR_MCP_MAX_OUTPUT_BYTES = "invalid"
-      expect((await loadConfig(root)).mcpMaxOutputBytes).toBe(32_768)
+      await expect(loadConfig(root)).rejects.toThrow("RAGMIR_MCP_MAX_OUTPUT_BYTES")
       process.env.RAGMIR_MCP_MAX_OUTPUT_BYTES = "512"
-      expect((await loadConfig(root)).mcpMaxOutputBytes).toBe(32_768)
+      await expect(loadConfig(root)).rejects.toThrow("RAGMIR_MCP_MAX_OUTPUT_BYTES")
     } finally {
       restoreEnv("RAGMIR_MCP_MAX_OUTPUT_BYTES", original)
     }
@@ -472,6 +543,105 @@ describe("loadConfig", () => {
     expect(await loadConfig(root)).toEqual(
       expect.objectContaining({ retrievalProfile: "fast", topK: 7, hybridTextScanLimit: 3_000 }),
     )
+  })
+
+  it("should reject resource settings above the safe maxima", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-ingest-maxima-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    const configPath = path.join(root, ".ragmir", "config.json")
+
+    await writeFile(configPath, JSON.stringify({ ingestConcurrency: 1_000_000 }))
+    await expect(loadConfig(root)).rejects.toThrow(/ingestConcurrency.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ embeddingBatchSize: 1_000_000 }))
+    await expect(loadConfig(root)).rejects.toThrow(/embeddingBatchSize.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ topK: 101 }))
+    await expect(loadConfig(root)).rejects.toThrow(/topK.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ mcpMaxTopK: 101 }))
+    await expect(loadConfig(root)).rejects.toThrow(/mcpMaxTopK.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ hybridTextScanLimit: 10_001 }))
+    await expect(loadConfig(root)).rejects.toThrow(/hybridTextScanLimit.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ chunkSize: 1_000_001 }))
+    await expect(loadConfig(root)).rejects.toThrow(/chunkSize/i)
+
+    await writeFile(configPath, JSON.stringify({ mcpMaxOutputBytes: 1_048_577 }))
+    await expect(loadConfig(root)).rejects.toThrow(/mcpMaxOutputBytes/i)
+
+    await writeFile(configPath, JSON.stringify({ pdfOcrTimeoutMs: 900_001 }))
+    await expect(loadConfig(root)).rejects.toThrow(/pdfOcrTimeoutMs/i)
+
+    await writeFile(
+      configPath,
+      JSON.stringify({ pdfOcrCommand: Array.from({ length: 129 }, () => "argument") }),
+    )
+    await expect(loadConfig(root)).rejects.toThrow(/pdfOcrCommand/i)
+
+    await writeFile(configPath, JSON.stringify({ workloadLimits: { search: { concurrency: 17 } } }))
+    await expect(loadConfig(root)).rejects.toThrow(/workloadLimits[\s\S]*search[\s\S]*concurrency/i)
+
+    await writeFile(
+      configPath,
+      JSON.stringify({ workloadLimits: { embedding: { maxQueue: 1_001 } } }),
+    )
+    await expect(loadConfig(root)).rejects.toThrow(/workloadLimits[\s\S]*embedding[\s\S]*maxQueue/i)
+
+    await writeFile(
+      configPath,
+      JSON.stringify({ workloadLimits: { ingestion: { queueTimeoutMs: 900_001 } } }),
+    )
+    await expect(loadConfig(root)).rejects.toThrow(
+      /workloadLimits[\s\S]*ingestion[\s\S]*queueTimeoutMs/i,
+    )
+
+    await writeFile(configPath, "{}\n")
+    const original = process.env.RAGMIR_INGEST_CONCURRENCY
+    process.env.RAGMIR_INGEST_CONCURRENCY = "1000000"
+    try {
+      await expect(loadConfig(root)).rejects.toThrow(/ingestConcurrency.*at most/i)
+    } finally {
+      restoreEnv("RAGMIR_INGEST_CONCURRENCY", original)
+    }
+  })
+
+  it("should reject unsafe custom redaction patterns before processing content", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-redos-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({
+        redaction: {
+          patterns: [{ name: "catastrophic", pattern: "(a+)+$" }],
+        },
+      }),
+    )
+
+    const startedAt = performance.now()
+    await expect(loadConfig(root)).rejects.toThrow(/catastrophic backtracking/i)
+    expect(performance.now() - startedAt).toBeLessThan(500)
+  })
+
+  it("should merge partial workload admission limits with safe defaults", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-workloads-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ workloadLimits: { search: { concurrency: 2 } } }),
+    )
+
+    await expect(loadConfig(root)).resolves.toMatchObject({
+      workloadLimits: {
+        search: { concurrency: 2, maxQueue: 64, queueTimeoutMs: 30_000 },
+        embedding: { concurrency: 1, maxQueue: 64, queueTimeoutMs: 30_000 },
+        ingestion: { concurrency: 1, maxQueue: 4, queueTimeoutMs: 120_000 },
+      },
+    })
   })
 
   it("rejects a config file that is not a JSON object", async () => {

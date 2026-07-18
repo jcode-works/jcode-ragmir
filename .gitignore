@@ -11,6 +11,8 @@ private/**
 .agents/
 *.tgz
 release-artifacts/
+packages/ragmir-core/benchmarks/.corpora/
+packages/ragmir-core/benchmarks/.results/
 *.pid
 
 packages/ragmir-core/dist/

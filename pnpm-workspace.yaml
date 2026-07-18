@@ -5,6 +5,7 @@ packages:
 strictDepBuilds: true
 
 overrides:
+  "adm-zip@<0.6.0": ^0.6.0
   yaml: ^2.9.0
 
 allowBuilds:

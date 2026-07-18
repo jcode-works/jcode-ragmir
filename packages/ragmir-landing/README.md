@@ -98,7 +98,10 @@ the production URL.
   calls a model.
 - Keep Core retrieval separate from optional Chat and TTS generation.
 - State that team workflows synchronize source files outside Ragmir and build separate local
-  indexes; never imply that Ragmir provides cloud sync or a shared database.
+  indexes. Compare corpus fingerprints only after both indexes are ready, keep version,
+  configuration, embedding provider, and model alignment separate, and use strict source
+  fingerprinting when synchronized content can change without metadata changes. Never imply that
+  Ragmir provides cloud sync or a shared database.
 - Lead with model-agnostic Core and present the user's preferred agent and a fully local consumer as
   equal choices.
 - Name Qwen and Gemma only in Chat-specific technical copy. They are profiles, not Core or MCP

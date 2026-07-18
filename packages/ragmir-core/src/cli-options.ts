@@ -1,4 +1,5 @@
 import type { AgentInstallMode, AgentInstallScope } from "./skill.js"
+import type { IncrementalFailurePolicy } from "./types.js"
 
 /**
  * Pure option-parsing and validation helpers for the Ragmir CLI. Kept separate
@@ -59,6 +60,14 @@ export function parseRecallThreshold(value: string): number {
     throw new Error("Expected a recall threshold between 0 and 1.")
   }
   return parsed
+}
+
+/** Parse and validate the incremental ingestion failure policy. */
+export function parseIncrementalFailurePolicy(value: string): IncrementalFailurePolicy {
+  if (value === "preserve-last-good" || value === "remove-stale") {
+    return value
+  }
+  throw new Error("Expected preserve-last-good or remove-stale.")
 }
 
 /**

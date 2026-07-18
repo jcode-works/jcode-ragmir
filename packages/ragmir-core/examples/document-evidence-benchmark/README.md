@@ -4,7 +4,8 @@ A deterministic, public-safe benchmark for the retrieval and citation quality co
 from Ragmir's confidential local RAG pipeline.
 
 Use this example when you want to prove more than "a relevant file appeared." Its six golden queries
-check that Ragmir retrieves the expected path and the exact file, line, chunk, or PDF-page citation.
+check that Ragmir retrieves the expected path and an exact verifiable file, line, chunk, or PDF-page
+citation.
 Every document is fictional and safe to commit. The benchmark keeps its corpus and generated index
 on the machine and runs the default `local-hash` retrieval offline.
 
@@ -14,7 +15,7 @@ on the machine and runs the default `local-hash` retrieval offline.
 | --- | --- |
 | `Recall@K` | An expected source path appears within the configured top K results |
 | Exact text citation | The expected `relative/path:Lx-Ly#chunkIndex` is returned |
-| Exact PDF citation | The expected `relative/path:pN:Lx-Ly#chunkIndex` is returned |
+| Exact PDF citation | The expected `relative/path:pN#chunkIndex` is returned without invented source lines |
 
 The corpus is intentionally small enough for each source to fit in one chunk. That makes citation
 expectations stable while exercising the same ingestion and evaluation code used for private

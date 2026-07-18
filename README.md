@@ -26,8 +26,9 @@ for cited answer generation from a verified local model.
 
 ## Give your coding agent cited project evidence
 
-Ragmir requires Node.js 20 or later. Install it in the repository that owns the files you want to
-search:
+Ragmir requires Node.js 22 or later. Release gates run on Node.js 22 for Linux x64 and macOS ARM64;
+other operating-system and architecture combinations are not currently release-gated. Install it
+in the repository that owns the files you want to search:
 
 ```bash
 pnpm add -D @jcode.labs/ragmir
@@ -45,10 +46,12 @@ citation before you propose an edit.
 ```
 
 `rgr setup` creates ignored local state under `.ragmir/`, installs project-scoped native skills,
-and writes local MCP helpers. `rgr ingest` is incremental and commits resumable batches of 25 files
-by default. Re-run the same command after an interruption to continue from the last committed
-batch. The agent receives bounded passages with the source path, excerpt, chunk, line range, and
-PDF page when one is available.
+and writes local MCP helpers. `rgr ingest` is incremental, uses bounded parse windows, and commits
+durable progress per file. Re-run the same command after an interruption to continue after the last
+committed file. The agent receives bounded passages with the source path, excerpt, chunk, verified
+source lines when available, PDF pages, PPTX slides, XLSX sheets and cells, or EPUB spine positions.
+Use `rgr ingest --metrics --json` when you need local, privacy-safe phase and throughput diagnostics;
+the default path leaves those timers and RSS samples disabled.
 
 Prefer a direct search? Run:
 
@@ -111,8 +114,10 @@ MCP clients can read `ragmir://context` for a compact base, readiness, freshness
 overview before choosing a tool. Every tool advertises non-destructive behavior, and every tool and
 resource JSON response is subject to a byte budget. Search, ask, research, and evaluation
 conservatively advertise open-world behavior because explicitly enabled semantic models may
-download public weights. Tools that may initialize local state or append metadata-only access logs
-do not claim read-only or idempotent behavior.
+download public weights. Budget pressure returns typed summaries with exact scalar values,
+omission counters, and the best search citation instead of shortening paths or identifiers. Tools
+that may initialize local state or append metadata-only access logs do not claim read-only or
+idempotent behavior.
 
 Core is model-agnostic: any compatible CLI, TypeScript, or MCP consumer can use the returned
 citations. A hosted AI receives the passages you return to it under that provider's data policy. A
@@ -138,11 +143,18 @@ developer the same source folder through a tool such as the Google Drive desktop
 script, keep the Ragmir version, configuration, embedding provider, and model aligned, then ingest
 locally. The result is an equivalent local index on each workstation, not a shared database.
 
-Always sync before `rgr ingest`, then run `rgr audit`. A missing, partially synced, or extra file in
-the selected raw or source folder makes that developer's index diverge. Ragmir hashes file content
-on every inventory pass, so a changed file is still detected when a sync tool preserves its size
-and modification time. Teams can automate setup with `initProject`, `addSourceEntries`, and
-`createRagmirClient`; Ragmir remains the local retrieval layer, not the synchronization layer.
+Keep shared source configuration stable: version directory or glob contracts, not a generated list
+of files that changes according to which sibling repositories exist on one machine. Always sync
+before `rgr ingest`, then run `rgr audit` and compare `corpusFingerprint` from `rgr status --json`.
+Only treat matching fingerprints as proof when both indexes report `ready=true` with no missing or
+stale files. The fingerprint covers sorted project-relative paths and source-content checksums, so
+checkout roots, timestamps, and local index layout do not affect it. A missing, partially synced,
+extra, renamed, or changed indexed file does.
+
+Set `sourceFingerprintMode` to `strict` when every inventory must reread every byte, including when
+a sync tool preserves metadata. Teams can automate setup with `initProject`, `addSourceEntries`, and
+`createRagmirClient`; Ragmir remains the local retrieval layer, not the synchronization layer. Never
+synchronize an actively written `.ragmir/storage/` directory.
 
 ### Audit a knowledge base
 
@@ -150,23 +162,37 @@ and modification time. Teams can automate setup with `initProject`, `addSourceEn
 pnpm exec rgr preview --path docs --max-chunks 3
 pnpm exec rgr audit --unsupported
 pnpm exec rgr security-audit
-pnpm exec rgr research "release obligations" --compact
+pnpm exec rgr research "release obligations" --compact --timeout-ms 10000
 ```
 
 Use this path for policies, runbooks, specifications, contracts, and other corpora where the answer
 must remain traceable to evidence. `preview` shows redacted chunks, structural context, citations,
 and size distributions without writing an index.
+`research` combines language-aware query variants with deterministic cross-query ranking. Its
+normal health check reads the active manifest; add `--full-audit` only when the same response must
+include a fresh source inventory and duplicate or mirror diagnostics. Code scanning has explicit
+file, byte, concurrency, and result limits.
 
 ### Explain retrieval decisions
 
 ```bash
 pnpm exec rgr search "release approval" --explain
 pnpm exec rgr search "release approval" --context-path "Operations > Release"
+pnpm exec rgr search "release approval" --exact-vector-search
 ```
 
-Explanations expose reciprocal-rank-fusion contributions, vector and lexical ranks, backend scores,
-and matched terms without changing default ranking. Structural filters can target Markdown heading
-paths or JSON paths before candidate retrieval.
+Explanations expose reciprocal-rank-fusion contributions, vector and lexical ranks, FTS or fallback
+activation and reason, candidate and coverage budgets, queue wait, backend scores, matched terms,
+and the active ranking-policy fingerprint without changing default ranking. Independent bounded
+queues protect search, embedding, and ingestion. Saturation returns a retryable `OVERLOADED` error
+instead of growing memory without limit. Structural context and body text feed
+the primary lexical index. Exact file paths use a bounded scalar variant; exact phrases,
+identifiers, and fuzzy rare terms expand only an insufficient primary pool. Equal scores
+use stable source and chunk tie-breaks, and provider-aware abstention can return no passage instead
+of forcing weak evidence. Structural filters apply to both candidate retrieval and hydrated
+neighbors. Ragmir keeps exact vector search below 100,000
+rows, then maintains a quality-gated IVF-PQ index with complete coverage. The exact-search flag
+bypasses that index for diagnostics and result comparison.
 
 ### Enable semantic retrieval
 
@@ -176,7 +202,10 @@ pnpm exec rgr ingest --rebuild
 ```
 
 The default `local-hash` provider is offline lexical/hash retrieval. Semantic mode uses
-Transformers.js and requires an explicit model download or a preloaded local model.
+Transformers.js and requires an explicit model download or a preloaded local model. Bundled model
+profiles use pinned commits, and setup records a canonical artifact digest so index and quality
+fingerprints identify the exact weights. The `local-hash` path never resolves Transformers.js,
+ONNX Runtime, or Sharp.
 
 ### Resume a long ingestion
 
@@ -188,9 +217,29 @@ pnpm exec rgr status --json
 Ragmir records per-file progress atomically under ignored `.ragmir/storage/` state. Files from a
 committed batch are not parsed or embedded again after a restart. A full `--rebuild` writes to an
 isolated generation and activates it only after row and manifest validation, so an interrupted
-rebuild leaves the previous searchable index active. After activation, older generated tables stay
-available so searches that already opened them can finish safely. `rgr destroy-index` removes all
-generated index storage.
+rebuild leaves the previous searchable index active. Sidecar replacements flush the temporary file
+and synchronize the storage directory where the platform supports it. A validated previous
+activation manifest remains available for recovery; recovered state is reported as stale until a
+rebuild repairs the canonical sidecar. After activation, older generated tables stay available so
+searches that already opened them can finish safely. `rgr destroy-index` removes all generated index
+storage. At the end of ingestion, Ragmir refreshes incomplete full-text coverage and compacts
+LanceDB after 20 mutation batches or when fragment health crosses its threshold. Run
+`rgr storage optimize --dry-run --json` to inspect the active table, then omit `--dry-run` for an
+explicit maintenance pass. The same maintenance pass creates or refreshes adaptive vector and
+`relativePath` scalar indices, and reports their indexed and unindexed rows. Completed rebuilds
+retain active, resumable, rollback, and leased generations, then bound ordinary generations to
+three after a five-minute reader grace period.
+Inspect roles and reclaimable bytes with `rgr storage generations --json`; use
+`rgr storage gc --dry-run --json` before explicit cleanup. During incremental ingestion, a changed file that fails keeps its last
+known good rows searchable and explicitly stale by default. Repair replaces them without duplicate
+IDs, while actual source deletion removes them. Use `--incremental-failure-policy remove-stale` only
+when an operator prefers missing evidence to stale evidence.
+
+`rgr status` and the MCP context resource read only the compact activation manifest and durable
+progress state. They do not open LanceDB or read chunk text. `rgr doctor` uses the same constant-cost
+snapshot by default; use `rgr doctor --deep` for a live O(corpus) source inventory and executable
+security probes. `rgr audit` remains the explicit deep O(corpus) source-to-index comparison. A
+missing, malformed, or legacy manifest is never reported ready even if a LanceDB table exists.
 
 ### Search scanned PDFs
 
@@ -200,7 +249,10 @@ pnpm exec rgr ingest --rebuild
 ```
 
 Embedded PDF text is always preferred. OCR runs only for blank pages, through a configured local
-executable. Ragmir does not use a cloud OCR service.
+executable. The generated configuration batches up to 16 pages, stores private content-addressed
+page results under `.ragmir/ocr-cache/`, and resumes only missing pages after interruption. Ingest
+and preview diagnostics report cache hits, batches, subprocesses, and OCR time without document
+content. Ragmir does not use a cloud OCR service.
 
 ## Supported content
 
@@ -208,6 +260,7 @@ Ragmir handles common project and knowledge-base material, including:
 
 - Markdown, plain text, source code, configuration, logs, CSV, JSON, JSONL, and YAML;
 - PDF with page-aware citations, plus optional local OCR for blank pages;
+- PPTX slide, XLSX sheet and cell, and EPUB spine-aware citations;
 - DOCX, PPTX, XLSX, OpenDocument files, EPUB, HTML, RTF, email, and notebooks;
 - additional text extensions configured by the project.
 
@@ -240,14 +293,21 @@ try {
 }
 ```
 
-Reuse one client per project root in a long-running process. It keeps one local LanceDB connection,
-serializes ingestion for the same index inside that process, accepts `AbortSignal` and `timeoutMs`,
-and waits for active operations during `close()`. One-shot `ingest`, `search`, `ask`, and `research`
-functions remain available for short scripts.
+Reuse one client per project root in a long-running process. It keeps one local LanceDB connection
+and one immutable read snapshot until atomic generation replacement, accepts `AbortSignal` and
+`timeoutMs`, closes retired table snapshots after their last active reader, and flushes access logs
+after active operations during `close()`. Closing the final client owner safely disposes its
+Transformers pipeline after active inference completes. A private heartbeat lock serializes index
+writers across local OS processes while readers remain available.
+One-shot `ingest`, `search`, `ask`, and `research` functions remain available for short scripts.
 
 Core also exports `previewChunks`, `audit`, `doctor`, `securityAudit`, bounded context helpers,
 closeable MCP construction helpers, and setup helpers. See the [API reference](./docs/api-reference.md)
 for the complete public surface.
+
+Ingestion applies backpressure with independent source-byte, chunk, vector, concurrency and batch
+ceilings. It commits one file at a time, so cancellation or restart repeats at most one bounded
+unit. Run `rgr limits` to inspect the effective limits.
 
 ## Privacy boundaries
 
@@ -262,6 +322,9 @@ for the complete public surface.
 
 Redaction reduces accidental exposure but is not a compliance certification. Review the
 [security hardening guide](./SECURITY-HARDENING.md) before using sensitive corpora.
+Custom redaction expressions are rejected when they are invalid or susceptible to catastrophic
+backtracking. `rgr security-audit` checks every configured private path for permissions, Git ignore
+coverage and tracked files, and reports the operator authority granted to local extractors.
 
 ## Packages
 
@@ -281,7 +344,7 @@ or `es`. The package guides explain the model sizes, preload step, and online bo
 | --- | --- |
 | [Confidential local RAG demo](./packages/ragmir-core/examples/sovereign-rag-demo/README.md) | End-to-end CLI ingestion, retrieval, redaction, audit, and evaluation |
 | [Library API demo](./packages/ragmir-core/examples/library-api-demo/README.md) | The public TypeScript API against a synthetic local corpus |
-| [Document evidence benchmark](./packages/ragmir-core/examples/document-evidence-benchmark/README.md) | Deterministic recall and exact file, line, chunk, and PDF-page citations |
+| [Document evidence benchmark](./packages/ragmir-core/examples/document-evidence-benchmark/README.md) | Deterministic recall and exact verifiable file, line, chunk, and PDF-page citations |
 
 Every committed example uses fictional data. Keep private evaluation corpora and generated reports
 outside Git or under ignored local state.
