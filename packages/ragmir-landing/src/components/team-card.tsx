@@ -41,7 +41,7 @@ export function TeamCard({
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         {links.map((link) => (
           <a
-            className="rounded-md border border-border px-3 py-1 font-semibold text-muted-foreground text-xs transition hover:border-[var(--accent-title)] hover:text-foreground"
+            className="rounded-full border border-border px-3 py-1 font-semibold text-muted-foreground text-xs transition hover:border-[var(--accent-title)] hover:text-foreground"
             href={link.href}
             key={link.href}
             rel="nofollow noreferrer noopener"

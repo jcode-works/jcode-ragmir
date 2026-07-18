@@ -85,6 +85,12 @@ textarea {
   font-feature-settings: "cv11";
 }
 
+.hero-title-outline {
+  -webkit-text-stroke: 1px rgba(154, 82, 255, 0.9);
+  paint-order: stroke fill;
+  text-shadow: 0 0 1.25rem rgba(139, 71, 255, 0.2);
+}
+
 /* Container widths: 1000px for standard sections, 1320px for wide califourchou sections */
 .container-default {
   width: 100%;

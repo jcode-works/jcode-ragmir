@@ -22,6 +22,11 @@ const heroMetrics = [
   { value: t("hero_metric_agents_value"), label: t("hero_metric_agents_label") },
   { value: t("hero_metric_mcp_value"), label: t("hero_metric_mcp_label") },
 ]
+const heroTitleLines = [
+  t("hero_title_line_1"),
+  t("hero_title_line_2"),
+  t("hero_title_line_3"),
+]
 ---
 
 <section
@@ -35,23 +40,24 @@ const heroMetrics = [
     <div class="min-w-0 max-w-4xl">
       <h1
         id="hero-heading"
-        class="display-title max-w-3xl text-2xl font-black leading-[1.06] text-white sm:text-3xl lg:text-4xl"
+        aria-label={t("hero_title")}
+        class="hero-title-outline display-title max-w-3xl text-2xl font-black leading-[1.06] text-white sm:text-3xl lg:text-4xl"
       >
-        {t("hero_title")}
+        {heroTitleLines.map((line) => <span class="block">{line}</span>)}
       </h1>
       <p class="mt-5 max-w-xl text-xs font-medium leading-5 text-white sm:text-sm sm:leading-6">
         {t("hero_description")}
       </p>
       <div class="mt-7 flex flex-col gap-3 sm:flex-row">
         <a
-          class="inline-flex h-14 items-center justify-center gap-2 rounded-md bg-primary px-8 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
           href={localizedLibraryUrl}
         >
           {t("hero_primary_cta")}
           <ArrowRight class="size-4" />
         </a>
         <a
-          class="inline-flex h-14 items-center justify-center gap-2 rounded-md border border-black bg-black px-8 text-sm font-bold text-white outline outline-1 outline-offset-2 outline-white/20 transition hover:bg-black/90 hover:outline-white/35"
+          class="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-black bg-black px-8 text-sm font-bold text-white outline outline-1 outline-offset-2 outline-white/20 transition hover:bg-black/90 hover:outline-white/35"
           href={localizedUseCasesUrl}
         >
           {t("hero_secondary_cta")}
@@ -69,7 +75,7 @@ const heroMetrics = [
       )}
       <div class="mt-8 grid max-w-xl grid-cols-2 gap-2">
         {heroMetrics.map((metric) => (
-            <div class="rounded-md bg-muted px-3 py-2.5">
+          <div class="rounded-xl bg-muted px-3 py-2.5">
             <span class="block text-xs font-semibold">{metric.value}</span>
             <span class="mt-0.5 block text-[11px] leading-4 text-muted-foreground">
               {metric.label}
