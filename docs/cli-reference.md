@@ -87,8 +87,12 @@ authorized teammate explicitly needs a copy.
 
 `team compare` previews up to 20 local-only, peer-only, and changed files and prints every
 configuration difference plus ordered actions. `--json` returns the complete diff; `--strict` exits
-with code 1 unless both ready indexes are synchronized. The command never changes source files or
-decides which side is authoritative.
+with code 1 unless both operational indexes are synchronized. `securityAdvisories`,
+`localSecurityAdvisories`, and `peerSecurityAdvisories` keep privacy follow-ups visible without
+turning matching operational indexes into `not-ready`. Review them with `rgr security-audit`; they
+do not require deleting or rebuilding the index. Snapshots written by Ragmir v2.19.0 through
+v2.19.2 remain compatible. The command never changes source files or decides which side is
+authoritative.
 
 ## Safe upgrades
 
