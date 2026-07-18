@@ -50,6 +50,18 @@ Verification:
 - pass the complete pnpm validate release gate and preserve wrapped
   verification evidence`,
     },
+    {
+      message: `fix(release): describe an older release
+
+Release highlights:
+- legacy release highlight that must not replace the current release
+
+Release details:
+- **Legacy:** previous release detail
+
+Verification:
+- previous release verification`,
+    },
   ],
   lastRelease: { gitTag: "v0.0.0" },
   nextRelease: { version: expectedVersion, gitTag: `v${expectedVersion}` },
@@ -67,6 +79,7 @@ for (const expectedHeading of [
 }
 assert.match(generatedNotes, /Documentation/u)
 assert.match(generatedNotes, /Landing/u)
+assert.doesNotMatch(generatedNotes, /legacy release highlight/u)
 assert.match(
   generatedNotes,
   /link advanced behavior to focused guides without losing the complete public context/u,
