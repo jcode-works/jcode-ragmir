@@ -241,7 +241,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
 
   return (
     <div
-      className="mx-auto flex h-[34rem] min-h-[34rem] max-h-[34rem] min-w-0 w-full max-w-full shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-[#0a0a0a] shadow-2xl shadow-black/60 sm:max-w-lg"
+      className="mx-auto flex h-[34rem] min-h-[34rem] max-h-[34rem] min-w-0 w-full max-w-full shrink-0 flex-col overflow-hidden rounded-md border border-border bg-[#0a0a0a] shadow-2xl shadow-black/60 sm:max-w-lg"
       ref={containerRef}
     >
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card/50 px-4 py-2.5">

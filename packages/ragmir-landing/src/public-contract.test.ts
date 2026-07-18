@@ -1,10 +1,12 @@
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
+import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import en from "../messages/en.json"
 import fr from "../messages/fr.json"
 import { findHeroDemoScenario, HERO_DEMO_SCENARIOS } from "./components/hero-demo-script.js"
 import { getFaqItems } from "./content/faq.js"
+import { RAGMIR_SETUP_PROMPT } from "./content/setup-prompt.js"
 import { getLocalizedUrl, loadTranslations, useTranslations } from "./i18n/utils.js"
 import { cn } from "./lib/utils.js"
 
@@ -20,7 +22,19 @@ const heroSource = readFileSync(
   fileURLToPath(new URL("./components/sections/hero.astro", import.meta.url)),
   "utf8",
 )
+const librarySource = readFileSync(
+  fileURLToPath(new URL("./components/library-section.tsx", import.meta.url)),
+  "utf8",
+)
 const localizedWebPageId = /"@id": `\$\{pageUrl\}#webpage`/
+
+function collectUiSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) return collectUiSourceFiles(entryPath)
+    return /\.(?:astro|css|tsx)$/u.test(entry.name) ? [entryPath] : []
+  })
+}
 
 describe("landing public contract", () => {
   it("should keep English and French translation keys in parity", () => {
@@ -50,6 +64,43 @@ describe("landing public contract", () => {
     expect(fr.hero_metric_mcp_value).toBe("Bibliothèque + CLI + MCP")
     expect(en.seo_home_keywords).not.toContain("local RAG API")
     expect(fr.seo_home_keywords).not.toContain("API RAG locale")
+  })
+
+  it("should present the bounded agent setup prompt before manual package-manager tabs", () => {
+    expect(RAGMIR_SETUP_PROMPT.length).toBeLessThanOrEqual(4_000)
+    expect(RAGMIR_SETUP_PROMPT).toContain("pnpm, npm, Yarn, or Bun")
+    expect(RAGMIR_SETUP_PROMPT).toContain("Core only, or optional Chat")
+    expect(RAGMIR_SETUP_PROMPT).toContain("Optional TTS")
+    expect(librarySource).toContain('defaultValue="prompt"')
+    expect(librarySource.indexOf('t("quickstart_prompt_tab")')).toBeLessThan(
+      librarySource.indexOf("packageManagers.map((manager)"),
+    )
+    expect(librarySource).toContain("<Textarea")
+    expect(librarySource).toContain("readOnly")
+    expect(librarySource).toContain("overflow-y-auto")
+    expect(librarySource).toContain('className="h-[4.125rem] min-h-[4.125rem]')
+    expect(librarySource).toContain("outline-1 outline-border/70 outline-solid")
+  })
+
+  it("should reserve full rounding for circular controls and decorative details", () => {
+    const sourceDirectory = fileURLToPath(new URL(".", import.meta.url))
+    const violations = collectUiSourceFiles(sourceDirectory).flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split("\n")
+        .flatMap((line, index) => {
+          const oversizedRadius = /rounded-(?:xl|2xl|3xl)/u.test(line)
+          const nonCircularFullRadius =
+            line.includes("rounded-full") &&
+            !line.includes("size-") &&
+            !line.includes("scrollbar-thumb")
+          const legacyGlobalPill = line.includes("--radius: 999")
+          return oversizedRadius || nonCircularFullRadius || legacyGlobalPill
+            ? [`${path.relative(sourceDirectory, file)}:${index + 1}`]
+            : []
+        }),
+    )
+
+    expect(violations).toEqual([])
   })
 
   it("should keep shared entities stable and give each localized home page its own WebPage", () => {

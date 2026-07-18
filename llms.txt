@@ -8,6 +8,8 @@ the corpus, and calls no model.
 ## Core facts
 
 - Install: `pnpm add -D @jcode.labs/ragmir`
+- Agent-guided setup: use the canonical English prompt in
+  https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/quick-start.md
 - First use: `pnpm exec rgr setup && pnpm exec rgr ingest`
 - Resumable ingestion: `rgr ingest` commits 25 files per durable batch by default. Re-run it after an
   interruption, inspect progress with `rgr status --json`, and use `--batch-size` to change the
@@ -87,6 +89,7 @@ the corpus, and calls no model.
 ## Documentation
 
 - [Documentation wiki](https://github.com/jcode-works/jcode-ragmir/wiki)
+- [Quick start](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/quick-start.md)
 - [README](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/README.md)
 - [CLI reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/cli-reference.md)
 - [API reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/api-reference.md)

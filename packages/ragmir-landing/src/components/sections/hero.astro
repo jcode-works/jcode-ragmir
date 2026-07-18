@@ -44,14 +44,14 @@ const heroMetrics = [
       </p>
       <div class="mt-7 flex flex-col gap-3 sm:flex-row">
         <a
-          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+          class="inline-flex h-14 items-center justify-center gap-2 rounded-md bg-primary px-8 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
           href={localizedLibraryUrl}
         >
           {t("hero_primary_cta")}
           <ArrowRight class="size-4" />
         </a>
         <a
-          class="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-black bg-black px-8 text-sm font-bold text-white outline outline-1 outline-offset-2 outline-white/20 transition hover:bg-black/90 hover:outline-white/35"
+          class="inline-flex h-14 items-center justify-center gap-2 rounded-md border border-black bg-black px-8 text-sm font-bold text-white outline outline-1 outline-offset-2 outline-white/20 transition hover:bg-black/90 hover:outline-white/35"
           href={localizedUseCasesUrl}
         >
           {t("hero_secondary_cta")}
@@ -69,7 +69,7 @@ const heroMetrics = [
       )}
       <div class="mt-8 grid max-w-xl grid-cols-2 gap-2">
         {heroMetrics.map((metric) => (
-          <div class="rounded-xl bg-muted px-3 py-2.5">
+            <div class="rounded-md bg-muted px-3 py-2.5">
             <span class="block text-xs font-semibold">{metric.value}</span>
             <span class="mt-0.5 block text-[11px] leading-4 text-muted-foreground">
               {metric.label}
@@ -88,7 +88,7 @@ const heroMetrics = [
       aria-label={t("hero_scroll_aria_nav")}
     >
       <a
-        class="pointer-events-auto absolute left-1/2 top-0 inline-flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full text-white/70 transition-colors duration-200 hover:text-white focus-visible:outline-none motion-reduce:transition-none"
+        class="pointer-events-auto absolute left-1/2 top-0 inline-flex size-8 -translate-x-1/2 items-center justify-center rounded-full text-white/70 transition-colors duration-200 hover:text-white focus-visible:outline-none motion-reduce:transition-none"
         href="#use-cases"
         aria-label={t("hero_scroll_aria_link")}
       >

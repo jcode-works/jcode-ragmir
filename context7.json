@@ -19,6 +19,7 @@
   ],
   "excludeFiles": ["CHANGELOG.md", "pnpm-lock.yaml"],
   "rules": [
+    "Use the canonical English setup prompt in docs/quick-start.md for a repository-aware installation; it detects the package manager and existing state, asks before changes or downloads, and verifies retrieval.",
     "Ragmir Core returns cited retrieval context only; it does not synthesize answers itself.",
     "Any compatible coding agent, script, CLI, TypeScript application, or MCP client can consume Core results; use a local consumer when no passage may leave the machine.",
     "Use one `createRagmirClient()` per project root for repeated work in a stateful Node.js process; it caches one immutable read snapshot until atomic generation replacement and flushes metadata-only access logs during close. Use top-level functions for one-shot scripts.",
