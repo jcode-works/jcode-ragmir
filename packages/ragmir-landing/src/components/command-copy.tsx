@@ -63,7 +63,7 @@ export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): Rea
   return (
     <button
       aria-label={`${copyLabel}: ${command}`}
-      className="group flex w-full items-center justify-between gap-3 rounded-md border border-border bg-background p-3 text-left transition hover:border-foreground/30 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group flex w-full items-center justify-between gap-3 rounded-sm border border-border bg-background p-3 text-left transition hover:border-foreground/30 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => void handleCopy()}
       type="button"
     >
@@ -104,7 +104,7 @@ export function TextCopyButton({
     <button
       aria-label={copyLabel}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2 font-bold text-background text-sm transition hover:bg-foreground/88 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-4 py-2 font-bold text-background text-sm transition hover:bg-foreground/88 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       onClick={() => void handleCopy()}
