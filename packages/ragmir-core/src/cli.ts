@@ -66,6 +66,11 @@ import {
   type TeamComparison,
   writeTeamSnapshot,
 } from "./team-diagnostics.js"
+import {
+  type SyncTeamKnowledgeOptions,
+  syncTeamKnowledge,
+  type TeamSyncReport,
+} from "./team-sync.js"
 import type { IncrementalFailurePolicy, PreviewChunksOptions, ResearchReport } from "./types.js"
 import { inspectUpgrade, upgradeProject } from "./upgrade.js"
 import { VERSION } from "./version.js"
@@ -1167,7 +1172,47 @@ program
 
 const teamCommand = program
   .command("team")
-  .description("Export and compare privacy-bounded team index snapshots.")
+  .description("Synchronize Git-backed team knowledge or inspect advanced index drift.")
+
+teamCommand
+  .command("sync")
+  .description("Safely fast-forward from Git upstream and refresh the local index.")
+  .option("--no-pull", "Fetch and compare without changing the checked-out branch.")
+  .option("--no-fetch", "Use only the cached upstream reference and local worktree.")
+  .option("--check", "Fetch and report without changing the worktree or index.")
+  .option("--git-timeout-ms <number>", "Bound each Git command.", parsePositiveInt)
+  .option("--json", "Print machine-readable JSON.")
+  .option("--strict", "Exit with code 1 unless Git and the local index are synchronized.")
+  .action(
+    async (
+      options: {
+        pull: boolean
+        fetch: boolean
+        check?: boolean
+        gitTimeoutMs?: number
+        json?: boolean
+        strict?: boolean
+      },
+      command: Command,
+    ) => {
+      const syncOptions: SyncTeamKnowledgeOptions = {
+        cwd: projectRoot(command),
+        autoPull: options.pull,
+        fetch: options.fetch,
+        check: options.check === true,
+      }
+      addOption(syncOptions, "gitTimeoutMs", options.gitTimeoutMs)
+      const report = await syncTeamKnowledge(syncOptions)
+      if (options.json) {
+        console.log(JSON.stringify(report, null, 2))
+      } else {
+        printTeamSync(report)
+      }
+      if (options.strict && !report.synchronized) {
+        process.exitCode = 1
+      }
+    },
+  )
 
 teamCommand
   .command("snapshot")
@@ -2281,6 +2326,41 @@ function printTeamComparison(comparison: TeamComparison): void {
     for (const [index, action] of comparison.recommendedActions.entries()) {
       console.log(`  ${index + 1}. ${action}`)
     }
+  }
+}
+
+function printTeamSync(report: TeamSyncReport): void {
+  const statusColor = report.synchronized
+    ? pc.green
+    : report.status === "index-not-ready"
+      ? pc.red
+      : pc.yellow
+  console.log(statusColor(`Team sync: ${report.status}`))
+  console.log(`summary=${report.summary}`)
+  console.log(`gitState=${report.git.state}`)
+  console.log(`branch=${report.git.branch ?? "none"}`)
+  console.log(`upstream=${report.git.upstream ?? "none"}`)
+  console.log(`ahead=${report.git.ahead ?? "unknown"}`)
+  console.log(`behind=${report.git.behind ?? "unknown"}`)
+  console.log(`dirty=${report.git.dirty ?? "unknown"}`)
+  console.log(`fetched=${report.git.fetched}`)
+  console.log(`updated=${report.git.updated}`)
+  console.log(`indexReady=${report.index.operationalReady && report.index.indexPolicyCurrent}`)
+  console.log(`indexedFiles=${report.index.indexedFiles}`)
+  console.log(`chunksIndexed=${report.index.chunksIndexed}`)
+  console.log(`securityAdvisories=${report.index.securityAdvisories}`)
+
+  if (report.warnings.length > 0) {
+    console.log("")
+    console.log(pc.yellow("Warnings:"))
+    for (const warning of report.warnings) {
+      console.log(`  - ${warning}`)
+    }
+  }
+  if (report.recommendedActions.length > 0) {
+    console.log("")
+    console.log(pc.cyan("Next action:"))
+    console.log(`  ${report.recommendedActions[0]}`)
   }
 }
 

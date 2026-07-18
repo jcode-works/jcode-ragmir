@@ -33,8 +33,8 @@ Keep the English setup prompt identical across Core, the landing, root and packa
 `docs/quick-start.md`, and the wiki. The public-surface smoke test enforces repository copies.
 Lead public documentation with the value proposition, a working quick start, and the strongest
 guarantees. Move operational depth to focused guides instead of repeating it across READMEs.
-Present team use as a positive workflow: shared sources and configuration, one local ingest per
-developer, then a corpus-fingerprint check. Keep low-level safeguards in focused guides.
+Present team use as one positive workflow: merge reviewed changes upstream, run `rgr team sync`,
+receive a ready private index. Keep snapshots and low-level safeguards in focused advanced guides.
 
 Every commit promoted to `main` that can trigger semantic-release must include these exact body
 sections with at least one bullet each: `Release highlights:`, `Release details:`, and
@@ -54,9 +54,12 @@ consumer local. Qwen and Gemma are optional Chat profiles, never Core or MCP req
 For repeated retrieval in a stateful Node.js process, use one `RagmirClient` per project root and
 close it during shutdown. Ragmir does not provide an HTTP server or fixed port; network-facing hosts
 own transport security, authentication, authorization, and rate limits.
-Team diagnostics exchange metadata-only snapshots of relative paths, checksums, readiness,
-versions, and configuration. Never include source text or absolute project paths, choose an
-authoritative copy, or modify peer sources during comparison.
+Git-backed team sync treats the current branch upstream as the declared authority. Fetch only that
+branch, fast-forward only a clean non-divergent history, then ingest incrementally. Never stash,
+reset, rebase, create a merge commit, or delete the active index. `--no-pull` keeps branch updates
+manual; fetch and ingest failures preserve the last valid local index when one exists.
+Metadata-only snapshots are advanced diagnostics for exact or non-Git drift. Never include source
+text or absolute project paths, choose an authoritative copy, or modify peer sources.
 Package upgrades preserve the last validated index until an incompatible replacement passes staged
 generation validation and activates atomically. Older configs keep safe defaults; never require
 deleting `.ragmir/storage/` as the first repair step.

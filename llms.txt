@@ -68,12 +68,11 @@ the corpus, and calls no model.
   vector, full-text, and relative-path index coverage.
 - Monorepos: the nearest configured base is active, nested indexes remain isolated, and generated MCP
   helpers pin a distinct base root.
-- Team use: synchronize one source-of-truth folder with Git, Drive, or the team's existing file
-  workflow, commit stable source globs and Ragmir configuration, then ingest locally per developer.
-  Use `rgr team snapshot` and `rgr team compare` to explain version, configuration, local-only,
-  peer-only, and changed-file drift without source text. Ragmir never chooses the authoritative
-  copy; the declared Git, Drive, or team revision does. Keep actively written `.ragmir/storage/`
-  directories local to each workstation.
+- Team use: `rgr team sync` fetches the current branch upstream, applies only a clean non-divergent
+  fast-forward, then refreshes the private local index. `--no-pull` disables branch updates and
+  `--check` previews. Dirty, ahead, diverged, detached, offline, and no-upstream states never rewrite
+  history. Advanced snapshots remain available for exact or non-Git drift diagnostics. Keep
+  actively written `.ragmir/storage/` directories local to each workstation.
 - Upgrade continuity: after a package update and before retrieval with the new runtime,
   `rgr upgrade --check` inspects compatibility and `rgr upgrade` refreshes managed helpers and
   safely stages any required rebuild. Ragmir never deletes the active index first. A long-running

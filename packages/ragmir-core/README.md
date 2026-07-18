@@ -36,7 +36,7 @@ Outcome: Core installed with the repository's package manager; useful sources se
 1) Which repository/monorepo base should own the knowledge base, and are nested app bases wanted?
 2) Which clients: Claude Code, Codex, Kimi, OpenCode, Cline, another MCP client, or none?
 3) Keep default offline local-hash, or allow one semantic-model download for better natural-language retrieval?
-4) Solo or team use? If team, what Git/Drive/folder revision is authoritative and who may receive metadata-only snapshots?
+4) Solo or team? If team, is Git upstream authoritative, and should safe pulls be automatic or disabled with --no-pull?
 5) Core only, or optional Chat? For Chat choose lite (~0.49 GB), fast (~3.35 GB), or quality (~5.15 GB).
 6) Optional TTS? Ask language (en/fr/es offline; ja/th/zh require explicit Edge unless a local model is supplied) and whether text may reach Edge.
 7) Which private/external folders are allowed, which must never be indexed, and may I install packages, edit local config, and run approved downloads now?
@@ -49,7 +49,7 @@ Outcome: Core installed with the repository's package manager; useful sources se
 - Run preview and audit --unsupported before ingest. Review redactions, unsupported/oversized files, duplicates, chunks, and sensitive paths. Fix config first, then ingest.
 - For an existing install, use rgr upgrade and doctor --fix as indicated. Never delete the active index first. Rebuild only for incompatible embedding, chunk, or index-policy changes.
 - Enable semantic retrieval, preload Chat, or preload TTS only after consent. Use non-sensitive TTS preload text.
-- For teams, ingest locally, create an ignored metadata-only snapshot, compare it, explain every drift, and never choose authority automatically.
+- For Git teams, run rgr team sync. It safely pulls and ingests; --no-pull keeps Git manual. Snapshots are advanced diagnostics.
 
 4. Prove the result:
 - Run rgr doctor --deep, rgr audit --unsupported, and rgr security-audit.
@@ -129,9 +129,9 @@ Top-level `ingest`, `search`, `ask`, and `research` functions remain available f
   `rgr audit` for a live source inventory.
 - `rgr security-audit` checks permissions, Git ignore coverage, tracked private paths, redaction,
   and local extractor authority.
-- `rgr team snapshot` and `rgr team compare` explain configuration and per-file drift without
-  sharing source text or guessing which copy is authoritative. Operational readiness remains
-  separate from non-blocking security advisories, including for existing v2.19 snapshots.
+- `rgr team sync` safely fast-forwards the current Git upstream and refreshes the private local
+  index in one step. `--no-pull` disables branch updates. Advanced snapshot comparison remains
+  available for exact or non-Git drift diagnostics, including existing v2.19 snapshots.
 - After a package update, `rgr upgrade --check` previews compatibility; `rgr upgrade` safely stages
   any required rebuild without deleting the active index first. Privacy warnings remain visible as
   non-blocking advisories and can be handled separately with `rgr security-audit`.
@@ -150,10 +150,9 @@ hold the complete options and operational detail.
 
 Core installs and starts without either add-on. A hosted agent receives only passages your
 integration sends under that provider's data policy; use a local consumer when no passage may leave
-the workstation. Teams synchronize their source folder and tracked configuration, then build one
-local index per developer. Exchange an authorized metadata-only snapshot and run `rgr team compare`
-to resolve exact drift. Matching operational indexes remain synchronized when a privacy advisory
-needs separate review with `rgr security-audit`. See the [team workflow](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#team-knowledge-bases).
+the workstation. Git-backed teams run `rgr team sync` after reviewed changes merge upstream; safe
+fast-forwards and incremental local ingestion happen together. Advanced snapshot comparison
+remains available for exact or non-Git drift. See the [team workflow](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#team-knowledge-bases).
 
 Ragmir Core is open source under
 [AGPL-3.0-only](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE). A separate

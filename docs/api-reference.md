@@ -120,13 +120,20 @@ overload, and busy-index errors. `isRagmirError(error)` narrows
 unknown failures, while `normalizeRagmirError(error)` preserves Ragmir errors and converts other
 failures into an `INTERNAL` `RagmirError` with the original cause.
 
-### Team diagnostics and upgrades
+### Team synchronization, diagnostics, and upgrades
+
+`syncTeamKnowledge({ cwd })` is the high-level Git-backed team path. It fetches the current branch
+upstream, applies only a safe fast-forward, refreshes the local index incrementally, and returns a
+typed Git plus index report. Set `autoPull: false` to inspect upstream without changing the branch,
+`fetch: false` for an explicitly offline run, or `check: true` to avoid worktree and index changes.
+Dirty, ahead, diverged, detached, and no-upstream histories are reported without rewriting them.
+Expected fetch or ingestion failures preserve the last valid local index when one exists.
 
 `createTeamSnapshot({ cwd, label })` returns the same privacy-bounded snapshot as the CLI.
 `writeTeamSnapshot`, `readTeamSnapshot`, and `compareTeamSnapshots` support typed automation around
-the schema-validated exchange. A comparison returns exact configuration differences, local-only,
-peer-only, and changed paths plus recommended actions. It never includes source text or chooses an
-authoritative copy.
+the schema-validated advanced exchange. A comparison returns exact configuration differences,
+local-only, peer-only, and changed paths plus recommended actions. It never includes source text or
+chooses an authoritative copy.
 
 `inspectUpgrade(cwd)` reports whether an index is current, missing, incompatible, or needs repair.
 Its `ready` field covers upgrade and retrieval continuity; `privacyCompliant` and `advisories`
@@ -332,7 +339,7 @@ types that callers commonly compose explicitly.
 | Operations | `RagmirClientOptions`, `OperationOptions`, `DoctorOptions`, `SecurityAuditOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
 | Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `ExtractPdfPagesOptions`, `ExtractPdfPagesResult`, `PdfOcrMetrics`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
 | Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
-| Team diagnostics | `CreateTeamSnapshotOptions`, `TeamSnapshot`, `TeamSnapshotFile`, `TeamComparison`, `TeamComparisonStatus`, `TeamConfigurationDifference`, `TeamChangedFile` |
+| Team synchronization and diagnostics | `SyncTeamKnowledgeOptions`, `TeamSyncReport`, `TeamSyncStatus`, `TeamSyncGitReport`, `TeamSyncGitState`, `TeamSyncIndexReport`, `CreateTeamSnapshotOptions`, `TeamSnapshot`, `TeamSnapshotFile`, `TeamComparison`, `TeamComparisonStatus`, `TeamConfigurationDifference`, `TeamChangedFile` |
 | Upgrades | `UpgradeInspection`, `UpgradeOptions`, `UpgradeResult`, `UpgradeStatus` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |
 

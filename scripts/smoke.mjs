@@ -329,6 +329,15 @@ try {
       `status --json should expose mcpMaxOutputBytes, got ${statusJson.mcpMaxOutputBytes}`,
     )
   }
+  const teamSync = parseJson(
+    (await runKb(["team", "sync", "--check", "--json"], tempRoot)).stdout,
+    "team sync JSON",
+  )
+  if (teamSync.status !== "local-only" || teamSync.git?.state !== "not-repository") {
+    throw new Error(
+      `team sync should keep a non-Git knowledge base local, got ${JSON.stringify(teamSync)}`,
+    )
+  }
   const teamSnapshotPath = path.join(tempRoot, ".ragmir", "team", "smoke.json")
   const teamSnapshot = await runKb(
     ["team", "snapshot", "--label", "smoke", "--output", teamSnapshotPath],

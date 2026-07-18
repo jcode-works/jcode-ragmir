@@ -30,10 +30,10 @@ corpus, and calls no model.
   `fast` and explicit `quality` use Gemma. These profiles are not Core, CLI, API, or MCP requirements.
 - Ragmir TTS supports offline English, French, and Spanish. Japanese, Thai, and Chinese require the
   explicitly selected online Edge path unless the operator supplies a compatible local model.
-- For team use, lead with a shared source folder and committed Ragmir configuration, followed by one
-  local ingest per developer. Use the metadata-only team comparison to explain version,
-  configuration, local-only, peer-only, and changed-file drift with clear actions. Ragmir does not
-  guess which source copy is authoritative.
+- For Git-backed teams, lead with reviewed changes merged into the declared upstream, then one
+  `rgr team sync` command per developer. Ragmir applies only a clean non-divergent fast-forward and
+  refreshes the private local index. `--no-pull` keeps Git updates manual. Keep metadata-only
+  snapshots as advanced exact or non-Git drift diagnostics.
 - After a package update and before retrieval with the new runtime, use `rgr upgrade --check` and
   then `rgr upgrade` when required. A staged rebuild never deletes the active index first. A
   long-running host can keep its loaded runtime serving, then cut over after the upgrade is ready.

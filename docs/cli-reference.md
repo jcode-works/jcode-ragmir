@@ -27,7 +27,8 @@ rgr search "release decision"
 | `audit [--unsupported]` | Compare sources with the index and list skipped files. |
 | `bases` | List root and nested monorepo bases and mark the active one. |
 | `status` | Show configuration, indexed chunk count, and the latest ingestion progress. |
-| `team snapshot`, `team compare` | Export and compare privacy-bounded team index metadata. |
+| `team sync` | Safely fast-forward the current Git upstream and refresh the local index. |
+| `team snapshot`, `team compare` | Run advanced privacy-bounded drift diagnostics. |
 | `upgrade [--check]` | Inspect compatibility or safely rebuild and refresh managed helpers. |
 | `security-audit [--strict]` | Check local privacy and Git-ignore posture. |
 
@@ -79,8 +80,30 @@ report records both configured and consumed budgets.
 ## Team synchronization
 
 ```bash
-rgr team snapshot --label alice --output .ragmir/team/alice.json
-rgr team compare .ragmir/team/alice.json --local-label christophe
+rgr team sync
+```
+
+`team sync` treats the current branch upstream as the declared source of truth. It fetches that
+single branch, fast-forwards only a clean branch with no local-only commits or divergence, then runs
+incremental ingestion. Git authentication is non-interactive and each Git command is bounded. A
+dirty, ahead, diverged, detached, or no-upstream state never changes branch history and returns one
+recommended action. Fetch and ingestion failures keep the previous valid local index available
+when one exists.
+
+| Option | Behavior |
+| --- | --- |
+| `--no-pull` | Fetch and compare, but never update the checked-out branch. |
+| `--no-fetch` | Avoid network access and use only cached Git state plus local sources. |
+| `--check` | Fetch and report without changing the worktree or index. |
+| `--git-timeout-ms N` | Bound each Git command, from 1 ms to 300,000 ms. |
+| `--strict` | Exit with code 1 unless upstream freshness and local index readiness are proven. |
+| `--json` | Return the complete typed report. |
+
+Snapshots are an advanced fallback for non-Git sources or exact drift investigation:
+
+```bash
+rgr team snapshot --label local --output .ragmir/team/local.json
+rgr team compare .ragmir/team/local.json --local-label peer
 ```
 
 `team snapshot` exports a schema-validated JSON file with relative paths, content checksums,
@@ -94,8 +117,8 @@ with code 1 unless both operational indexes are synchronized. `securityAdvisorie
 `localSecurityAdvisories`, and `peerSecurityAdvisories` keep privacy follow-ups visible without
 turning matching operational indexes into `not-ready`. Review them with `rgr security-audit`; they
 do not require deleting or rebuilding the index. Snapshots written by Ragmir v2.19.0 through
-v2.19.2 remain compatible. The command never changes source files or decides which side is
-authoritative.
+v2.19.2 remain compatible. These advanced commands never change source files or decide which side
+is authoritative.
 
 ## Safe upgrades
 

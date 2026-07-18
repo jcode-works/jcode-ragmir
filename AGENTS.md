@@ -20,9 +20,12 @@
 - Long-running Node.js processes use one `RagmirClient` per project root and close it during shutdown. Keep the top-level API for one-shot scripts.
 - Ragmir does not provide an HTTP server or fixed port. A network-facing host owns transport security, authentication, authorization, and rate limits.
 - Index writers are serialized across local OS processes through a private lock under `storageDir`; do not claim a distributed or shared-network-filesystem lock.
-- Team diagnostics exchange explicit metadata-only snapshots of relative paths, checksums, readiness,
-  versions, and configuration. Never include source text or absolute project paths, choose an
-  authoritative copy, or modify peer sources during comparison.
+- Git-backed team sync treats the current branch upstream as the declared authority. Fetch only
+  that branch, fast-forward only a clean non-divergent history, then ingest incrementally. Never
+  stash, reset, rebase, create a merge commit, or delete the active index. `--no-pull` keeps branch
+  updates manual; fetch and ingest failures preserve the last valid local index when one exists.
+- Metadata-only snapshots are advanced diagnostics for exact or non-Git drift. Never include source
+  text or absolute project paths, choose an authoritative copy, or modify peer sources.
 - Package upgrades must preserve the last validated index until an incompatible replacement passes
   staged-generation validation and activates atomically. Older configs keep safe defaults; never
   require deleting `.ragmir/storage/` as the first repair step.
@@ -48,9 +51,8 @@
 - When code changes public behavior, commands, configuration, supported formats, architecture, or product claims, update the relevant docs and landing in the same change. For internal-only changes, verify both surfaces and leave them unchanged when no update is needed.
 - Lead public documentation with the value proposition, a working quick start, and the strongest
   guarantees. Move operational depth to focused guides instead of repeating it across READMEs.
-- Present team use as a positive workflow: shared sources and configuration, one local ingest per
-  developer, then a corpus-fingerprint check. Keep low-level safeguards in the team and
-  configuration guides rather than turning team collaboration into the dominant public section.
+- Present team use as one positive workflow: merge reviewed changes upstream, run `rgr team sync`,
+  receive a ready private index. Keep snapshots and low-level safeguards in focused advanced guides.
 
 ## Validation
 
