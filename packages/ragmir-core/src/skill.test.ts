@@ -59,6 +59,10 @@ describe("installSkill", () => {
     const agentSetup = await readFile(result.agentSetupPath, "utf8")
 
     expect(skill).toContain("name: ragmir")
+    expect(skill).toContain("rgr team compare")
+    expect(skill).toContain("warn the user in the language they are using")
+    expect(skill).toContain("rgr upgrade --check")
+    expect(skill).toContain("never delete `.ragmir/storage/` as the first upgrade step")
     expect(audioSkill).toContain("name: ragmir-audio-summary")
     expect(reportSkill).toContain("name: ragmir-markdown-report")
     expect(legalSkill).toContain("name: ragmir-legal-dossier")

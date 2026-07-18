@@ -197,7 +197,7 @@
   "faq_agents_question": "Which AI agents and tools does Ragmir work with?",
   "faq_agents_answer": "Ragmir Core is model-agnostic. Integrations cover Claude Code, Codex, Kimi, OpenCode, and Cline. Other MCP clients, local scripts, desktop tools, and CI jobs use the same cited results.",
   "faq_team_question": "How does a team share the same knowledge base?",
-  "faq_team_answer": "Teams synchronize one source-of-truth folder with Git, Drive, or their existing file workflow, commit the same Ragmir source globs and configuration, then let each developer ingest locally. Align the Ragmir version and embedding settings, and compare the corpus fingerprint once each index is ready to confirm the same paths and content.",
+  "faq_team_answer": "Teams synchronize one source-of-truth folder with Git, Drive, or their existing file workflow, then each developer indexes locally. A metadata-only team comparison shows version and configuration drift plus local-only, peer-only, and changed files, with clear repair steps. Ragmir never guesses which copy is authoritative.",
   "faq_offline_question": "Does Ragmir require an API key, a model download, or an internet connection?",
   "faq_offline_answer": "No for the default path. Local-hash retrieval runs offline with no model or API key. For a fully offline workflow, use a local consumer or set up optional Ragmir Chat, which downloads and verifies one selected GGUF profile once, then generates locally. No Ollama, Python, or hosted LLM API is required.",
   "faq_observability_question": "Can I see where ingestion time and memory are spent?",

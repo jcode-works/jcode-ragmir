@@ -59,7 +59,15 @@ import {
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { optimizeStorage } from "./storage-maintenance.js"
 import { readIndexManifestHeader } from "./store.js"
+import {
+  compareTeamSnapshots,
+  createTeamSnapshot,
+  readTeamSnapshot,
+  type TeamComparison,
+  writeTeamSnapshot,
+} from "./team-diagnostics.js"
 import type { IncrementalFailurePolicy, PreviewChunksOptions, ResearchReport } from "./types.js"
+import { inspectUpgrade, upgradeProject } from "./upgrade.js"
 import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
@@ -67,6 +75,7 @@ const CHAT_PACKAGE_NAME = "@jcode.labs/ragmir-chat"
 const TTS_PACKAGE_NAME = "@jcode.labs/ragmir-tts"
 const DEPRECATED_CLI_NAMES = new Set(["ragmir", "kb"])
 const PUBLIC_CLI_NAME = "rgr"
+const TEAM_DIFF_PREVIEW_LIMIT = 20
 
 const program = new Command()
 
@@ -271,6 +280,69 @@ program
 
     printDoctor(report)
   })
+
+program
+  .command("upgrade")
+  .description(
+    "Check upgrade compatibility, refresh agent helpers, and safely rebuild an incompatible index.",
+  )
+  .option("--check", "Inspect the upgrade without changing local state.")
+  .option(
+    "--force-agent-skills",
+    "Replace same-name native skills after reviewing that they can be overwritten.",
+  )
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (
+      options: { check?: boolean; forceAgentSkills?: boolean; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      if (options.check) {
+        const inspection = await inspectUpgrade(cwd)
+        if (options.json) {
+          console.log(JSON.stringify(inspection, null, 2))
+          return
+        }
+        console.log(`status=${inspection.status}`)
+        console.log(`runtimeRagmirVersion=${inspection.runtimeRagmirVersion}`)
+        console.log(
+          `indexedWithRagmirVersion=${inspection.indexedWithRagmirVersion ?? "unavailable"}`,
+        )
+        console.log(`ready=${inspection.ready}`)
+        console.log(`safeActivation=${inspection.safeActivation}`)
+        if (inspection.reason) {
+          console.log(`reason=${inspection.reason}`)
+        }
+        return
+      }
+
+      const result = await upgradeProject({
+        cwd,
+        forceAgentSkills: options.forceAgentSkills === true,
+      })
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2))
+        return
+      }
+      console.log(`status=${result.status}`)
+      console.log(`runtimeRagmirVersion=${result.runtimeRagmirVersion}`)
+      console.log(`indexedWithRagmirVersion=${result.indexedWithRagmirVersion ?? "unavailable"}`)
+      console.log(`ready=${result.ready}`)
+      console.log(`safeActivation=${result.safeActivation}`)
+      console.log(`action=${result.action}`)
+      console.log(
+        `previousIndexedWithRagmirVersion=${result.previousIndexedWithRagmirVersion ?? "unavailable"}`,
+      )
+      console.log(`previousIndexKeptUntilActivation=${result.previousIndexKeptUntilActivation}`)
+      if (result.reason) {
+        console.log(`reason=${result.reason}`)
+      }
+      if (!result.ready) {
+        process.exitCode = 1
+      }
+    },
+  )
 
 program
   .command("setup")
@@ -1084,6 +1156,63 @@ program
       console.log(`${marker} ${base.id} format=${format} root=${base.projectRoot}`)
     }
   })
+
+const teamCommand = program
+  .command("team")
+  .description("Export and compare privacy-bounded team index snapshots.")
+
+teamCommand
+  .command("snapshot")
+  .description("Export relative paths, checksums, configuration, readiness, and corpus identity.")
+  .requiredOption("--output <path>", "Snapshot file to create or replace.")
+  .option("--label <label>", "Human-readable environment label.", "local")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { output: string; label: string; json?: boolean }, command: Command) => {
+    const cwd = projectRoot(command)
+    const snapshot = await createTeamSnapshot({ cwd, label: options.label })
+    const outputPath = await writeTeamSnapshot(snapshot, path.resolve(cwd, options.output))
+    if (options.json) {
+      console.log(JSON.stringify({ outputPath, snapshot }, null, 2))
+      return
+    }
+    console.log(pc.green("Team snapshot ready."))
+    console.log(`outputPath=${outputPath}`)
+    console.log(`label=${snapshot.label}`)
+    console.log(`ready=${snapshot.ready}`)
+    console.log(`corpusFingerprint=${snapshot.corpus.fingerprint ?? "unavailable"}`)
+    console.log(`indexedFiles=${snapshot.corpus.indexedFiles}`)
+    console.log(`notice=${snapshot.notice}`)
+  })
+
+teamCommand
+  .command("compare")
+  .description("Compare the current local index with a peer snapshot and print actionable drift.")
+  .argument("<snapshot>", "Peer snapshot created by `rgr team snapshot`.")
+  .option("--local-label <label>", "Human-readable label for this environment.", "local")
+  .option("--json", "Print machine-readable JSON.")
+  .option("--strict", "Exit with code 1 unless both indexes are synchronized.")
+  .action(
+    async (
+      snapshotPath: string,
+      options: { localLabel: string; json?: boolean; strict?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      const [local, peer] = await Promise.all([
+        createTeamSnapshot({ cwd, label: options.localLabel }),
+        readTeamSnapshot(path.resolve(cwd, snapshotPath)),
+      ])
+      const comparison = compareTeamSnapshots(local, peer)
+      if (options.json) {
+        console.log(JSON.stringify(comparison, null, 2))
+      } else {
+        printTeamComparison(comparison)
+      }
+      if (options.strict && !comparison.synchronized) {
+        process.exitCode = 1
+      }
+    },
+  )
 
 program
   .command("status")
@@ -2100,6 +2229,71 @@ function researchEvidencePreview(
     return evidence.snippet
   }
   return evidence.text.replace(/\s+/gu, " ").trim().slice(0, SEARCH_TEXT_PREVIEW_LENGTH)
+}
+
+function printTeamComparison(comparison: TeamComparison): void {
+  const statusColor = comparison.synchronized ? pc.green : pc.yellow
+  console.log(statusColor(`Team status: ${comparison.status}`))
+  console.log(`summary=${comparison.summary}`)
+  console.log(`local=${comparison.localLabel}`)
+  console.log(`peer=${comparison.peerLabel}`)
+  console.log(`sameConfiguration=${comparison.sameConfiguration}`)
+  console.log(`sameCorpus=${comparison.sameCorpus}`)
+  console.log(`authorityDecisionRequired=${comparison.authorityDecisionRequired}`)
+
+  if (comparison.configurationDifferences.length > 0) {
+    console.log("")
+    console.log(pc.cyan("Configuration differences:"))
+    for (const difference of comparison.configurationDifferences) {
+      console.log(
+        `  - ${difference.field} (${difference.scope}, rebuild=${difference.requiresRebuild}): local=${formatTeamValue(difference.local)} peer=${formatTeamValue(difference.peer)}`,
+      )
+    }
+  }
+
+  printTeamPaths("Local-only files", comparison.files.localOnly)
+  printTeamPaths("Peer-only files", comparison.files.peerOnly)
+  if (comparison.files.changed.length > 0) {
+    console.log("")
+    console.log(pc.cyan(`Changed files (${comparison.files.changed.length}):`))
+    for (const file of comparison.files.changed.slice(0, TEAM_DIFF_PREVIEW_LIMIT)) {
+      console.log(
+        `  - ${file.relativePath} local=${file.localChecksum.slice(0, 12)} peer=${file.peerChecksum.slice(0, 12)}`,
+      )
+    }
+    printTeamOmitted(comparison.files.changed.length)
+  }
+
+  if (comparison.recommendedActions.length > 0) {
+    console.log("")
+    console.log(pc.cyan("Recommended actions:"))
+    for (const [index, action] of comparison.recommendedActions.entries()) {
+      console.log(`  ${index + 1}. ${action}`)
+    }
+  }
+}
+
+function printTeamPaths(title: string, files: string[]): void {
+  if (files.length === 0) {
+    return
+  }
+  console.log("")
+  console.log(pc.cyan(`${title} (${files.length}):`))
+  for (const file of files.slice(0, TEAM_DIFF_PREVIEW_LIMIT)) {
+    console.log(`  - ${file}`)
+  }
+  printTeamOmitted(files.length)
+}
+
+function printTeamOmitted(total: number): void {
+  const omitted = total - TEAM_DIFF_PREVIEW_LIMIT
+  if (omitted > 0) {
+    console.log(`  ... ${omitted} more; use --json for the complete diff.`)
+  }
+}
+
+function formatTeamValue(value: string | number | boolean | null | string[]): string {
+  return Array.isArray(value) ? JSON.stringify(value) : String(value)
 }
 
 function printPdfOcrStatus(status: Awaited<ReturnType<typeof inspectPdfOcr>>): void {

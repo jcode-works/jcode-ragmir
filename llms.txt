@@ -66,11 +66,14 @@ the corpus, and calls no model.
   helpers pin a distinct base root.
 - Team use: synchronize one source-of-truth folder with Git, Drive, or the team's existing file
   workflow, commit stable source globs and Ragmir configuration, then ingest locally per developer.
-  Align the version and embedding settings, and compare `corpusFingerprint` only when each index is
-  ready with no missing or stale files. Matching values confirm the same relative paths and source
-  bytes. Use `sourceFingerprintMode: "strict"` when synchronization can preserve metadata while
-  replacing content, and keep actively written `.ragmir/storage/` directories local to each
-  workstation.
+  Use `rgr team snapshot` and `rgr team compare` to explain version, configuration, local-only,
+  peer-only, and changed-file drift without source text. Ragmir never chooses the authoritative
+  copy; the declared Git, Drive, or team revision does. Keep actively written `.ragmir/storage/`
+  directories local to each workstation.
+- Upgrade continuity: after a package update and before retrieval with the new runtime,
+  `rgr upgrade --check` inspects compatibility and `rgr upgrade` refreshes managed helpers and
+  safely stages any required rebuild. Ragmir never deletes the active index first. A long-running
+  host can keep its loaded runtime serving, then cut over after `status=current` and `ready=true`.
 - MCP resources: `ragmir://context` gives bounded readiness and capability context;
   `ragmir://sources` gives capped source detail with complete totals.
 - MCP safety: all ten tools advertise non-destructive behavior; every tool and resource JSON

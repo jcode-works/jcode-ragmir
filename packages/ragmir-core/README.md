@@ -83,6 +83,10 @@ Top-level `ingest`, `search`, `ask`, and `research` functions remain available f
   `rgr audit` for a live source inventory.
 - `rgr security-audit` checks permissions, Git ignore coverage, tracked private paths, redaction,
   and local extractor authority.
+- `rgr team snapshot` and `rgr team compare` explain configuration and per-file drift without
+  sharing source text or guessing which copy is authoritative.
+- After a package update, `rgr upgrade --check` previews compatibility; `rgr upgrade` safely stages
+  any required rebuild without deleting the active index first.
 
 The [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md),
 [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md), and
@@ -99,6 +103,7 @@ hold the complete options and operational detail.
 Core installs and starts without either add-on. A hosted agent receives only passages your
 integration sends under that provider's data policy; use a local consumer when no passage may leave
 the workstation. Teams synchronize their source folder and tracked configuration, then build one
-local index per developer. See the [team workflow](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#team-knowledge-bases).
+local index per developer. Exchange an authorized metadata-only snapshot and run `rgr team compare`
+to resolve exact drift. See the [team workflow](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#team-knowledge-bases).
 
 Ragmir Core is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).

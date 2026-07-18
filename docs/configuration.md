@@ -50,11 +50,11 @@ local coverage difference, not permanent configuration churn in Git.
 
 The active `.ragmir/config.json` stays local and ignored. A project can version its own template,
 copy that template locally, and keep machine-specific discovery outside the tracked file. After
-source synchronization, ingest locally and compare `corpusFingerprint` from `rgr status --json`.
-Matching fingerprints prove the indexed relative paths and source bytes are the same only when both
-indexes are ready and report no missing or stale files. Keep the Ragmir version, configuration,
-embedding provider, and model aligned separately. Use `sourceFingerprintMode: "strict"` when a
-synchronization tool can preserve file metadata while replacing its content.
+source synchronization, ingest locally, export a metadata-only snapshot with `rgr team snapshot`,
+and inspect exact drift with `rgr team compare`. The comparison reports source-contract, version,
+embedding, chunking, retrieval, and privacy differences plus changed or one-sided paths. The
+lower-level `corpusFingerprint` remains a quick equality check. Use `sourceFingerprintMode:
+"strict"` when a synchronization tool can preserve file metadata while replacing its content.
 
 ### Workload admission
 
