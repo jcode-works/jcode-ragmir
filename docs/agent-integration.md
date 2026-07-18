@@ -83,7 +83,11 @@ The result distinguishes configuration drift, local-only files, peer-only files,
 It provides ordered commands for readiness, upgrade, ingestion, or rebuild work. Ragmir never
 chooses which copy is correct; use the declared Git commit, Drive revision, or team folder as the
 authority, synchronize it, ingest again, then compare fresh snapshots until
-`status=synchronized`.
+`status=synchronized`. Operational readiness and privacy review are independent: a matching index
+with local extractor or permission warnings remains synchronized, while the comparison exposes
+per-side security advisory counts and recommends `rgr security-audit`. Do not rebuild a healthy
+index only to clear an advisory. Existing v2.19 snapshots are interpreted from their stored health
+metadata, so teammates can upgrade at different times without regenerating them first.
 
 Version stable directory or glob contracts instead of rewriting a tracked config with the files
 found on the current machine. The lower-level `corpusFingerprint` returned by `rgr status --json`,
@@ -104,7 +108,8 @@ responsible for distributing the source files.
 An agent using the bundled Ragmir skill should check readiness before relying on retrieval. When a
 peer snapshot is available, it should run the comparison and warn the user in the user's language
 when `status` is not `synchronized`. It should summarize the exact drift and suggested commands,
-never silently pick a winner or overwrite source files.
+never silently pick a winner or overwrite source files. It should describe security advisories as
+separate, non-blocking follow-ups when the operational indexes already match.
 
 ## MCP tools
 

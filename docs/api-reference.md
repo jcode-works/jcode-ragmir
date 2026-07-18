@@ -336,6 +336,11 @@ types that callers commonly compose explicitly.
 | Upgrades | `UpgradeInspection`, `UpgradeOptions`, `UpgradeResult`, `UpgradeStatus` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |
 
+`TeamSnapshot.ready` describes operational index readiness. `TeamComparison.securityAdvisories`
+reports local and peer privacy-warning counts separately; advisory-only differences do not prevent
+`status: "synchronized"`. `compareTeamSnapshots` accepts existing v2.19 snapshots and derives their
+operational state from the stored corpus and health fields without changing the snapshot schema.
+
 ## Chat: cited local generation
 
 ```bash
