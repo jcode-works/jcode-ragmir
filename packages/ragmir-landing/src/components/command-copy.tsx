@@ -85,6 +85,41 @@ interface CommandCopyButtonProps extends CommandCopyBoxProps {
   iconClassName?: string
 }
 
+interface TextCopyButtonProps {
+  text: string
+  copyLabel: string
+  copiedLabel: string
+  className?: string
+}
+
+export function TextCopyButton({
+  text,
+  copyLabel,
+  copiedLabel,
+  className,
+}: TextCopyButtonProps): React.JSX.Element {
+  const { copied, handleCopy } = useCommandCopy(text)
+
+  return (
+    <button
+      aria-label={copyLabel}
+      className={cn(
+        "inline-flex items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2 font-bold text-background text-sm transition hover:bg-foreground/88 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
+      onClick={() => void handleCopy()}
+      type="button"
+    >
+      {copied ? (
+        <Check aria-hidden="true" className="size-4" />
+      ) : (
+        <Copy aria-hidden="true" className="size-4" />
+      )}
+      {copied ? copiedLabel : copyLabel}
+    </button>
+  )
+}
+
 export function CommandCopyButton({
   command,
   copyLabel,

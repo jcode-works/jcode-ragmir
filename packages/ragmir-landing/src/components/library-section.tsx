@@ -1,7 +1,9 @@
 import { Code2 } from "lucide-react"
-import { CommandCopyBox } from "./command-copy"
+import { RAGMIR_SETUP_PROMPT } from "../content/setup-prompt"
+import { CommandCopyBox, TextCopyButton } from "./command-copy"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
+import { Textarea } from "./ui/textarea"
 
 interface PackageManager {
   id: string
@@ -26,6 +28,7 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
     },
     { id: "pnpm", label: "pnpm", add: "pnpm add -D @jcode.labs/ragmir", exec: "pnpm exec" },
     { id: "yarn", label: "yarn", add: "yarn add --dev @jcode.labs/ragmir", exec: "yarn exec" },
+    { id: "bun", label: "Bun", add: "bun add -d @jcode.labs/ragmir", exec: "bunx" },
     {
       id: "mise",
       label: "mise",
@@ -73,7 +76,7 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
         <p className="mt-4 text-muted-foreground text-sm leading-6">{t("library_text")}</p>
       </div>
 
-      <Card className="overflow-hidden bg-card/88 shadow-2xl shadow-black/35 backdrop-blur-xl">
+      <Card className="min-w-0 overflow-hidden bg-card/88 shadow-2xl shadow-black/35 backdrop-blur-xl">
         <CardHeader className="gap-3 border-b border-border p-5 md:p-6">
           <div className="flex items-center gap-3">
             <Code2 aria-hidden="true" className="size-5 text-muted-foreground" />
@@ -81,21 +84,51 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
           </div>
           <CardDescription className="leading-6">{t("quickstart_text")}</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 p-5 md:p-6">
-          <Tabs className="gap-4" defaultValue={packageManagers[0]?.id ?? "npm"}>
-            <TabsList className="flex w-full rounded-full border border-border bg-card/82 p-1">
-              {packageManagers.map((manager) => (
+        <CardContent className="grid min-w-0 gap-4 p-5 md:p-6">
+          <Tabs className="min-w-0 gap-4" defaultValue="prompt">
+            <div className="-mx-1 min-w-0 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <TabsList className="flex w-max min-w-full rounded-md border border-border bg-card/82 p-1">
                 <TabsTrigger
-                  className="flex-1 justify-center rounded-full px-2 py-2 text-center text-xs uppercase"
-                  key={manager.id}
-                  value={manager.id}
+                  className="min-w-20 flex-1 justify-center rounded-sm px-3 py-2 text-center text-[0.625rem] uppercase tracking-[0.08em]"
+                  value="prompt"
                 >
-                  {manager.label}
+                  {t("quickstart_prompt_tab")}
                 </TabsTrigger>
-              ))}
-            </TabsList>
+                {packageManagers.map((manager) => (
+                  <TabsTrigger
+                    className="min-w-16 flex-1 justify-center rounded-sm px-2 py-2 text-center text-[0.625rem] uppercase tracking-[0.08em]"
+                    key={manager.id}
+                    value={manager.id}
+                  >
+                    {manager.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+            <TabsContent className="mt-0 grid min-w-0 gap-4" value="prompt">
+              <div>
+                <p className="font-bold text-xs">{t("quickstart_prompt_title")}</p>
+                <p className="mt-1 text-[0.7rem] text-muted-foreground leading-4">
+                  {t("quickstart_prompt_text")}
+                </p>
+              </div>
+              <Textarea
+                aria-label={t("quickstart_prompt_label")}
+                className="h-[4.125rem] min-h-[4.125rem] min-w-0 resize-none overflow-y-auto whitespace-pre-wrap border-foreground/35 bg-background/72 font-mono text-[0.625rem] text-foreground/78 leading-4 outline-1 outline-border/70 outline-solid"
+                id="ragmir-setup-prompt"
+                readOnly
+                spellCheck={false}
+                value={RAGMIR_SETUP_PROMPT}
+              />
+              <TextCopyButton
+                className="w-full sm:w-fit"
+                copiedLabel={t("command_copied")}
+                copyLabel={t("copy_prompt")}
+                text={RAGMIR_SETUP_PROMPT}
+              />
+            </TabsContent>
             {packageManagers.map((manager) => (
-              <TabsContent className="mt-0 grid gap-3" key={manager.id} value={manager.id}>
+              <TabsContent className="mt-0 grid min-w-0 gap-3" key={manager.id} value={manager.id}>
                 {installSteps.map((step) => (
                   <CommandCopyBox
                     command={step.build(manager)}

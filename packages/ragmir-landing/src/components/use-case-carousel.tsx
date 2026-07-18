@@ -252,7 +252,7 @@ function WorkflowNode({
   return (
     <article
       data-workflow-node={nodeId}
-      className={`relative flex h-full min-h-36 flex-col rounded-xl border bg-card/95 p-4 shadow-xl shadow-black/20 ${
+      className={`relative flex h-full min-h-36 flex-col rounded-md border bg-card/95 p-4 shadow-xl shadow-black/20 ${
         accent === "primary"
           ? "border-primary/70 ring-1 ring-primary/20"
           : accent === "success"
@@ -270,7 +270,7 @@ function WorkflowNode({
       ))}
 
       <div className="flex items-center gap-2 text-muted-foreground">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/55">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-sm border border-border bg-muted/55">
           <Icon className="size-4" aria-hidden="true" />
         </span>
         <p className="text-[0.65rem] font-bold uppercase tracking-[0.14em]">{label}</p>
@@ -520,7 +520,7 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
   return (
     <Tabs className="w-full min-w-0 gap-5" value={activeId} onValueChange={handleValueChange}>
       <TabsList
-        className="flex h-auto w-full snap-x snap-mandatory touch-pan-x flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-border bg-card/80 p-1.5 [scrollbar-width:thin] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent"
+        className="flex h-auto w-full snap-x snap-mandatory touch-pan-x flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain scroll-smooth rounded-md border border-border bg-card/80 p-1.5 [scrollbar-width:thin] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent"
         aria-label={t("use_cases_tabs_label")}
         onWheel={handleTabsWheel}
       >
@@ -528,7 +528,7 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
           const Icon = useCase.icon
           return (
             <TabsTrigger
-              className="min-w-max shrink-0 snap-start px-4 py-2.5 lg:min-w-0 lg:flex-1 lg:px-2"
+              className="min-w-max shrink-0 snap-start rounded-sm px-4 py-2.5 text-[0.68rem] lg:min-w-0 lg:flex-1 lg:px-2"
               key={useCase.id}
               value={useCase.id}
             >
@@ -551,10 +551,10 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
               <Card className="flex h-[55rem] w-full min-w-0 flex-col overflow-hidden bg-card/90 md:h-[49rem] lg:h-full">
                 <CardHeader className="h-48 shrink-0 gap-4 border-b border-border md:grid md:h-[7.5rem] md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:h-[5.5rem] lg:py-4">
                   <div className="flex min-w-0 flex-col gap-2">
-                    <CardTitle className="max-w-2xl text-xl leading-tight">
+                    <CardTitle className="max-w-2xl text-lg leading-tight">
                       {t(useCase.titleKey)}
                     </CardTitle>
-                    <CardDescription className="max-w-2xl leading-5">
+                    <CardDescription className="max-w-2xl text-xs leading-5">
                       {t(useCase.descriptionKey)}
                     </CardDescription>
                   </div>

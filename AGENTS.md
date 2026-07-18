@@ -41,6 +41,8 @@
 - The root `README.md` is the short canonical entrypoint: what Ragmir is, installation, first use, library API, MCP, and links to focused docs.
 - Keep `docs/` concise and task-oriented: CLI, API, configuration, agent integration, troubleshooting, local chat, and local TTS. Remove future plans and obsolete surfaces rather than documenting them.
 - Package READMEs are brief npm entrypoints that link to the root README.
+- Keep the English setup prompt identical across Core, the landing, root and package READMEs,
+  `docs/quick-start.md`, and the wiki. The public-surface smoke test enforces repository copies.
 - Keep `llms.txt` and `context7.json` aligned with public documentation and generated-output exclusions.
 - When code changes public behavior, commands, configuration, supported formats, architecture, or product claims, update the relevant docs and landing in the same change. For internal-only changes, verify both surfaces and leave them unchanged when no update is needed.
 - Lead public documentation with the value proposition, a working quick start, and the strongest
