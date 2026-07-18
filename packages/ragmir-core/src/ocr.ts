@@ -375,7 +375,7 @@ async function extractWithTesseract(options: {
 
 function pairOcrPageText(pages: number[], output: string): Array<{ page: number; text: string }> {
   const pageTexts = output.replace(/\r\n?/gu, "\n").split("\f")
-  if (pageTexts.at(-1) === "") {
+  if (pageTexts.length === pages.length + 1 && pageTexts.at(-1) === "") {
     pageTexts.pop()
   }
   if (pageTexts.length !== pages.length) {
