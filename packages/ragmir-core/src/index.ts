@@ -59,6 +59,7 @@ export type { EnableSemanticEmbeddingsResult } from "./semantic-config.js"
 export { enableSemanticEmbeddings } from "./semantic-config.js"
 export type { SetupOptions, SetupResult, SetupSemanticResult } from "./setup.js"
 export { setupProject } from "./setup.js"
+export { RAGMIR_SETUP_PROMPT } from "./setup-prompt.js"
 export type {
   AgentHelperFile,
   AgentInstallMode,

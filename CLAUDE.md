@@ -26,6 +26,8 @@ commit them. The root README is the canonical documentation entrypoint; keep pac
 When code changes public behavior, commands, configuration, supported formats, architecture, or
 product claims, update the relevant docs and landing in the same change. For internal-only changes,
 verify both surfaces and leave them unchanged when no update is needed.
+Keep the English setup prompt identical across Core, the landing, root and package READMEs,
+`docs/quick-start.md`, and the wiki. The public-surface smoke test enforces repository copies.
 Lead public documentation with the value proposition, a working quick start, and the strongest
 guarantees. Move operational depth to focused guides instead of repeating it across READMEs.
 Present team use as a positive workflow: shared sources and configuration, one local ingest per

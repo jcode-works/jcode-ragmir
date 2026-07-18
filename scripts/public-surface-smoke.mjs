@@ -56,6 +56,40 @@ for (const file of trackedFiles) {
   }
 }
 
+const coreSetupPrompt = await readSetupPrompt(
+  "packages/ragmir-core/src/setup-prompt.ts",
+  /RAGMIR_SETUP_PROMPT = `([\s\S]*?)`\s*$/u,
+)
+const landingSetupPrompt = await readSetupPrompt(
+  "packages/ragmir-landing/src/content/setup-prompt.ts",
+  /RAGMIR_SETUP_PROMPT = `([\s\S]*?)`\s*$/u,
+)
+
+if (coreSetupPrompt.length > 4_000) {
+  failures.push(`Ragmir setup prompt is ${coreSetupPrompt.length} characters; maximum is 4000`)
+}
+if (landingSetupPrompt !== coreSetupPrompt) {
+  failures.push("landing setup prompt differs from the Core canonical prompt")
+}
+
+for (const file of [
+  "README.md",
+  "docs/quick-start.md",
+  "packages/ragmir-core/README.md",
+  "packages/ragmir-chat/README.md",
+  "packages/ragmir-tts/README.md",
+]) {
+  const content = await readFile(path.join(repoRoot, file), "utf8")
+  const prompt = content.match(
+    /<!-- ragmir-setup-prompt:start -->[\s\S]*?~~~text\n([\s\S]*?)\n~~~[\s\S]*?<!-- ragmir-setup-prompt:end -->/u,
+  )?.[1]
+  if (prompt === undefined) {
+    failures.push(`${file}: missing complete Ragmir setup prompt block`)
+  } else if (prompt !== coreSetupPrompt) {
+    failures.push(`${file}: setup prompt differs from the Core canonical prompt`)
+  }
+}
+
 if (failures.length > 0) {
   throw new Error(`Public surface smoke failed:\n${failures.join("\n")}`)
 }
@@ -74,4 +108,13 @@ function gitLines(args) {
 
 function lineNumber(content, index) {
   return content.slice(0, index).split(/\r?\n/u).length
+}
+
+async function readSetupPrompt(relativePath, pattern) {
+  const content = await readFile(path.join(repoRoot, relativePath), "utf8")
+  const prompt = content.match(pattern)?.[1]
+  if (prompt === undefined) {
+    throw new Error(`${relativePath}: could not read Ragmir setup prompt`)
+  }
+  return prompt
 }

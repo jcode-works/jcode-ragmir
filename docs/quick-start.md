@@ -1,21 +1,7 @@
-# @jcode.labs/ragmir-tts
+# Quick start
 
-[![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
-[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
-[![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-tts)](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)
-[![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-tts)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
-
-Optional text-to-speech for Ragmir workflows. The default Transformers.js path renders reviewed
-text as WAV on the workstation after an explicit model preload. Edge MP3 is a separate online mode
-that sends narration text only when selected.
-
-[Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
-[Offline TTS guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/offline-tts-preload.md) ·
-[API](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md#tts-reviewed-text-to-audio)
-
-## Preload once, render offline
-
-Requires Node.js 22 or later. Preload with non-sensitive text:
+Ragmir requires Node.js 22 or later. Choose the guided setup for a repository-aware installation,
+or use the manual commands below.
 
 <!-- ragmir-setup-prompt:start -->
 <details>
@@ -61,73 +47,31 @@ Never commit .ragmir, corpus files, models, snapshots, logs, or secrets. Never c
 </details>
 <!-- ragmir-setup-prompt:end -->
 
-Prefer manual setup:
+The agent must inspect first, ask once, and wait for approval before it installs dependencies,
+downloads models, replaces skills, or shares metadata.
 
-```bash
-npm install --save-dev @jcode.labs/ragmir-tts
-printf '%s\n' "Non-sensitive model preload text." > /tmp/ragmir-tts-preload.txt
-npx rgr-tts render /tmp/ragmir-tts-preload.txt \
-  --lang en \
-  --allow-remote-models \
-  --out .ragmir/audio/preload.wav
-```
+## Manual setup
 
-Then render confidential content without a network call:
+Install Core in the project that owns the files:
 
-```bash
-npx rgr-tts render ./brief.md --lang en --offline --out .ragmir/audio/brief.wav
-```
+~~~bash
+pnpm add -D @jcode.labs/ragmir
+pnpm exec rgr setup --agents codex,claude,kimi,opencode,cline
+pnpm exec rgr sources add "README.md" "docs/**/*.md"
+pnpm exec rgr ingest
+pnpm exec rgr search "Which decision changed the rollout?"
+~~~
 
-When Core is installed, `npx rgr audio` delegates to this package. TTS reads caller-provided text;
-it does not retrieve evidence or write a summary.
+Use the package manager already declared by the project. Ragmir detects pnpm, npm, Yarn, and Bun.
+At a pnpm workspace root, add the workspace-root flag. Never create a second lockfile.
 
-| Code | Language | Offline model |
-| --- | --- | --- |
-| `en` | English | `Xenova/mms-tts-eng` |
-| `fr` | French | `Xenova/mms-tts-fra` |
-| `es` | Spanish | `Xenova/mms-tts-spa` |
+Generated configuration, indexes, helpers, reports, and metadata-only logs stay under ignored
+`.ragmir/` state. Run `rgr doctor --deep`, `rgr audit --unsupported`, and
+`rgr security-audit` before relying on retrieval.
 
-Use the same language for preload and offline rendering. French is selected only when `--lang` is
-omitted. `rgr-tts doctor --json` reports local and Edge language support. Japanese, Thai, and
-Chinese require explicit Edge mode unless you provide a compatible Transformers.js model.
+For an existing installation, update the package, run `rgr upgrade --check`, then run `rgr upgrade`
+when requested. Ragmir preserves the active index until a validated replacement is ready.
 
-## TypeScript API
-
-```ts
-import { renderSpeech } from "@jcode.labs/ragmir-tts"
-
-const result = await renderSpeech({
-  cwd: process.cwd(),
-  textFile: "./brief.md",
-  outputPath: ".ragmir/audio/brief.wav",
-  engine: "transformers",
-  language: "en",
-  allowRemoteModels: false,
-})
-
-console.log(result.outputPath, result.samplingRate)
-```
-
-`renderSpeech` returns output, engine, language, format, model, and sample metadata. It accepts an
-`AbortSignal`; Edge calls also accept `edgeTimeoutMs`. Use `doctor()` for engine and model paths and
-`modelCacheExists()` for a direct cache check.
-
-## Explicit online speech
-
-```bash
-pipx install edge-tts
-npx rgr-tts render ./public-announcement.md \
-  --engine edge \
-  --lang en \
-  --out .ragmir/audio/public-announcement.mp3
-```
-
-| Path | Output | Languages | Boundary |
-| --- | --- | --- | --- |
-| Transformers.js | WAV | English, French, Spanish | Model preload is explicit; rendering can stay offline |
-| Edge | MP3 | English, Spanish, French, Japanese, Thai, Chinese | Narration text goes to the external service |
-
-There is no silent fallback to Edge. Keep model state and generated audio under ignored `.ragmir/`
-paths and review audio before sharing it.
-
-Ragmir TTS is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
+Next: [CLI reference](./cli-reference.md), [configuration](./configuration.md),
+[agent integration](./agent-integration.md), [Chat](./offline-chat-preload.md), and
+[TTS](./offline-tts-preload.md).

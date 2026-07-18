@@ -5,6 +5,9 @@ are the source of truth for option details.
 
 ## First use
 
+Use the [agent-guided quick start](./quick-start.md) when the setup should adapt to the repository,
+package manager, existing installation, team workflow, and optional Chat or TTS choices.
+
 ```bash
 rgr setup
 rgr ingest
