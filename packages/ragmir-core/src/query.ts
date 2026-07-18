@@ -509,9 +509,7 @@ async function expandCitationWithinGeneration(
   }
 
   if (!snapshot.manifest) {
-    throw new Error(
-      "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before expanding citations.",
-    )
+    throw new Error("Index manifest is missing. Run `rgr upgrade` before expanding citations.")
   }
   const freshnessWarning = indexFreshnessWarning(config, snapshot.manifest)
   if (freshnessWarning) {
@@ -852,13 +850,11 @@ function assertVectorIndexCompatibility(
   vectorDimension: number,
 ): IndexManifestWithVectorIndex {
   if (!manifest) {
-    throw new Error(
-      "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before searching.",
-    )
+    throw new Error("Index manifest is missing. Run `rgr upgrade` before searching.")
   }
   if (manifest.vectorDimension !== undefined && manifest.vectorDimension !== vectorDimension) {
     throw new Error(
-      `Index vector dimension is ${manifest.vectorDimension} but the active embedding produced ${vectorDimension}. Rebuild with \`rgr ingest --rebuild\`.`,
+      `Index vector dimension is ${manifest.vectorDimension} but the active embedding produced ${vectorDimension}. Run \`rgr upgrade\` to rebuild safely.`,
     )
   }
   if (
@@ -866,17 +862,17 @@ function assertVectorIndexCompatibility(
     manifest.vectorDistanceMetric !== VECTOR_DISTANCE_METRIC
   ) {
     throw new Error(
-      `Index vector distance metric is ${manifest.vectorDistanceMetric} but Ragmir expects ${VECTOR_DISTANCE_METRIC}. Rebuild with \`rgr ingest --rebuild\`.`,
+      `Index vector distance metric is ${manifest.vectorDistanceMetric} but Ragmir expects ${VECTOR_DISTANCE_METRIC}. Run \`rgr upgrade\` to rebuild safely.`,
     )
   }
   if (!manifest.vectorIndex) {
     throw new Error(
-      "Index vector strategy metadata is missing. Rebuild with `rgr ingest --rebuild`.",
+      "Index vector strategy metadata is missing. Run `rgr upgrade` to rebuild safely.",
     )
   }
   if (!vectorIndexManifestCompatible(manifest.vectorIndex, config, vectorDimension)) {
     throw new Error(
-      "Index vector strategy is incompatible or incomplete. Rebuild with `rgr ingest --rebuild` or repair coverage with `rgr storage optimize`.",
+      "Index vector strategy is incompatible or incomplete. Run `rgr upgrade` to rebuild safely, or repair incomplete coverage with `rgr storage optimize`.",
     )
   }
   return { ...manifest, vectorIndex: manifest.vectorIndex }
@@ -923,9 +919,7 @@ function assertIndexFreshness(
   manifest: IndexManifest | null,
 ): void {
   if (!manifest) {
-    throw new Error(
-      "Index manifest is missing. Rebuild with `rgr ingest --rebuild` before searching.",
-    )
+    throw new Error("Index manifest is missing. Run `rgr upgrade` before searching.")
   }
   const freshnessWarning = indexFreshnessWarning(config, manifest)
   if (freshnessWarning) {

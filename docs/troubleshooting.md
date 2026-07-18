@@ -62,15 +62,34 @@ First confirm source coverage with `rgr audit`. Then try a specific query, `--co
 
 ## Team members get different results
 
-Confirm the shared source folder finished synchronizing, then compare the Ragmir version,
-configuration, embedding provider, model, and `rgr sources list` output. Run `rgr ingest` and
-`rgr audit`, then compare `corpusFingerprint` from `rgr status --json`. Matching values prove the
-same indexed relative paths and source bytes only when both reports have `ready=true` and zero
-missing or stale files. A different value identifies corpus divergence, not which machine is
-correct. Keep tracked config based on stable directories or globs, not a generated enumeration of
-locally present files. Do not share an actively written `.ragmir/storage/` directory.
+Export a snapshot on one ready workstation, then compare it on the other:
+
+```bash
+rgr team snapshot --label alice --output .ragmir/team/alice.json
+rgr team compare .ragmir/team/alice.json --local-label christophe
+```
+
+The report names version and configuration drift plus local-only, peer-only, and changed files. Do
+not pick the side with more files automatically. Confirm the declared Git commit, Drive revision,
+or shared folder, synchronize both workstations, run the recommended ingest or rebuild command, and
+compare fresh snapshots. Keep tracked config based on stable directories or globs, and never share
+an actively written `.ragmir/storage/` directory.
+
+The lower-level `corpusFingerprint` in `rgr status --json` remains a quick equality signal. A
+different value identifies divergence, not which machine is correct.
 If an index created before corpus fingerprints were introduced reports `null`, run `rgr ingest`
 once with the current Ragmir version to write the fingerprint into its local manifest.
+
+## Search stops after updating Ragmir
+
+Run `rgr upgrade --check` to see whether the active index predates the current schema or policy,
+then run `rgr upgrade`. The new runtime refuses an incompatible index rather than returning unsafe
+results, and the error points to this command. A required rebuild is written to an isolated
+generation while the previous valid index remains untouched. Only a fully validated replacement
+activates. If the process is interrupted, rerun the command to resume; do not delete
+`.ragmir/storage/` first. A long-running host can keep its already loaded runtime serving during the
+rebuild, then restart or cut over once the upgrade reports `status=current` and `ready=true`. Use
+`rgr doctor --fix` for the same repair flow when setup or agent helpers also need attention.
 
 ## Strict audit fails
 

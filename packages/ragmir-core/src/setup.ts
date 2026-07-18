@@ -128,7 +128,10 @@ function canAutoIngest(report: DoctorReport): boolean {
   return (
     report.supportedFiles > 0 &&
     report.securityWarnings.length === 0 &&
-    (report.chunksIndexed === 0 || report.missingFromIndex > 0 || report.staleInIndex > 0)
+    (report.chunksIndexed === 0 ||
+      report.missingFromIndex > 0 ||
+      report.staleInIndex > 0 ||
+      !report.readiness.indexPolicyCurrent)
   )
 }
 

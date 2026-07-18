@@ -523,9 +523,9 @@ describe("search", () => {
       JSON.stringify({ chunkSize: 900, chunkOverlap: 100 }),
     )
 
-    await expect(search("policy", { cwd: root })).rejects.toThrow("Rebuild")
+    await expect(search("policy", { cwd: root })).rejects.toThrow("rgr upgrade")
     await expect(expandCitation(".ragmir/raw/policy.md:L1-L1#0", { cwd: root })).rejects.toThrow(
-      "Rebuild",
+      "rgr upgrade",
     )
   })
 

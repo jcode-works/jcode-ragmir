@@ -115,13 +115,21 @@ flowchart LR
     A["Shared source folder"] --> B["Versioned Ragmir config"]
     B --> C["Local ingest per developer"]
     C --> D["Ready index"]
-    D --> E["Compare corpus fingerprint"]
+    D --> E["Export team snapshot"]
+    E --> F["Compare and resolve exact drift"]
 ```
 
 Teams use Git, Drive, or their existing file workflow to synchronize one source of truth, commit the
-same Ragmir source globs and configuration, then build one local index per developer. Align the
-Ragmir version and embedding settings; compare `corpusFingerprint` from `rgr status --json` after
-each index is ready to confirm the same paths and content. Detailed safeguards live in the
+same Ragmir source globs and configuration, then build one local index per developer:
+
+```bash
+pnpm exec rgr team snapshot --label alice --output .ragmir/team/alice.json
+pnpm exec rgr team compare .ragmir/team/alice.json --local-label christophe
+```
+
+The comparison names configuration differences plus local-only, peer-only, and changed files, then
+gives ordered repair steps. It never guesses which copy is authoritative: the team keeps that
+decision in Git, Drive, or its existing source workflow. Detailed safeguards live in the
 [team guide](./docs/agent-integration.md#team-knowledge-bases) and
 [configuration reference](./docs/configuration.md#stable-team-source-configuration).
 
@@ -139,6 +147,20 @@ pnpm exec rgr research "release obligations" --compact --timeout-ms 10000
 state. `research` combines bounded query variants with deterministic cross-query ranking. Use
 `rgr doctor --deep` only when you need a live O(corpus) inventory; normal status and doctor checks
 read the compact activation manifest.
+
+### Safe upgrades
+
+```bash
+pnpm exec rgr upgrade --check
+pnpm exec rgr upgrade
+```
+
+Run this after updating the package and before the first retrieval with the new runtime.
+`upgrade --check` only explains whether the current index can be reused. `upgrade` refreshes local
+agent helpers and stages any required rebuild in a separate generation. It never deletes the active
+index first: only a validated replacement activates, and interrupted or failed rebuilds remain
+resumable. A long-running host can keep its already loaded runtime serving the previous generation,
+then restart or cut over after `status=current` and `ready=true`.
 
 ### Semantic retrieval and scanned PDFs
 

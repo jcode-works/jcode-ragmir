@@ -94,6 +94,21 @@ export type {
 } from "./storage-maintenance.js"
 export { optimizeStorage } from "./storage-maintenance.js"
 export type {
+  CreateTeamSnapshotOptions,
+  TeamChangedFile,
+  TeamComparison,
+  TeamComparisonStatus,
+  TeamConfigurationDifference,
+  TeamSnapshot,
+  TeamSnapshotFile,
+} from "./team-diagnostics.js"
+export {
+  compareTeamSnapshots,
+  createTeamSnapshot,
+  readTeamSnapshot,
+  writeTeamSnapshot,
+} from "./team-diagnostics.js"
+export type {
   AccessLogAction,
   AccessLogUsageOptions,
   AccessLogUsageReport,
@@ -166,6 +181,13 @@ export type {
   VectorIndexParameters,
   VectorIndexStrategy,
 } from "./types.js"
+export type {
+  UpgradeInspection,
+  UpgradeOptions,
+  UpgradeResult,
+  UpgradeStatus,
+} from "./upgrade.js"
+export { inspectUpgrade, upgradeProject } from "./upgrade.js"
 export type {
   AdaptiveIndexAction,
   AdaptiveIndexMaintenanceReport,

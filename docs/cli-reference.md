@@ -24,6 +24,8 @@ rgr search "release decision"
 | `audit [--unsupported]` | Compare sources with the index and list skipped files. |
 | `bases` | List root and nested monorepo bases and mark the active one. |
 | `status` | Show configuration, indexed chunk count, and the latest ingestion progress. |
+| `team snapshot`, `team compare` | Export and compare privacy-bounded team index metadata. |
+| `upgrade [--check]` | Inspect compatibility or safely rebuild and refresh managed helpers. |
 | `security-audit [--strict]` | Check local privacy and Git-ignore posture. |
 
 ## Sources and retrieval
@@ -70,6 +72,44 @@ slots. The default path reads a fresh manifest health snapshot instead of walkin
 diagnostics. `--top-k` and `--code-top-k` bound output items; `--timeout-ms`,
 `--code-scan-max-files`, `--code-scan-max-bytes`, and `--code-scan-concurrency` bound work. The
 report records both configured and consumed budgets.
+
+## Team synchronization
+
+```bash
+rgr team snapshot --label alice --output .ragmir/team/alice.json
+rgr team compare .ragmir/team/alice.json --local-label christophe
+```
+
+`team snapshot` exports a schema-validated JSON file with relative paths, content checksums,
+readiness, version, source contract, and retrieval/index settings. Source text, absolute project
+paths, vectors, and logs are excluded. Keep snapshots under ignored `.ragmir/team/` state unless an
+authorized teammate explicitly needs a copy.
+
+`team compare` previews up to 20 local-only, peer-only, and changed files and prints every
+configuration difference plus ordered actions. `--json` returns the complete diff; `--strict` exits
+with code 1 unless both ready indexes are synchronized. The command never changes source files or
+decides which side is authoritative.
+
+## Safe upgrades
+
+```bash
+rgr upgrade --check
+rgr upgrade
+```
+
+`upgrade --check` reports `current`, `index-required`, `rebuild-required`, or `repair-required`,
+including the version that wrote the active index. Run it after updating the package and before the
+first retrieval with the new runtime. Incompatible retrieval is refused with a direct `rgr upgrade`
+instruction instead of reading an untrusted layout.
+
+`upgrade` refreshes managed agent helpers and performs any required ingest or rebuild. Schema,
+embedding, chunking, redaction, and index-policy changes use the staged-generation flow: Ragmir
+never deletes the active index first, and only a replacement that passes row-count, checksum, and
+duplicate-ID validation activates. Failed or interrupted rebuilds never activate a partial table
+and can resume. Older configs that omit newer optional fields receive current safe defaults.
+`rgr doctor --fix` uses the same repair path. A long-running host can keep its already loaded
+runtime on the previous generation, then restart or cut over after the upgrade reports
+`status=current` and `ready=true`.
 
 ## Resumable ingestion
 

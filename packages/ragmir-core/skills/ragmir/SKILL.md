@@ -47,6 +47,8 @@ acceptable. Normal confidential indexing keeps remote model loading disabled.
 | Bounded source coverage and index drift | Read `ragmir://sources` or run `rgr audit` |
 | Readiness | `rgr doctor` or `ragmir_status` |
 | Repair setup or stale data | `rgr doctor --fix` |
+| Check upgrade compatibility | `rgr upgrade --check`; run `rgr upgrade` when action is required |
+| Compare team indexes | `rgr team snapshot` and `rgr team compare` |
 | Check unindexed or unsupported files | `rgr audit --unsupported` |
 | Preview redacted chunks before indexing | `rgr preview --path <prefix> --json` |
 | Check privacy posture | `rgr security-audit` |
@@ -75,6 +77,36 @@ When a monorepo has a root Ragmir base and nested app bases, select the base bef
    Generated helpers pin `RAGMIR_PROJECT_ROOT`; nested bases receive distinct server names.
 5. Never silently combine citations from different bases. Label each base when a task genuinely
    requires evidence from more than one.
+
+## Team synchronization
+
+When the task involves shared project knowledge, check that the local index is ready before relying
+on retrieval. If a teammate provided an authorized snapshot, run:
+
+```sh
+pnpm exec rgr team compare .ragmir/team/peer.json --local-label local --json
+```
+
+If the result is not `synchronized`, warn the user in the language they are using. Summarize
+configuration drift plus local-only, peer-only, and changed files, then present the ordered
+`recommendedActions`. Never decide which source copy is correct, overwrite a source file, or ingest
+an unreviewed peer copy. The declared Git commit, Drive revision, or team folder remains the
+authority.
+
+To create a shareable diagnostic without source text or absolute project paths:
+
+```sh
+pnpm exec rgr team snapshot --label <name> --output .ragmir/team/<name>.json
+```
+
+Treat the snapshot as sensitive metadata because it contains relative paths and checksums. Keep it
+under ignored `.ragmir/` state and share it only with authorized teammates.
+
+After updating the package and before retrieval with the new runtime, run `rgr upgrade --check`. If
+action is required, explain it before running `rgr upgrade`. A safe rebuild keeps the previous
+validated index until atomic activation; never delete `.ragmir/storage/` as the first upgrade step.
+For a long-running host, keep the already loaded runtime serving and cut over only after the upgrade
+reports `status=current` and `ready=true`.
 
 ## Indexing
 
@@ -148,6 +180,7 @@ load `ragmir-markdown-report`. Both should write generated output under ignored 
 
 ## Answer standard
 
+- Reply in the language used by the user unless they request another language.
 - Cite file paths and source labels when useful.
 - State uncertainty when retrieval does not prove a claim.
 - Keep legal, security, and financial conclusions conservative and recommend appropriate review.

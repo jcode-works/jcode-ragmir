@@ -3,8 +3,10 @@ import {
   accessLogWriterMetrics,
   audit,
   connectMcpServer,
+  compareTeamSnapshots,
   createMcpServer,
   createRagmirClient,
+  createTeamSnapshot,
   doctor,
   enableSemanticEmbeddings,
   evaluateGoldenQueries,
@@ -13,12 +15,15 @@ import {
   getKnowledgeBaseSourceCatalog,
   ingest,
   INGESTION_DIAGNOSTICS_CHANNEL,
+  inspectUpgrade,
   isRagmirError,
   pullEmbeddingModel,
   redactText,
   research,
   search,
   securityAudit,
+  type TeamSnapshot,
+  upgradeProject,
   type Config,
   type AccessLogWriterMetrics,
   type EnableSemanticEmbeddingsResult,
@@ -118,6 +123,11 @@ void getKnowledgeBaseContext(cwd, operationOptions)
 void getKnowledgeBaseSourceCatalog(cwd, operationOptions)
 void evaluateGoldenQueries({ cwd, goldenPath: "golden-queries.json", ...operationOptions })
 void accessLogUsageReport({ cwd, ...operationOptions })
+void createTeamSnapshot({ cwd, label: "local" }).then((snapshot: TeamSnapshot) =>
+  compareTeamSnapshots(snapshot, snapshot),
+)
+void inspectUpgrade(cwd)
+void upgradeProject({ cwd })
 void createMcpServer(cwd)
 type McpTransport = Parameters<typeof connectMcpServer>[0]
 declare const transport: McpTransport

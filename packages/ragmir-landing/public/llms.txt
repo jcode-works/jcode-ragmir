@@ -35,11 +35,19 @@ uploads the corpus, and calls no model.
 
 - Teams synchronize one source-of-truth folder with Git, Drive, or their existing file workflow,
   commit stable source globs and Ragmir configuration, then ingest locally per developer.
-- Align the Ragmir version and embedding settings. Compare `corpusFingerprint` after each index is
-  ready with no missing or stale files to confirm the same relative paths and source bytes.
+- Use `rgr team snapshot` and `rgr team compare` to explain version, configuration, local-only,
+  peer-only, and changed-file drift without source text. Ragmir never decides which copy is
+  authoritative.
 - Use `sourceFingerprintMode: "strict"` when synchronization can replace content without changing
   metadata, and keep actively written `.ragmir/storage/` directories local to each workstation.
-- The TypeScript API can automate the same setup, ingest, audit, and status flow.
+- The TypeScript API can automate the same setup, ingest, comparison, and upgrade flow.
+
+## Upgrade continuity
+
+- After updating the package and before retrieval with the new runtime, run `rgr upgrade --check`.
+- `rgr upgrade` safely stages a required rebuild and never deletes the active index first.
+- A long-running host can keep its loaded runtime serving, then cut over after the upgrade reports
+  `status=current` and `ready=true`.
 
 ## Privacy boundary
 

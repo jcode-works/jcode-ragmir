@@ -62,17 +62,34 @@ from different bases labeled rather than silently merging citations.
 
 ## Team knowledge bases
 
-Ragmir deliberately provides no hosted database or built-in cloud sync. Synchronize one source-of-
-truth folder with an existing tool, for example the Google Drive desktop app or a team script, and
-let each developer build a local index. Keep the Ragmir version, configuration, embedding provider,
-and model aligned so those indexes remain equivalent.
+Ragmir keeps one local index per developer. Synchronize one source-of-truth folder with Git, Drive,
+or a team script, and keep the Ragmir version and tracked configuration aligned.
+
+On one workstation, export a metadata-only snapshot under ignored local state:
+
+```bash
+rgr team snapshot --label alice --output .ragmir/team/alice.json
+```
+
+Share that file only with teammates authorized for the corpus. It contains relative paths,
+SHA-256 checksums, readiness, version, and index settings, never source text or an absolute project
+path. On another workstation:
+
+```bash
+rgr team compare .ragmir/team/alice.json --local-label christophe
+```
+
+The result distinguishes configuration drift, local-only files, peer-only files, and changed files.
+It provides ordered commands for readiness, upgrade, ingestion, or rebuild work. Ragmir never
+chooses which copy is correct; use the declared Git commit, Drive revision, or team folder as the
+authority, synchronize it, ingest again, then compare fresh snapshots until
+`status=synchronized`.
 
 Version stable directory or glob contracts instead of rewriting a tracked config with the files
-found on the current machine. Sync before `rgr ingest`, check `rgr audit`, then compare the
-`corpusFingerprint` returned by `rgr status --json`, `status()`, or `ragmir_status`. Matching values
-prove the same indexed relative paths and source bytes only when both reports are ready with no
-missing or stale files. Missing, partial, extra, renamed, or changed indexed files produce different
-values. Absolute checkout roots, timestamps, and local index layout do not.
+found on the current machine. The lower-level `corpusFingerprint` returned by `rgr status --json`,
+`status()`, or `ragmir_status` remains useful for a quick equality check. Matching values prove the
+same indexed relative paths and source bytes only when both reports are ready with no missing or
+stale files. Use `rgr team compare` when values differ and the team needs the exact cause.
 
 Use `sourceFingerprintMode: "strict"` when a synchronization tool can preserve file metadata while
 replacing its content. Older manifests return a `null` fingerprint until the next successful
@@ -81,6 +98,13 @@ ingestion.
 Do not synchronize `.ragmir/storage/` between active writers. A team bootstrap can call
 `initProject`, `addSourceEntries`, and `createRagmirClient`, but the application or sync tool remains
 responsible for distributing the source files.
+
+### Agent behavior on team drift
+
+An agent using the bundled Ragmir skill should check readiness before relying on retrieval. When a
+peer snapshot is available, it should run the comparison and warn the user in the user's language
+when `status` is not `synchronized`. It should summarize the exact drift and suggested commands,
+never silently pick a winner or overwrite source files.
 
 ## MCP tools
 
