@@ -7,6 +7,8 @@ uploads the corpus, and calls no model.
 
 ## Product boundary
 
+- Ragmir v3.0.0 and later use AGPL-3.0-only. A separate commercial license is available from JCode
+  Works for proprietary use; earlier releases keep their published license.
 - `@jcode.labs/ragmir` is retrieval-first. Core does not call an LLM or write generated answers.
 - Core is model-agnostic. The user can connect a preferred coding agent or script through CLI,
   TypeScript, or MCP.

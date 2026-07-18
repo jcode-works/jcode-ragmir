@@ -4,7 +4,8 @@
 
 - Speak with users in French. Keep code, identifiers, comments, file names, and commit messages in English.
 - Keep the repository free of private documents, generated `.ragmir/` state, credentials, and environment files.
-- Ragmir is a fully open-source MIT project. Do not add activation, account, hosted-storage, native-shell, or cloud-vendor integrations.
+- Ragmir is open source under `AGPL-3.0-only`, with a separate commercial licensing option from JCode Works. Keep manifest, package, documentation, landing, and release metadata aligned with that policy. Do not add activation, account, hosted-storage, native-shell, or cloud-vendor integrations.
+- Do not merge an external code contribution unless the maintainer has confirmed the contributor grants the rights needed for both the AGPL and commercial licensing paths.
 - The repository is a pnpm workspace. Use the pinned Node version from `mise.toml`; Rust is not part of this project.
 - Start feature work from `develop` on `feature/*`, use pull requests into `develop`, and never publish or deploy without explicit confirmation.
 

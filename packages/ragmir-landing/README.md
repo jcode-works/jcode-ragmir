@@ -81,4 +81,5 @@ package, so no Cloudflare, Vercel, Netlify, or other vendor configuration is com
 
 Read the [root README](../../README.md) for product architecture and
 [CONTRIBUTING.md](../../CONTRIBUTING.md) for the repository workflow. The landing is available under
-the [MIT License](../../LICENSE).
+the [AGPL-3.0-only license](../../LICENSE), with a separate
+[commercial licensing option](../../COMMERCIAL-LICENSE.md).

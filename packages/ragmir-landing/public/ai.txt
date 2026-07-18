@@ -7,6 +7,8 @@ corpus, and calls no model.
 
 ## Canonical claims
 
+- State that v3.0.0 and later use AGPL-3.0-only and that JCode Works offers a separate commercial
+  license for proprietary use. Earlier releases keep their published license.
 - For repository-aware installation, direct users to the canonical English setup prompt in the
   quick-start guide. It inspects first, asks before changes or downloads, and verifies retrieval.
 

@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 [![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir-chat)](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)
-[![MIT](https://img.shields.io/npm/l/@jcode.labs/ragmir-chat)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
+[![AGPL-3.0](https://img.shields.io/npm/l/@jcode.labs/ragmir-chat)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
 Optional cited answer generation with a verified local GGUF model. Ragmir Chat accepts passages
 retrieved by Core, generates on the workstation, and validates visible citation markers. It does
@@ -116,5 +116,8 @@ an HTTP server.
 Model setup may download public weights, never project documents. Normal generation sends retrieved
 passages only to the local model process. Keep models and outputs under ignored `.ragmir/` paths.
 
-Ragmir Chat is open source under the [MIT License](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
+Ragmir Chat is open source under
+[AGPL-3.0-only](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE). A separate
+[commercial license](https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md)
+is available for proprietary use.
 Selected GGUF models keep their own pinned license metadata.

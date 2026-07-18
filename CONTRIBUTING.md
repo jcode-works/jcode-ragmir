@@ -1,6 +1,7 @@
 # Contributing
 
-Ragmir is an open-source MIT project. Issues and pull requests are welcome.
+Ragmir is an open-source `AGPL-3.0-only` project with a separate commercial licensing option.
+Issues and pull requests are welcome.
 
 Ragmir is maintained by a single developer ([Jean-Baptiste Thery](https://github.com/jb-thery)).
 Be kind, be specific, and keep the scope of each contribution focused so it can be reviewed
@@ -73,6 +74,17 @@ pnpm audit:security
 - Non-release branches run CI only. npm publishing of Core, Chat, and TTS is restricted to the
   protected semantic-release workflow from `main`; versions come from Conventional Commits, not
   manual package bumps.
+
+## Contribution licensing
+
+By submitting a documentation, test, or code contribution, you confirm that you have the right to
+submit it under the project's [AGPL-3.0-only license](./LICENSE). Code contributions are accepted
+only after the maintainer also confirms the project has the rights needed to offer that
+contribution under separate commercial terms. The maintainer may request a separate written
+contributor agreement before merge.
+
+This policy preserves both licensing paths without taking copyright ownership away from the
+contributor. See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) for the public licensing boundary.
 
 ## Security
 
