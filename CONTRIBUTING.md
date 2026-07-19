@@ -30,8 +30,8 @@ pnpm bootstrap
 ```
 
 `pnpm bootstrap` runs `mise install && pnpm install`. Without mise, install the Node.js 22 release
-pinned in `mise.toml` and pnpm, then run `pnpm install` directly. Published packages retain their
-documented Node.js 20 runtime support; the repository toolchain itself requires Node.js 22.
+pinned in `mise.toml` and pnpm, then run `pnpm install` directly. The published packages and the
+repository toolchain require Node.js 22 or later.
 
 Activate mise in your shell (`mise activate`, per the
 [mise docs](https://mise.jdx.dev/getting-started.html)) so that entering this repository puts the

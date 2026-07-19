@@ -76,7 +76,8 @@ updates must remain manual and `--check` for a no-worktree-change preview.
 
 The active `.ragmir/config.json` is intentionally local and ignored. If results still differ after
 Git is current, verify that both workstations use the same reviewed source-contract template and
-Ragmir version. For an exact diagnosis or a non-Git authority, use the advanced snapshot flow:
+Ragmir version. Do not start with snapshots: use them only for an exact diagnosis or a non-Git
+authority:
 
 ```bash
 rgr team snapshot --label local --output .ragmir/team/local.json

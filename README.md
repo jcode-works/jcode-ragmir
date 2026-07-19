@@ -164,19 +164,21 @@ flowchart LR
     D --> E["Ready private index"]
 ```
 
-Git-backed teams build one private index per developer and use one command after reviewed changes
-land through a merge request:
+Git-backed teams build one private index per developer. The current branch upstream is the only
+declared authority: Git carries the reviewed change, Ragmir refreshes the local evidence.
 
 ```bash
 pnpm exec rgr team sync
 ```
 
-Ragmir fetches the current branch upstream, fast-forwards only a clean non-divergent branch, then
-reindexes changed sources incrementally. Dirty, ahead, diverged, detached, offline, and no-upstream
-states never rewrite history and return one action. Use `--no-pull` to keep branch updates manual or
-`--check` to preview. Advanced `team snapshot` and `team compare` diagnostics remain available for
-non-Git sources or exact drift analysis, including existing v2.19 snapshots. Detailed safeguards
-live in the
+1. Open and review a pull request (or merge request).
+2. Merge it into the declared upstream.
+3. Run `rgr team sync` on each workstation that needs fresh evidence.
+
+Ragmir fast-forwards only a clean non-divergent branch and reindexes changed sources incrementally.
+Otherwise it leaves history and the valid index alone, then returns one action. `--no-pull` keeps
+branch updates manual and `--check` previews. Snapshots are an advanced fallback for non-Git sources
+or exact drift analysis, including existing v2.19 snapshots. Detailed safeguards live in the
 [team guide](./docs/agent-integration.md#team-knowledge-bases) and
 [configuration reference](./docs/configuration.md#stable-team-source-configuration).
 

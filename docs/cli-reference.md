@@ -83,23 +83,36 @@ report records both configured and consumed budgets.
 rgr team sync
 ```
 
-`team sync` treats the current branch upstream as the declared source of truth. It fetches that
-single branch, fast-forwards only a clean branch with no local-only commits or divergence, then runs
-incremental ingestion. Git authentication is non-interactive and each Git command is bounded. A
-dirty, ahead, diverged, detached, or no-upstream state never changes branch history and returns one
-recommended action. Fetch and ingestion failures keep the previous valid local index available
-when one exists.
+Use this after reviewed source changes merge into the current branch upstream. That upstream is the
+declared authority, and Git remains the place where the team reviews differences. `team sync`
+fetches only that branch, fast-forwards only a clean non-divergent history with no local-only
+commits, then ingests changed sources incrementally. Git authentication is non-interactive and each
+Git command is bounded.
+
+| Result | Meaning |
+| --- | --- |
+| `current` | The checked-out sources and private local index already match upstream. |
+| `updated` | A safe fast-forward and incremental ingest completed. |
+| Needs action | Git history and the active index were preserved; follow the one recommended action. |
 
 | Option | Behavior |
 | --- | --- |
-| `--no-pull` | Fetch and compare, but never update the checked-out branch. |
+| `--no-pull` | Fetch and compare, but keep branch updates manual. |
 | `--no-fetch` | Avoid network access and use only cached Git state plus local sources. |
 | `--check` | Fetch and report without changing the worktree or index. |
 | `--git-timeout-ms N` | Bound each Git command, from 1 ms to 300,000 ms. |
 | `--strict` | Exit with code 1 unless upstream freshness and local index readiness are proven. |
 | `--json` | Return the complete typed report. |
 
-Snapshots are an advanced fallback for non-Git sources or exact drift investigation:
+A dirty, ahead, diverged, detached, or no-upstream state never rewrites history. Fetch and ingestion
+failures preserve the previous valid local index when one exists. Resolve the Git state through the
+normal pull-request or merge-request workflow, then rerun the same command.
+
+<details>
+<summary>Advanced: diagnose exact drift or a non-Git authority</summary>
+
+Snapshots are not part of the normal Git workflow. Use them for a non-Git authority or a specific
+per-file comparison:
 
 ```bash
 rgr team snapshot --label local --output .ragmir/team/local.json
@@ -119,6 +132,8 @@ turning matching operational indexes into `not-ready`. Review them with `rgr sec
 do not require deleting or rebuilding the index. Snapshots written by Ragmir v2.19.0 through
 v2.19.2 remain compatible. These advanced commands never change source files or decide which side
 is authoritative.
+
+</details>
 
 ## Safe upgrades
 
