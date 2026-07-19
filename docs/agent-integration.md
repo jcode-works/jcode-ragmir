@@ -66,41 +66,69 @@ from different bases labeled rather than silently merging citations.
 
 ## Team knowledge bases
 
-Ragmir keeps one private local index per developer. For a Git-backed team, check out the branch the
-team declared authoritative, configure its upstream once, then use one command:
+Ragmir keeps one private local index per developer. For a Git-backed team, the current branch
+upstream is the only declared authority. Configure it once, then use one command:
 
 ```bash
 rgr team sync
 ```
 
-The command fetches only that upstream branch, compares Git history, and fast-forwards the checked
-out branch only when the worktree is clean, the local branch has no unpublished commit, and history
-has not diverged. It then runs incremental ingestion and reports `current`, `updated`, or one clear
-action. It never stashes, resets, rebases, creates a merge commit, deletes the active index, or
-chooses another branch.
+### The everyday workflow
 
-This keeps the normal team loop small:
+```mermaid
+flowchart LR
+    A["Push a reviewable change"] --> B["Merge to the declared upstream"]
+    B --> C["rgr team sync"]
+    C --> D["Safe fast-forward, if possible"]
+    D --> E["Incremental local ingest"]
+    E --> F["Ready private index"]
+```
 
-1. A developer pushes a branch and opens or updates the merge request.
+1. A developer pushes a branch and opens or updates a pull request (or merge request).
 2. The team reviews and merges it into the declared upstream branch.
-3. Other developers run `rgr team sync`; safe updates and local reindexing happen together.
+3. Other developers run `rgr team sync`; source updates and local reindexing happen together.
 
-Use `--no-pull` to fetch and compare while keeping branch updates manual. Use `--check` to preview
-without changing the worktree or index, `--no-fetch` for an explicitly offline run, `--strict` in
-CI, and `--json` for automation. A dirty, ahead, diverged, detached, or untracked branch is never
-rewritten. A failed fetch keeps the last valid local index available and reports that upstream
-freshness is unverified. A failed ingestion keeps the previous validated index instead of deleting
-it first.
+Git already shows what changed and where review is needed. Ragmir does not add labels, snapshots,
+or another source of truth to this normal path.
+
+| Result | What Ragmir does |
+| --- | --- |
+| `current` | Keeps the checked-out sources and local index because they are already aligned. |
+| `updated` | Fetches only the declared upstream, fast-forwards safely, then ingests changed sources. |
+| Needs action | Leaves Git history and the active index untouched, then explains the first next step. |
+
+The automatic path fetches only that upstream and fast-forwards only when the worktree is clean,
+the local branch has no unpublished commits, and history has not diverged. It never stashes, resets,
+rebases, creates a merge commit, chooses another branch, or deletes the active index.
+
+### Choose the sync mode
+
+| Need | Command | Effect |
+| --- | --- | --- |
+| Normal team update | `rgr team sync` | Safely update from upstream and ingest incrementally. |
+| Keep Git updates manual | `rgr team sync --no-pull` | Fetch and compare, but do not change the checked-out branch. |
+| Preview only | `rgr team sync --check` | Report Git and index state without changing either one. |
+| Work offline | `rgr team sync --no-fetch` | Use cached Git state and local sources only. |
+| Enforce in automation | `rgr team sync --strict --json` | Return a typed report and fail unless freshness and readiness are proven. |
+
+Dirty, ahead, diverged, detached, untracked, or no-upstream branches are never rewritten. A failed
+fetch keeps the last valid index and marks upstream freshness as unverified. A failed ingestion also
+preserves the previous validated index. Resolve the Git state through the normal pull-request or
+merge-request workflow, then run the same command again.
 
 The ignored `.ragmir/config.json` remains local. If every workstation needs the exact same source
 contract, version a reviewed template in the repository and apply it during setup. `rgr team sync`
 synchronizes tracked sources through Git; it does not commit or distribute private Ragmir state.
 
-### Advanced drift diagnostics
+### When exact drift diagnosis is genuinely needed
 
-Snapshots remain available for a non-Git authority such as Drive, or when the team needs an exact
-configuration and per-file comparison. They are not part of the normal Git workflow. On one
-authorized workstation:
+Snapshots are an advanced fallback for a non-Git authority, such as Drive, or for a specific
+configuration and per-file investigation. They are not a prerequisite for ordinary Git teams.
+
+<details>
+<summary>Compare two authorized snapshots without sharing source text</summary>
+
+On one authorized workstation:
 
 ```bash
 rgr team snapshot --label local --output .ragmir/team/local.json
@@ -135,6 +163,8 @@ ingestion.
 Do not synchronize `.ragmir/storage/` between active writers. A team bootstrap can call
 `initProject`, `addSourceEntries`, and `syncTeamKnowledge`; each workstation still owns its index.
 
+</details>
+
 ### Agent behavior on team drift
 
 An agent using the bundled Ragmir skill should run `rgr team sync --json` before relying on a
@@ -144,7 +174,7 @@ the last valid local index may be older than upstream. It must never resolve Git
 reset, rebase, or overwrite source files. Snapshot comparison remains the advanced fallback for an
 authorized non-Git source or exact drift investigation.
 
-## MCP tools
+## Use Ragmir through MCP
 
 The server exposes `ragmir_status`, `ragmir_route_prompt`, `ragmir_search`, `ragmir_ask`,
 `ragmir_research`, `ragmir_expand`, `ragmir_audit`, `ragmir_evaluate`, `ragmir_usage_report`, and
@@ -164,6 +194,8 @@ The TypeScript `sources({ offset, limit })` method can request later pages direc
 manifest file snapshot without materializing the complete source list; its default page remains 50
 files.
 
+### Retrieve bounded evidence
+
 Use compact retrieval first, then pass a returned citation to `ragmir_expand` when the agent needs
 the exact chunk or a bounded neighbor window. Search, ask, research, expansion, audit, and evaluation
 accept `maxBytes`. Variable-size tool and resource JSON is bounded by `mcpMaxOutputBytes` and an
@@ -176,6 +208,9 @@ when one exists. The server also applies the budget before choosing retrieval de
 size, audit detail, and returned evaluation case details, while keeping aggregate metrics complete.
 `ragmir_ask` returns cited evidence, not a model generated answer. A cloud agent can receive returned
 passages, so choose that handoff only when it matches the corpus's confidentiality requirements.
+
+<details>
+<summary>Advanced: response contracts, safety annotations, and server lifecycle</summary>
 
 Every tool advertises non-destructive behavior to compatible clients. Search, ask, research, and
 evaluation conservatively advertise open-world behavior because explicitly enabled semantic models
@@ -201,6 +236,8 @@ filesystem and LanceDB calls that cannot receive an `AbortSignal` directly are c
 before and after the call. Ragmir does not open an HTTP port; applications that expose a network
 transport own its authentication and
 authorization boundary.
+
+</details>
 
 ## Verify
 

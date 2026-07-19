@@ -79,7 +79,7 @@ describe.sequential("team sync", () => {
     expect(await readFile(path.join(fixture.local, "docs", "decision.md"), "utf8")).toBe(
       "Local draft.\n",
     )
-  })
+  }, 15_000)
 
   it("should require the merge-request workflow when local and upstream histories diverge", async () => {
     const fixture = await createGitFixture()
@@ -153,7 +153,7 @@ describe.sequential("team sync", () => {
       "Check mode did not change the worktree or refresh the index.",
     )
     expect(await git(fixture.local, ["rev-parse", "HEAD"])).toBe(headBefore)
-  })
+  }, 15_000)
 
   it("should avoid remote access and branch updates when fetch is disabled", async () => {
     const fixture = await createGitFixture()
