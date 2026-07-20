@@ -41,6 +41,17 @@ acceptable. Normal confidential indexing keeps remote model loading disabled.
 
 ## Choose the smallest operation
 
+For MCP, use this default loop:
+
+1. Read `ragmir://context` once for base identity and readiness.
+2. Call `ragmir_search`, `ragmir_ask`, or `ragmir_research` without extra output options. They
+   start with at most three compact document citations; research may add three code matches.
+3. Call `ragmir_expand` for one selected citation. Use `compact: false` only when the full
+   retrieval payload is genuinely needed.
+
+Use `ragmir_route_prompt` only when it is unclear whether the current request needs the local
+corpus. The router is deterministic and does not retrieve or store the prompt.
+
 | Need | Command or MCP tool |
 | --- | --- |
 | Active base, readiness, and capabilities | Read `ragmir://context` or run `rgr status --json` |
@@ -60,9 +71,7 @@ acceptable. Normal confidential indexing keeps remote model loading disabled.
 | Return deterministic context | `rgr ask "question"` or `ragmir_ask` |
 | Measure retrieval recall | `rgr evaluate --golden <file>` or `ragmir_evaluate` |
 
-Use `rgr route-prompt "..." --json` or `ragmir_route_prompt` only when it is unclear whether the
-current request needs the local corpus. The router is deterministic and does not retrieve or store
-the prompt.
+Use `rgr route-prompt "..." --json` when a CLI workflow needs the same routing decision.
 
 ## Monorepo routing
 
@@ -173,12 +182,13 @@ Cline. A generic server configuration is:
 When a client cannot set `cwd`, set `RAGMIR_PROJECT_ROOT` for the server process. Prefer MCP tools
 when available. Use CLI commands when they are not.
 
-Prefer compact search, ask, or research output first. Call `ragmir_expand` with a returned citation
-only when the exact chunk or neighboring context is needed. Search, ask, research, expansion, audit,
-and evaluation accept `maxBytes`. Variable-size tool and resource JSON is bounded by the configured
-`mcpMaxOutputBytes` and an absolute 1 MiB server ceiling. Inspect `_meta["ragmir/output"]` to see
-whether the response was compacted or truncated. Pass `ragmir_evaluate` an existing
-project-relative golden file; absolute paths and paths outside the base are rejected.
+MCP search, ask, and research are compact by default. Pass `compact: false` only when the full
+payload is required, or use `ragmir_expand` for one exact cited window. CLI workflows should pass
+`--compact` explicitly. Search, ask, research, expansion, audit, and evaluation accept `maxBytes`.
+Variable-size tool and resource JSON is bounded by the configured `mcpMaxOutputBytes` and an
+absolute 1 MiB server ceiling. Inspect `_meta["ragmir/output"]` to see whether the response was
+compacted or truncated. Pass `ragmir_evaluate` an existing project-relative golden file; absolute
+paths and paths outside the base are rejected.
 
 When MCP resources are supported, read `ragmir://context` first for a bounded identity, readiness,
 freshness, coverage, and capability overview. Read `ragmir://sources` only when source coverage or

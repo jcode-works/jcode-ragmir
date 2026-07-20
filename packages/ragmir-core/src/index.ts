@@ -10,7 +10,12 @@ export {
 export { destroyIndex } from "./destroy.js"
 export { doctor } from "./doctor.js"
 export type { PullEmbeddingModelResult } from "./embeddings.js"
-export { clearTransformersCache, pullEmbeddingModel } from "./embeddings.js"
+export {
+  clearTransformersCache,
+  disposeTransformersCache,
+  disposeTransformersModel,
+  pullEmbeddingModel,
+} from "./embeddings.js"
 export type { RagmirErrorCode } from "./errors.js"
 export { isRagmirError, normalizeRagmirError, RagmirError } from "./errors.js"
 export { evaluateGoldenQueries } from "./evaluate.js"
@@ -33,6 +38,7 @@ export { getIngestionProgress } from "./ingestion-state.js"
 export { initProject } from "./init.js"
 export { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 export { ingestionLimits } from "./limits.js"
+export type { CreateMcpServerOptions } from "./mcp.js"
 export { connectMcpServer, createMcpServer, serveMcp } from "./mcp.js"
 export type {
   ConfigurePdfOcrOptions,
@@ -48,6 +54,17 @@ export type {
 export { configurePdfOcr, extractPdfPage, extractPdfPages, inspectPdfOcr } from "./ocr.js"
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
+export type {
+  ExportPortableKnowledgeBaseOptions,
+  ExportPortableKnowledgeBaseResult,
+  PortableKnowledgeBaseManifest,
+  PortableKnowledgeBaseVerification,
+} from "./portable.js"
+export {
+  exportPortableKnowledgeBase,
+  portableKnowledgeBaseManifestSchema,
+  verifyPortableKnowledgeBase,
+} from "./portable.js"
 export { previewChunks } from "./preview.js"
 export type { PromptRouteDecision, PromptRouteTool } from "./prompt-routing.js"
 export { routePrompt } from "./prompt-routing.js"

@@ -22,7 +22,7 @@ Requires Node.js 22 or later and enough disk and memory for the selected model.
 <summary><strong>Option 1: paste this into your coding agent</strong></summary>
 
 ~~~text
-Set up Ragmir in this repository. Work interactively: inspect first, ask one concise numbered batch of questions, wait for my answers, then execute. Never assume consent for dependency changes, model downloads, replacing skills, or sharing data.
+Set up Ragmir in this repository. Work interactively: inspect first, infer safe defaults, present a proposal, wait for approval, then execute. Never assume consent for dependency changes, model downloads, replacing skills, or sharing data.
 
 Outcome: Core installed with the repository's package manager; useful sources selected; secrets and generated noise excluded; tools connected; cited retrieval verified. Semantic retrieval, team features, Chat, and TTS are optional.
 
@@ -31,14 +31,12 @@ Outcome: Core installed with the repository's package manager; useful sources se
 - Detect Node 22+ and pnpm, npm, Yarn, or Bun. Prefer packageManager, then the lockfile. Respect workspace-root flags and mise/asdf/Volta. Never create a second lockfile. If signals conflict, ask.
 - If Ragmir exists, inspect its version, config, status, sources, and rgr upgrade --check before changing it.
 
-2. Ask only what the repository did not answer, then wait:
-1) Which repository/monorepo base should own the knowledge base, and are nested app bases wanted?
-2) Which clients: Claude Code, Codex, Kimi, OpenCode, Cline, another MCP client, or none?
-3) Keep default offline local-hash, or allow one semantic-model download for better natural-language retrieval?
-4) Solo or team? If team, is Git upstream authoritative, and should safe pulls be automatic or disabled with --no-pull?
-5) Core only, or optional Chat? For Chat choose lite (~0.49 GB), fast (~3.35 GB), or quality (~5.15 GB).
-6) Optional TTS? Ask language (en/fr/es offline; ja/th/zh require explicit Edge unless a local model is supplied) and whether text may reach Edge.
-7) Which private/external folders are allowed, which must never be indexed, and may I install packages, edit local config, and run approved downloads now?
+2. Propose one setup summary, then ask once:
+- Infer the owning base and useful clients from the repository. State any nested bases you propose.
+- Default to offline local-hash and Core only, or optional Chat only when requested. Optional TTS stays off unless requested. Semantic, Chat, and TTS downloads require explicit approval; Edge text transfer requires separate approval.
+- Default to solo unless the repository or request shows a team workflow. For a Git-backed team, propose the current upstream as authority and safe automatic pulls; offer --no-pull when Git updates must stay manual.
+- List selected source globs, exclusions, any external/private folder, and the exact package, config, skill, and download actions you would perform.
+- Ask only about unresolved choices that materially change source authority, data exposure, downloads, or external execution. Wait for one approval covering the proposal.
 
 3. Implement after approval:
 - Install @jcode.labs/ragmir as a dev dependency with the detected manager. Install Chat/TTS only if selected, at a compatible version.
