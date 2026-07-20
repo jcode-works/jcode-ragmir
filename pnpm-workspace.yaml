@@ -8,6 +8,11 @@ overrides:
   "adm-zip@<0.6.0": ^0.6.0
   yaml: ^2.9.0
 
+packageExtensions:
+  "@huggingface/transformers@4.2.0":
+    dependencies:
+      onnxruntime-common: 1.24.3
+
 allowBuilds:
   esbuild: true
   node-llama-cpp: true

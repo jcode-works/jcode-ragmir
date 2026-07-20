@@ -3,12 +3,14 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Bot,
   Boxes,
   Clapperboard,
   Cloud,
   FileCheck2,
   FileInput,
   FolderGit2,
+  FolderOutput,
   ListChecks,
   type LucideIcon,
   MessageSquareQuote,
@@ -20,7 +22,7 @@ import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
-type UseCaseId = "spec" | "monorepo" | "drive" | "youtube" | "visa"
+type UseCaseId = "spec" | "openclaw" | "monorepo" | "drive" | "youtube" | "visa"
 
 interface UseCaseDefinition {
   id: UseCaseId
@@ -71,7 +73,7 @@ const DESKTOP_NODE_MIN_WIDTH_REM = 11.75
 const DESKTOP_CONNECTOR_WIDTH_REM = 2
 const DESKTOP_CANVAS_HORIZONTAL_PADDING_REM = 3
 
-const USE_CASES: readonly UseCaseDefinition[] = [
+export const USE_CASES: readonly UseCaseDefinition[] = [
   {
     id: "spec",
     icon: FileCheck2,
@@ -102,6 +104,45 @@ const USE_CASES: readonly UseCaseDefinition[] = [
         id: "result",
         labelKey: "use_cases_result_label",
         titleKey: "use_case_spec_result",
+      },
+    ],
+  },
+  {
+    id: "openclaw",
+    icon: Bot,
+    tabKey: "use_case_openclaw_tab",
+    titleKey: "use_case_openclaw_title",
+    descriptionKey: "use_case_openclaw_description",
+    evidence: {
+      targetStepId: "export",
+      titleKey: "use_case_openclaw_evidence",
+    },
+    steps: [
+      {
+        icon: FolderOutput,
+        id: "export",
+        labelKey: "use_cases_export_label",
+        titleKey: "use_case_openclaw_export",
+      },
+      {
+        accent: "primary",
+        icon: ServerCog,
+        id: "adapter",
+        labelKey: "use_cases_adapter_label",
+        titleKey: "use_case_openclaw_adapter",
+      },
+      {
+        icon: Search,
+        id: "retrieval",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_openclaw_retrieval",
+      },
+      {
+        accent: "success",
+        icon: FileCheck2,
+        id: "decision",
+        labelKey: "use_cases_decision_label",
+        titleKey: "use_case_openclaw_decision",
       },
     ],
   },

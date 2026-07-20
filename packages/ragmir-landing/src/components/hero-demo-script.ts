@@ -64,6 +64,33 @@ export const HERO_DEMO_SCENARIOS: readonly HeroDemoScenario[] = [
     ],
   },
   {
+    id: "openclaw",
+    titleKey: "demo_scenario_openclaw_title",
+    descriptionKey: "demo_scenario_openclaw_description",
+    terminalTitle: "zsh | ~/knowledge/ragmir-openclaw",
+    badgeKey: "demo_badge_openclaw",
+    lines: [
+      { kind: "shell", text: "cd ~/code/ragmir" },
+      {
+        kind: "shell",
+        text: "npx rgr portable export --output ~/knowledge/ragmir-openclaw --replace",
+      },
+      { kind: "success", textKey: "demo_openclaw_out_exported", holdMs: 1400 },
+      { kind: "shell", text: "cd ~/knowledge/ragmir-openclaw" },
+      {
+        kind: "shell",
+        text: 'openclaw mcp set ragmir "$(node bin/configure.cjs openclaw)"',
+      },
+      { kind: "shell", text: "openclaw mcp doctor ragmir --probe" },
+      { kind: "success", textKey: "demo_openclaw_out_connected", holdMs: 1400 },
+      { kind: "mcp", textKey: "demo_openclaw_search_command" },
+      { kind: "citation", text: "[1] docs/portable-knowledge-bases.md:L153-L166#9" },
+      { kind: "citation", text: "[2] docs/agent-integration.md:L72-L84#4" },
+      { kind: "insight", textKey: "demo_openclaw_out_decision", holdMs: 1700 },
+      { kind: "success", textKey: "demo_openclaw_out_done", holdMs: 1700 },
+    ],
+  },
+  {
     id: "monorepo",
     titleKey: "demo_scenario_monorepo_title",
     descriptionKey: "demo_scenario_monorepo_description",

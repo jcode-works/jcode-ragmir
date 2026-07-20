@@ -1,4 +1,5 @@
 import {
+  Bot,
   Boxes,
   Clapperboard,
   Code2,
@@ -42,6 +43,7 @@ const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"
 
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
   word: FileText,
+  openclaw: Bot,
   monorepo: Boxes,
   drive: FolderSync,
   youtube: Clapperboard,
