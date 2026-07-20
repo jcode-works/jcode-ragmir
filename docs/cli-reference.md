@@ -29,6 +29,7 @@ rgr search "release decision"
 | `status` | Show configuration, indexed chunk count, and the latest ingestion progress. |
 | `team sync` | Safely fast-forward the current Git upstream and refresh the local index. |
 | `team snapshot`, `team compare` | Run advanced privacy-bounded drift diagnostics. |
+| `portable export`, `portable verify` | Export or verify a frozen, relocatable knowledge-base folder. |
 | `upgrade [--check]` | Inspect compatibility or safely rebuild and refresh managed helpers. |
 | `security-audit [--strict]` | Check local privacy and Git-ignore posture. |
 
@@ -49,7 +50,8 @@ rgr search "migration" --exact-vector-search
 `--explain`; the optional score object reports RRF contributions, retriever ranks, raw backend
 scores, FTS or complete-fallback activation and reason, candidate and index coverage, queue wait,
 and matched query terms without changing ranking. Use `--compact` on search or research when
-agent context is limited. Search and ask accept `--exact-vector-search` to bypass an active ANN
+agent context is limited. This remains explicit for CLI automation; MCP search, ask, and research
+are compact by default. Search and ask accept `--exact-vector-search` to bypass an active ANN
 index for diagnostics against exhaustive vector search. `--top-k` is limited to 100 and
 `--context-radius` is clamped to three chunks.
 
@@ -76,6 +78,50 @@ slots. The default path reads a fresh manifest health snapshot instead of walkin
 diagnostics. `--top-k` and `--code-top-k` bound output items; `--timeout-ms`,
 `--code-scan-max-files`, `--code-scan-max-bytes`, and `--code-scan-concurrency` bound work. The
 report records both configured and consumed budgets.
+
+## Portable knowledge-base folders
+
+```bash
+rgr portable export
+rgr portable export --output ../operations-knowledge --name "Operations knowledge"
+rgr portable export --output ../operations-knowledge --replace
+rgr portable verify ../operations-knowledge --json
+```
+
+`portable export` requires a current, complete index with no unresolved security warning. Its
+default destination is a timestamped directory under `.ragmir/exports/`; `--output` chooses another
+new directory. Existing destinations are refused unless `--replace` is explicit. Replacement is
+limited to a directory that identifies itself as a Ragmir portable bundle. Export takes the local
+writer lock, copies only the active LanceDB table and its required manifest state, includes the
+configured local embedding model when the index uses Transformers, then activates the destination
+only after its SHA-256 inventory and table row count pass verification.
+
+With `--replace`, Ragmir renames the prior destination to a timestamped sibling, activates the new
+verified folder at the stable path, and attempts to restore the prior folder if activation fails.
+It never deletes the previous bundle. The JSON result and human output expose
+`previousOutputDir`; restart long-running consumers before retiring that directory.
+
+The folder contains no raw source files, access logs, external extractor commands, or remote-model
+permission. It includes indexed passages, so treat the entire directory as sensitive. Configured
+PDF OCR, image OCR, or legacy Word commands must be disabled before export because their executable
+paths and authority are not portable.
+
+After moving the folder, run its restricted launcher:
+
+```bash
+cd /path/to/operations-knowledge
+node bin/rgr.cjs portable verify . --json
+node bin/rgr.cjs search "release approval" --compact --json
+node bin/configure.cjs generic
+```
+
+Node.js 22 or later and the platform recorded in `manifest.json` are required. The runtime and its
+native retrieval dependencies are embedded, so the folder needs no package-manager install or
+registry access after transfer. The launcher allows retrieval, status, verification, and MCP
+serving, while blocking ingestion, setup, repair, upgrade, storage, source, and deletion commands.
+See the
+[portable knowledge-base guide](./portable-knowledge-bases.md) for tool-specific configuration and
+security boundaries.
 
 ## Team synchronization
 
@@ -236,9 +282,11 @@ to resume the staged generation. Older generated tables remain available for sea
 opened them; `rgr destroy-index` removes all generated index storage.
 
 Ragmir checks LanceDB maintenance after every completed ingestion. It refreshes an absent or
-incomplete `searchText_idx` before activation and runs compaction after 20 mutation batches or when
-at least eight fragments are 25% small fragments. Optional maintenance failures return a warning
-while the validated table remains readable. It keeps exhaustive vector search below 100,000 rows,
+incomplete `searchText_idx` before activation. To avoid unnecessary native rewrites and preserve a
+newly validated index, automatic compaction starts only at 100,000 chunks, then after 20 mutation
+batches or when at least eight fragments are 25% small fragments. Optional maintenance failures
+return a warning while the validated table remains readable. It keeps exhaustive vector search below
+100,000 rows,
 maintains IVF-PQ at and above that crossover, and creates a `relativePath` BTree from 10,000 rows.
 M uses 32 probes with refinement 10. L searches every partition with refinement 100 because lower
 settings did not meet the Recall@10 gate. A failed ANN refresh falls back to exact search. Operators

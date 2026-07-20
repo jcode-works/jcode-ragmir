@@ -25,10 +25,16 @@ the corpus, and calls no model.
 - Lightweight health: `rgr status`, normal `rgr doctor`, and MCP context read compact manifest
   metadata without opening the vector table. Use `rgr doctor --deep` or `rgr audit` for explicit
   O(corpus) live diagnostics. Missing or invalid manifests are never ready.
+- MCP retrieval: search, ask, and research start with at most three compact document citations by
+  default; research may add up to three code matches. Expand one selected citation; use
+  `compact: false` only for an explicit full payload. CLI compact output remains opt-in.
 - Core behavior: cited retrieval only. `ask` returns evidence, while synthesis belongs to the calling
   agent or optional local chat add-on.
 - Consumer choice: use the AI or automation you already have through CLI, TypeScript, or MCP. Use a
   local consumer or optional Chat when no retrieved passage may leave the machine.
+- Portable knowledge: `rgr portable export` creates a frozen relocatable folder with the active
+  index, required local embedding model, read-only launcher, two skills, MCP adapters, and SHA-256
+  inventory. Raw sources and access logs are excluded; indexed passages remain sensitive.
 - Persistent API: `createRagmirClient()` reuses one local connection and immutable read snapshot in
   a stateful Node.js worker, refreshes after atomic generation replacement, supports cancellation
   and timeouts, flushes metadata-only logs during close, and releases the model only after the final
@@ -96,5 +102,6 @@ the corpus, and calls no model.
 - [API reference](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/api-reference.md)
 - [Configuration](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/configuration.md)
 - [Agent integration](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/agent-integration.md)
+- [Portable knowledge bases](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/portable-knowledge-bases.md)
 - [Troubleshooting](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/docs/troubleshooting.md)
 - [Security hardening](https://raw.githubusercontent.com/jcode-works/jcode-ragmir/main/SECURITY-HARDENING.md)

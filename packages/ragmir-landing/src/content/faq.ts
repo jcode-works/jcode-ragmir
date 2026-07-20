@@ -2,6 +2,7 @@ const FAQ_ITEM_KEYS = [
   ["faq_what_question", "faq_what_answer"],
   ["faq_private_question", "faq_private_answer"],
   ["faq_agents_question", "faq_agents_answer"],
+  ["faq_portable_question", "faq_portable_answer"],
   ["faq_team_question", "faq_team_answer"],
   ["faq_offline_question", "faq_offline_answer"],
   ["faq_observability_question", "faq_observability_answer"],

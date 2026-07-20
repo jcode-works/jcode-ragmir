@@ -15,6 +15,16 @@ directory, and generated state stays under the project's ignored `.ragmir/` dire
 default `local-hash` provider, Core indexes and retrieves private project files locally and
 offline. Only passages a caller explicitly hands to an external consumer cross that boundary.
 
+Choose the smallest interface that owns the work:
+
+| Need | Use |
+| --- | --- |
+| One operation in a short script | Top-level functions such as `ingest`, `search`, and `research` |
+| Repeated work in one Node.js process | One `RagmirClient` per project root, closed during shutdown |
+| Git-backed team refresh | `syncTeamKnowledge()` for fetch, safe fast-forward, and incremental ingest |
+| Agent or automation retrieval | The stdio MCP server, compact by default |
+| Frozen handoff to another host | `exportPortableKnowledgeBase()` and its read-only folder |
+
 `doctor()` includes a `runtime` block with the active Node, V8, N-API, platform, architecture,
 Ragmir, LanceDB, Arrow, Transformers.js, ONNX Runtime, and Sharp versions. This records resolved
 package metadata without importing or initializing the optional semantic runtimes.
@@ -151,6 +161,45 @@ This API targets stateful Node.js processes with a local filesystem. It is not a
 serverless API, and Ragmir does not provide an HTTP listener. A network-facing application owns
 authentication, authorization, rate limits, and transport security.
 
+### Portable knowledge-base folders
+
+`exportPortableKnowledgeBase(options?)` creates a new frozen folder from the active validated
+index. `cwd` selects the source base, `outputDir` selects a destination, and `name` sets its display
+name. Without `outputDir`, the export uses a timestamped path under `.ragmir/exports/`.
+The operation takes the existing local writer lock, copies only active retrieval state, includes a
+required Transformers model, writes read-only launchers and MCP adapters, inventories managed files
+with SHA-256, verifies the copied table, and activates the destination. It refuses an existing
+destination unless `replaceExisting` is `true`, as well as an incomplete or stale index, unresolved
+security warning, and configured external extractor command.
+
+Replacement accepts only an existing Ragmir portable directory. It preserves that directory as a
+timestamped sibling, activates the new verified folder at the stable path, and attempts to restore
+the previous directory if activation fails. `ExportPortableKnowledgeBaseResult.previousOutputDir`
+returns the preserved path, or `null` for a first export. The library never deletes that backup.
+
+```ts
+import {
+  exportPortableKnowledgeBase,
+  verifyPortableKnowledgeBase,
+} from "@jcode.labs/ragmir"
+
+const exported = await exportPortableKnowledgeBase({
+  cwd: process.cwd(),
+  outputDir: "../operations-knowledge",
+  name: "Operations knowledge",
+  replaceExisting: true,
+})
+
+const verification = await verifyPortableKnowledgeBase(exported.outputDir)
+if (!verification.valid) throw new Error(verification.errors.join("\n"))
+```
+
+`verifyPortableKnowledgeBase(root)` validates the schema, every managed file size and SHA-256,
+effective frozen configuration, index compatibility, active table readability, corpus fingerprint,
+and row count. A platform or architecture change produces a warning so the destination can prove
+retrieval before relying on the bundle. Verification never treats the knowledge base as authority
+to perform an external action.
+
 ### Project and source setup
 
 | Export | Purpose |
@@ -164,11 +213,15 @@ authentication, authorization, rate limits, and transport security.
 | `getKnowledgeBaseSourceCatalog(cwd?, options?)` | Return paged manifest source coverage with complete totals. |
 | `listSourceEntries(cwd?)` | Read configured source and exclusion entries. |
 | `addSourceEntries(options)` | Add source paths or exclusions without duplicating entries. |
+| `exportPortableKnowledgeBase(options?)` | Export a frozen relocatable index, skills, launcher, adapters, and integrity manifest. |
+| `portableKnowledgeBaseManifestSchema` | Validate an exported portable manifest at a consumer boundary. |
+| `verifyPortableKnowledgeBase(root)` | Verify managed files, configuration, index compatibility, and table readability. |
 
 ### Index and retrieve
 
 | Export | Purpose |
 | --- | --- |
+| `createRagmirClient(options?)` | Reuse one connection and immutable index snapshot in a long-running Node.js process. |
 | `ingest(options?)` | Incrementally parse, redact, chunk, embed, and store selected files. |
 | `getIngestionProgress(config)` | Read durable progress for the latest ingestion run. |
 | `audit(cwd?, options?)` | Run a deep O(corpus) comparison of files on disk with the current index. |
@@ -278,9 +331,10 @@ batches pages and caches each result privately by content and runtime identity.
 
 | Export | Purpose |
 | --- | --- |
-| `createMcpServer(cwd?)` | Construct the read-focused MCP server without selecting a transport. |
+| `createMcpServer(cwd?, options?)` | Construct the read-focused MCP server without selecting a transport. |
 | `connectMcpServer(transport, cwd?)` | Connect a caller-owned MCP transport and return a closeable server handle. |
 | `serveMcp(cwd?)` | Start the local stdio MCP server. |
+| `RAGMIR_SETUP_PROMPT` | Canonical bounded prompt for repository-aware agent setup. |
 | `installAgentSkills(options?)` | Install the canonical skill kit for selected native agents. |
 | `installSkill(options?)` | Install one bundled skill with ownership checks. |
 | `inspectAgentIntegration(cwd?)` | Verify runner and native skill discovery. |
@@ -292,11 +346,16 @@ batches pages and caches each result privately by content and runtime identity.
 | `kbCommand(cwd, args)` | Compatibility alias for older integrations. |
 | `ragmirCommand(cwd, args)` | Compatibility alias for older integrations. |
 
-New integrations should use `rgrCommand` and the `rgr` CLI name. Search, ask, research, expansion,
-audit, and evaluation accept `maxBytes`; every tool and resource JSON response is bounded by the
-configured `mcpMaxOutputBytes` and an absolute 1 MiB ceiling. Search, ask, and research also accept
-compact output. When a response does not fit, the server selects a typed summary with exact scalar
-values, previews, and omission counters rather than recursively shortening arbitrary strings. A
+New integrations should use `rgrCommand` and the `rgr` CLI name. MCP search, ask, and research
+start with at most three compact document citations by default; research may add up to three code
+matches. Expand one selected citation with
+`ragmir_expand`, or pass `compact: false` and an explicit `topK` only when the full retrieval payload
+is required. This MCP default does not change CLI or TypeScript results; CLI callers opt in with
+`--compact` and library callers can use `compactSearchResults` or `compactResearchReport`.
+Search, ask, research, expansion, audit, and evaluation accept `maxBytes`; every tool and resource
+JSON response is bounded by the configured `mcpMaxOutputBytes` and an absolute 1 MiB ceiling. When a
+response does not fit, the server selects a typed summary with exact scalar values, previews, and
+omission counters rather than recursively shortening arbitrary strings. A
 successful search keeps its best citation at the minimum 1 KiB budget. Retrieval depth, source
 pages, audit previews, and returned evaluation case details are capped before their response report
 is constructed; aggregate audit and evaluation metrics still cover the complete requested work.
@@ -305,7 +364,9 @@ Metrics are returned under
 
 Each MCP server resolves configuration once per request, lazily reuses one `RagmirClient` per
 effective configuration, closes and refreshes it after configuration changes, and closes it with the
-server. All tools advertise non-destructive behavior. Search, ask, research, and evaluation
+server. Its protocol instructions teach clients to read `ragmir://context` once, use compact
+retrieval, expand one citation, and keep evidence separate from action authority. All tools
+advertise non-destructive behavior. Search, ask, research, and evaluation
 conservatively advertise open-world behavior because
 explicitly enabled Transformers models may download public weights. The pure prompt router,
 security audit, and usage report also advertise read-only, idempotent behavior. Other tools do not
@@ -323,6 +384,10 @@ the remaining evaluated cases.
 Strict mode returns that project-relative path, replaces evaluation errors with a generic message,
 and masks configured model, storage, source, and access-log paths in diagnostic responses.
 
+Set `CreateMcpServerOptions.portableReadOnly` to `true` for a frozen portable index. This omits
+`ragmir_evaluate` from the registered tools and from `ragmir://context`, preventing the MCP surface
+from persisting a quality report. `rgr portable export` enables this mode in its generated launcher.
+
 ### Core type exports
 
 The package exports the named types used by every public function signature, including the options
@@ -336,9 +401,10 @@ types that callers commonly compose explicitly.
 | Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
 | Research, audit, and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `AuditOptions`, `AuditReport`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
 | Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `KnowledgeBaseSourceCatalogOptions`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
-| Operations | `RagmirClientOptions`, `OperationOptions`, `DoctorOptions`, `SecurityAuditOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `DoctorReport`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
+| Operations | `RagmirClientOptions`, `OperationOptions`, `DoctorOptions`, `DoctorReport`, `RuntimeInfo`, `RuntimePackageVersion`, `SecurityAuditOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
 | Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `ExtractPdfPagesOptions`, `ExtractPdfPagesResult`, `PdfOcrMetrics`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
 | Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
+| Portable knowledge bases | `ExportPortableKnowledgeBaseOptions`, `ExportPortableKnowledgeBaseResult`, `PortableKnowledgeBaseManifest`, `PortableKnowledgeBaseVerification` |
 | Team synchronization and diagnostics | `SyncTeamKnowledgeOptions`, `TeamSyncReport`, `TeamSyncStatus`, `TeamSyncGitReport`, `TeamSyncGitState`, `TeamSyncIndexReport`, `CreateTeamSnapshotOptions`, `TeamSnapshot`, `TeamSnapshotFile`, `TeamComparison`, `TeamComparisonStatus`, `TeamConfigurationDifference`, `TeamChangedFile` |
 | Upgrades | `UpgradeInspection`, `UpgradeOptions`, `UpgradeResult`, `UpgradeStatus` |
 | Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |

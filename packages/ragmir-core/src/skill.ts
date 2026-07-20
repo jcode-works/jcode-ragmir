@@ -1087,8 +1087,16 @@ Use the MCP server when your agent supports MCP tools. The server command is:
 ${input.serveCommand}
 \`\`\`
 
-Use \`ragmir_route_prompt\` when an agent hook or skill needs to decide whether the current user
-prompt should call Ragmir before answering. The router is local and does not store prompt text.`,
+Default agent loop:
+
+1. Read \`ragmir://context\` once for base identity and readiness.
+2. Call \`ragmir_search\`, \`ragmir_ask\`, or \`ragmir_research\` without extra output options.
+   They start with at most three compact document citations; research may add three code matches.
+3. Call \`ragmir_expand\` for one selected citation. Use \`compact: false\` only when the full
+   retrieval payload is genuinely needed.
+
+Use \`ragmir_route_prompt\` only when it is unclear whether the current request needs Ragmir. The
+router is local and does not store prompt text.`,
     `This helper is pinned to one knowledge-base root. In a monorepo, keep the generated server name
 \`${input.mcpServerName}\` and generate a separate helper from each nested base. Call
 \`ragmir_status\` and verify \`knowledgeBaseId\` before retrieval when the active base is unclear.`,
