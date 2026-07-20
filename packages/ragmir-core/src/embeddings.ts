@@ -110,6 +110,14 @@ export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingM
   }
 }
 
+export async function embeddingModelArtifactDigest(config: Config): Promise<string> {
+  return resolveEmbeddingModelDigest(config)
+}
+
+export function embeddingModelArtifactRoot(config: Config): string {
+  return embeddingModelRoot(config)
+}
+
 export async function embedText(
   text: string,
   config: Config,

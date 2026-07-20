@@ -161,7 +161,7 @@ describe("store", () => {
     expect(result.lexicalIndexWarning).toBeNull()
   })
 
-  it("should compact fragments and fully refresh FTS after twenty mutation batches", async () => {
+  it("should compact fragments and fully refresh FTS when storage optimization is forced", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-maintenance-"))
     tempDirs.push(root)
     const config = testConfig(root)
@@ -209,6 +209,7 @@ describe("store", () => {
     const dryRun = await maintainOpenStorageTable(table, config.tableName, config, {
       additionalMutations: 21,
       dryRun: true,
+      force: true,
     })
     expect(dryRun.plannedActions).toEqual([
       "compact-fragments",
@@ -219,6 +220,7 @@ describe("store", () => {
 
     const report = await maintainOpenStorageTable(table, config.tableName, config, {
       additionalMutations: 21,
+      force: true,
     })
     const coverageAfter = await table.indexStats("searchText_idx")
     const fragmentsAfter = (await table.stats()).fragmentStats
@@ -237,6 +239,45 @@ describe("store", () => {
     expect(fragmentsAfter.numSmallFragments).toBeLessThanOrEqual(fragmentsBefore.numSmallFragments)
     expect(evidenceAfter).toEqual(evidenceBefore)
     expect(evidenceAfter).toEqual([`${stablePath}:1-1`])
+  })
+
+  it("should defer automatic compaction for 6,944 chunks across 360 mutation batches", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-compaction-deferral-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const rows = []
+    for (let fileIndex = 0; fileIndex < 360; fileIndex += 1) {
+      const chunkCount = fileIndex < 104 ? 20 : 19
+      for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+        rows.push({
+          ...sampleRow(`.ragmir/raw/source-${fileIndex}.md`, chunkIndex, [0.1, 0.2], config),
+          ...(fileIndex === 0 && chunkIndex === 0
+            ? { searchText: "Evidence\\nmaintenance baseline", text: "maintenance baseline" }
+            : {}),
+        })
+      }
+    }
+    expect(rows).toHaveLength(6_944)
+    await writeRows(rows, config)
+    const table = await openRowsTable(config)
+    expect(table).not.toBeNull()
+    if (!table) {
+      return
+    }
+    const optimize = vi.spyOn(table, "optimize").mockRejectedValueOnce(new Error("must not run"))
+
+    const report = await maintainOpenStorageTable(table, config.tableName, config, {
+      additionalMutations: 360,
+    })
+
+    expect(report.status).toBe("healthy")
+    expect(report.plannedActions).toEqual([])
+    expect(report.completedActions).toEqual([])
+    expect(report.mutationsSinceOptimization).toBe(360)
+    expect(report.warning).toBeNull()
+    expect(optimize).not.toHaveBeenCalled()
+    await expect(table.countRows()).resolves.toBe(6_944)
+    await expect(fullTextEvidence(table)).resolves.toEqual([".ragmir/raw/source-0.md:1-1"])
   })
 
   it("should keep the active table readable when optional compaction fails", async () => {

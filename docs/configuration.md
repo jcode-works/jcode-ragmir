@@ -23,8 +23,8 @@ edit JSON only for a real need.
 | `embeddingModel` | `intfloat/multilingual-e5-small` | Select the local Transformers embedding model. Rebuild after changing it. |
 | `embeddingModelRevision` | Pinned commit for bundled profiles | Use an immutable 40-character commit for reproducible model artifacts. Unknown custom models default to the mutable `main` revision until explicitly pinned. |
 | `embeddingModelDigest` | `null` | `rgr models pull --enable` records a SHA-256 identity for the resolved local artifact tree. Do not set it by hand unless the local files were verified independently. |
-| `topK` | `8` | Change the default number of returned passages, up to the hard limit of 100. |
-| `mcpMaxTopK` | `10` | Bound MCP passage requests; values above 100 are rejected. |
+| `topK` | `8` | Change the CLI and TypeScript default, up to the hard limit of 100. MCP requests without `topK` start at the lower of this value and 3. |
+| `mcpMaxTopK` | `10` | Bound explicit MCP passage requests; values above 100 are rejected. |
 | `mcpMaxOutputBytes` | `32768` | Cap variable-size MCP tool and resource JSON; the server also enforces an absolute 1 MiB ceiling. |
 | `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. Chunk size is capped at 1,000,000 characters. |
 | `maxFileBytes` | `50000000` | Lower the per-file parser budget; 50 MB is the hard ceiling. |

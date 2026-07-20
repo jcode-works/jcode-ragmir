@@ -27,6 +27,9 @@ uploads the corpus, and calls no model.
 - Chat profiles and TTS models are not Core or MCP requirements.
 - MCP byte budgets select typed summaries with exact scalar values, omission counters, and the best
   search citation instead of shortening identifiers or paths.
+- MCP search, ask, and research start with at most three compact document citations by default;
+  research may add up to three code matches. Agents expand one selected citation and request
+  `compact: false` only for an explicit full payload.
 - Optional ingestion metrics attribute phase time, throughput, cache state, and peak RSS locally.
   Their bounded diagnostic omits project roots, source paths, queries, and source text; collection
   stays disabled unless requested or subscribed.
