@@ -16,6 +16,7 @@ const FULL_TEXT_INDEX_NAME = "searchText_idx"
 const MAINTENANCE_STATE_FILENAME = "storage-maintenance.json"
 const MAINTENANCE_STATE_SCHEMA_VERSION = 1
 const MUTATION_COMPACTION_THRESHOLD = 20
+const MINIMUM_AUTOMATIC_COMPACTION_ROWS = 100_000
 const MINIMUM_FRAGMENT_COUNT = 8
 const SMALL_FRAGMENT_RATIO_THRESHOLD = 0.25
 const OLD_VERSION_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000
@@ -180,7 +181,9 @@ export async function maintainOpenStorageTable(
       optimized = true
       completedActions.push("compact-fragments", "prune-old-versions")
     } catch (error) {
-      warnings.push(`LanceDB compaction failed (${errorDetail(error)}).`)
+      warnings.push(
+        `LanceDB compaction failed (${errorDetail(error)}). The validated index remains readable; retry \`rgr storage optimize\` later.`,
+      )
     }
   }
 
@@ -311,6 +314,7 @@ function maintenanceReasons(
   forced: boolean,
 ): StorageMaintenanceReason[] {
   const reasons: StorageMaintenanceReason[] = []
+  const automaticCompactionEligible = health.totalRows >= MINIMUM_AUTOMATIC_COMPACTION_ROWS
   if (forced) {
     reasons.push("forced")
   }
@@ -319,10 +323,11 @@ function maintenanceReasons(
   } else if (health.fullTextIndex.unindexedRows > 0) {
     reasons.push("unindexed-full-text-rows")
   }
-  if (mutationsSinceOptimization >= MUTATION_COMPACTION_THRESHOLD) {
+  if (automaticCompactionEligible && mutationsSinceOptimization >= MUTATION_COMPACTION_THRESHOLD) {
     reasons.push("mutation-threshold")
   }
   if (
+    automaticCompactionEligible &&
     health.fragments.total >= MINIMUM_FRAGMENT_COUNT &&
     health.fragments.smallRatio >= SMALL_FRAGMENT_RATIO_THRESHOLD
   ) {
@@ -337,11 +342,13 @@ function maintenanceActions(
   forced: boolean,
 ): StorageMaintenanceAction[] {
   const actions: StorageMaintenanceAction[] = []
+  const automaticCompactionEligible = health.totalRows >= MINIMUM_AUTOMATIC_COMPACTION_ROWS
   const compact =
     forced ||
-    mutationsSinceOptimization >= MUTATION_COMPACTION_THRESHOLD ||
-    (health.fragments.total >= MINIMUM_FRAGMENT_COUNT &&
-      health.fragments.smallRatio >= SMALL_FRAGMENT_RATIO_THRESHOLD)
+    (automaticCompactionEligible &&
+      (mutationsSinceOptimization >= MUTATION_COMPACTION_THRESHOLD ||
+        (health.fragments.total >= MINIMUM_FRAGMENT_COUNT &&
+          health.fragments.smallRatio >= SMALL_FRAGMENT_RATIO_THRESHOLD)))
   if (compact) {
     actions.push("compact-fragments", "prune-old-versions")
   }

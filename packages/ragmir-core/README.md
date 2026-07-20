@@ -23,7 +23,7 @@ Requires Node.js 22 or later.
 <summary><strong>Option 1: paste this into your coding agent</strong></summary>
 
 ~~~text
-Set up Ragmir in this repository. Work interactively: inspect first, ask one concise numbered batch of questions, wait for my answers, then execute. Never assume consent for dependency changes, model downloads, replacing skills, or sharing data.
+Set up Ragmir in this repository. Work interactively: inspect first, infer safe defaults, present a proposal, wait for approval, then execute. Never assume consent for dependency changes, model downloads, replacing skills, or sharing data.
 
 Outcome: Core installed with the repository's package manager; useful sources selected; secrets and generated noise excluded; tools connected; cited retrieval verified. Semantic retrieval, team features, Chat, and TTS are optional.
 
@@ -32,14 +32,12 @@ Outcome: Core installed with the repository's package manager; useful sources se
 - Detect Node 22+ and pnpm, npm, Yarn, or Bun. Prefer packageManager, then the lockfile. Respect workspace-root flags and mise/asdf/Volta. Never create a second lockfile. If signals conflict, ask.
 - If Ragmir exists, inspect its version, config, status, sources, and rgr upgrade --check before changing it.
 
-2. Ask only what the repository did not answer, then wait:
-1) Which repository/monorepo base should own the knowledge base, and are nested app bases wanted?
-2) Which clients: Claude Code, Codex, Kimi, OpenCode, Cline, another MCP client, or none?
-3) Keep default offline local-hash, or allow one semantic-model download for better natural-language retrieval?
-4) Solo or team? If team, is Git upstream authoritative, and should safe pulls be automatic or disabled with --no-pull?
-5) Core only, or optional Chat? For Chat choose lite (~0.49 GB), fast (~3.35 GB), or quality (~5.15 GB).
-6) Optional TTS? Ask language (en/fr/es offline; ja/th/zh require explicit Edge unless a local model is supplied) and whether text may reach Edge.
-7) Which private/external folders are allowed, which must never be indexed, and may I install packages, edit local config, and run approved downloads now?
+2. Propose one setup summary, then ask once:
+- Infer the owning base and useful clients from the repository. State any nested bases you propose.
+- Default to offline local-hash and Core only, or optional Chat only when requested. Optional TTS stays off unless requested. Semantic, Chat, and TTS downloads require explicit approval; Edge text transfer requires separate approval.
+- Default to solo unless the repository or request shows a team workflow. For a Git-backed team, propose the current upstream as authority and safe automatic pulls; offer --no-pull when Git updates must stay manual.
+- List selected source globs, exclusions, any external/private folder, and the exact package, config, skill, and download actions you would perform.
+- Ask only about unresolved choices that materially change source authority, data exposure, downloads, or external execution. Wait for one approval covering the proposal.
 
 3. Implement after approval:
 - Install @jcode.labs/ragmir as a dev dependency with the detected manager. Install Chat/TTS only if selected, at a compatible version.
@@ -82,7 +80,25 @@ and concurrency windows, and serialized across local writer processes.
 | --- | --- |
 | `rgr` CLI | Setup, ingest, search, audit, maintenance, and JSON automation |
 | TypeScript API | Typed retrieval in scripts and long-running Node.js workers |
-| Local stdio MCP | Bounded, read-focused context for compatible agents |
+| Local stdio MCP | Up to three compact citations by default, with targeted expansion |
+
+Export a frozen folder for another agent, automation, or server:
+
+```bash
+npx rgr portable export --output ../operations-knowledge
+npx rgr portable export --output ../operations-knowledge --replace
+cd ../operations-knowledge
+node bin/rgr.cjs portable verify . --json
+node bin/configure.cjs generic
+```
+
+The bundle contains the active index, required local embedding model, embedded read-only runtime,
+two portable skills, MCP adapters, and a SHA-256 inventory. It needs Node.js 22 and the platform
+recorded in `manifest.json`, but no package-manager install or registry access after transfer. It
+excludes raw sources and logs, but its indexed passages remain sensitive. See the
+[portable knowledge-base guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/portable-knowledge-bases.md).
+`--replace` preserves an existing portable destination as a timestamped sibling before activating
+the newly verified export, so a failed activation can roll back without deleting the last bundle.
 
 The default `local-hash` provider works offline with no model download. Enable semantic
 Transformers.js embeddings explicitly with `rgr setup --semantic`, then rebuild. Core remains
@@ -127,6 +143,9 @@ Top-level `ingest`, `search`, `ask`, and `research` functions remain available f
   resumable cache.
 - `rgr status` and normal `rgr doctor` read compact manifest health. Use `rgr doctor --deep` or
   `rgr audit` for a live source inventory.
+- MCP search, ask, and research return up to three compact citations by default. Expand one citation
+  with `ragmir_expand`; research may add up to three code matches. Request `compact: false` only for
+  an explicit full payload.
 - `rgr security-audit` checks permissions, Git ignore coverage, tracked private paths, redaction,
   and local extractor authority.
 - `rgr team sync` safely fast-forwards the current Git upstream and refreshes the private local

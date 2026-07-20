@@ -34,7 +34,7 @@ describe("setupProject", () => {
     expect(result.semantic).toBeNull()
     expect(result.ingested).toBeNull()
     expect(result.configurationPrompt).toContain("Set up Ragmir in this repository")
-    expect(result.configurationPrompt).toContain("ask one concise numbered batch of questions")
+    expect(result.configurationPrompt).toContain("infer safe defaults, present a proposal")
     expect(result.configurationPrompt).toContain("Core only, or optional Chat")
     expect(result.configurationPrompt).toContain("Optional TTS")
     expect(result.configurationPrompt).toContain("rgr upgrade --check")

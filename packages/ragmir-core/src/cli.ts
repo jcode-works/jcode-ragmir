@@ -42,6 +42,7 @@ import {
   parsePdfOcrPages,
 } from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
+import { exportPortableKnowledgeBase, verifyPortableKnowledgeBase } from "./portable.js"
 import { previewChunks } from "./preview.js"
 import { routePrompt } from "./prompt-routing.js"
 import { ask, search } from "./query.js"
@@ -1658,6 +1659,76 @@ program
   .action(async (_options: unknown, command: Command) => {
     const explicitRoot = explicitProjectRoot(command)
     await serveMcp(explicitRoot)
+  })
+
+const portableCommand = program
+  .command("portable")
+  .description("Export or verify a frozen, relocatable Ragmir knowledge-base folder.")
+
+portableCommand
+  .command("export")
+  .description("Export the active index, skills, launcher, and MCP adapters into one folder.")
+  .option("-o, --output <directory>", "Destination directory. Defaults under .ragmir/exports/.")
+  .option("--name <name>", "Portable knowledge-base display name.")
+  .option(
+    "--replace",
+    "Replace an existing portable destination after preserving it as a sibling backup.",
+  )
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (
+      options: { output?: string; name?: string; replace?: boolean; json?: boolean },
+      command: Command,
+    ) => {
+      const exportOptions: Parameters<typeof exportPortableKnowledgeBase>[0] = {
+        cwd: projectRoot(command),
+        replaceExisting: options.replace === true,
+      }
+      addOption(exportOptions, "outputDir", options.output)
+      addOption(exportOptions, "name", options.name)
+      const result = await exportPortableKnowledgeBase(exportOptions)
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2))
+        return
+      }
+      console.log(pc.green("Portable knowledge base exported."))
+      console.log(`outputDir=${result.outputDir}`)
+      if (result.previousOutputDir) {
+        console.log(`previousOutputDir=${result.previousOutputDir}`)
+      }
+      console.log(`manifestPath=${result.manifestPath}`)
+      console.log(`fileCount=${result.fileCount}`)
+      console.log(`totalBytes=${result.totalBytes}`)
+      console.log(`embeddingModelIncluded=${result.embeddingModelIncluded}`)
+      console.log(
+        result.previousOutputDir
+          ? "Next: verify the active destination, restart its consumers, then retire the preserved previous folder when safe."
+          : "Next: move the folder, then run `node bin/rgr.cjs portable verify . --json`.",
+      )
+    },
+  )
+
+portableCommand
+  .command("verify")
+  .description("Verify file integrity, index compatibility, and active table readability.")
+  .argument("[directory]", "Portable knowledge-base directory.", ".")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (directory: string, options: { json?: boolean }) => {
+    const result = await verifyPortableKnowledgeBase(directory)
+    if (options.json) {
+      console.log(JSON.stringify(result, null, 2))
+    } else {
+      console.log(
+        result.valid
+          ? pc.green("Portable knowledge base is valid.")
+          : pc.red("Portable knowledge base is invalid."),
+      )
+      console.log(`root=${result.root}`)
+      console.log(`checkedFiles=${result.checkedFiles}`)
+      for (const warning of result.warnings) console.log(pc.yellow(`warning=${warning}`))
+      for (const error of result.errors) console.log(pc.red(`error=${error}`))
+    }
+    if (!result.valid) process.exitCode = 1
   })
 
 program

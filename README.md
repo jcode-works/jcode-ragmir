@@ -27,7 +27,7 @@ The fastest path is to let your coding agent inspect the repository and tailor t
 <summary><strong>Option 1: paste this into your coding agent</strong></summary>
 
 ~~~text
-Set up Ragmir in this repository. Work interactively: inspect first, ask one concise numbered batch of questions, wait for my answers, then execute. Never assume consent for dependency changes, model downloads, replacing skills, or sharing data.
+Set up Ragmir in this repository. Work interactively: inspect first, infer safe defaults, present a proposal, wait for approval, then execute. Never assume consent for dependency changes, model downloads, replacing skills, or sharing data.
 
 Outcome: Core installed with the repository's package manager; useful sources selected; secrets and generated noise excluded; tools connected; cited retrieval verified. Semantic retrieval, team features, Chat, and TTS are optional.
 
@@ -36,14 +36,12 @@ Outcome: Core installed with the repository's package manager; useful sources se
 - Detect Node 22+ and pnpm, npm, Yarn, or Bun. Prefer packageManager, then the lockfile. Respect workspace-root flags and mise/asdf/Volta. Never create a second lockfile. If signals conflict, ask.
 - If Ragmir exists, inspect its version, config, status, sources, and rgr upgrade --check before changing it.
 
-2. Ask only what the repository did not answer, then wait:
-1) Which repository/monorepo base should own the knowledge base, and are nested app bases wanted?
-2) Which clients: Claude Code, Codex, Kimi, OpenCode, Cline, another MCP client, or none?
-3) Keep default offline local-hash, or allow one semantic-model download for better natural-language retrieval?
-4) Solo or team? If team, is Git upstream authoritative, and should safe pulls be automatic or disabled with --no-pull?
-5) Core only, or optional Chat? For Chat choose lite (~0.49 GB), fast (~3.35 GB), or quality (~5.15 GB).
-6) Optional TTS? Ask language (en/fr/es offline; ja/th/zh require explicit Edge unless a local model is supplied) and whether text may reach Edge.
-7) Which private/external folders are allowed, which must never be indexed, and may I install packages, edit local config, and run approved downloads now?
+2. Propose one setup summary, then ask once:
+- Infer the owning base and useful clients from the repository. State any nested bases you propose.
+- Default to offline local-hash and Core only, or optional Chat only when requested. Optional TTS stays off unless requested. Semantic, Chat, and TTS downloads require explicit approval; Edge text transfer requires separate approval.
+- Default to solo unless the repository or request shows a team workflow. For a Git-backed team, propose the current upstream as authority and safe automatic pulls; offer --no-pull when Git updates must stay manual.
+- List selected source globs, exclusions, any external/private folder, and the exact package, config, skill, and download actions you would perform.
+- Ask only about unresolved choices that materially change source authority, data exposure, downloads, or external execution. Wait for one approval covering the proposal.
 
 3. Implement after approval:
 - Install @jcode.labs/ragmir as a dev dependency with the detected manager. Install Chat/TTS only if selected, at a compatible version.
@@ -132,7 +130,7 @@ authentication, authorization, and rate limits.
 | --- | --- | --- |
 | `rgr` CLI | Setup, ingest, search, audit, and maintenance | Human-readable or JSON output |
 | TypeScript API | Scripts and long-running Node.js workers | Typed results and explicit lifecycle |
-| Local MCP server | Coding agents and compatible clients | Bounded, read-focused retrieval tools |
+| Local MCP server | Coding agents and compatible clients | Up to three compact citations by default, with targeted expansion |
 | Ragmir Chat | Fully local answer generation | Answers grounded in verified cited passages |
 | Ragmir TTS | Reviewed text briefs | Local WAV or explicit online MP3 |
 
@@ -145,6 +143,9 @@ are optional packages loaded only when their commands are used.
 
 Generated MCP helpers pin the project root so an agent queries the intended index. In a monorepo,
 Ragmir selects the nearest `.ragmir/config.json`; root and package bases stay isolated.
+MCP search, ask, and research are compact by default. Agents expand one selected citation instead of
+loading every full passage; research may add up to three code matches, and `compact: false` remains
+available for an explicit full response.
 
 ```bash
 pnpm exec rgr bases
@@ -153,6 +154,36 @@ pnpm exec rgr --project-root apps/web search "checkout contract"
 
 Read the [agent integration guide](./docs/agent-integration.md) for native helpers, MCP tools,
 resource budgets, and monorepo routing.
+
+### Portable knowledge-base folders
+
+Export one frozen, relocatable folder when another machine, agent, or automation needs the same
+cited evidence without the original source tree:
+
+```bash
+pnpm exec rgr portable export
+pnpm exec rgr portable export --output ../operations-knowledge --name "Operations knowledge"
+pnpm exec rgr portable export --output ../operations-knowledge --replace
+```
+
+The folder contains the active index, any required local embedding model, an embedded read-only
+runtime, two retrieval and decision-evidence skills, MCP templates, and a SHA-256 inventory. It
+excludes raw source files and access logs, but the indexed passages remain sensitive. Move the
+folder to a Node.js 22 host with the platform recorded in `manifest.json`, run
+`node bin/rgr.cjs portable verify . --json`, then generate a destination-specific configuration
+with `node bin/configure.cjs generic` or a native Claude, Codex, Kimi, OpenCode, or Cline target.
+No package-manager install or registry access is needed after transfer. The inventory detects
+changes but does not authenticate who published the folder.
+
+For a stable destination, `--replace` builds and verifies the new export before switching the path.
+The previous bundle is renamed to a timestamped sibling and returned as `previousOutputDir`; restart
+long-running consumers, verify the new bundle, then retire that backup under the operator's
+retention policy. An unrelated existing directory is never replaced.
+
+OpenClaw, Hermes, n8n, and custom hosts use the same MCP stdio or argument-array CLI contract when
+their runtime supports it. Ragmir supplies cited evidence, not permission to perform an external
+action. The host keeps authentication, tool permissions, approval rules, and network security. See
+the [portable knowledge-base guide](./docs/portable-knowledge-bases.md).
 
 ### Teams
 
@@ -307,6 +338,7 @@ and model files keep their own licenses.
 | [CLI reference](./docs/cli-reference.md) | Commands, options, and JSON output |
 | [Configuration](./docs/configuration.md) | Sources, privacy, workloads, embeddings, and extractors |
 | [Agent integration](./docs/agent-integration.md) | Native helpers, MCP, monorepos, and teams |
+| [Portable knowledge bases](./docs/portable-knowledge-bases.md) | Frozen folders for agents, automations, and servers |
 | [Troubleshooting](./docs/troubleshooting.md) | Readiness, weak search, OCR, and add-on diagnostics |
 | [Release history](https://github.com/jcode-works/jcode-ragmir/releases) | Curated highlights, verification, artifacts, and upgrade links |
 

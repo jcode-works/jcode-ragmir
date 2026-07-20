@@ -134,6 +134,8 @@ describe("MCP protocol contract", () => {
     const { client } = await connectTestClient(root)
 
     const tools = await client.listTools()
+    expect(client.getInstructions()).toContain("at most three compact document citations")
+    expect(client.getInstructions()).toContain("not action authority")
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
       "ragmir_ask",
       "ragmir_audit",
@@ -180,6 +182,25 @@ describe("MCP protocol contract", () => {
     })
   })
 
+  it("should omit evaluation in portable read-only mode", async () => {
+    const root = await createProject("ragmir-mcp-portable-read-only-")
+    const client = new Client({ name: "ragmir-portable-test", version: "1.0.0" })
+    const server = createMcpServer(root, { portableReadOnly: true })
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)])
+    connections.push({ client, server })
+
+    const tools = await client.listTools()
+    expect(tools.tools.map((tool) => tool.name)).not.toContain("ragmir_evaluate")
+    expect(tools.tools.map((tool) => tool.name)).toContain("ragmir_search")
+
+    const context = await client.readResource({ uri: "ragmir://context" })
+    const content = context.contents[0]
+    expect(content && "text" in content ? JSON.parse(content.text) : null).toMatchObject({
+      tools: expect.not.arrayContaining(["ragmir_evaluate"]),
+    })
+  })
+
   it("should return protocol errors for invalid input and data for valid calls", async () => {
     const root = await createProject("ragmir-mcp-validation-")
     const { client } = await connectTestClient(root)
@@ -196,6 +217,75 @@ describe("MCP protocol contract", () => {
     })
     expect(valid.isError).not.toBe(true)
     expect(JSON.parse(textContent(valid))).toEqual([])
+  })
+
+  it("should return three compact results by default and preserve an explicit full response", async () => {
+    const root = await createProject("ragmir-mcp-compact-default-")
+    const rawDir = path.join(root, ".ragmir", "raw")
+    const sourceDir = path.join(root, "src")
+    await mkdir(sourceDir, { recursive: true })
+    await Promise.all(
+      Array.from({ length: 6 }, async (_value, index) => {
+        await Promise.all([
+          writeFile(
+            path.join(rawDir, `release-${index}.md`),
+            `Release approval evidence ${index} requires a reviewed production decision.\n`,
+            "utf8",
+          ),
+          writeFile(
+            path.join(sourceDir, `release-${index}.ts`),
+            `export const reviewedProductionDecision${index} = "release approval"\n`,
+            "utf8",
+          ),
+        ])
+      }),
+    )
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const compact = await client.callTool({
+      name: "ragmir_search",
+      arguments: { query: "reviewed production release approval decision" },
+    })
+    const compactPayload = JSON.parse(textContent(compact))
+    expect(compactPayload).toHaveLength(3)
+    expect(compactPayload[0]).toHaveProperty("snippet")
+    expect(compactPayload[0]).not.toHaveProperty("text")
+    expect(compact._meta?.["ragmir/output"]).toMatchObject({
+      compacted: true,
+      truncated: false,
+    })
+
+    const full = await client.callTool({
+      name: "ragmir_search",
+      arguments: {
+        query: "reviewed production release approval decision",
+        topK: 5,
+        compact: false,
+      },
+    })
+    const fullPayload = JSON.parse(textContent(full))
+    expect(fullPayload).toHaveLength(5)
+    expect(fullPayload[0]).toHaveProperty("text")
+    expect(fullPayload[0]).not.toHaveProperty("snippet")
+    expect(full._meta?.["ragmir/output"]).toMatchObject({
+      compacted: false,
+      truncated: false,
+    })
+    expect(Buffer.byteLength(textContent(compact), "utf8")).toBeLessThan(
+      Buffer.byteLength(textContent(full), "utf8"),
+    )
+
+    const research = await client.callTool({
+      name: "ragmir_research",
+      arguments: { query: "reviewed production release approval decision" },
+    })
+    const researchPayload = JSON.parse(textContent(research))
+    expect(researchPayload.budgets).toMatchObject({
+      evidenceTopK: 3,
+      codeEvidenceTopK: 3,
+    })
+    expect(researchPayload.codeEvidence.length).toBeLessThanOrEqual(3)
   })
 
   it("should refresh the reused client when effective configuration changes", async () => {
@@ -629,7 +719,7 @@ describe("searchOptions", () => {
 
     expect((await searchOptions(root, 50)).topK).toBe(5)
     expect((await searchOptions(root, 2)).topK).toBe(2)
-    expect((await searchOptions(root, undefined)).topK).toBe(5)
+    expect((await searchOptions(root, undefined)).topK).toBe(3)
     expect((await searchOptions(root, 2, 20)).contextRadius).toBe(3)
     expect(
       await searchOptions(

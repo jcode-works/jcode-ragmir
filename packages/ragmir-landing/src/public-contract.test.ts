@@ -26,6 +26,10 @@ const librarySource = readFileSync(
   fileURLToPath(new URL("./components/library-section.tsx", import.meta.url)),
   "utf8",
 )
+const agentsSource = readFileSync(
+  fileURLToPath(new URL("./components/sections/agents.astro", import.meta.url)),
+  "utf8",
+)
 const buttonSource = readFileSync(
   fileURLToPath(new URL("./components/ui/button.tsx", import.meta.url)),
   "utf8",
@@ -205,17 +209,21 @@ describe("landing public contract", () => {
     expect(coreMcpSource).toContain('"ragmir_search"')
     expect(coreMcpSource).toContain("topK: z.number()")
     expect(coreMcpSource).toContain("compact: z.boolean().optional()")
+    expect(coreMcpSource).toContain("const DEFAULT_MCP_TOP_K = 3")
+    expect(coreMcpSource).toContain("compact !== false")
     expect(
       mcpKeys.every((key) =>
         [en[key as keyof typeof en], fr[key as keyof typeof fr]].every(
           (value) =>
             typeof value === "string" &&
             value.includes("ragmir_search") &&
-            value.includes("topK") &&
-            value.includes("compact: true"),
+            !value.includes("topK") &&
+            !value.includes("compact"),
         ),
       ),
     ).toBe(true)
+    expect(en.agents_text).toContain("three compact citations by default")
+    expect(fr.agents_text).toContain("trois citations compactes par défaut")
     expect(en.demo_youtube_script_research).toContain("--no-code --compact --json")
     expect(fr.demo_visa_script_research).toContain("--no-code --compact --json")
     expect(
@@ -255,9 +263,25 @@ describe("landing public contract", () => {
     expect(fr.faq_offline_answer).toContain("--no-fetch")
   })
 
+  it("should present portable knowledge folders without claiming action authority", () => {
+    expect(en.agents_portable_command).toBe("npx rgr portable export")
+    expect(fr.agents_portable_command).toBe("npx rgr portable export")
+    expect(en.faq_portable_answer).toContain("SHA-256")
+    expect(fr.faq_portable_answer).toContain("SHA-256")
+    expect(en.faq_portable_answer).toContain("action authority")
+    expect(fr.faq_portable_answer).toContain("autorité d'action")
+    expect(en.faq_portable_answer).toContain("--replace")
+    expect(fr.faq_portable_answer).toContain("--replace")
+    expect(en.faq_portable_answer).toContain("timestamped backup")
+    expect(fr.faq_portable_answer).toContain("sauvegarde horodatée")
+    expect(agentsSource).toContain('t("agents_portable_title")')
+    expect(agentsSource).toContain('t("agents_portable_command")')
+    expect(coreCliSource).toContain('.command("portable")')
+  })
+
   it("should keep visible FAQs and localized FAQ structured data on one content source", () => {
-    expect(getFaqItems(en)).toHaveLength(10)
-    expect(getFaqItems(fr)).toHaveLength(10)
+    expect(getFaqItems(en)).toHaveLength(11)
+    expect(getFaqItems(fr)).toHaveLength(11)
     expect(homePageSource).toContain('"@type": "FAQPage"')
     expect(homePageSource).toContain("mainEntity: faqItems.map")
     expect(homePageSource).toContain('"@type": "Question"')
