@@ -6,7 +6,8 @@ retrieval offline. Core is model-agnostic, never uploads the corpus, and never c
 
 For an interactive repository-aware installation, paste the canonical prompt from the
 [quick-start guide](./quick-start.md) into the coding agent. It detects the package manager and
-existing Ragmir state, asks one approval batch, then configures and verifies the selected clients.
+existing Ragmir state, proposes safe inferred defaults, asks for one approval, then configures and
+verifies the selected clients.
 
 Choose the handoff that matches the corpus:
 
@@ -47,6 +48,55 @@ Use `--scope user` only when you intentionally want a user-wide installation. Pr
 default. Codex skills use `.agents/skills/` for both project and user discovery. `--mode copy` is a
 fallback for filesystems that cannot follow symlinks. Ragmir refuses to overwrite an unmanaged
 same-name skill unless you explicitly pass `--force` after reviewing it.
+
+## Move a frozen knowledge base to another host
+
+Use a portable folder when an agent, automation, or server needs cited evidence but should not
+receive the original project tree:
+
+```bash
+rgr portable export --output ../operations-knowledge
+```
+
+Move the complete directory to a Node.js 22 host with the platform recorded in `manifest.json`, then
+verify it at the destination. The runtime and its native retrieval dependencies are embedded, so no
+package-manager install or registry access is needed after transfer:
+
+```bash
+cd /srv/operations-knowledge
+node bin/rgr.cjs portable verify . --json
+node bin/configure.cjs --list
+node bin/configure.cjs openclaw
+```
+
+For a destination path already used by agents, publish the next source revision with
+`rgr portable export --output /absolute/stable/path --replace`. Ragmir verifies the new folder first
+and preserves the old one as a timestamped sibling. Restart long-running agent processes after the
+switch, then retire the previous folder only after a representative query succeeds.
+
+Dedicated configuration output is available for OpenClaw, Claude, Codex, Kimi, OpenCode, and Cline.
+For OpenClaw, register the generated read-only server object then probe it:
+
+```bash
+openclaw mcp set ragmir "$(node bin/configure.cjs openclaw)"
+openclaw mcp doctor ragmir --probe
+```
+
+Hermes can use the generic MCP stdio configuration. n8n, CI, or a custom service can use the same MCP
+contract or invoke `node bin/rgr.cjs search ... --json` with an argument array. Do not concatenate an
+untrusted query into a shell command.
+
+Load `skills/ragmir-portable` for retrieval behavior and `skills/ragmir-decision-evidence` when an
+agent must compare options. The decision skill requires cited evidence, explicit inference and
+unknowns, and keeps action authority in the host. A knowledge-base result never authorizes a
+deployment, message, purchase, deletion, or other external side effect.
+
+The bundle is frozen. Its launcher rejects ingest, setup, repair, upgrade, storage, source, and
+deletion commands. Its MCP surface omits `ragmir_evaluate` because that operation can persist a
+quality report. Replace the bundle with a new export when source knowledge changes. Raw documents
+and access logs are excluded, but indexed passages are present and sensitive. See
+[Portable knowledge bases](./portable-knowledge-bases.md) for the complete contents, integrity
+model, runtime prerequisite, and network boundary.
 
 ## Monorepo bases
 
@@ -196,8 +246,12 @@ files.
 
 ### Retrieve bounded evidence
 
-Use compact retrieval first, then pass a returned citation to `ragmir_expand` when the agent needs
-the exact chunk or a bounded neighbor window. Search, ask, research, expansion, audit, and evaluation
+MCP search, ask, and research start with at most three compact document citations when `topK` and
+`compact` are omitted; research may add up to three code matches. Pass one returned citation to
+`ragmir_expand` when the agent needs the exact chunk or a
+bounded neighbor window. Use `compact: false` with an explicit `topK` only when the complete
+retrieval payload is required. CLI output is unchanged and needs an explicit `--compact` flag.
+Search, ask, research, expansion, audit, and evaluation
 accept `maxBytes`. Variable-size tool and resource JSON is bounded by `mcpMaxOutputBytes` and an
 absolute 1 MiB server ceiling; every response has an explicit full or summary schema. Responses
 stay parseable, while `_meta["ragmir/output"]` reports the active budget, returned bytes, and
@@ -220,6 +274,9 @@ ignored local state or append metadata-only access logs. `ragmir_evaluate` accep
 project-relative golden file; absolute paths, traversal, and symlinks that escape the project are
 rejected. Strict mode returns that relative path, replaces evaluation failures with a generic
 message, and masks configured model, storage, source, and access-log paths in diagnostic responses.
+The server also publishes concise protocol instructions for the context, compact retrieval,
+single-citation expansion, and read-only evidence flow, so compatible clients do not need to infer
+the sequence from tool names.
 
 The generated helpers cover Claude Code, Codex, Kimi, OpenCode, and Cline. Other tools can consume
 the same evidence through the CLI, TypeScript API, or any compatible MCP client. Hermes, n8n

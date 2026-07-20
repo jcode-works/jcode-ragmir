@@ -1062,17 +1062,20 @@ async function smokeMcp(cwd) {
 
     const search = await client.request("tools/call", {
       name: "ragmir_search",
-      arguments: { query: "French tax residency", topK: 1, contextRadius: 1 },
+      arguments: { query: "French tax residency" },
     })
     const searchJson = parseJson(mcpText(search), "MCP search JSON")
     if (
       !Array.isArray(searchJson) ||
       searchJson.length !== 1 ||
       !searchJson[0].citation.includes("tax.md:L") ||
-      !Array.isArray(searchJson[0].context) ||
-      searchJson[0].context.length < 1
+      typeof searchJson[0].snippet !== "string" ||
+      "text" in searchJson[0] ||
+      "context" in searchJson[0]
     ) {
-      throw new Error(`MCP search should retrieve line-aware context chunks: ${mcpText(search)}`)
+      throw new Error(
+        `MCP search should return one compact line-aware citation: ${mcpText(search)}`,
+      )
     }
 
     const boundedSearch = await client.request("tools/call", {
@@ -1110,23 +1113,29 @@ async function smokeMcp(cwd) {
 
     const ask = await client.request("tools/call", {
       name: "ragmir_ask",
-      arguments: { query: "What proves the French tax residency risk?", topK: 1, contextRadius: 1 },
+      arguments: { query: "What proves the French tax residency risk?" },
     })
     const askJson = parseJson(mcpText(ask), "MCP ask JSON")
     if (
-      !askJson.answer?.includes(":L") ||
+      !askJson.answer?.includes("compact cited retrieval") ||
       !Array.isArray(askJson.sources) ||
-      askJson.sources.length !== 1 ||
-      typeof askJson.sources[0].citation !== "string" ||
-      !askJson.sources[0].citation.includes(":L") ||
-      !Array.isArray(askJson.sources[0].context)
+      askJson.sources.length < 1 ||
+      askJson.sources.length > 2 ||
+      askJson.sources.some(
+        (source) =>
+          typeof source.citation !== "string" ||
+          !source.citation.includes(":L") ||
+          typeof source.snippet !== "string" ||
+          "text" in source ||
+          "context" in source,
+      )
     ) {
       throw new Error(`MCP ask should return cited retrieval context: ${mcpText(ask)}`)
     }
 
     const research = await client.request("tools/call", {
       name: "ragmir_research",
-      arguments: { query: "French tax residency", topK: 2, compact: true },
+      arguments: { query: "French tax residency" },
     })
     const researchJson = parseJson(mcpText(research), "MCP research JSON")
     if (!Array.isArray(researchJson.evidence) || researchJson.evidence.length < 1) {

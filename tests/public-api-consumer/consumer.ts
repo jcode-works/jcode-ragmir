@@ -8,8 +8,11 @@ import {
   createRagmirClient,
   createTeamSnapshot,
   doctor,
+  disposeTransformersCache,
+  disposeTransformersModel,
   enableSemanticEmbeddings,
   evaluateGoldenQueries,
+  exportPortableKnowledgeBase,
   flushAccessLog,
   getKnowledgeBaseContext,
   getKnowledgeBaseSourceCatalog,
@@ -18,14 +21,20 @@ import {
   inspectUpgrade,
   isRagmirError,
   pullEmbeddingModel,
+  portableKnowledgeBaseManifestSchema,
   redactText,
   research,
   search,
   securityAudit,
   syncTeamKnowledge,
+  type CreateMcpServerOptions,
+  type ExportPortableKnowledgeBaseResult,
+  type PortableKnowledgeBaseManifest,
+  type PortableKnowledgeBaseVerification,
   type TeamSnapshot,
   type TeamSyncReport,
   upgradeProject,
+  verifyPortableKnowledgeBase,
   type Config,
   type AccessLogWriterMetrics,
   type EnableSemanticEmbeddingsResult,
@@ -131,7 +140,22 @@ void createTeamSnapshot({ cwd, label: "local" }).then((snapshot: TeamSnapshot) =
 void syncTeamKnowledge({ cwd, check: true }).then((report: TeamSyncReport) => report.synchronized)
 void inspectUpgrade(cwd)
 void upgradeProject({ cwd })
-void createMcpServer(cwd)
+void exportPortableKnowledgeBase({
+  cwd,
+  name: "Operations knowledge",
+  replaceExisting: true,
+  ...operationOptions,
+}).then((result: ExportPortableKnowledgeBaseResult) => ({
+  outputDir: result.outputDir,
+  previousOutputDir: result.previousOutputDir,
+}))
+void verifyPortableKnowledgeBase(cwd).then(
+  (result: PortableKnowledgeBaseVerification) => result.valid,
+)
+declare const portableManifest: PortableKnowledgeBaseManifest
+void portableKnowledgeBaseManifestSchema.parse(portableManifest)
+const portableMcpOptions = { portableReadOnly: true } satisfies CreateMcpServerOptions
+void createMcpServer(cwd, portableMcpOptions)
 type McpTransport = Parameters<typeof connectMcpServer>[0]
 declare const transport: McpTransport
 void connectMcpServer(transport, cwd)
@@ -141,6 +165,8 @@ void renderSpeech(speechOptions)
 
 declare const config: Config
 const accessLogMetrics: AccessLogWriterMetrics = accessLogWriterMetrics(config)
+const disposedModels: Promise<void> = disposeTransformersCache()
+const disposedModel: Promise<void> = disposeTransformersModel(config)
 const flushedAccessLog: Promise<AccessLogWriterMetrics> = flushAccessLog(config)
 const semanticResult: Promise<EnableSemanticEmbeddingsResult> = enableSemanticEmbeddings(cwd)
 const pullResult: Promise<PullEmbeddingModelResult> = pullEmbeddingModel(config)
@@ -151,6 +177,8 @@ const overloadedErrorCode: RagmirErrorCode = "OVERLOADED"
 
 void semanticResult
 void accessLogMetrics
+void disposedModels
+void disposedModel
 void flushedAccessLog
 void pullResult
 void redactions
