@@ -16,9 +16,18 @@ if (!Array.isArray(config.branches) || !config.branches.includes("main")) {
 
 const plugins = config.plugins ?? []
 const pluginName = (plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)
-if (!plugins.some((plugin) => pluginName(plugin) === "@semantic-release/commit-analyzer")) {
+const commitAnalyzer = plugins.find(
+  (plugin) => pluginName(plugin) === "@semantic-release/commit-analyzer",
+)
+if (!commitAnalyzer) {
   throw new Error("semantic-release commit analyzer plugin is missing")
 }
+const releaseRules = Array.isArray(commitAnalyzer) ? commitAnalyzer[1]?.releaseRules : []
+assert.equal(
+  releaseRules?.find((rule) => rule.scope === "landing")?.release,
+  false,
+  "landing-scoped commits must not create a semantic release",
+)
 if (!plugins.some((plugin) => pluginName(plugin) === "./scripts/semantic-release-notes.mjs")) {
   throw new Error("semantic-release curated release notes plugin is missing")
 }

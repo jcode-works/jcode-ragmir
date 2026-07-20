@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import en from "../messages/en.json"
 import fr from "../messages/fr.json"
 import { findHeroDemoScenario, HERO_DEMO_SCENARIOS } from "./components/hero-demo-script.js"
+import { USE_CASES } from "./components/use-case-carousel.js"
 import { getFaqItems } from "./content/faq.js"
 import { RAGMIR_SETUP_PROMPT } from "./content/setup-prompt.js"
 import { getLocalizedUrl, loadTranslations, useTranslations } from "./i18n/utils.js"
@@ -183,6 +184,31 @@ describe("landing public contract", () => {
     ]).filter((key): key is string => typeof key === "string")
 
     expect(referencedKeys.every((key) => key in en && key in fr)).toBe(true)
+  })
+
+  it("should keep the OpenClaw export second in both landing showcases", () => {
+    const openclawScenario = HERO_DEMO_SCENARIOS[1]
+    const shellCommands = openclawScenario?.lines.flatMap((line) =>
+      line.kind === "shell" && line.text ? [line.text] : [],
+    )
+
+    expect({
+      heroOrder: HERO_DEMO_SCENARIOS.slice(0, 2).map((scenario) => scenario.id),
+      workflowOrder: USE_CASES.slice(0, 2).map((useCase) => useCase.id),
+      portableExport: shellCommands?.includes(
+        "npx rgr portable export --output ~/knowledge/ragmir-openclaw --replace",
+      ),
+      openclawRegistration: shellCommands?.includes(
+        'openclaw mcp set ragmir "$(node bin/configure.cjs openclaw)"',
+      ),
+      openclawProbe: shellCommands?.includes("openclaw mcp doctor ragmir --probe"),
+    }).toEqual({
+      heroOrder: ["word", "openclaw"],
+      workflowOrder: ["spec", "openclaw"],
+      portableExport: true,
+      openclawRegistration: true,
+      openclawProbe: true,
+    })
   })
 
   it("should keep hero terminal stories aligned with the current CLI and MCP contracts", () => {
