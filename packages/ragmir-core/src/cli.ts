@@ -656,6 +656,11 @@ program
   .argument("<query>", "Search query.")
   .option("-k, --top-k <number>", "Number of passages to return.", parsePositiveInt)
   .option(
+    "--max-chunks-per-document <number>",
+    "Maximum primary passages per document before ranked backfill.",
+    parsePositiveInt,
+  )
+  .option(
     "--context-radius <number>",
     "Include neighboring chunks around each matched passage.",
     parseNonNegativeInt,
@@ -687,6 +692,7 @@ program
       query: string,
       options: {
         topK?: number
+        maxChunksPerDocument?: number
         contextRadius?: number
         includePath: string[]
         excludePath: string[]
@@ -729,7 +735,7 @@ program
           const lexicalRank = result.score.lexicalRank ?? "n/a"
           console.log(
             pc.dim(
-              `score=${result.score.combinedScore.toFixed(6)} fusion=${result.score.fusion} vector=${result.score.vectorContribution.toFixed(6)} lexical=${result.score.lexicalContribution.toFixed(6)} vectorRank=${vectorRank} lexicalRank=${lexicalRank} matchedTerms=${result.score.matchedTerms.join(",") || "n/a"}`,
+              `score=${result.score.combinedScore.toFixed(6)} fusion=${result.score.fusion} vector=${result.score.vectorContribution.toFixed(6)} lexical=${result.score.lexicalContribution.toFixed(6)} vectorRank=${vectorRank} lexicalRank=${lexicalRank} documentCap=${result.score.maxChunksPerDocument} diversityBackfill=${result.score.diversityBackfillActivated} matchedTerms=${result.score.matchedTerms.join(",") || "n/a"}`,
             ),
           )
         }
@@ -742,6 +748,11 @@ program
   .description("Return cited retrieval context for a question without calling an LLM.")
   .argument("<query>", "Question to answer.")
   .option("-k, --top-k <number>", "Number of passages to use.", parsePositiveInt)
+  .option(
+    "--max-chunks-per-document <number>",
+    "Maximum primary passages per document before ranked backfill.",
+    parsePositiveInt,
+  )
   .option(
     "--context-radius <number>",
     "Include neighboring chunks around each matched passage.",
@@ -773,6 +784,7 @@ program
       query: string,
       options: {
         topK?: number
+        maxChunksPerDocument?: number
         contextRadius?: number
         includePath: string[]
         excludePath: string[]
@@ -1919,6 +1931,7 @@ function withSearchOptions(
   cwd: string,
   options: {
     topK?: number
+    maxChunksPerDocument?: number
     contextRadius?: number
     includePath?: string[]
     excludePath?: string[]
@@ -1929,6 +1942,7 @@ function withSearchOptions(
 ): {
   cwd: string
   topK?: number
+  maxChunksPerDocument?: number
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
@@ -1939,6 +1953,7 @@ function withSearchOptions(
   const result: {
     cwd: string
     topK?: number
+    maxChunksPerDocument?: number
     contextRadius?: number
     includePaths?: string[]
     excludePaths?: string[]
@@ -1947,6 +1962,7 @@ function withSearchOptions(
     vectorSearchMode?: "exact"
   } = { cwd }
   addOption(result, "topK", options.topK)
+  addOption(result, "maxChunksPerDocument", options.maxChunksPerDocument)
   addOption(result, "contextRadius", options.contextRadius)
   addPathFilters(result, options)
   addOption(result, "explain", options.explain)

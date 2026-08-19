@@ -179,6 +179,7 @@ describe("evaluateGoldenQueries", () => {
 
     expect(report.total).toBe(4)
     expect(report.embeddingProvider).toBe("local-hash")
+    expect(report.maxChunksPerDocument).toBe(1)
     expect(report.misses).toBe(0)
     expect(report.hitRate).toBe(1)
     expect(report.recall).toBeGreaterThan(0)
@@ -332,6 +333,48 @@ describe("evaluateGoldenQueries", () => {
 
     expect(report.ndcg).toBeLessThanOrEqual(1)
     expect(report.cases[0]?.ndcg).toBeLessThanOrEqual(1)
+  })
+
+  it("should apply document diversification to evaluation cases", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-diversity-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 80, chunkOverlap: 0, maxChunksPerDocument: 1 }),
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "dominant.md"),
+      Array.from(
+        { length: 8 },
+        (_value, index) =>
+          `# Dominant ${index + 1}\n\nShared-orbit evaluation evidence ${index + 1} repeats the validation workflow.`,
+      ).join("\n\n"),
+    )
+    for (const name of ["secondary", "tertiary", "expected"]) {
+      await writeFile(
+        path.join(root, ".ragmir", "raw", `${name}.md`),
+        `Shared-orbit evaluation evidence records the ${name} validation workflow.\n`,
+      )
+    }
+    await writeFile(
+      path.join(root, "golden.json"),
+      JSON.stringify([
+        {
+          query: "shared-orbit evaluation evidence validation workflow",
+          expectedPaths: [".ragmir/raw/expected.md"],
+          topK: 4,
+        },
+      ]),
+    )
+    await ingest({ cwd: root })
+
+    const report = await evaluateGoldenQueries({ cwd: root, goldenPath: "golden.json" })
+    const result = report.cases[0]
+
+    expect(result?.hit).toBe(true)
+    expect(new Set(result?.returnedPaths).size).toBe(4)
   })
 
   it("applies source filters declared by each golden query", async () => {

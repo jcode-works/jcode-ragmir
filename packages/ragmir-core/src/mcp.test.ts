@@ -261,6 +261,8 @@ describe("MCP protocol contract", () => {
       arguments: {
         query: "reviewed production release approval decision",
         topK: 5,
+        maxChunksPerDocument: 2,
+        explain: true,
         compact: false,
       },
     })
@@ -268,6 +270,10 @@ describe("MCP protocol contract", () => {
     expect(fullPayload).toHaveLength(5)
     expect(fullPayload[0]).toHaveProperty("text")
     expect(fullPayload[0]).not.toHaveProperty("snippet")
+    expect(fullPayload[0]?.score).toMatchObject({
+      diversityStrategy: "document-cap",
+      maxChunksPerDocument: 2,
+    })
     expect(full._meta?.["ragmir/output"]).toMatchObject({
       compacted: false,
       truncated: false,
@@ -409,7 +415,7 @@ describe("MCP protocol contract", () => {
     const { client } = await connectTestClient(root)
 
     const status = await jsonToolResult(client, "ragmir_status", {})
-    expect(status).toMatchObject({ chunksIndexed: 1, ready: true })
+    expect(status).toMatchObject({ chunksIndexed: 1, ready: true, maxChunksPerDocument: 1 })
     expect(status.corpusFingerprint).toMatch(/^[0-9a-f]{64}$/u)
 
     const route = await jsonToolResult(client, "ragmir_route_prompt", {
@@ -434,8 +440,17 @@ describe("MCP protocol contract", () => {
     const ask = await jsonToolResult(client, "ragmir_ask", {
       query: "What does production deployment require?",
       topK: 1,
+      maxChunksPerDocument: 2,
+      explain: true,
     })
-    expect(ask).toMatchObject({ sources: [{ relativePath: ".ragmir/raw/decision.md" }] })
+    expect(ask).toMatchObject({
+      sources: [
+        {
+          relativePath: ".ragmir/raw/decision.md",
+          score: { maxChunksPerDocument: 2 },
+        },
+      ],
+    })
 
     const research = await jsonToolResult(client, "ragmir_research", {
       query: "production release approval",
@@ -730,10 +745,12 @@ describe("searchOptions", () => {
         [".ragmir/raw/research"],
         ["Operations > Release"],
         true,
+        2,
       ),
     ).toEqual({
       cwd: root,
       topK: 2,
+      maxChunksPerDocument: 2,
       contextRadius: 1,
       includePaths: [".ragmir/raw/primary"],
       excludePaths: [".ragmir/raw/research"],

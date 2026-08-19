@@ -74,12 +74,12 @@
     "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test:coverage && pnpm build && pnpm api:check && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.1",
-    "@commitlint/cli": "^21.1.0",
-    "@commitlint/config-conventional": "^21.1.0",
+    "@biomejs/biome": "^2.5.9",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
     "@semantic-release/exec": "^7.1.0",
-    "@vitest/coverage-v8": "4.1.9",
-    "semantic-release": "^25.0.5",
+    "@vitest/coverage-v8": "4.1.10",
+    "semantic-release": "^25.0.9",
     "yaml": "^2.9.0"
   },
   "main": "index.js",
