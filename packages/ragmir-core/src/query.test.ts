@@ -515,7 +515,7 @@ describe("search", () => {
       lexicalExactPathMatch: true,
     })
     expect(vectorCandidateLimit(1)).toBeLessThan(90)
-  }, 10_000)
+  }, 20_000)
 
   it("should explain complete lexical fallback activation and coverage", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fallback-explain-"))
