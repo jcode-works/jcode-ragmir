@@ -500,6 +500,50 @@ describe("evaluateGoldenQueries", () => {
     expect(caseResult?.bestRank).toBeNull()
   })
 
+  it("should not count evidence below the requested topK as a hit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-top-k-hit-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    for (const index of [1, 2, 3, 4, 5]) {
+      await writeFile(
+        path.join(root, ".ragmir", "raw", `evidence-${index}.md`),
+        `Shared orbit policy evidence records decision ${index}.\n`,
+        "utf8",
+      )
+    }
+    await ingest({ cwd: root })
+    const ranked = await search("shared orbit policy evidence decision", {
+      cwd: root,
+      topK: 10,
+      maxChunksPerDocument: 1,
+    })
+    const belowCutoff = ranked[3]
+    if (!belowCutoff) {
+      throw new Error("Expected at least four ranked results for the topK evaluation fixture.")
+    }
+    await writeFile(
+      path.join(root, "top-k-golden.json"),
+      JSON.stringify([
+        {
+          query: "shared orbit policy evidence decision",
+          expectedPaths: [belowCutoff.relativePath],
+          topK: 3,
+        },
+      ]),
+      "utf8",
+    )
+
+    const report = await evaluateGoldenQueries({ cwd: root, goldenPath: "top-k-golden.json" })
+    const result = report.cases[0]
+
+    expect(result?.returnedPaths[3]).toBe(belowCutoff.relativePath)
+    expect(result?.matchedPaths).toEqual([])
+    expect(result?.hit).toBe(false)
+    expect(result?.bestRank).toBeNull()
+    expect(result?.recallAt[10]).toBe(1)
+  })
+
   it("reports a miss when only the expected path matches an exact citation query", async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-citation-miss-"))
     tempDirs.push(parent)

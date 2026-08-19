@@ -114,6 +114,11 @@ interface ResearchHealthSnapshot {
   sourceDiagnostics: SourceDiagnostics
 }
 
+export interface ResearchDiversityResult {
+  evidence: ResearchEvidence[]
+  backfillActivated: boolean
+}
+
 export async function research(
   query: string,
   options: ResearchOptions = {},
@@ -154,6 +159,7 @@ export async function researchWithConfig(
             {
               cwd: config.projectRoot,
               topK: perQueryTopK,
+              contextRadius: 0,
               ...(options.includePaths ? { includePaths: options.includePaths } : {}),
               ...(options.excludePaths ? { excludePaths: options.excludePaths } : {}),
               ...(options.contextPaths ? { contextPaths: options.contextPaths } : {}),
@@ -170,7 +176,12 @@ export async function researchWithConfig(
         : Promise.resolve(emptyCodeScan()),
     ])
     throwIfAborted(signal)
-    const evidence = rankResearchEvidence(searchResults, normalizedQuery).slice(0, topK)
+    const diversity = selectDiverseResearchEvidence(
+      rankResearchEvidence(searchResults, normalizedQuery),
+      topK,
+      config.maxChunksPerDocument,
+    )
+    const evidence = diversity.evidence
     const codeEvidence = codeScan.evidence
     const gaps = researchGaps({
       indexAvailable: health.indexAvailable,
@@ -214,6 +225,8 @@ export async function researchWithConfig(
       budgets: {
         timeoutMs: options.timeoutMs ?? null,
         evidenceTopK: topK,
+        maxChunksPerDocument: config.maxChunksPerDocument,
+        diversityBackfillActivated: diversity.backfillActivated,
         codeEvidenceTopK: budget.codeTopK,
         codeScanMaxFiles: budget.codeScanMaxFiles,
         codeScanMaxBytes: budget.codeScanMaxBytes,
@@ -265,6 +278,8 @@ export function compactResearchReport(report: ResearchReport): Omit<ResearchRepo
       citation: evidence.citation,
       snippet: compactText(evidence.text),
       distance: evidence.distance,
+      charStart: evidence.charStart,
+      charEnd: evidence.charEnd,
       lineStart: evidence.lineStart,
       lineEnd: evidence.lineEnd,
       pageStart: evidence.pageStart,
@@ -350,6 +365,8 @@ export function rankResearchEvidence(
       citation: result.citation,
       text: result.text,
       distance: result.distance,
+      charStart: result.charStart,
+      charEnd: result.charEnd,
       lineStart: result.lineStart,
       lineEnd: result.lineEnd,
       pageStart: result.pageStart,
@@ -361,6 +378,92 @@ export function rankResearchEvidence(
       researchScore: Number(researchScore.toFixed(12)),
     }))
     .sort(compareResearchEvidence)
+}
+
+export function selectDiverseResearchEvidence(
+  rankedEvidence: ResearchEvidence[],
+  topK: number,
+  maxChunksPerDocument: number,
+): ResearchDiversityResult {
+  const uniqueEvidence = deduplicateResearchText(rankedEvidence)
+  const evidence: ResearchEvidence[] = []
+  const selected = new Set<string>()
+  const perDocument = new Map<string, number>()
+
+  const appendEvidence = (
+    candidate: ResearchEvidence,
+    enforceDocumentCap: boolean,
+    allowOverlap: boolean,
+  ): boolean => {
+    const key = `${candidate.relativePath}\0${candidate.chunkIndex}`
+    if (selected.has(key)) {
+      return false
+    }
+    if (
+      !allowOverlap &&
+      evidence.some((selectedEvidence) => overlapsResearchSpan(selectedEvidence, candidate))
+    ) {
+      return false
+    }
+    const documentCount = perDocument.get(candidate.relativePath) ?? 0
+    if (enforceDocumentCap && documentCount >= maxChunksPerDocument) {
+      return false
+    }
+    evidence.push(candidate)
+    selected.add(key)
+    perDocument.set(candidate.relativePath, documentCount + 1)
+    return true
+  }
+
+  for (const candidate of uniqueEvidence) {
+    appendEvidence(candidate, true, false)
+    if (evidence.length >= topK) {
+      return { evidence, backfillActivated: false }
+    }
+  }
+
+  let backfillActivated = false
+  for (const candidate of uniqueEvidence) {
+    if (appendEvidence(candidate, false, false)) {
+      backfillActivated = true
+    }
+    if (evidence.length >= topK) {
+      return { evidence, backfillActivated }
+    }
+  }
+  for (const candidate of uniqueEvidence) {
+    if (appendEvidence(candidate, false, true)) {
+      backfillActivated = true
+    }
+    if (evidence.length >= topK) {
+      break
+    }
+  }
+  return { evidence, backfillActivated }
+}
+
+function deduplicateResearchText(rankedEvidence: ResearchEvidence[]): ResearchEvidence[] {
+  const textKeys = new Set<string>()
+  return rankedEvidence.filter((evidence) => {
+    const textKey = evidence.text.replace(/\s+/gu, " ").trim().toLowerCase()
+    if (textKeys.has(textKey)) {
+      return false
+    }
+    textKeys.add(textKey)
+    return true
+  })
+}
+
+function overlapsResearchSpan(left: ResearchEvidence, right: ResearchEvidence): boolean {
+  return (
+    left.relativePath === right.relativePath &&
+    typeof left.charStart === "number" &&
+    typeof left.charEnd === "number" &&
+    typeof right.charStart === "number" &&
+    typeof right.charEnd === "number" &&
+    left.charStart < right.charEnd &&
+    right.charStart < left.charEnd
+  )
 }
 
 async function researchHealthSnapshot(

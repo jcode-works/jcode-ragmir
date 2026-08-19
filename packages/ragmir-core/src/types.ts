@@ -648,8 +648,8 @@ export interface SearchContextChunk {
   chunkIndex: number
   contextPath: string
   text: string
-  charStart: number | null
-  charEnd: number | null
+  charStart?: number | null
+  charEnd?: number | null
   lineStart: number | null
   lineEnd: number | null
   pageStart: number | null
@@ -770,6 +770,8 @@ export interface ResearchEvidence {
   citation: string
   text: string
   distance: number | null
+  charStart: number | null
+  charEnd: number | null
   lineStart: number | null
   lineEnd: number | null
   pageStart: number | null
@@ -813,6 +815,8 @@ export interface ResearchReport {
   budgets: {
     timeoutMs: number | null
     evidenceTopK: number
+    maxChunksPerDocument: number
+    diversityBackfillActivated: boolean
     codeEvidenceTopK: number
     codeScanMaxFiles: number
     codeScanMaxBytes: number

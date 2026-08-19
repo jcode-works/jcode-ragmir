@@ -435,6 +435,41 @@ describe("search", () => {
     })
   })
 
+  it("should preserve exact source path matches when the FTS index is unavailable", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-path-fallback-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "policy.md"),
+      "Routine evidence without query terms.\n",
+    )
+    await Promise.all(
+      Array.from({ length: 120 }, (_entry, index) =>
+        writeFile(
+          path.join(root, ".ragmir", "raw", `distractor-${String(index).padStart(3, "0")}.md`),
+          `Ragmir raw policy md distractor evidence ${index}.\n`,
+        ),
+      ),
+    )
+    await ingest({ cwd: root })
+    const table = await openRowsTable(await loadConfig(root))
+    await table?.dropIndex("searchText_idx")
+
+    const [result] = await search(".ragmir/raw/policy.md", {
+      cwd: root,
+      topK: 1,
+      explain: true,
+    })
+
+    expect(result?.relativePath).toBe(".ragmir/raw/policy.md")
+    expect(result?.score).toMatchObject({
+      lexicalBackend: "fallback",
+      lexicalExactPathMatch: true,
+    })
+    expect(vectorCandidateLimit(1)).toBeLessThan(120)
+  }, 10_000)
+
   it("should explain complete lexical fallback activation and coverage", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fallback-explain-"))
     tempDirs.push(root)
