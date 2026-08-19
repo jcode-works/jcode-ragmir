@@ -182,19 +182,20 @@ describe("MCP output budgeting", () => {
     })
   })
 
-  it.each([
-    1_024, 32_768, 1_048_576,
-  ])("should preserve the best citation within a %i-byte generated output budget", (budget) => {
-    for (let seed = 1; seed <= 25; seed += 1) {
-      const results: McpSearchPayload = Array.from({ length: (seed % 8) + 1 }, (_value, index) =>
-        searchResult(`${"évidence ".repeat(seed * 9 + index * 3)}${index}`),
-      )
-      const fitted = fitSearchPayload(results, budget)
+  it.each([1_024, 32_768, 1_048_576])(
+    "should preserve the best citation within a %i-byte generated output budget",
+    (budget) => {
+      for (let seed = 1; seed <= 25; seed += 1) {
+        const results: McpSearchPayload = Array.from({ length: (seed % 8) + 1 }, (_value, index) =>
+          searchResult(`${"évidence ".repeat(seed * 9 + index * 3)}${index}`),
+        )
+        const fitted = fitSearchPayload(results, budget)
 
-      expect(Buffer.byteLength(JSON.stringify(fitted.value), "utf8")).toBeLessThanOrEqual(budget)
-      expect(fitted.value[0]?.citation).toBe(results[0]?.citation)
-    }
-  })
+        expect(Buffer.byteLength(JSON.stringify(fitted.value), "utf8")).toBeLessThanOrEqual(budget)
+        expect(fitted.value[0]?.citation).toBe(results[0]?.citation)
+      }
+    },
+  )
 
   it("should reject oversized generic output without a typed compact schema", () => {
     expect(() =>

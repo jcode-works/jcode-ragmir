@@ -5,7 +5,9 @@ packages:
 strictDepBuilds: true
 
 overrides:
+  "@huggingface/transformers@4.2.0>sharp": 0.35.3
   "adm-zip@<0.6.0": ^0.6.0
+  "onnxruntime-web@1.26.0-dev.20260416-b7804b056c>protobufjs": 7.6.5
   yaml: ^2.9.0
 
 allowBuilds:

@@ -11,7 +11,7 @@ import type {
   SetupChatModelResult,
 } from "./types.js"
 
-export const NODE_LLAMA_RUNTIME_VERSION = "3.19.0" as const
+export const NODE_LLAMA_RUNTIME_VERSION = "3.20.0" as const
 export const DEFAULT_CHAT_PROFILE: ChatModelProfile = "fast"
 export const DEFAULT_CHAT_MODEL_PATH = ".ragmir/models/chat"
 export const CHAT_MODEL_MANIFEST_FILE = "manifest.json"
