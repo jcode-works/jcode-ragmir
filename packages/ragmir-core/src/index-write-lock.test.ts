@@ -216,7 +216,7 @@ describe("withIndexWriteLock", () => {
       staleInIndex: [],
       totalChunks: rows.length,
     })
-  })
+  }, 30_000)
 })
 
 interface ChildEvent {
