@@ -21,9 +21,10 @@ export interface RankedRow<Row extends RankingRow = RankingRow> {
 }
 
 export interface RankingPolicy {
-  version: 2
+  version: 3
   embeddingProvider: EmbeddingProvider
   retrievalProfile: RetrievalProfile
+  maxChunksPerDocument: number
   rrfK: number
   vectorWeight: number
   lexicalWeight: number
@@ -49,11 +50,13 @@ const IDENTIFIER_PATTERN = /[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)+/gu
 export function rankingPolicyFor(
   embeddingProvider: EmbeddingProvider,
   retrievalProfile: RetrievalProfile,
+  maxChunksPerDocument: number,
 ): RankingPolicy {
   return {
-    version: 2,
+    version: 3,
     embeddingProvider,
     retrievalProfile,
+    maxChunksPerDocument,
     rrfK: RRF_K,
     vectorWeight: RRF_VECTOR_WEIGHT,
     lexicalWeight: RRF_LEXICAL_WEIGHT,

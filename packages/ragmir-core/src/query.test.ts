@@ -66,6 +66,16 @@ describe("search", () => {
       code: "INVALID_ARGUMENT",
       message: "topK must be at most 100.",
     } satisfies Partial<RagmirError>)
+    for (const maxChunksPerDocument of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(search("policy", { cwd: root, maxChunksPerDocument })).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+        message: "maxChunksPerDocument must be a positive integer.",
+      } satisfies Partial<RagmirError>)
+    }
+    await expect(search("policy", { cwd: root, maxChunksPerDocument: 101 })).rejects.toMatchObject({
+      code: "INVALID_ARGUMENT",
+      message: "maxChunksPerDocument must be at most 100.",
+    } satisfies Partial<RagmirError>)
     for (const contextRadius of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       await expect(search("policy", { cwd: root, contextRadius })).rejects.toMatchObject({
         code: "INVALID_ARGUMENT",
@@ -148,6 +158,43 @@ describe("search", () => {
         ).toBe(false)
       }
     }
+  })
+
+  it("should diversify primary results across documents before ranked backfill", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-document-diversity-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 80, chunkOverlap: 0, retrievalProfile: "quality" }),
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "dominant.md"),
+      Array.from(
+        { length: 8 },
+        (_value, index) =>
+          `# Dominant ${index + 1}\n\nShared-orbit validation evidence ${index + 1} repeats the primary workflow and authority.`,
+      ).join("\n\n"),
+    )
+    for (const name of ["secondary", "tertiary", "quaternary"]) {
+      await writeFile(
+        path.join(root, ".ragmir", "raw", `${name}.md`),
+        `Shared-orbit validation evidence records the ${name} workflow and authority.\n`,
+      )
+    }
+    await ingest({ cwd: root })
+
+    const results = await search("shared-orbit validation evidence workflow authority", {
+      cwd: root,
+      topK: 4,
+      explain: true,
+    })
+
+    expect(results).toHaveLength(4)
+    expect(new Set(results.map((result) => result.relativePath)).size).toBe(4)
+    expect(results.every((result) => result.score?.maxChunksPerDocument === 1)).toBe(true)
+    expect(results.every((result) => result.score?.diversityBackfillActivated === false)).toBe(true)
   })
 
   it("uses lexical evidence in addition to vector candidates", async () => {
@@ -326,6 +373,10 @@ describe("search", () => {
     expect(score?.vectorDistance).toBe(explained[0]?.distance)
     expect(score?.lexicalBackendScore).toBeGreaterThan(0)
     expect(score?.lexicalFallbackReason).toBeNull()
+    expect(score?.lexicalScanBatches).toBe(0)
+    expect(score?.diversityStrategy).toBe("document-cap")
+    expect(score?.maxChunksPerDocument).toBe(1)
+    expect(score?.diversityBackfillActivated).toBe(false)
     expect(score?.workloadQueueMs).toBeGreaterThanOrEqual(0)
     expect(score?.matchedTerms).toEqual(expect.arrayContaining(["token", "rotation", "evidence"]))
   })
@@ -357,7 +408,7 @@ describe("search", () => {
     expect(results[0]?.relativePath).toBe(".ragmir/raw/zeta.md")
   })
 
-  it("should reject a silently truncated lexical fallback", async () => {
+  it("should scan a complete lexical fallback in bounded batches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-truncated-fallback-"))
     tempDirs.push(root)
     await initProject(root)
@@ -372,8 +423,15 @@ describe("search", () => {
     const table = await openRowsTable(await loadConfig(root))
     await table?.dropIndex("searchText_idx")
 
-    await expect(search("zeta evidence", { cwd: root })).rejects.toMatchObject({
-      code: "INDEX_UNAVAILABLE",
+    const [result] = await search("zeta evidence", { cwd: root, topK: 1, explain: true })
+
+    expect(result?.relativePath).toBe(".ragmir/raw/zeta.md")
+    expect(result?.score).toMatchObject({
+      lexicalBackend: "fallback",
+      lexicalFallbackActivated: true,
+      lexicalScanBatches: 2,
+      lexicalCandidatesMaterialized: 2,
+      lexicalCoverage: 1,
     })
   })
 

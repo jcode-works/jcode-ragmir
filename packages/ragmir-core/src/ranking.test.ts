@@ -13,7 +13,7 @@ describe("hybrid ranking", () => {
   it("should keep ranks invariant when tied candidates arrive in a different order", () => {
     const alpha = row("alpha.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const beta = row("beta.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
-    const policy = rankingPolicyFor("local-hash", "balanced")
+    const policy = rankingPolicyFor("local-hash", "balanced", 1)
 
     const forward = rankHybridRows("policy evidence", [beta, alpha], [alpha, beta], policy)
     const reversed = rankHybridRows("policy evidence", [alpha, beta], [beta, alpha], policy)
@@ -26,7 +26,7 @@ describe("hybrid ranking", () => {
   })
 
   it("should require the strongest local-hash identifier evidence", () => {
-    const policy = rankingPolicyFor("local-hash", "balanced")
+    const policy = rankingPolicyFor("local-hash", "balanced", 1)
     const exact = row("exact.md", "Group identifier BENCH-GROUP-04.", { distance: 1.2 })
     const section = row("section.md", "BENCH-GROUP-09 section 04 evidence.", { distance: 0.2 })
     const typo = row("typo.md", "Evidence identifier BENCH-DOC-0000053-ahajfbuv.", {
@@ -43,7 +43,7 @@ describe("hybrid ranking", () => {
   })
 
   it("should calibrate Transformers abstention from lexical support and normalized distance", () => {
-    const policy = rankingPolicyFor("transformers", "balanced")
+    const policy = rankingPolicyFor("transformers", "balanced", 1)
     const semantic = row("semantic.md", "Unrelated surface form.", { distance: 1.09 })
     const negative = row("negative.md", "Unrelated surface form.", { distance: 1.16 })
     const lexical = row("lexical.md", "The quantum-banana control is documented.", {

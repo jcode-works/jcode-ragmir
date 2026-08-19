@@ -239,6 +239,7 @@ async function portableStatus(cwd: string): Promise<Record<string, unknown>> {
     embeddingModelRevision: config.embeddingModelRevision,
     embeddingModelDigest: config.embeddingModelDigest,
     retrievalProfile: config.retrievalProfile,
+    maxChunksPerDocument: config.maxChunksPerDocument,
     sourceFilesIncluded: false,
     indexedPassagesIncluded: true,
     accessLogsIncluded: false,

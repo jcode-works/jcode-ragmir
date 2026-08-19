@@ -174,12 +174,13 @@ describe("getLexicalScanWarning", () => {
     expect(getLexicalScanWarning(config, 5000)).toBeNull()
   })
 
-  it("warns when the chunk count exceeds the limit", () => {
-    const config = testConfig({ hybridTextScanLimit: 5000 })
-    const warning = getLexicalScanWarning(config, 8000)
+  it("describes complete batched fallback when the chunk count exceeds one batch", () => {
+    const config = testConfig({ hybridTextScanLimit: 10_000 })
+    const warning = getLexicalScanWarning(config, 10_065)
     expect(warning).not.toBeNull()
-    expect(warning).toContain("5000")
-    expect(warning).toContain("8000")
-    expect(warning).toContain("hybridTextScanLimit")
+    expect(warning).toContain("10000")
+    expect(warning).toContain("10065")
+    expect(warning).toContain("2 batches")
+    expect(warning).toContain("scan all")
   })
 })

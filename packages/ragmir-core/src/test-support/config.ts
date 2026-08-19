@@ -38,6 +38,7 @@ export function testConfig(
     mcpMaxTopK: DEFAULT_CONFIG.mcpMaxTopK,
     mcpMaxOutputBytes: DEFAULT_CONFIG.mcpMaxOutputBytes,
     topK: DEFAULT_CONFIG.topK,
+    maxChunksPerDocument: DEFAULT_CONFIG.maxChunksPerDocument,
     chunkSize: DEFAULT_CONFIG.chunkSize,
     chunkOverlap: DEFAULT_CONFIG.chunkOverlap,
     maxFileBytes: DEFAULT_CONFIG.maxFileBytes,

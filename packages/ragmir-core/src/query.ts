@@ -25,6 +25,7 @@ import {
   rankingPolicyFor,
   tokensAreLexicallyRelated,
 } from "./ranking.js"
+import { selectDiverseRows } from "./retrieval-diversity.js"
 import type { IndexReadSnapshot } from "./store.js"
 import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
 import { tokenize } from "./text.js"
@@ -69,14 +70,11 @@ interface SearchRow {
   _score?: number
 }
 
-const VECTOR_CANDIDATE_POLICY: Record<
-  RetrievalProfile,
-  { minimum: number; multiplier: number; maxChunksPerSource: number }
-> = {
-  fast: { minimum: 40, multiplier: 3, maxChunksPerSource: 1 },
-  balanced: { minimum: 80, multiplier: 4, maxChunksPerSource: 2 },
-  quality: { minimum: 200, multiplier: 8, maxChunksPerSource: 4 },
-  custom: { minimum: 80, multiplier: 4, maxChunksPerSource: 2 },
+const VECTOR_CANDIDATE_POLICY: Record<RetrievalProfile, { minimum: number; multiplier: number }> = {
+  fast: { minimum: 40, multiplier: 3 },
+  balanced: { minimum: 80, multiplier: 4 },
+  quality: { minimum: 200, multiplier: 8 },
+  custom: { minimum: 80, multiplier: 4 },
 }
 const LEXICAL_CANDIDATE_POLICY: Record<RetrievalProfile, { minimum: number; multiplier: number }> =
   {
@@ -86,6 +84,7 @@ const LEXICAL_CANDIDATE_POLICY: Record<RetrievalProfile, { minimum: number; mult
     custom: { minimum: 250, multiplier: 20 },
   }
 const MAX_CONTEXT_RADIUS = 3
+const DIVERSITY_CANDIDATE_MULTIPLIER = 4
 const MAX_VECTOR_CANDIDATES = 1_000
 const MAX_LEXICAL_CANDIDATES = 4_000
 const FULL_TEXT_INDEX_NAME = "searchText_idx"
@@ -128,11 +127,12 @@ interface LexicalCandidateSet {
   indexedRows: number
   unindexedRows: number
   coverage: number
+  scanBatches: number
 }
 
 interface LexicalCandidateOptions {
   ftsLimit: number
-  fallbackLimit: number
+  fallbackBatchSize: number
   indexedChunkCount: number
   minimumResults: number
   pathPredicate: string | null
@@ -183,6 +183,10 @@ async function searchWithinGeneration(
 ): Promise<SearchResult[]> {
   const signal = activeSignal ?? operationSignal(options)
   const topK = normalizeTopK(options.topK ?? config.topK)
+  const maxChunksPerDocument = normalizeMaxChunksPerDocument(
+    options.maxChunksPerDocument ?? config.maxChunksPerDocument,
+  )
+  const candidateDemand = diversityCandidateDemand(topK, maxChunksPerDocument)
   const defaultContextRadius = config.retrievalProfile === "quality" ? 1 : 0
   const contextRadius = normalizeContextRadius(options.contextRadius ?? defaultContextRadius)
   throwIfAborted(signal)
@@ -211,10 +215,10 @@ async function searchWithinGeneration(
       embeddingQueueMs = queueTimeMs
     }),
     lexicalCandidateRows(table, sanitized.query, {
-      ftsLimit: lexicalCandidateLimit(topK, config.retrievalProfile),
-      fallbackLimit: config.hybridTextScanLimit,
+      ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
+      fallbackBatchSize: config.hybridTextScanLimit,
       indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
-      minimumResults: topK,
+      minimumResults: candidateDemand,
       pathPredicate: retrievalPredicate,
     }),
   ])
@@ -229,10 +233,14 @@ async function searchWithinGeneration(
     ? vectorQuery.where(retrievalPredicate)
     : vectorQuery
   )
-    .limit(vectorCandidateLimit(topK, config.retrievalProfile))
+    .limit(vectorCandidateLimit(candidateDemand, config.retrievalProfile))
     .toArray()) as SearchRow[]
   throwIfAborted(signal)
-  const rankingPolicy = rankingPolicyFor(config.embeddingProvider, config.retrievalProfile)
+  const rankingPolicy = rankingPolicyFor(
+    config.embeddingProvider,
+    config.retrievalProfile,
+    maxChunksPerDocument,
+  )
   const rankedRows = rankHybridRows(
     sanitized.query,
     vectorRows,
@@ -244,12 +252,12 @@ async function searchWithinGeneration(
       lexicalCandidates.exactPathMatches.has(rowKey(ranked.row)) ||
       candidatePassesAbstention(evidence, ranked.row, rankingPolicy),
   )
-  const rows = diversifyRows(
-    relevantRows,
+  const diversity = selectDiverseRows(relevantRows, {
     topK,
-    config.retrievalProfile,
-    lexicalCandidates.exactPathMatches,
-  )
+    maxChunksPerDocument,
+    isExactPathMatch: (row) => lexicalCandidates.exactPathMatches.has(rowKey(row)),
+  })
+  const rows = diversity.rows
   const contextByRow = await contextChunksByRow(table, rows, contextRadius, retrievalPredicate)
   throwIfAborted(signal)
 
@@ -291,6 +299,10 @@ async function searchWithinGeneration(
               lexicalIndexedRows: lexicalCandidates.indexedRows,
               lexicalUnindexedRows: lexicalCandidates.unindexedRows,
               lexicalCoverage: lexicalCandidates.coverage,
+              lexicalScanBatches: lexicalCandidates.scanBatches,
+              diversityStrategy: "document-cap" as const,
+              maxChunksPerDocument,
+              diversityBackfillActivated: diversity.backfillActivated,
               workloadQueueMs: workloadQueueMs + embeddingQueueMs,
               rankingPolicyFingerprint: rankingPolicyFingerprint(rankingPolicy),
               matchedTerms: matchedQueryTerms(config.projectRoot, queryTokens, row.row.searchText),
@@ -306,98 +318,6 @@ async function searchWithinGeneration(
     resultCount: results.length,
   })
   return results
-}
-
-function diversifyRows(
-  rows: Array<RankedRow<SearchRow>>,
-  topK: number,
-  profile: RetrievalProfile,
-  exactPathMatches: ReadonlySet<string>,
-): Array<RankedRow<SearchRow>> {
-  const uniqueRows: Array<RankedRow<SearchRow>> = []
-  const textIndexes = new Map<string, number>()
-
-  for (const row of rows) {
-    const textKey = row.row.text.replace(/\s+/gu, " ").trim().toLowerCase()
-    const existingIndex = textIndexes.get(textKey)
-    if (existingIndex === undefined) {
-      textIndexes.set(textKey, uniqueRows.length)
-      uniqueRows.push(row)
-      continue
-    }
-    const existing = uniqueRows[existingIndex]
-    const existingIsExact = existing ? exactPathMatches.has(rowKey(existing.row)) : false
-    const candidateIsExact = exactPathMatches.has(rowKey(row.row))
-    if (
-      existing &&
-      (candidateIsExact !== existingIsExact
-        ? candidateIsExact
-        : preferCanonicalPath(row.row.relativePath, existing.row.relativePath))
-    ) {
-      uniqueRows[existingIndex] = row
-    }
-  }
-
-  const selected: Array<RankedRow<SearchRow>> = []
-  const selectedKeys = new Set<string>()
-  const perSource = new Map<string, number>()
-  const maxChunksPerSource = VECTOR_CANDIDATE_POLICY[profile].maxChunksPerSource
-  const appendRow = (row: RankedRow<SearchRow>, enforceSourceCap: boolean): void => {
-    const key = rowKey(row.row)
-    if (selectedKeys.has(key)) {
-      return
-    }
-    if (selected.some((candidate) => overlapsSourceSpan(candidate.row, row.row))) {
-      return
-    }
-    const sourceCount = perSource.get(row.row.relativePath) ?? 0
-    if (enforceSourceCap && sourceCount >= maxChunksPerSource) {
-      return
-    }
-    selected.push(row)
-    selectedKeys.add(key)
-    perSource.set(row.row.relativePath, sourceCount + 1)
-  }
-
-  for (const row of uniqueRows) {
-    appendRow(row, true)
-    if (selected.length >= topK) {
-      return selected
-    }
-  }
-
-  for (const row of uniqueRows) {
-    appendRow(row, false)
-    if (selected.length >= topK) {
-      break
-    }
-  }
-
-  return selected
-}
-
-function overlapsSourceSpan(left: SearchRow, right: SearchRow): boolean {
-  if (left.relativePath !== right.relativePath) {
-    return false
-  }
-  if (
-    typeof left.charStart !== "number" ||
-    typeof left.charEnd !== "number" ||
-    typeof right.charStart !== "number" ||
-    typeof right.charEnd !== "number"
-  ) {
-    return false
-  }
-  return left.charStart < right.charEnd && right.charStart < left.charEnd
-}
-
-function preferCanonicalPath(candidate: string, current: string): boolean {
-  const candidateDepth = candidate.split("/").length
-  const currentDepth = current.split("/").length
-  return (
-    candidateDepth < currentDepth ||
-    (candidateDepth === currentDepth && candidate.length < current.length)
-  )
 }
 
 export function vectorCandidateLimit(topK: number, profile: RetrievalProfile = "balanced"): number {
@@ -649,40 +569,58 @@ async function lexicalCandidateRows(
         indexedRows,
         unindexedRows,
         coverage: coveredRows === 0 ? 1 : indexedRows / coveredRows,
+        scanBatches: 0,
       }
     } catch {
       fallbackReason = "fts-query-failed"
       // A complete bounded scan remains safe for small or explicitly bounded corpora.
     }
   }
-  if (options.fallbackLimit < options.indexedChunkCount) {
-    throw new RagmirError(
-      "INDEX_UNAVAILABLE",
-      `Full-text search is unavailable and the fallback limit would scan only ${options.fallbackLimit} of ${options.indexedChunkCount} chunks. Run \`rgr storage optimize\` or rebuild the index before searching.`,
-      { retryable: true },
-    )
-  }
-  const fallbackQuery = table.query().select(SEARCH_COLUMNS)
-  const rows = (await (options.pathPredicate
-    ? fallbackQuery.where(options.pathPredicate)
-    : fallbackQuery
-  )
-    .limit(options.fallbackLimit)
-    .toArray()) as SearchRow[]
+  const fallback = await scanFallbackRows(table, options.fallbackBatchSize, options.pathPredicate)
+  const rows = fallback.rows
   return {
     rows,
     exactPathMatches: new Set(),
     backend: "fallback",
     fallbackActivated: true,
     fallbackReason,
-    candidateLimit: options.fallbackLimit,
+    candidateLimit: Math.max(options.indexedChunkCount, rows.length),
     candidatesMaterialized: rows.length,
     queryVariants: 0,
     indexedRows: 0,
     unindexedRows: options.indexedChunkCount,
-    coverage:
-      options.indexedChunkCount === 0 ? 1 : Math.min(1, rows.length / options.indexedChunkCount),
+    coverage: 1,
+    scanBatches: fallback.batches,
   }
+}
+
+async function scanFallbackRows(
+  table: RowsTable,
+  batchSize: number,
+  pathPredicate: string | null,
+): Promise<{ rows: SearchRow[]; batches: number }> {
+  const rows: SearchRow[] = []
+  let offset = 0
+  let batches = 0
+
+  while (true) {
+    const query = table.query().select(SEARCH_COLUMNS)
+    const batch = (await (pathPredicate ? query.where(pathPredicate) : query)
+      .offset(offset)
+      .limit(batchSize)
+      .toArray()) as SearchRow[]
+    if (batch.length === 0) {
+      break
+    }
+    rows.push(...batch)
+    batches += 1
+    offset += batch.length
+    if (batch.length < batchSize) {
+      break
+    }
+  }
+
+  return { rows, batches }
 }
 
 async function executeFullTextQuery(
@@ -965,6 +903,24 @@ function normalizeTopK(topK: number): number {
     throw new RagmirError("INVALID_ARGUMENT", `topK must be at most ${MAX_SEARCH_TOP_K}.`)
   }
   return topK
+}
+
+function normalizeMaxChunksPerDocument(maxChunksPerDocument: number): number {
+  if (!Number.isSafeInteger(maxChunksPerDocument) || maxChunksPerDocument <= 0) {
+    throw new RagmirError("INVALID_ARGUMENT", "maxChunksPerDocument must be a positive integer.")
+  }
+  if (maxChunksPerDocument > MAX_SEARCH_TOP_K) {
+    throw new RagmirError(
+      "INVALID_ARGUMENT",
+      `maxChunksPerDocument must be at most ${MAX_SEARCH_TOP_K}.`,
+    )
+  }
+  return maxChunksPerDocument
+}
+
+function diversityCandidateDemand(topK: number, maxChunksPerDocument: number): number {
+  const multiplier = Math.max(1, Math.ceil(DIVERSITY_CANDIDATE_MULTIPLIER / maxChunksPerDocument))
+  return topK * multiplier
 }
 
 function citationForRow(row: SearchRow): string {
