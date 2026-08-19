@@ -5,6 +5,8 @@ import { createRagmirClient, evaluateGoldenQueries } from "../dist/index.js"
 import { CORPUS_PRESETS, generateCorpus } from "./lib/corpus.mjs"
 import { environmentMetadata, sha256, stableJson } from "./lib/metrics.mjs"
 
+const QUALITY_WORKLOAD_VERSION = 2
+
 const options = parseArguments(process.argv.slice(2))
 const invocationRoot = process.env.INIT_CWD ?? process.cwd()
 const size = String(options.size ?? "S").toUpperCase()
@@ -43,11 +45,24 @@ try {
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
     environment: environmentMetadata(),
-    configuration: { size, provider, model, modelRevision, retrievalProfile, seed },
+    configuration: {
+      workloadVersion: QUALITY_WORKLOAD_VERSION,
+      size,
+      provider,
+      model,
+      modelRevision,
+      retrievalProfile,
+      seed,
+    },
     reproducible,
     first,
     second,
-    passed: reproducible && first.quality.passed && second.quality.passed,
+    passed:
+      reproducible &&
+      first.quality.passed &&
+      first.quality.verificationEligible &&
+      second.quality.passed &&
+      second.quality.verificationEligible,
   }
   await mkdir(path.dirname(resultPath), { recursive: true })
   await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`, "utf8")
@@ -122,6 +137,7 @@ async function evaluateRankingVariants(client, goldenQueries) {
     "hybrid-lexical-1.25": [],
     "hybrid-lexical-1.5": [],
     "hybrid-lexical-2": [],
+    "diversity-fixed-cap-1": [],
     "diversity-fixed-cap-2": [],
     "diversity-soft-mmr-0.85": [],
   }
@@ -167,6 +183,9 @@ async function evaluateRankingVariants(client, goldenQueries) {
       ),
     )
     variants.hybrid.push(scoreVariantCase(testCase, rows.slice(0, 10)))
+    variants["diversity-fixed-cap-1"].push(
+      scoreVariantCase(testCase, fixedSourceCapRows(rows, 10, 1)),
+    )
     variants["diversity-fixed-cap-2"].push(
       scoreVariantCase(testCase, fixedSourceCapRows(rows, 10, 2)),
     )
@@ -202,6 +221,9 @@ async function evaluateRankingVariants(client, goldenQueries) {
           recallAt5: mean(answerable.map((testCase) => testCase.recallAt5)),
           recallAt10: mean(answerable.map((testCase) => testCase.recall)),
           meanReturned: mean(cases.map((testCase) => testCase.returned)),
+          meanUniqueDocumentsAt10: mean(
+            cases.map((testCase) => testCase.uniqueDocumentsAt10),
+          ),
           falsePositiveRate: mean(unanswerable.map((testCase) => Number(testCase.returned > 0))),
         },
       ]
@@ -227,6 +249,7 @@ function scoreVariantCase(testCase, rows) {
         : expectedPaths.filter((expectedPath) => returnedPaths.has(expectedPath)).length /
           expectedPaths.length,
     returned: rows.length,
+    uniqueDocumentsAt10: returnedPaths.size,
   }
 }
 
@@ -327,8 +350,9 @@ function reproducibleQuality(result) {
       category: testCase.category,
       locale: testCase.locale,
       answerable: testCase.answerable,
-      returnedPaths: testCase.returnedPaths,
-      returnedCitations: testCase.returnedCitations,
+      matchedPaths: testCase.matchedPaths,
+      matchedCitations: testCase.matchedCitations,
+      bestRank: testCase.bestRank,
       recallAt: testCase.recallAt,
       precisionAt5: testCase.precisionAt5,
       reciprocalRankAt10: testCase.reciprocalRankAt10,

@@ -453,10 +453,11 @@ export function createMcpServer(
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
       const budget = mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes)
+      const compactOutput = config.privacyProfile === "strict" || compact !== false
       const options = searchOptionsWithConfig(
         config,
         topK,
-        contextRadius,
+        compactOutput ? 0 : contextRadius,
         includePaths,
         excludePaths,
         contextPaths,
@@ -467,7 +468,6 @@ export function createMcpServer(
       const client = await clientLifecycle.getClient(config)
       const results = await client.search(query, { ...options, signal })
       const compactResults = compactSearchResults(results)
-      const compactOutput = config.privacyProfile === "strict" || compact !== false
       const preferred: McpSearchPayload = compactOutput ? compactResults : results
       const bounded = budgetMcpJson({
         tool: "ragmir_search",
@@ -510,10 +510,11 @@ export function createMcpServer(
       throwIfMcpAborted(signal)
       const config = await loadConfig(cwd)
       const budget = mcpOutputBudget(config.mcpMaxOutputBytes, maxBytes)
+      const compactOutput = config.privacyProfile === "strict" || compact !== false
       const options = searchOptionsWithConfig(
         config,
         topK,
-        contextRadius,
+        compactOutput ? 0 : contextRadius,
         includePaths,
         excludePaths,
         contextPaths,
@@ -539,7 +540,6 @@ export function createMcpServer(
         sources: compactSearchResults(fullPayload.sources),
         staleWarning: fullPayload.staleWarning,
       }
-      const compactOutput = config.privacyProfile === "strict" || compact !== false
       const bounded = budgetMcpJson({
         tool: "ragmir_ask",
         maxBytes: budget,

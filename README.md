@@ -10,8 +10,10 @@
 
 Ragmir turns specifications, Word files, PDFs, spreadsheets, code, and local exports into cited
 evidence indexed and retrieved on your machine. Core works offline by default, never uploads your
-corpus, and calls no model. Connect the agent or automation you already use through CLI, MCP, or a
-typed TypeScript API, or keep the complete workflow local with the optional Chat package.
+corpus, and calls no model. Ragmir is the local retrieval and evidence layer for agentic RAG
+workflows: the host agent plans and acts, while Ragmir supplies bounded, cited project evidence.
+Connect the agent or automation you already use through CLI, MCP, or a typed TypeScript API, or keep
+the complete workflow local with the optional Chat package.
 
 [Website](https://ragmir.com) · [npm](https://www.npmjs.com/package/@jcode.labs/ragmir) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
@@ -45,7 +47,7 @@ Outcome: Core installed with the repository's package manager; useful sources se
 
 3. Implement after approval:
 - Install @jcode.labs/ragmir as a dev dependency with the detected manager. Install Chat/TTS only if selected, at a compatible version.
-- Run the matching rgr setup --no-ingest --agents <selected> command. Keep project scope. If a same-name skill is unmanaged, show the diff and ask before --force.
+- Run rgr setup --no-ingest --agents <selected> via the detected manager. Keep project scope. Show unmanaged skill diffs and ask before --force-agent-skills.
 - Build a narrow .ragmir/config.json. Prefer stable relative globs for root guidance, docs/specs/ADRs, package READMEs/manifests, useful app config, and source/tests that explain behavior. Include locales only when useful.
 - Exclude .env*, credentials, keys, unapproved dumps/customer data, dependencies, generated/build/cache/coverage/log folders, vendored code, binaries/media, and .ragmir storage/models. In monorepos, keep nested bases scoped and shared knowledge at root.
 - Run preview and audit --unsupported before ingest. Review redactions, unsupported/oversized files, duplicates, chunks, and sensitive paths. Fix config first, then ingest.

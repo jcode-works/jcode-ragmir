@@ -12,6 +12,7 @@ const LONG_TOKEN_MIN_LENGTH = 6
 const LONG_TOKEN_WEIGHT = 1.4
 const CHARACTER_NGRAM_LENGTH = 3
 const CHARACTER_NGRAM_WEIGHT = 0.35
+const MAX_LOCAL_HASH_FEATURE_CACHE_ENTRIES = 16_384
 /**
  * Maximum number of idle Transformers.js pipelines kept live in the process.
  * Active leases may temporarily overlap during a model switch, but a retired
@@ -44,6 +45,11 @@ interface TransformersPipelineLease {
   release(): Promise<void>
 }
 
+interface LocalHashFeatureLocation {
+  index: number
+  sign: 1 | -1
+}
+
 type EmbeddingInputType = "document" | "query"
 
 export interface PullEmbeddingModelResult {
@@ -67,7 +73,8 @@ export async function embedTexts(
     onAdmission?.(admission)
     throwIfAborted(signal)
     if (config.embeddingProvider === "local-hash") {
-      return texts.map(localHashEmbedding)
+      const featureCache = new Map<string, LocalHashFeatureLocation>()
+      return texts.map((text) => localHashEmbedding(text, featureCache))
     }
 
     const embeddings = await embedWithTransformers(texts, config, inputType)
@@ -428,14 +435,17 @@ function withTransformersEnvironment<T>(operation: () => Promise<T>): Promise<T>
   return queued
 }
 
-function localHashEmbedding(text: string): number[] {
+function localHashEmbedding(
+  text: string,
+  featureCache: Map<string, LocalHashFeatureLocation>,
+): number[] {
   const vector = Array.from({ length: LOCAL_HASH_DIMENSIONS }, () => 0)
   const tokens = tokenize(text)
 
   for (const token of tokens) {
-    addHashedFeature(vector, token, tokenWeight(token))
+    addHashedFeature(vector, token, tokenWeight(token), featureCache)
     for (const ngram of characterNgrams(token)) {
-      addHashedFeature(vector, `ngram:${ngram}`, CHARACTER_NGRAM_WEIGHT)
+      addHashedFeature(vector, `ngram:${ngram}`, CHARACTER_NGRAM_WEIGHT, featureCache)
     }
   }
 
@@ -446,11 +456,24 @@ function localHashEmbedding(text: string): number[] {
   return vector.map((value) => value / magnitude)
 }
 
-function addHashedFeature(vector: number[], feature: string, weight: number): void {
-  const hash = createHash("sha256").update(feature).digest()
-  const index = hash.readUInt32BE(0) % LOCAL_HASH_DIMENSIONS
-  const sign = (hash.at(4) ?? 0) % 2 === 0 ? 1 : -1
-  vector[index] = (vector[index] ?? 0) + sign * weight
+function addHashedFeature(
+  vector: number[],
+  feature: string,
+  weight: number,
+  featureCache: Map<string, LocalHashFeatureLocation>,
+): void {
+  let location = featureCache.get(feature)
+  if (!location) {
+    const hash = createHash("sha256").update(feature).digest()
+    location = {
+      index: hash.readUInt32BE(0) % LOCAL_HASH_DIMENSIONS,
+      sign: (hash.at(4) ?? 0) % 2 === 0 ? 1 : -1,
+    }
+    if (featureCache.size < MAX_LOCAL_HASH_FEATURE_CACHE_ENTRIES) {
+      featureCache.set(feature, location)
+    }
+  }
+  vector[location.index] = (vector[location.index] ?? 0) + location.sign * weight
 }
 
 function characterNgrams(token: string): string[] {

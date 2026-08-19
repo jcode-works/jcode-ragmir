@@ -1,8 +1,10 @@
 import { channel } from "node:diagnostics_channel"
 import {
+  BooleanQuery,
   type Connection,
   type FullTextQuery,
   MatchQuery,
+  Occur,
   Operator,
   PhraseQuery,
 } from "@lancedb/lancedb"
@@ -136,6 +138,7 @@ interface LexicalCandidateOptions {
   indexedChunkCount: number
   minimumResults: number
   pathPredicate: string | null
+  signal?: AbortSignal
 }
 
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
@@ -210,31 +213,40 @@ async function searchWithinGeneration(
     options.contextPaths,
   )
   let embeddingQueueMs = 0
-  const [vector, lexicalCandidates] = await Promise.all([
-    embedText(sanitized.query, config, signal, ({ queueTimeMs }) => {
-      embeddingQueueMs = queueTimeMs
-    }),
-    lexicalCandidateRows(table, sanitized.query, {
-      ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
-      fallbackBatchSize: config.hybridTextScanLimit,
-      indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
-      minimumResults: candidateDemand,
-      pathPredicate: retrievalPredicate,
-    }),
+  const lexicalCandidatesPromise = lexicalCandidateRows(table, sanitized.query, {
+    ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
+    fallbackBatchSize: config.hybridTextScanLimit,
+    indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
+    minimumResults: candidateDemand,
+    pathPredicate: retrievalPredicate,
+    ...(signal === undefined ? {} : { signal }),
+  })
+  const vectorRowsPromise = embedText(sanitized.query, config, signal, ({ queueTimeMs }) => {
+    embeddingQueueMs = queueTimeMs
+  }).then(async (vector) => {
+    throwIfAborted(signal)
+    const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
+    const vectorQuery = configureAdaptiveVectorQuery(
+      table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
+      manifest.vectorIndex,
+      options.vectorSearchMode === "exact",
+    )
+    return (await (retrievalPredicate ? vectorQuery.where(retrievalPredicate) : vectorQuery)
+      .limit(vectorCandidateLimit(candidateDemand, config.retrievalProfile))
+      .toArray()) as SearchRow[]
+  })
+  const [vectorRowsOutcome, lexicalCandidatesOutcome] = await Promise.allSettled([
+    vectorRowsPromise,
+    lexicalCandidatesPromise,
   ])
-  throwIfAborted(signal)
-  const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
-  const vectorQuery = configureAdaptiveVectorQuery(
-    table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
-    manifest.vectorIndex,
-    options.vectorSearchMode === "exact",
-  )
-  const vectorRows = (await (retrievalPredicate
-    ? vectorQuery.where(retrievalPredicate)
-    : vectorQuery
-  )
-    .limit(vectorCandidateLimit(candidateDemand, config.retrievalProfile))
-    .toArray()) as SearchRow[]
+  if (vectorRowsOutcome.status === "rejected") {
+    throw vectorRowsOutcome.reason
+  }
+  if (lexicalCandidatesOutcome.status === "rejected") {
+    throw lexicalCandidatesOutcome.reason
+  }
+  const vectorRows = vectorRowsOutcome.value
+  const lexicalCandidates = lexicalCandidatesOutcome.value
   throwIfAborted(signal)
   const rankingPolicy = rankingPolicyFor(
     config.embeddingProvider,
@@ -247,15 +259,19 @@ async function searchWithinGeneration(
     lexicalCandidates.rows,
     rankingPolicy,
   )
-  const relevantRows = rankedRows.filter(
-    (ranked) =>
-      lexicalCandidates.exactPathMatches.has(rowKey(ranked.row)) ||
-      candidatePassesAbstention(evidence, ranked.row, rankingPolicy),
-  )
+  const isExactPathMatch = (row: SearchRow): boolean =>
+    lexicalCandidates.exactPathMatches.has(rowKey(row))
+  const relevantRows = rankedRows
+    .filter(
+      (ranked) =>
+        isExactPathMatch(ranked.row) ||
+        candidatePassesAbstention(evidence, ranked.row, rankingPolicy),
+    )
+    .sort((left, right) => Number(isExactPathMatch(right.row)) - Number(isExactPathMatch(left.row)))
   const diversity = selectDiverseRows(relevantRows, {
     topK,
     maxChunksPerDocument,
-    isExactPathMatch: (row) => lexicalCandidates.exactPathMatches.has(rowKey(row)),
+    isExactPathMatch,
   })
   const rows = diversity.rows
   const contextByRow = await contextChunksByRow(table, rows, contextRadius, retrievalPredicate)
@@ -491,12 +507,14 @@ async function lexicalCandidateRows(
   query: string,
   options: LexicalCandidateOptions,
 ): Promise<LexicalCandidateSet> {
+  throwIfAborted(options.signal)
   const ftsQueries = lexicalQuery(query)
   const stats = await table.indexStats(FULL_TEXT_INDEX_NAME).catch(() => undefined)
+  const sourcePathQuery = sourcePathPredicateForQuery(query)
+  throwIfAborted(options.signal)
   let fallbackReason: LexicalCandidateSet["fallbackReason"] = "fts-index-unavailable"
   if (ftsQueries && stats) {
     try {
-      const sourcePathQuery = sourcePathPredicateForQuery(query)
       const sourcePathRows = sourcePathQuery
         ? await executeSourcePathQuery(
             table,
@@ -511,6 +529,7 @@ async function lexicalCandidateRows(
         options.ftsLimit,
         options.pathPredicate,
       )
+      throwIfAborted(options.signal)
       const rows: SearchRow[] = []
       const initialRows = [...sourcePathRows, ...primaryRows]
       const seenRows = new Set<string>()
@@ -524,12 +543,14 @@ async function lexicalCandidateRows(
       let executedVariants = 1 + Number(sourcePathQuery !== null)
       if (rows.length < options.minimumResults) {
         for (const supplementalQuery of ftsQueries.supplemental) {
+          throwIfAborted(options.signal)
           const supplementalRows = await executeFullTextQuery(
             table,
             supplementalQuery,
             options.ftsLimit,
             options.pathPredicate,
           ).catch(() => [])
+          throwIfAborted(options.signal)
           executedVariants += 1
           for (const row of supplementalRows) {
             const key = rowKey(row)
@@ -576,11 +597,31 @@ async function lexicalCandidateRows(
       // A complete bounded scan remains safe for small or explicitly bounded corpora.
     }
   }
-  const fallback = await scanFallbackRows(table, options.fallbackBatchSize, options.pathPredicate)
-  const rows = fallback.rows
+  const fallback = await scanFallbackRows(
+    table,
+    options.fallbackBatchSize,
+    options.pathPredicate,
+    options.signal,
+  )
+  const sourcePathRows = sourcePathQuery
+    ? await executeSourcePathQuery(table, sourcePathQuery, options.ftsLimit, options.pathPredicate)
+    : []
+  throwIfAborted(options.signal)
+  const rowsByKey = new Map(fallback.rows.map((row) => [rowKey(row), row]))
+  for (const row of sourcePathRows) {
+    rowsByKey.set(rowKey(row), row)
+  }
+  const rows = [...rowsByKey.values()]
+  const exactPathMatches = new Set(
+    sourcePathQuery?.exactRelativePath
+      ? sourcePathRows
+          .filter((row) => row.relativePath === sourcePathQuery.exactRelativePath)
+          .map(rowKey)
+      : [],
+  )
   return {
     rows,
-    exactPathMatches: new Set(),
+    exactPathMatches,
     backend: "fallback",
     fallbackActivated: true,
     fallbackReason,
@@ -598,17 +639,20 @@ async function scanFallbackRows(
   table: RowsTable,
   batchSize: number,
   pathPredicate: string | null,
+  signal?: AbortSignal,
 ): Promise<{ rows: SearchRow[]; batches: number }> {
   const rows: SearchRow[] = []
   let offset = 0
   let batches = 0
 
   while (true) {
+    throwIfAborted(signal)
     const query = table.query().select(SEARCH_COLUMNS)
     const batch = (await (pathPredicate ? query.where(pathPredicate) : query)
       .offset(offset)
       .limit(batchSize)
       .toArray()) as SearchRow[]
+    throwIfAborted(signal)
     if (batch.length === 0) {
       break
     }
@@ -935,20 +979,47 @@ function lexicalQuery(
     return null
   }
   const joined = tokens.join(" ")
+  const broadQuery = new MatchQuery(joined, "searchText", { operator: Operator.Or })
   const supplemental: FullTextQuery[] = []
-  if (tokens.length > 1) {
-    supplemental.push(new PhraseQuery(joined, "searchText"))
-  }
   const identifierTerms = [...query.matchAll(LEXICAL_IDENTIFIER_PATTERN)]
     .map((match) => match[0])
     .filter(Boolean)
-  for (const identifier of [...new Set(identifierTerms)]) {
-    supplemental.push(
-      new MatchQuery(identifier, "searchText", {
-        boost: 2,
-        ...(isFuzzyLexicalTerm(identifier) ? { fuzziness: 1, prefixLength: 3 } : {}),
-      }),
+  const identifiers = [...new Set(identifierTerms)]
+  const firstIdentifier = identifiers[0]
+  if (firstIdentifier !== undefined) {
+    const firstExactIdentifierQuery = new PhraseQuery(firstIdentifier, "searchText")
+    const exactIdentifierQueries = [
+      firstExactIdentifierQuery,
+      ...identifiers.slice(1).map((identifier) => new PhraseQuery(identifier, "searchText")),
+    ]
+    const exactIdentifierQuery: FullTextQuery =
+      exactIdentifierQueries.length === 1
+        ? firstExactIdentifierQuery
+        : new BooleanQuery(
+            exactIdentifierQueries.map((item): [Occur, FullTextQuery] => [Occur.Should, item]),
+          )
+    const fuzzyIdentifierQuery = new BooleanQuery(
+      identifiers.map((identifier): [Occur, FullTextQuery] => [
+        Occur.Should,
+        new MatchQuery(identifier, "searchText", {
+          boost: 2,
+          fuzziness: 1,
+          operator: Operator.And,
+          prefixLength: 3,
+        }),
+      ]),
     )
+    supplemental.push(fuzzyIdentifierQuery, broadQuery)
+    return {
+      primary: new BooleanQuery([
+        [Occur.Must, exactIdentifierQuery],
+        [Occur.Should, broadQuery],
+      ]),
+      supplemental,
+    }
+  }
+  if (tokens.length > 1) {
+    supplemental.push(new PhraseQuery(joined, "searchText"))
   }
   const rareTerms = tokens
     .filter(isFuzzyLexicalTerm)
@@ -964,7 +1035,7 @@ function lexicalQuery(
     )
   }
   return {
-    primary: new MatchQuery(joined, "searchText", { operator: Operator.Or }),
+    primary: broadQuery,
     supplemental,
   }
 }

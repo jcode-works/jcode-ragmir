@@ -26,12 +26,19 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
   const selectedKeys = new Set<string>()
   const perDocument = new Map<string, number>()
 
-  const appendRow = (row: RankedRow<Row>, enforceDocumentCap: boolean): boolean => {
+  const appendRow = (
+    row: RankedRow<Row>,
+    enforceDocumentCap: boolean,
+    allowOverlap: boolean,
+  ): boolean => {
     const key = rowKey(row.row)
     if (selectedKeys.has(key)) {
       return false
     }
-    if (selected.some((candidate) => overlapsDocumentSpan(candidate.row, row.row))) {
+    if (
+      !allowOverlap &&
+      selected.some((candidate) => overlapsDocumentSpan(candidate.row, row.row))
+    ) {
       return false
     }
     const documentCount = perDocument.get(row.row.relativePath) ?? 0
@@ -45,7 +52,7 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
   }
 
   for (const row of uniqueRows) {
-    appendRow(row, true)
+    appendRow(row, true, false)
     if (selected.length >= options.topK) {
       return { rows: selected, backfillActivated: false }
     }
@@ -53,7 +60,16 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
 
   let backfillActivated = false
   for (const row of uniqueRows) {
-    if (appendRow(row, false)) {
+    if (appendRow(row, false, false)) {
+      backfillActivated = true
+    }
+    if (selected.length >= options.topK) {
+      return { rows: selected, backfillActivated }
+    }
+  }
+
+  for (const row of uniqueRows) {
+    if (appendRow(row, false, true)) {
       backfillActivated = true
     }
     if (selected.length >= options.topK) {

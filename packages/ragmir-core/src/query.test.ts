@@ -408,6 +408,53 @@ describe("search", () => {
     expect(results[0]?.relativePath).toBe(".ragmir/raw/zeta.md")
   })
 
+  it("should anchor compound identifiers before broad lexical backfill", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-identifier-anchor-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ retrievalProfile: "fast", topK: 2 }),
+    )
+    await Promise.all([
+      ...Array.from({ length: 8 }, (_entry, index) =>
+        writeFile(
+          path.join(root, ".ragmir", "raw", `target-${String(index).padStart(3, "0")}.md`),
+          `Find evidence for compound identifier BENCH-IDENTIFIER-14 target ${index}.\n`,
+        ),
+      ),
+      ...Array.from({ length: 12 }, (_entry, index) =>
+        writeFile(
+          path.join(root, ".ragmir", "raw", `distractor-${String(index).padStart(3, "0")}.md`),
+          `Find broad evidence for an unrelated routine ${index}.\n`,
+        ),
+      ),
+    ])
+    await ingest({ cwd: root })
+
+    const exact = await search("Find evidence for BENCH-IDENTIFIER-14", {
+      cwd: root,
+      topK: 2,
+      explain: true,
+    })
+    const fuzzy = await search("Find evidence for BENCH-IDENTIFIXR-14", {
+      cwd: root,
+      topK: 1,
+      explain: true,
+    })
+
+    expect(exact).toHaveLength(2)
+    expect(exact.every((result) => result.text.includes("BENCH-IDENTIFIER-14"))).toBe(true)
+    expect(exact[0]?.score).toMatchObject({
+      lexicalBackend: "fts",
+      lexicalCandidatesMaterialized: 8,
+      lexicalQueryVariants: 1,
+    })
+    expect(fuzzy[0]?.text).toContain("BENCH-IDENTIFIER-14")
+    expect(fuzzy[0]?.score?.lexicalQueryVariants).toBeGreaterThan(1)
+  }, 15_000)
+
   it("should scan a complete lexical fallback in bounded batches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-truncated-fallback-"))
     tempDirs.push(root)
@@ -434,6 +481,41 @@ describe("search", () => {
       lexicalCoverage: 1,
     })
   })
+
+  it("should preserve exact source path matches when the FTS index is unavailable", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-path-fallback-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "policy.md"),
+      "Routine evidence without query terms.\n",
+    )
+    await Promise.all(
+      Array.from({ length: 90 }, (_entry, index) =>
+        writeFile(
+          path.join(root, ".ragmir", "raw", `distractor-${String(index).padStart(3, "0")}.md`),
+          `Ragmir raw policy md distractor evidence ${index}.\n`,
+        ),
+      ),
+    )
+    await ingest({ cwd: root })
+    const table = await openRowsTable(await loadConfig(root))
+    await table?.dropIndex("searchText_idx")
+
+    const [result] = await search(".ragmir/raw/policy.md", {
+      cwd: root,
+      topK: 1,
+      explain: true,
+    })
+
+    expect(result?.relativePath).toBe(".ragmir/raw/policy.md")
+    expect(result?.score).toMatchObject({
+      lexicalBackend: "fallback",
+      lexicalExactPathMatch: true,
+    })
+    expect(vectorCandidateLimit(1)).toBeLessThan(90)
+  }, 10_000)
 
   it("should explain complete lexical fallback activation and coverage", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fallback-explain-"))

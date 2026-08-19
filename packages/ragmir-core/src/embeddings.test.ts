@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -72,6 +73,23 @@ describe("local hash embeddings", () => {
     const embedding = await embedText("solo query", config)
 
     expect(embedding).toHaveLength(384)
+  })
+
+  it("should preserve the local hash vector fingerprint across batch cache optimization", async () => {
+    const config = testConfig()
+    const embeddings = await embedTexts(
+      [
+        "repeat repeat repeat retrieval retrieval evidence",
+        "La preuve répétée répétée reste locale.",
+        "本地检索本地检索保留证据。",
+        "token_rotation token_rotation policy-v2 policy-v2",
+      ],
+      config,
+    )
+
+    expect(createHash("sha256").update(JSON.stringify(embeddings)).digest("hex")).toBe(
+      "ff73d6acfd912077a9ec4461e36b9db729f8fa10e40c500fffd95ed0a93ee868",
+    )
   })
 
   it("keeps inflected terms closer than unrelated text", async () => {

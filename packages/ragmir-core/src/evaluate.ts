@@ -292,6 +292,7 @@ export async function evaluateGoldenQueriesWithConfig(
             const results = await evaluationClient.search(goldenQuery.query, {
               cwd,
               topK: evaluationDepth,
+              contextRadius: 0,
               ...(signal === undefined ? {} : { signal }),
               ...(goldenQuery.includePaths === undefined
                 ? {}
@@ -535,12 +536,11 @@ function evaluateCase(
   const requiresExactCitation = citationJudgments.some((judgment) => judgment.relevance > 0)
   const primaryJudgments = requiresExactCitation ? citationJudgments : pathJudgments
   const returnedValues = requiresExactCitation ? returnedCitations : returnedPaths
-  const matchedPaths = uniqueAtK(returnedPaths, returnedPaths.length).filter((resultPath) =>
+  const matchedPaths = uniqueAtK(returnedPaths, topK).filter((resultPath) =>
     pathJudgments.some((judgment) => judgment.value === resultPath && judgment.relevance > 0),
   )
-  const matchedCitations = uniqueAtK(returnedCitations, returnedCitations.length).filter(
-    (citation) =>
-      citationJudgments.some((judgment) => judgment.value === citation && judgment.relevance > 0),
+  const matchedCitations = uniqueAtK(returnedCitations, topK).filter((citation) =>
+    citationJudgments.some((judgment) => judgment.value === citation && judgment.relevance > 0),
   )
   const bestRank = firstRelevantRank(returnedValues, primaryJudgments, topK)
   const reciprocalRank = bestRank === null ? 0 : 1 / bestRank
