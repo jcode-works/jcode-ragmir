@@ -19,6 +19,25 @@ afterEach(async () => {
 })
 
 describe("parseFile", () => {
+  it("should preserve readable HTML while omitting links and images", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-html-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "page.html")
+    await writeFile(
+      filePath,
+      '<main><a href="https://example.com/private">Docs &amp; help</a><img src="secret.png" alt="hidden image"><textarea>Review &lt;ready&gt;</textarea><xmp>literal <tag></xmp></main>',
+      "utf8",
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".html"))
+
+    expect(parsed.text).toContain("Docs & help")
+    expect(parsed.text).toContain("Review &lt;ready&gt;")
+    expect(parsed.text).toContain("literal <tag>")
+    expect(parsed.text).not.toContain("example.com")
+    expect(parsed.text).not.toContain("hidden image")
+  })
+
   it("extracts text from docx files", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-docx-"))
     tempDirs.push(root)
