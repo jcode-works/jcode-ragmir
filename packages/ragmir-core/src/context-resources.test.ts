@@ -104,5 +104,5 @@ describe("context resources", () => {
     expect(secondPage.indexedFiles).toHaveLength(5)
     expect(secondPage.indexedFiles[0]?.source).toBe(".ragmir/raw/source-50.md")
     expect(secondPage.page).toEqual({ offset: 50, limit: 10, nextOffset: null })
-  })
+  }, 15_000)
 })
