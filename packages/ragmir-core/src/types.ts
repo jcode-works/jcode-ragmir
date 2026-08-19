@@ -38,6 +38,7 @@ export interface Config {
   mcpMaxTopK: number
   mcpMaxOutputBytes: number
   topK: number
+  maxChunksPerDocument: number
   chunkSize: number
   chunkOverlap: number
   maxFileBytes: number
@@ -634,6 +635,7 @@ export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
 export interface SearchOptions extends OperationOptions {
   cwd?: PathLike
   topK?: number
+  maxChunksPerDocument?: number
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
@@ -692,6 +694,10 @@ export interface SearchScoreExplanation {
   lexicalIndexedRows: number
   lexicalUnindexedRows: number
   lexicalCoverage: number
+  lexicalScanBatches: number
+  diversityStrategy: "document-cap"
+  maxChunksPerDocument: number
+  diversityBackfillActivated: boolean
   workloadQueueMs: number
   rankingPolicyFingerprint: string
   matchedTerms: string[]
@@ -924,6 +930,7 @@ export interface EvaluationResult {
   embeddingModelRevision: string
   embeddingModelDigest: string | null
   retrievalProfile: RetrievalProfile
+  maxChunksPerDocument: number
   rankingPolicyFingerprint: string
   indexFingerprint: string
   goldenFingerprint: string

@@ -100,14 +100,11 @@ export function indexFreshnessWarning(
   return null
 }
 
-/**
- * Warn when the indexed corpus exceeds the hybrid lexical scan limit, because
- * BM25 retrieval then scans only the first N chunks and silently loses recall.
- * Independent of model freshness so callers can surface both diagnostics.
- */
+/** Describe the extra fallback work when a complete lexical scan needs multiple batches. */
 export function getLexicalScanWarning(config: Config, chunkCount: number): string | null {
   if (chunkCount <= config.hybridTextScanLimit) {
     return null
   }
-  return `Lexical fallback can scan at most ${config.hybridTextScanLimit} of ${chunkCount} chunks when full-text search is unavailable. Search rejects this truncated fallback instead of returning incomplete lexical evidence. Run \`rgr storage optimize\` or rebuild the index; raise \`hybridTextScanLimit\` only for a measured complete-scan fallback.`
+  const batches = Math.ceil(chunkCount / config.hybridTextScanLimit)
+  return `Lexical fallback will scan all ${chunkCount} chunks in ${batches} batches of at most ${config.hybridTextScanLimit} when full-text search is unavailable. Run \`rgr storage optimize\` or rebuild the index to restore the faster full-text path.`
 }

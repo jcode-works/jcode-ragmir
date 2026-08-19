@@ -10,6 +10,7 @@ import {
   LEGACY_CONFIG_PATH,
   LEGACY_DEFAULT_CONFIG,
   MAX_CHUNK_SIZE,
+  MAX_CHUNKS_PER_DOCUMENT,
   MAX_CONFIG_ARRAY_ITEMS,
   MAX_CONFIG_PATH_CHARACTERS,
   MAX_CONFIG_TEXT_CHARACTERS,
@@ -132,6 +133,7 @@ const rawConfigSchema = z
       .max(MAX_MCP_OUTPUT_BYTES)
       .default(DEFAULT_CONFIG.mcpMaxOutputBytes),
     topK: z.number().int().positive().default(DEFAULT_CONFIG.topK),
+    maxChunksPerDocument: z.number().int().positive().default(DEFAULT_CONFIG.maxChunksPerDocument),
     chunkSize: z.number().int().positive().max(MAX_CHUNK_SIZE).default(DEFAULT_CONFIG.chunkSize),
     chunkOverlap: z
       .number()
@@ -257,6 +259,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
   assertAtMost("ingestConcurrency", effective.ingestConcurrency, MAX_INGEST_CONCURRENCY)
   assertAtMost("embeddingBatchSize", effective.embeddingBatchSize, MAX_EMBEDDING_BATCH_SIZE)
   assertAtMost("topK", effective.topK, MAX_SEARCH_TOP_K)
+  assertAtMost("maxChunksPerDocument", effective.maxChunksPerDocument, MAX_CHUNKS_PER_DOCUMENT)
   assertAtMost("mcpMaxTopK", effective.mcpMaxTopK, MAX_SEARCH_TOP_K)
   assertAtMost("hybridTextScanLimit", effective.hybridTextScanLimit, MAX_HYBRID_TEXT_SCAN_LIMIT)
 
@@ -286,6 +289,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     mcpMaxTopK: effective.mcpMaxTopK,
     mcpMaxOutputBytes: effective.mcpMaxOutputBytes,
     topK: effective.topK,
+    maxChunksPerDocument: effective.maxChunksPerDocument,
     chunkSize: effective.chunkSize,
     chunkOverlap: effective.chunkOverlap,
     maxFileBytes: effective.maxFileBytes,

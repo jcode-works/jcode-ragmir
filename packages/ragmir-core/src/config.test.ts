@@ -45,6 +45,7 @@ describe("loadConfig", () => {
     expect(config.accessLog).toBe(true)
     expect(config.mcpMaxTopK).toBe(10)
     expect(config.mcpMaxOutputBytes).toBe(32_768)
+    expect(config.maxChunksPerDocument).toBe(1)
     expect(config.workloadLimits).toEqual({
       search: { concurrency: 8, maxQueue: 64, queueTimeoutMs: 30_000 },
       embedding: { concurrency: 1, maxQueue: 64, queueTimeoutMs: 30_000 },
@@ -538,10 +539,20 @@ describe("loadConfig", () => {
 
     await writeFile(
       path.join(root, ".ragmir", "config.json"),
-      JSON.stringify({ retrievalProfile: "fast", topK: 7, hybridTextScanLimit: 3_000 }),
+      JSON.stringify({
+        retrievalProfile: "fast",
+        topK: 7,
+        maxChunksPerDocument: 2,
+        hybridTextScanLimit: 3_000,
+      }),
     )
     expect(await loadConfig(root)).toEqual(
-      expect.objectContaining({ retrievalProfile: "fast", topK: 7, hybridTextScanLimit: 3_000 }),
+      expect.objectContaining({
+        retrievalProfile: "fast",
+        topK: 7,
+        maxChunksPerDocument: 2,
+        hybridTextScanLimit: 3_000,
+      }),
     )
   })
 
@@ -559,6 +570,9 @@ describe("loadConfig", () => {
 
     await writeFile(configPath, JSON.stringify({ topK: 101 }))
     await expect(loadConfig(root)).rejects.toThrow(/topK.*at most/i)
+
+    await writeFile(configPath, JSON.stringify({ maxChunksPerDocument: 101 }))
+    await expect(loadConfig(root)).rejects.toThrow(/maxChunksPerDocument.*at most/i)
 
     await writeFile(configPath, JSON.stringify({ mcpMaxTopK: 101 }))
     await expect(loadConfig(root)).rejects.toThrow(/mcpMaxTopK.*at most/i)

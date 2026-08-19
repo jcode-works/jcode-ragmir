@@ -22,6 +22,7 @@ export const MAX_INGEST_CHUNK_WINDOW = 8_192
 export const MAX_INGEST_CHUNKS_PER_FILE = 65_536
 export const MAX_INGEST_VECTOR_BYTES_PER_FILE = 256 * 1_024 * 1_024
 export const MAX_SEARCH_TOP_K = 100
+export const MAX_CHUNKS_PER_DOCUMENT = MAX_SEARCH_TOP_K
 export const MAX_HYBRID_TEXT_SCAN_LIMIT = 10_000
 export const MAX_CONFIG_ARRAY_ITEMS = 10_000
 export const MAX_CONFIG_PATH_CHARACTERS = 4_096
@@ -77,6 +78,7 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   mcpMaxTopK: 10,
   mcpMaxOutputBytes: 32_768,
   topK: 8,
+  maxChunksPerDocument: 1,
   chunkSize: 1200,
   chunkOverlap: 200,
   maxFileBytes: 50_000_000,

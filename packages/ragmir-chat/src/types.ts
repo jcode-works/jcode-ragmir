@@ -59,7 +59,7 @@ export interface ChatModelProfileDefinition {
 export interface ChatModelManifest {
   schemaVersion: 1
   provider: "node-llama-cpp"
-  runtimeVersion: "3.19.0"
+  runtimeVersion: "3.20.0"
   profile: ChatModelProfile
   modelId: string
   revision: string
@@ -196,7 +196,7 @@ export interface DoctorOptions {
 export interface DoctorReport {
   node: string
   provider: "node-llama-cpp"
-  runtimeVersion: "3.19.0"
+  runtimeVersion: "3.20.0"
   profile: ChatModelProfile
   defaultProfile: ChatModelProfile
   defaultModel: string

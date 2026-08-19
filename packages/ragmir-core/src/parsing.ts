@@ -683,7 +683,7 @@ async function parsePdf(
       pageTexts.push(pageText)
     }
   } finally {
-    await pdf.destroy()
+    await pdf.loadingTask.destroy()
   }
 
   const blankPages = pageTexts.flatMap((text, index) => (text ? [] : [index + 1]))

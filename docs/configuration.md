@@ -24,6 +24,7 @@ edit JSON only for a real need.
 | `embeddingModelRevision` | Pinned commit for bundled profiles | Use an immutable 40-character commit for reproducible model artifacts. Unknown custom models default to the mutable `main` revision until explicitly pinned. |
 | `embeddingModelDigest` | `null` | `rgr models pull --enable` records a SHA-256 identity for the resolved local artifact tree. Do not set it by hand unless the local files were verified independently. |
 | `topK` | `8` | Change the CLI and TypeScript default, up to the hard limit of 100. MCP requests without `topK` start at the lower of this value and 3. |
+| `maxChunksPerDocument` | `1` | Limit primary ranked passages from one document before final `topK` truncation, up to 100. Ranked backfill preserves the requested result count when the candidate set has too few documents. |
 | `mcpMaxTopK` | `10` | Bound explicit MCP passage requests; values above 100 are rejected. |
 | `mcpMaxOutputBytes` | `32768` | Cap variable-size MCP tool and resource JSON; the server also enforces an absolute 1 MiB ceiling. |
 | `chunkSize` / `chunkOverlap` | `1200` / `200` | Tune chunking, then rebuild the index. Chunk size is capped at 1,000,000 characters. |
@@ -32,7 +33,7 @@ edit JSON only for a real need.
 | `embeddingBatchSize` | `32` | Bound one model call; values above `128` are rejected. |
 | `sourceFingerprintMode` | `fast` | Use `strict` to hash every source on every inventory instead of reusing unchanged private fingerprints. |
 | `incrementalFailurePolicy` | `preserve-last-good` | Use `remove-stale` only when failed changed files must disappear immediately. |
-| `hybridTextScanLimit` | `5000` | Bound only the complete-scan fallback used when FTS is unavailable; values above 10,000 are rejected. A fallback smaller than the active corpus is rejected instead of returning silently truncated lexical evidence. |
+| `hybridTextScanLimit` | `5000` | Set the batch size for the complete lexical scan used when FTS is unavailable; values above 10,000 are rejected. The fallback scans every matching chunk across as many batches as the corpus requires. |
 | `workloadLimits` | See below | Bound active search, embedding, and ingestion work plus their queues and queue deadlines. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
 
@@ -81,21 +82,33 @@ Profiles bound retrieval work. They are candidate and diversification budgets, n
 a larger budget improves every corpus. Evaluate the profile against a representative golden set
 before changing production configuration.
 
-| Profile | Quality intent | Latency intent | Default `topK` | Fallback scan cap | Vector candidates | FTS candidates | First-pass chunks per source | Context radius |
+| Profile | Quality intent | Latency intent | Default `topK` | Fallback batch size | Vector candidates | FTS candidates | Document cap | Context radius |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `fast` | Narrow, diverse evidence | Lowest work budget | 5 | 2,000 | max(40, 3 x `topK`) | max(100, 10 x `topK`) | 1, then backfill | 0 |
-| `balanced` | General-purpose evidence | Default work budget | 8 | 5,000 | max(80, 4 x `topK`) | max(250, 20 x `topK`) | 2, then backfill | 0 |
-| `quality` | Broader multi-section evidence | Highest work budget | 12 | 10,000 | max(200, 8 x `topK`) | min(4,000, max(500, 40 x `topK`)) | 4, then backfill | 1 |
-| `custom` | Golden-set validated | Operator-defined | configured | configured | max(80, 4 x `topK`) | max(250, 20 x `topK`) | 2, then backfill | 0 |
+| `fast` | Narrow, diverse evidence | Lowest work budget | 5 | 2,000 | max(40, 3 x `demand`) | max(100, 10 x `demand`) | configured, default 1 | 0 |
+| `balanced` | General-purpose evidence | Default work budget | 8 | 5,000 | max(80, 4 x `demand`) | max(250, 20 x `demand`) | configured, default 1 | 0 |
+| `quality` | Broader multi-section evidence | Highest work budget | 12 | 10,000 | max(200, 8 x `demand`) | min(4,000, max(500, 40 x `demand`)) | configured, default 1 | 1 |
+| `custom` | Golden-set validated | Operator-defined | configured | configured | max(80, 4 x `demand`) | max(250, 20 x `demand`) | configured, default 1 | 0 |
 
+`demand` is `topK * ceil(4 / maxChunksPerDocument)`, with a minimum multiplier of one. This internal
+over-retrieval gives the diversity pass enough lower-ranked documents before final truncation.
 Vector candidates are capped at 1,000. The FTS pool is profile-aware and capped at 4,000,
-independently from `hybridTextScanLimit`. Structural context and body text feed the primary local
-index. Exact file paths use a bounded scalar variant. Controlled exact-phrase, identifier, and fuzzy
-rare-term queries expand only a primary pool that cannot fill `topK`, preserving established ranks.
-The diversity pass prefers distinct sources first, then backfills ranked non-duplicate, non-overlapping
-chunks to `topK`. Hybrid ranking uses deterministic reciprocal-rank fusion with `k = 60` and equal
-vector and lexical weights. Stable source and chunk keys break score ties before ranks are assigned.
-The active provider, profile, and ranking parameters form a policy fingerprint stored in quality
+independently from the complete-scan batch size. Structural context and body text feed the primary
+local index. Exact file paths use a bounded scalar variant. Controlled exact-phrase, identifier,
+and fuzzy rare-term queries expand only a primary pool that cannot fill the demand, preserving
+established ranks.
+
+After scoring and abstention, the deterministic diversity pass keeps at most
+`maxChunksPerDocument` primary passages per relative path while preserving rank order. It then
+backfills ranked, non-duplicate, non-overlapping chunks only when too few documents or candidates
+remain to fill `topK`. Neighbor chunks requested through `contextRadius` are attached afterward and
+do not consume the primary document cap. MMR is not part of the default policy: pairwise similarity
+adds more work and corpus-dependent ordering, and the current golden benchmark does not show an
+advantage over the simple cap default. It can be evaluated later as an explicit opt-in strategy
+without changing this predictable default.
+
+Hybrid ranking uses deterministic reciprocal-rank fusion with `k = 60` and equal vector and lexical
+weights. Stable source and chunk keys break score ties before ranks are assigned. The active
+provider, profile, document cap, and ranking parameters form a policy fingerprint stored in quality
 reports and exposed by score explanations.
 
 Abstention is provider-aware. `local-hash` requires lexical evidence and gives query identifiers
