@@ -30,6 +30,8 @@ the corpus, and calls no model.
   `compact: false` only for an explicit full payload. CLI compact output remains opt-in.
 - Core behavior: cited retrieval only. `ask` returns evidence, while synthesis belongs to the calling
   agent or optional local chat add-on.
+- Agentic RAG boundary: Ragmir supplies bounded, cited evidence to a host agent or automation;
+  planning, tool use, and action authority remain in that host.
 - Consumer choice: use the AI or automation you already have through CLI, TypeScript, or MCP. Use a
   local consumer or optional Chat when no retrieved passage may leave the machine.
 - Portable knowledge: `rgr portable export` creates a frozen relocatable folder with the active

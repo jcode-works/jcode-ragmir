@@ -14,6 +14,19 @@ const homePageSource = readFileSync(
   fileURLToPath(new URL("./pages/[...locale]/index.astro", import.meta.url)),
   "utf8",
 )
+const layoutSource = readFileSync(
+  fileURLToPath(new URL("./layouts/layout.astro", import.meta.url)),
+  "utf8",
+)
+const astroConfigSource = readFileSync(
+  fileURLToPath(new URL("../astro.config.mjs", import.meta.url)),
+  "utf8",
+)
+const llmsSource = readFileSync(
+  fileURLToPath(new URL("../public/llms.txt", import.meta.url)),
+  "utf8",
+)
+const aiSource = readFileSync(fileURLToPath(new URL("../public/ai.txt", import.meta.url)), "utf8")
 const teamPageSource = readFileSync(
   fileURLToPath(new URL("./pages/[...locale]/team.astro", import.meta.url)),
   "utf8",
@@ -99,13 +112,23 @@ describe("landing public contract", () => {
     expect(heroSource).not.toContain("hero_subtagline")
   })
 
-  it("should lead homepage metadata with the library, CLI, and local MCP server", () => {
-    expect(en.seo_home_title).toContain("RAG library")
-    expect(fr.seo_home_title).toContain("bibliothèque RAG")
+  it("should position Ragmir as the evidence layer for agentic RAG workflows", () => {
+    expect(en.seo_home_title).toContain("agentic RAG workflows")
+    expect(fr.seo_home_title).toContain("workflows RAG agentiques")
     expect(en.seo_home_description).toContain("TypeScript RAG library, CLI, and local MCP server")
     expect(fr.seo_home_description).toContain(
       "Bibliothèque TypeScript open source, CLI et serveur MCP local",
     )
+    for (const description of [en.seo_home_description, en.hero_description, en.agents_text]) {
+      expect(description).toContain("action authority")
+    }
+    for (const description of [fr.seo_home_description, fr.hero_description, fr.agents_text]) {
+      expect(description).toContain("autorité d'action")
+    }
+    expect(llmsSource).toContain("retrieval and evidence layer for agentic RAG workflows")
+    expect(aiSource).toContain("retrieval and evidence layer for agentic RAG workflows")
+    expect(llmsSource).toContain("retains action authority")
+    expect(aiSource).toContain("retains action authority")
     expect(en.hero_metric_mcp_value).toBe("Library + CLI + MCP")
     expect(fr.hero_metric_mcp_value).toBe("Bibliothèque + CLI + MCP")
     expect(en.seo_home_keywords).not.toContain("local RAG API")
@@ -158,6 +181,17 @@ describe("landing public contract", () => {
     expect(homePageSource).toMatch(localizedWebPageId)
     expect(homePageSource).toContain('about: { "@id": "https://ragmir.com/#source" }')
     expect(teamPageSource).toContain('url: "https://github.com/jb-thery"')
+  })
+
+  it("should use generic hreflang values while keeping regional Open Graph locales", () => {
+    expect(layoutSource).toContain(
+      'const hreflangLocaleMap: Record<string, string> = {\n  en: "en",\n  fr: "fr",',
+    )
+    expect(astroConfigSource).toContain(
+      'locales: {\n                en: "en",\n                fr: "fr",',
+    )
+    expect(layoutSource).toContain('en: "en_US"')
+    expect(layoutSource).toContain('fr: "fr_FR"')
   })
 
   it("should expose AGPL and commercial licensing consistently", () => {
@@ -279,13 +313,12 @@ describe("landing public contract", () => {
     expect(coreCliSource).toContain('.command("portable")')
   })
 
-  it("should keep visible FAQs and localized FAQ structured data on one content source", () => {
+  it("should keep visible localized FAQs without FAQPage structured data", () => {
     expect(getFaqItems(en)).toHaveLength(11)
     expect(getFaqItems(fr)).toHaveLength(11)
-    expect(homePageSource).toContain('"@type": "FAQPage"')
-    expect(homePageSource).toContain("mainEntity: faqItems.map")
-    expect(homePageSource).toContain('"@type": "Question"')
-    expect(homePageSource).toContain('"@type": "Answer"')
+    expect(homePageSource).toContain("<Faq translations={translations} />")
+    expect(homePageSource).not.toContain('"@type": "FAQPage"')
+    expect(homePageSource).not.toContain("mainEntity: faqItems.map")
   })
 
   it("should normalize localized internal URLs and preserve external URLs", () => {

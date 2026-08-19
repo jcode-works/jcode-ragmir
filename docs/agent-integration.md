@@ -1,8 +1,10 @@
 # Agent integration
 
-Ragmir indexes the selected project files locally and gives the AI or automation you choose cited
-passages through CLI or one stdio MCP server. The default `local-hash` path keeps ingestion and
-retrieval offline. Core is model-agnostic, never uploads the corpus, and never calls a model itself.
+Ragmir is the local retrieval and evidence layer for agentic RAG workflows. It indexes the selected
+project files locally and gives the AI or automation you choose cited passages through CLI or one
+stdio MCP server. It is not an autonomous agent, planner, or action runtime: planning, tool use, and
+action authority stay in the host. The default `local-hash` path keeps ingestion and retrieval
+offline. Core is model-agnostic, never uploads the corpus, and never calls a model itself.
 
 For an interactive repository-aware installation, paste the canonical prompt from the
 [quick-start guide](./quick-start.md) into the coding agent. It detects the package manager and

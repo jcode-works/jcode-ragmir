@@ -281,9 +281,11 @@ clamped to three chunks.
 `ResearchReport.budgets` records configured and consumed budgets; `audit.mode` distinguishes
 `manifest` from `full`. Evidence exposes a weighted cross-query RRF `researchScore` and `bestRank`.
 The original query has a protected weight so language-aware expansions can add evidence without
-removing direct-search results from the same candidate depth.
+removing direct-search results from the same candidate depth. After fusion, research reapplies
+`maxChunksPerDocument` with ranked backfill; the report records the cap and whether backfill was
+needed.
 
-Golden evaluation files are limited to 1 MiB and 100 cases. Each query is limited to 20,000
+Golden evaluation files are limited to 16 MiB and 1,000 cases. Each query is limited to 20,000
 characters, with at most 100 expected paths or citations of 500 characters each.
 `AccessLogUsageOptions.days` accepts an integer from 1 to 3650.
 
