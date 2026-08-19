@@ -408,6 +408,53 @@ describe("search", () => {
     expect(results[0]?.relativePath).toBe(".ragmir/raw/zeta.md")
   })
 
+  it("should anchor compound identifiers before broad lexical backfill", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-identifier-anchor-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ retrievalProfile: "fast", topK: 10 }),
+    )
+    await Promise.all([
+      ...Array.from({ length: 50 }, (_entry, index) =>
+        writeFile(
+          path.join(root, ".ragmir", "raw", `target-${String(index).padStart(3, "0")}.md`),
+          `Find evidence for compound identifier BENCH-IDENTIFIER-14 target ${index}.\n`,
+        ),
+      ),
+      ...Array.from({ length: 120 }, (_entry, index) =>
+        writeFile(
+          path.join(root, ".ragmir", "raw", `distractor-${String(index).padStart(3, "0")}.md`),
+          `Find broad evidence for an unrelated routine ${index}.\n`,
+        ),
+      ),
+    ])
+    await ingest({ cwd: root })
+
+    const exact = await search("Find evidence for BENCH-IDENTIFIER-14", {
+      cwd: root,
+      topK: 10,
+      explain: true,
+    })
+    const fuzzy = await search("Find evidence for BENCH-IDENTIFIXR-14", {
+      cwd: root,
+      topK: 1,
+      explain: true,
+    })
+
+    expect(exact).toHaveLength(10)
+    expect(exact.every((result) => result.text.includes("BENCH-IDENTIFIER-14"))).toBe(true)
+    expect(exact[0]?.score).toMatchObject({
+      lexicalBackend: "fts",
+      lexicalCandidatesMaterialized: 50,
+      lexicalQueryVariants: 1,
+    })
+    expect(fuzzy[0]?.text).toContain("BENCH-IDENTIFIER-14")
+    expect(fuzzy[0]?.score?.lexicalQueryVariants).toBeGreaterThan(1)
+  }, 15_000)
+
   it("should scan a complete lexical fallback in bounded batches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-truncated-fallback-"))
     tempDirs.push(root)
