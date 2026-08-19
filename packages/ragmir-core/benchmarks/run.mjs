@@ -23,6 +23,8 @@ import {
   settleMeasurement,
 } from "./lib/metrics.mjs"
 
+const SCALE_WORKLOAD_VERSION = 1
+
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const options = parseArguments(process.argv.slice(2))
@@ -171,6 +173,7 @@ try {
       profile.warmups >= 10 && profile.samples >= 100 && profile.repetitions >= 5,
     environment,
     configuration: {
+      workloadVersion: SCALE_WORKLOAD_VERSION,
       embeddingProvider: provider,
       embeddingModel: model,
       embeddingModelRevision: modelRevision,
