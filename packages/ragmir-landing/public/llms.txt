@@ -1,15 +1,18 @@
 # Ragmir
 
-Ragmir is an open-source confidential local RAG for coding agents, scripts, and Node.js
-applications. It turns selected project files into cited evidence indexed and retrieved locally
-through a CLI, TypeScript API, or read-focused MCP server. Core works offline by default, never
-uploads the corpus, and calls no model.
+Ragmir is an open-source local retrieval and evidence layer for agentic RAG workflows, coding
+agents, scripts, and Node.js applications. It turns selected project files into cited evidence
+indexed and retrieved locally through a CLI, TypeScript API, or read-focused MCP server. Core works
+offline by default, never uploads the corpus, and calls no model. Ragmir retrieves evidence; the
+host application or agent retains action authority.
 
 ## Product boundary
 
 - Ragmir v3.0.0 and later use AGPL-3.0-only. A separate commercial license is available from JCode
   Works for proprietary use; earlier releases keep their published license.
 - `@jcode.labs/ragmir` is retrieval-first. Core does not call an LLM or write generated answers.
+- Ragmir supports agentic RAG workflows as their bounded retrieval and evidence layer. The host
+  decides and acts, and retains action authority.
 - Core is model-agnostic. The user can connect a preferred coding agent or script through CLI,
   TypeScript, or MCP.
 - `createRagmirClient()` reuses one local connection for repeated work in a stateful Node.js process,

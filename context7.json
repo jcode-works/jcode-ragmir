@@ -1,7 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "Ragmir",
-  "description": "Confidential local RAG for coding agents and scripts, with offline cited retrieval. The TypeScript CLI, library, read-focused MCP server, and portable skills keep the corpus and index under ignored local state. Optional local Chat and TTS remain separate packages.",
+  "description": "Confidential local retrieval and evidence for agentic RAG workflows, with offline cited retrieval. The TypeScript CLI, library, read-focused MCP server, and portable skills keep the corpus and index under ignored local state. Optional local Chat and TTS remain separate packages.",
   "excludeFolders": [
     "node_modules",
     "packages/ragmir-core/dist",
@@ -21,7 +21,7 @@
   "rules": [
     "Ragmir v3.0.0 and later are licensed under AGPL-3.0-only, with a separate commercial licensing option from JCode Works for proprietary use. Earlier releases keep their published license.",
     "Use the canonical English setup prompt in docs/quick-start.md for a repository-aware installation; it detects the package manager and existing state, asks before changes or downloads, and verifies retrieval.",
-    "Ragmir Core returns cited retrieval context only; it does not synthesize answers itself.",
+    "Ragmir Core is the local retrieval and evidence layer for agentic RAG workflows. It is not an autonomous agent, planner, or action runtime; planning, tool use, and action authority stay in the host.",
     "Any compatible coding agent, script, CLI, TypeScript application, or MCP client can consume Core results; use a local consumer when no passage may leave the machine.",
     "Use `rgr portable export` to create a frozen relocatable folder containing the active index, any required local embedding model, a restricted launcher, portable skills, MCP adapters, and a SHA-256 inventory. Raw source files and access logs are excluded, but indexed passages remain sensitive. Verify the folder after moving it and keep action authority in the host agent or automation.",
     "Use one `createRagmirClient()` per project root for repeated work in a stateful Node.js process; it caches one immutable read snapshot until atomic generation replacement and flushes metadata-only access logs during close. Use top-level functions for one-shot scripts.",

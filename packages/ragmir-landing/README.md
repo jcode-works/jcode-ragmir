@@ -68,7 +68,7 @@ and omits the production sitemap.
 - Explain team use positively and briefly: merge reviewed changes upstream, run `rgr team sync`,
   receive a ready private local index. Keep snapshots and low-level safeguards in focused advanced
   guides.
-- Keep visible FAQ copy and `FAQPage` JSON-LD generated from the same localized content source.
+- Keep localized FAQ copy visible without publishing `FAQPage` structured data.
 - Keep English and French messages aligned, and ground every claim in current code and tests.
 - Never claim hosted storage, universal formats, blanket compliance, or guaranteed confidentiality.
 
