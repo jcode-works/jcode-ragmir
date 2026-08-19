@@ -14,6 +14,7 @@ describe("hybrid ranking", () => {
     const alpha = row("alpha.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const beta = row("beta.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const policy = rankingPolicyFor("local-hash", "balanced", 1)
+    expect(policy.version).toBe(4)
 
     const forward = rankHybridRows("policy evidence", [beta, alpha], [alpha, beta], policy)
     const reversed = rankHybridRows("policy evidence", [alpha, beta], [beta, alpha], policy)
