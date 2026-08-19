@@ -611,6 +611,7 @@ function portableConfig(config: Config): Record<string, unknown> {
     mcpMaxTopK: config.mcpMaxTopK,
     mcpMaxOutputBytes: config.mcpMaxOutputBytes,
     topK: config.topK,
+    maxChunksPerDocument: config.maxChunksPerDocument,
     chunkSize: config.chunkSize,
     chunkOverlap: config.chunkOverlap,
     maxFileBytes: config.maxFileBytes,

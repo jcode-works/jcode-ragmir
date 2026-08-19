@@ -253,7 +253,11 @@ export async function evaluateGoldenQueriesWithConfig(
   throwIfAborted(signal)
   const cwd = path.resolve(String(options.cwd ?? config.projectRoot))
   const activeRankingPolicyFingerprint = rankingPolicyFingerprint(
-    rankingPolicyFor(config.embeddingProvider, config.retrievalProfile),
+    rankingPolicyFor(
+      config.embeddingProvider,
+      config.retrievalProfile,
+      config.maxChunksPerDocument,
+    ),
   )
   throwIfAborted(signal)
   const goldenPath = path.resolve(cwd, String(options.goldenPath))
@@ -386,6 +390,7 @@ export async function evaluateGoldenQueriesWithConfig(
     embeddingModelRevision: config.embeddingModelRevision,
     embeddingModelDigest: config.embeddingModelDigest,
     retrievalProfile: config.retrievalProfile,
+    maxChunksPerDocument: config.maxChunksPerDocument,
     rankingPolicyFingerprint: activeRankingPolicyFingerprint,
     indexFingerprint,
     goldenFingerprint: goldenFile.fingerprint,

@@ -40,6 +40,7 @@ rgr sources add "docs/**/*.md" "!docs/archive/**"
 rgr sources list
 rgr preview --path docs --max-files 5 --max-chunks 3
 rgr search "migration" --top-k 5 --context-radius 1
+rgr search "migration" --top-k 5 --max-chunks-per-document 2
 rgr search "migration" --include-path docs --exclude-path docs/archive
 rgr search "migration" --context-path "Guide > Migration" --explain
 rgr search "migration" --exact-vector-search
@@ -47,18 +48,21 @@ rgr search "migration" --exact-vector-search
 
 `sources add` accepts paths, globs, and `!` exclusions. Search, ask, and research accept `--top-k`,
 `--include-path`, `--exclude-path`, and repeatable `--context-path`. Search and ask accept
-`--explain`; the optional score object reports RRF contributions, retriever ranks, raw backend
-scores, FTS or complete-fallback activation and reason, candidate and index coverage, queue wait,
-and matched query terms without changing ranking. Use `--compact` on search or research when
+`--max-chunks-per-document` and `--explain`. The document cap defaults to one, applies after scoring,
+and over-retrieves internally before final truncation. Ranked backfill keeps the requested result
+count when the corpus has too few distinct documents. The optional score object reports RRF
+contributions, retriever ranks, raw backend scores, document-cap and backfill state, FTS or
+complete-fallback activation and reason, fallback scan batches, candidate and index coverage, queue
+wait, and matched query terms without changing ranking. Use `--compact` on search or research when
 agent context is limited. This remains explicit for CLI automation; MCP search, ask, and research
-are compact by default. Search and ask accept `--exact-vector-search` to bypass an active ANN
-index for diagnostics against exhaustive vector search. `--top-k` is limited to 100 and
-`--context-radius` is clamped to three chunks.
+are compact by default. Search and ask accept `--exact-vector-search` to bypass an active ANN index
+for diagnostics against exhaustive vector search. `--top-k` and `--max-chunks-per-document` are
+limited to 100, and `--context-radius` is clamped to three chunks.
 
 The explanation also contains a ranking-policy fingerprint so a stored quality report can be tied
-to the exact provider, profile, fusion, and abstention settings. Equal backend scores have a stable
-source-and-chunk tie-break. Search returns no result when all candidates fail the provider-aware
-evidence threshold; it does not force a low-confidence passage into the response.
+to the exact provider, profile, document cap, fusion, and abstention settings. Equal backend scores
+have a stable source-and-chunk tie-break. Search returns no result when all candidates fail the
+provider-aware evidence threshold; it does not force a low-confidence passage into the response.
 
 `preview` uses the active redaction and chunking configuration but never writes storage. `audit`
 reports min, mean, p50, p95, and max chunk sizes plus structural-context coverage.

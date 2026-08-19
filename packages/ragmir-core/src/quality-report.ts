@@ -82,7 +82,13 @@ export async function isCompatibleQualityReport(
     report.embeddingModelDigest !== config.embeddingModelDigest ||
     report.retrievalProfile !== config.retrievalProfile ||
     report.rankingPolicyFingerprint !==
-      rankingPolicyFingerprint(rankingPolicyFor(config.embeddingProvider, config.retrievalProfile))
+      rankingPolicyFingerprint(
+        rankingPolicyFor(
+          config.embeddingProvider,
+          config.retrievalProfile,
+          config.maxChunksPerDocument,
+        ),
+      )
   ) {
     return false
   }

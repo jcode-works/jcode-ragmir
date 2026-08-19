@@ -92,6 +92,7 @@ const queryToolInputSchema = z
   .object({
     query: z.string().trim().min(1).max(MAX_MCP_INPUT_CHARACTERS),
     topK: z.number().int().positive().max(MAX_SEARCH_TOP_K).optional(),
+    maxChunksPerDocument: z.number().int().positive().max(MAX_SEARCH_TOP_K).optional(),
     contextRadius: z.number().int().min(0).max(MAX_MCP_CONTEXT_RADIUS).optional(),
     maxBytes: z.number().int().min(MIN_MCP_OUTPUT_BYTES).max(MAX_MCP_OUTPUT_BYTES).optional(),
     includePaths: z.array(z.string().min(1).max(MAX_MCP_PATH_CHARACTERS)).max(20).optional(),
@@ -376,6 +377,7 @@ export function createMcpServer(
         redactionEnabled: config.redaction.enabled,
         mcpMaxTopK: config.mcpMaxTopK,
         mcpMaxOutputBytes: config.mcpMaxOutputBytes,
+        maxChunksPerDocument: config.maxChunksPerDocument,
         maxFileBytes: config.maxFileBytes,
         ingestConcurrency: config.ingestConcurrency,
         embeddingBatchSize: config.embeddingBatchSize,
@@ -437,6 +439,7 @@ export function createMcpServer(
       {
         query,
         topK,
+        maxChunksPerDocument,
         contextRadius,
         compact,
         maxBytes,
@@ -458,6 +461,7 @@ export function createMcpServer(
         excludePaths,
         contextPaths,
         explain,
+        maxChunksPerDocument,
       )
       options.topK = Math.min(options.topK ?? 1, mcpPreviewLimit(budget))
       const client = await clientLifecycle.getClient(config)
@@ -492,6 +496,7 @@ export function createMcpServer(
       {
         query,
         topK,
+        maxChunksPerDocument,
         contextRadius,
         compact,
         maxBytes,
@@ -513,6 +518,7 @@ export function createMcpServer(
         excludePaths,
         contextPaths,
         explain,
+        maxChunksPerDocument,
       )
       options.topK = Math.min(options.topK ?? 1, mcpPreviewLimit(budget))
       const cancellableOptions = { ...options, signal }
@@ -936,9 +942,11 @@ export async function searchOptions(
   excludePaths?: string[] | undefined,
   contextPaths?: string[] | undefined,
   explain?: boolean | undefined,
+  maxChunksPerDocument?: number | undefined,
 ): Promise<{
   cwd: string
   topK?: number
+  maxChunksPerDocument?: number
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
@@ -954,6 +962,7 @@ export async function searchOptions(
     excludePaths,
     contextPaths,
     explain,
+    maxChunksPerDocument,
   )
 }
 
@@ -965,9 +974,11 @@ function searchOptionsWithConfig(
   excludePaths?: string[] | undefined,
   contextPaths?: string[] | undefined,
   explain?: boolean | undefined,
+  maxChunksPerDocument?: number | undefined,
 ): {
   cwd: string
   topK?: number
+  maxChunksPerDocument?: number
   contextRadius?: number
   includePaths?: string[]
   excludePaths?: string[]
@@ -981,6 +992,7 @@ function searchOptionsWithConfig(
   const result: {
     cwd: string
     topK?: number
+    maxChunksPerDocument?: number
     contextRadius?: number
     includePaths?: string[]
     excludePaths?: string[]
@@ -991,6 +1003,7 @@ function searchOptionsWithConfig(
     topK: boundedTopK,
   }
   addOption(result, "contextRadius", boundedContextRadius)
+  addOption(result, "maxChunksPerDocument", maxChunksPerDocument)
   addOption(result, "includePaths", includePaths)
   addOption(result, "excludePaths", excludePaths)
   addOption(result, "contextPaths", contextPaths)

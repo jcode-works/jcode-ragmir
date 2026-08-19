@@ -129,6 +129,7 @@ async function evaluateRankingVariants(client, goldenQueries) {
     const rows = await client.search(testCase.query, {
       topK: 100,
       explain: true,
+      maxChunksPerDocument: 100,
       ...(testCase.includePaths === undefined ? {} : { includePaths: testCase.includePaths }),
       ...(testCase.excludePaths === undefined ? {} : { excludePaths: testCase.excludePaths }),
       ...(testCase.contextPaths === undefined ? {} : { contextPaths: testCase.contextPaths }),

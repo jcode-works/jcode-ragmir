@@ -224,7 +224,10 @@ pnpm exec rgr research "release obligations" --compact --timeout-ms 10000
 ```
 
 `preview` inspects redacted chunks without writing an index. `audit` compares sources with indexed
-state. `research` combines bounded query variants with deterministic cross-query ranking. Use
+state. Search keeps one primary passage per document by default, over-retrieves before applying the
+cap, and preserves ranked backfill when fewer distinct documents are available. Override the cap
+with `--max-chunks-per-document`; context-radius neighbors remain attached to their primary result.
+`research` combines bounded query variants with deterministic cross-query ranking. Use
 `rgr doctor --deep` only when you need a live O(corpus) inventory; normal status and doctor checks
 read the compact activation manifest.
 

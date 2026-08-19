@@ -58,13 +58,13 @@ instead of presenting an unverifiable line claim.
 
 With `explain: true`, `score` includes the vector and lexical ranks, their reciprocal-rank-fusion
 contributions, matched terms, backend scores, FTS or complete-fallback activation and reason,
-candidate materialization, query-variant count, indexed/unindexed rows, coverage, queue wait as
-`workloadQueueMs`, and
-`rankingPolicyFingerprint`. The fingerprint
-identifies the provider, retrieval profile, fusion parameters, and abstention threshold used by
-the result. Equal scores are ordered by stable source and chunk keys, so identical indexes return
-the same order regardless of backend row order. Search returns an empty array when every candidate
-fails the active provider's evidence threshold.
+fallback scan batches, candidate materialization, query-variant count, indexed/unindexed rows,
+coverage, document-cap and ranked-backfill state, queue wait as `workloadQueueMs`, and
+`rankingPolicyFingerprint`. The fingerprint identifies the provider, retrieval profile, document
+cap, fusion parameters, and abstention threshold used by the result. Equal scores are ordered by
+stable source and chunk keys, so identical indexes return the same order regardless of backend row
+order. Search returns an empty array when every candidate fails the active provider's evidence
+threshold.
 
 ### Persistent client for Node.js workers
 
@@ -236,13 +236,17 @@ to perform an external action.
 
 One evaluation pins a single configuration, connection, manifest generation, table handle, and
 embedding model. Cases run with bounded concurrency, preserve file order in the report, and release
-all scoped resources when evaluation finishes.
+all scoped resources when evaluation finishes. The report records the configured
+`maxChunksPerDocument` beside the ranking-policy fingerprint so reference results are reproducible.
 
-`SearchOptions` accepts `cwd`, `topK`, `contextRadius`, `includePaths`, `excludePaths`,
-`contextPaths`, `explain`, `vectorSearchMode`, `signal`, and `timeoutMs`. Set
+`SearchOptions` accepts `cwd`, `topK`, `maxChunksPerDocument`, `contextRadius`, `includePaths`,
+`excludePaths`, `contextPaths`, `explain`, `vectorSearchMode`, `signal`, and `timeoutMs`. Set
 `vectorSearchMode: "exact"` to bypass ANN for diagnostic comparison; the default `"adaptive"`
-uses the compatible strategy recorded in the manifest. `topK` is limited to 100 and
-`contextRadius` is clamped to three chunks. `IngestOptions` also accepts `rebuild`, a
+uses the compatible strategy recorded in the manifest. `topK` and `maxChunksPerDocument` are
+limited to 100. The document cap defaults to one, applies after scoring, and is preceded by internal
+over-retrieval. Ranked backfill preserves the requested result count when too few distinct
+documents are available. `contextRadius` is clamped to three chunks and attaches neighbors after
+primary-result diversification. `IngestOptions` also accepts `rebuild`, a
 positive `batchSize` that defaults to 25 files and is capped at 128, `incrementalFailurePolicy`, and
 an optional `onProgress` callback. Set `collectMetrics: true` to include privacy-safe phase,
 throughput, cache-state, RSS, OCR subprocess, fallback, error, timeout, and bound-activation metrics
