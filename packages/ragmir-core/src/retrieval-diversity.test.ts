@@ -78,4 +78,38 @@ describe("selectDiverseRows", () => {
     expect(result.rows.map(({ row }) => row.chunkIndex)).toEqual([0, 1, 2, 3])
     expect(result.backfillActivated).toBe(true)
   })
+
+  it("should use overlapping chunks only as a final topK backfill", () => {
+    const rows = Array.from({ length: 5 }, (_value, index) => {
+      const result = rankedRow("only.md", index, 1 - index / 10)
+      result.row.charStart = index * 40
+      result.row.charEnd = index * 40 + 80
+      return result
+    })
+
+    const result = selectDiverseRows(rows, { topK: 4, maxChunksPerDocument: 1 })
+
+    expect(result.rows).toHaveLength(4)
+    expect(result.rows.map(({ row }) => row.chunkIndex)).toEqual([0, 2, 4, 1])
+    expect(result.backfillActivated).toBe(true)
+  })
+
+  it("should prefer a canonical duplicate path and preserve an exact path match", () => {
+    const rankedFirst = rankedRow("archive/deep/evidence.md", 0, 1)
+    const shorterLater = rankedRow("evidence.md", 0, 0.5)
+    shorterLater.row.text = rankedFirst.row.text
+
+    const ranked = selectDiverseRows([rankedFirst, shorterLater], {
+      topK: 1,
+      maxChunksPerDocument: 1,
+    })
+    const exact = selectDiverseRows([rankedFirst, shorterLater], {
+      topK: 1,
+      maxChunksPerDocument: 1,
+      isExactPathMatch: (row) => row.relativePath === "evidence.md",
+    })
+
+    expect(ranked.rows[0]).toBe(shorterLater)
+    expect(exact.rows[0]).toBe(shorterLater)
+  })
 })

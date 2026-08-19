@@ -11,6 +11,7 @@ import {
   compactSearchResults,
   rankResearchEvidence,
   research,
+  selectDiverseResearchEvidence,
 } from "./research.js"
 import type { SearchResult } from "./types.js"
 
@@ -143,6 +144,83 @@ describe("research", () => {
     }
   })
 
+  it("should diversify evidence again after multi-query fusion", () => {
+    const primaryQuery = "release approval"
+    const ranked = rankResearchEvidence(
+      [
+        {
+          query: primaryQuery,
+          results: [
+            searchResult("dominant.md", 0),
+            searchResult("secondary.md", 0),
+            searchResult("third.md", 0),
+          ],
+        },
+        {
+          query: "release approval validation",
+          results: [searchResult("dominant.md", 1), searchResult("fourth.md", 0)],
+        },
+      ],
+      primaryQuery,
+    )
+
+    const result = selectDiverseResearchEvidence(ranked, 4, 1)
+
+    expect(result.evidence.map((entry) => entry.relativePath)).toHaveLength(4)
+    expect(new Set(result.evidence.map((entry) => entry.relativePath))).toEqual(
+      new Set(["dominant.md", "secondary.md", "third.md", "fourth.md"]),
+    )
+    expect(result.backfillActivated).toBe(false)
+  })
+
+  it("should backfill research evidence when one document owns every candidate", () => {
+    const ranked = rankResearchEvidence(
+      [
+        {
+          query: "release approval",
+          results: [
+            searchResult("dominant.md", 0),
+            searchResult("dominant.md", 1),
+            searchResult("dominant.md", 2),
+          ],
+        },
+      ],
+      "release approval",
+    )
+
+    const result = selectDiverseResearchEvidence(ranked, 3, 1)
+
+    expect(result.evidence.map((entry) => entry.chunkIndex)).toEqual([0, 1, 2])
+    expect(result.backfillActivated).toBe(true)
+  })
+
+  it("should remove mirrored text after multi-query fusion", () => {
+    const primaryQuery = "release approval"
+    const ranked = rankResearchEvidence(
+      [
+        {
+          query: primaryQuery,
+          results: [
+            { ...searchResult("primary.md", 0), text: "Shared release evidence" },
+            searchResult("independent.md", 0),
+          ],
+        },
+        {
+          query: "release approval validation",
+          results: [{ ...searchResult("mirror.md", 0), text: "Shared release evidence" }],
+        },
+      ],
+      primaryQuery,
+    )
+
+    const result = selectDiverseResearchEvidence(ranked, 3, 1)
+
+    expect(result.evidence.map((entry) => entry.relativePath)).toEqual([
+      "primary.md",
+      "independent.md",
+    ])
+  })
+
   it("should rank the best code hit when its path sorts after one hundred weaker matches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-research-code-rank-"))
     tempDirs.push(root)
@@ -206,6 +284,8 @@ describe("research", () => {
     expect(report.budgets).toMatchObject({
       timeoutMs: 10_000,
       evidenceTopK: 1,
+      maxChunksPerDocument: 1,
+      diversityBackfillActivated: false,
       codeEvidenceTopK: 1,
       codeScanMaxFiles: 2,
       codeScanMaxBytes: 1_000,
@@ -311,7 +391,7 @@ function searchResult(relativePath: string, chunkIndex: number): SearchResult {
     chunkIndex,
     contextPath: "",
     citation: `${relativePath}:L1-L1#${chunkIndex}`,
-    text: `${relativePath} evidence`,
+    text: `${relativePath} evidence ${chunkIndex}`,
     distance: 0.5,
     charStart: 0,
     charEnd: 10,

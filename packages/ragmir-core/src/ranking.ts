@@ -21,7 +21,7 @@ export interface RankedRow<Row extends RankingRow = RankingRow> {
 }
 
 export interface RankingPolicy {
-  version: 3
+  version: 4
   embeddingProvider: EmbeddingProvider
   retrievalProfile: RetrievalProfile
   maxChunksPerDocument: number
@@ -53,7 +53,7 @@ export function rankingPolicyFor(
   maxChunksPerDocument: number,
 ): RankingPolicy {
   return {
-    version: 3,
+    version: 4,
     embeddingProvider,
     retrievalProfile,
     maxChunksPerDocument,
