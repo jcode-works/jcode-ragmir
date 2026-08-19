@@ -1,8 +1,10 @@
 import { channel } from "node:diagnostics_channel"
 import {
+  BooleanQuery,
   type Connection,
   type FullTextQuery,
   MatchQuery,
+  Occur,
   Operator,
   PhraseQuery,
 } from "@lancedb/lancedb"
@@ -977,20 +979,47 @@ function lexicalQuery(
     return null
   }
   const joined = tokens.join(" ")
+  const broadQuery = new MatchQuery(joined, "searchText", { operator: Operator.Or })
   const supplemental: FullTextQuery[] = []
-  if (tokens.length > 1) {
-    supplemental.push(new PhraseQuery(joined, "searchText"))
-  }
   const identifierTerms = [...query.matchAll(LEXICAL_IDENTIFIER_PATTERN)]
     .map((match) => match[0])
     .filter(Boolean)
-  for (const identifier of [...new Set(identifierTerms)]) {
-    supplemental.push(
-      new MatchQuery(identifier, "searchText", {
-        boost: 2,
-        ...(isFuzzyLexicalTerm(identifier) ? { fuzziness: 1, prefixLength: 3 } : {}),
-      }),
+  const identifiers = [...new Set(identifierTerms)]
+  const firstIdentifier = identifiers[0]
+  if (firstIdentifier !== undefined) {
+    const firstExactIdentifierQuery = new PhraseQuery(firstIdentifier, "searchText")
+    const exactIdentifierQueries = [
+      firstExactIdentifierQuery,
+      ...identifiers.slice(1).map((identifier) => new PhraseQuery(identifier, "searchText")),
+    ]
+    const exactIdentifierQuery: FullTextQuery =
+      exactIdentifierQueries.length === 1
+        ? firstExactIdentifierQuery
+        : new BooleanQuery(
+            exactIdentifierQueries.map((item): [Occur, FullTextQuery] => [Occur.Should, item]),
+          )
+    const fuzzyIdentifierQuery = new BooleanQuery(
+      identifiers.map((identifier): [Occur, FullTextQuery] => [
+        Occur.Should,
+        new MatchQuery(identifier, "searchText", {
+          boost: 2,
+          fuzziness: 1,
+          operator: Operator.And,
+          prefixLength: 3,
+        }),
+      ]),
     )
+    supplemental.push(fuzzyIdentifierQuery, broadQuery)
+    return {
+      primary: new BooleanQuery([
+        [Occur.Must, exactIdentifierQuery],
+        [Occur.Should, broadQuery],
+      ]),
+      supplemental,
+    }
+  }
+  if (tokens.length > 1) {
+    supplemental.push(new PhraseQuery(joined, "searchText"))
   }
   const rareTerms = tokens
     .filter(isFuzzyLexicalTerm)
@@ -1006,7 +1035,7 @@ function lexicalQuery(
     )
   }
   return {
-    primary: new MatchQuery(joined, "searchText", { operator: Operator.Or }),
+    primary: broadQuery,
     supplemental,
   }
 }
