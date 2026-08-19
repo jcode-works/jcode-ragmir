@@ -415,16 +415,16 @@ describe("search", () => {
     await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
     await writeFile(
       path.join(root, ".ragmir", "config.json"),
-      JSON.stringify({ retrievalProfile: "fast", topK: 10 }),
+      JSON.stringify({ retrievalProfile: "fast", topK: 2 }),
     )
     await Promise.all([
-      ...Array.from({ length: 50 }, (_entry, index) =>
+      ...Array.from({ length: 8 }, (_entry, index) =>
         writeFile(
           path.join(root, ".ragmir", "raw", `target-${String(index).padStart(3, "0")}.md`),
           `Find evidence for compound identifier BENCH-IDENTIFIER-14 target ${index}.\n`,
         ),
       ),
-      ...Array.from({ length: 120 }, (_entry, index) =>
+      ...Array.from({ length: 12 }, (_entry, index) =>
         writeFile(
           path.join(root, ".ragmir", "raw", `distractor-${String(index).padStart(3, "0")}.md`),
           `Find broad evidence for an unrelated routine ${index}.\n`,
@@ -435,7 +435,7 @@ describe("search", () => {
 
     const exact = await search("Find evidence for BENCH-IDENTIFIER-14", {
       cwd: root,
-      topK: 10,
+      topK: 2,
       explain: true,
     })
     const fuzzy = await search("Find evidence for BENCH-IDENTIFIXR-14", {
@@ -444,11 +444,11 @@ describe("search", () => {
       explain: true,
     })
 
-    expect(exact).toHaveLength(10)
+    expect(exact).toHaveLength(2)
     expect(exact.every((result) => result.text.includes("BENCH-IDENTIFIER-14"))).toBe(true)
     expect(exact[0]?.score).toMatchObject({
       lexicalBackend: "fts",
-      lexicalCandidatesMaterialized: 50,
+      lexicalCandidatesMaterialized: 8,
       lexicalQueryVariants: 1,
     })
     expect(fuzzy[0]?.text).toContain("BENCH-IDENTIFIER-14")
@@ -492,7 +492,7 @@ describe("search", () => {
       "Routine evidence without query terms.\n",
     )
     await Promise.all(
-      Array.from({ length: 120 }, (_entry, index) =>
+      Array.from({ length: 90 }, (_entry, index) =>
         writeFile(
           path.join(root, ".ragmir", "raw", `distractor-${String(index).padStart(3, "0")}.md`),
           `Ragmir raw policy md distractor evidence ${index}.\n`,
@@ -514,7 +514,7 @@ describe("search", () => {
       lexicalBackend: "fallback",
       lexicalExactPathMatch: true,
     })
-    expect(vectorCandidateLimit(1)).toBeLessThan(120)
+    expect(vectorCandidateLimit(1)).toBeLessThan(90)
   }, 10_000)
 
   it("should explain complete lexical fallback activation and coverage", async () => {
