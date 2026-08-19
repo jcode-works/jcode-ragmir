@@ -22,9 +22,14 @@ and explicit reranker, compression, hashing, and content-dedup experiments.
 
 ## Claim rules
 
-- `bench:quality` requires clean indexes with matching corpus and quality fingerprints. It separates
-  p50/p95 latency from deterministic quality and evaluates vector-only, lexical-only, current
-  hybrid, and experimental lexical weights.
+- `bench:quality` requires clean indexes with matching corpus and outcome fingerprints. It separates
+  p50/p95 latency from deterministic quality and evaluates vector-only, lexical-only, an
+  undiversified hybrid baseline, the default one-chunk document cap, a two-chunk cap, MMR, and
+  experimental lexical weights. Ranking variants report the mean number of distinct documents in
+  the first ten results.
+- `bench:compare` recognizes scale and quality reports separately. It validates both quality runs,
+  their absolute gates, and explicit workload versions. Missing identities or metrics are invalid,
+  incompatible workloads are inconclusive, and only complete comparable reports can pass.
 - `bench:vector-index` uses deterministic 384-dimensional tables, 10 warm-ups, 100 samples, and five
   measured repetitions. A candidate fails if it loses at least 0.01 Recall@10, has incomplete
   coverage, misses the M/L latency gate, or does not improve p95. `--quick` is calibration only.
