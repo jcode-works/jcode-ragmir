@@ -229,7 +229,11 @@ describe("MCP protocol contract", () => {
         await Promise.all([
           writeFile(
             path.join(rawDir, `release-${index}.md`),
-            `Release approval evidence ${index} requires a reviewed production decision.\n`,
+            Array.from(
+              { length: 30 },
+              (_entry, line) =>
+                `Release approval evidence ${index}.${line} requires a reviewed production decision.`,
+            ).join("\n"),
             "utf8",
           ),
           writeFile(
@@ -262,6 +266,7 @@ describe("MCP protocol contract", () => {
         query: "reviewed production release approval decision",
         topK: 5,
         maxChunksPerDocument: 2,
+        contextRadius: 1,
         explain: true,
         compact: false,
       },
@@ -270,6 +275,7 @@ describe("MCP protocol contract", () => {
     expect(fullPayload).toHaveLength(5)
     expect(fullPayload[0]).toHaveProperty("text")
     expect(fullPayload[0]).not.toHaveProperty("snippet")
+    expect(fullPayload[0]?.context.length).toBeGreaterThan(0)
     expect(fullPayload[0]?.score).toMatchObject({
       diversityStrategy: "document-cap",
       maxChunksPerDocument: 2,
@@ -281,6 +287,26 @@ describe("MCP protocol contract", () => {
     expect(Buffer.byteLength(textContent(compact), "utf8")).toBeLessThan(
       Buffer.byteLength(textContent(full), "utf8"),
     )
+
+    const compactAsk = await client.callTool({
+      name: "ragmir_ask",
+      arguments: { query: "reviewed production release approval decision", topK: 1 },
+    })
+    const compactAskPayload = JSON.parse(textContent(compactAsk))
+    expect(compactAskPayload.sources[0]).toHaveProperty("snippet")
+    expect(compactAskPayload.sources[0]).not.toHaveProperty("context")
+
+    const fullAsk = await client.callTool({
+      name: "ragmir_ask",
+      arguments: {
+        query: "reviewed production release approval decision",
+        topK: 1,
+        contextRadius: 1,
+        compact: false,
+      },
+    })
+    const fullAskPayload = JSON.parse(textContent(fullAsk))
+    expect(fullAskPayload.sources[0]?.context.length).toBeGreaterThan(0)
 
     const research = await client.callTool({
       name: "ragmir_research",
