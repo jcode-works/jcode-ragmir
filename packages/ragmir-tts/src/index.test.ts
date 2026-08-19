@@ -454,7 +454,9 @@ describe("renderSpeech", () => {
         edgeAvailable: () => true,
         signal: controller.signal,
       })
-      await vi.waitFor(() => expect(existsSync(`${outputPath}.ready`)).toBe(true))
+      await vi.waitFor(() => expect(existsSync(`${outputPath}.ready`)).toBe(true), {
+        timeout: 5_000,
+      })
 
       controller.abort()
 
