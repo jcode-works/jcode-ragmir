@@ -140,27 +140,25 @@ describe("parseFile", () => {
     )
   })
 
-  it.each([
-    { extension: ".docx" },
-    { extension: ".xlsx" },
-  ])("should reject $extension archives when they exceed Office entry limits", async ({
-    extension,
-  }) => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-office-limit-"))
-    tempDirs.push(root)
-    const filePath = path.join(root, `oversized${extension}`)
-    const entries = Object.fromEntries(
-      Array.from({ length: 513 }, (_entry, index) => [
-        `payload/entry-${index}.xml`,
-        strToU8("<root>bounded</root>"),
-      ]),
-    )
-    await writeFile(filePath, zipSync(entries))
+  it.each([{ extension: ".docx" }, { extension: ".xlsx" }])(
+    "should reject $extension archives when they exceed Office entry limits",
+    async ({ extension }) => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-office-limit-"))
+      tempDirs.push(root)
+      const filePath = path.join(root, `oversized${extension}`)
+      const entries = Object.fromEntries(
+        Array.from({ length: 513 }, (_entry, index) => [
+          `payload/entry-${index}.xml`,
+          strToU8("<root>bounded</root>"),
+        ]),
+      )
+      await writeFile(filePath, zipSync(entries))
 
-    await expect(parseFile(sourceFile(root, filePath, extension))).rejects.toThrow(
-      "Archive text payload exceeds Ragmir safety limits.",
-    )
-  })
+      await expect(parseFile(sourceFile(root, filePath, extension))).rejects.toThrow(
+        "Archive text payload exceeds Ragmir safety limits.",
+      )
+    },
+  )
 
   it("should cancel XLSX parsing between rows", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-xlsx-cancel-"))

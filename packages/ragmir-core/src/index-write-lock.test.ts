@@ -144,24 +144,24 @@ describe("withIndexWriteLock", () => {
     await expect(readIndexWriteLockOwner(storageDir)).resolves.toBeNull()
   })
 
-  it.each([
-    "SIGINT",
-    "SIGTERM",
-  ] as const)("should release the writer lock during %s shutdown", async (signal) => {
-    if (process.platform === "win32") {
-      return
-    }
-    const root = await temporaryRoot(`ragmir-lock-${signal.toLowerCase()}-`)
-    const storageDir = path.join(root, "storage")
-    const interrupted = spawnLockChild(storageDir, "interrupted", 5_000, 2_000)
-    await waitForEvent(interrupted, "acquired")
-    interrupted.process.kill(signal)
-    await waitForExit(interrupted)
+  it.each(["SIGINT", "SIGTERM"] as const)(
+    "should release the writer lock during %s shutdown",
+    async (signal) => {
+      if (process.platform === "win32") {
+        return
+      }
+      const root = await temporaryRoot(`ragmir-lock-${signal.toLowerCase()}-`)
+      const storageDir = path.join(root, "storage")
+      const interrupted = spawnLockChild(storageDir, "interrupted", 5_000, 2_000)
+      await waitForEvent(interrupted, "acquired")
+      interrupted.process.kill(signal)
+      await waitForExit(interrupted)
 
-    const next = spawnLockChild(storageDir, "next", 10, 2_000)
-    await expect(waitForEvent(next, "acquired")).resolves.toMatchObject({ label: "next" })
-    await expect(waitForExit(next)).resolves.toMatchObject({ code: 0 })
-  })
+      const next = spawnLockChild(storageDir, "next", 10, 2_000)
+      await expect(waitForEvent(next, "acquired")).resolves.toMatchObject({ label: "next" })
+      await expect(waitForExit(next)).resolves.toMatchObject({ code: 0 })
+    },
+  )
 
   it("should keep rows, manifests, state, and audit consistent after two concurrent CLI ingests", async () => {
     const root = await temporaryRoot("ragmir-lock-ingest-")

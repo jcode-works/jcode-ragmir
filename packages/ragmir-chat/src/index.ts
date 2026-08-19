@@ -13,6 +13,7 @@ import {
   DEFAULT_CHAT_MODEL_PATH,
   DEFAULT_CHAT_PROFILE,
   inspectChatModel,
+  NODE_LLAMA_RUNTIME_VERSION,
   resolveChatModelPaths,
   setupChatModelFiles,
 } from "./profiles.js"
@@ -52,7 +53,7 @@ export async function doctor(options: DoctorOptions = {}): Promise<DoctorReport>
   return {
     node: process.versions.node,
     provider: "node-llama-cpp",
-    runtimeVersion: "3.19.0",
+    runtimeVersion: NODE_LLAMA_RUNTIME_VERSION,
     profile,
     defaultProfile: DEFAULT_CHAT_PROFILE,
     defaultModel: DEFAULT_CHAT_MODEL,
