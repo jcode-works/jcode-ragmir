@@ -31,7 +31,7 @@ const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
 const sourceDescription =
-  "Open-source TypeScript RAG library, CLI, and local MCP server: a private evidence layer for agentic RAG workflows where the host keeps action authority."
+  "Open-source confidential local RAG for coding agents: a TypeScript library, CLI, and local MCP server where the host keeps action authority."
 const structuredData = [
   {
     "@context": "https://schema.org",
@@ -158,9 +158,9 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
 
     <LibrarySection client:visible translations={translations} />
 
-    <Features translations={translations} />
-
     <Agents translations={translations} />
+
+    <Features translations={translations} />
 
     <Privacy translations={translations} />
 

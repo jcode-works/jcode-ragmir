@@ -5,9 +5,9 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![AGPL-3.0](https://img.shields.io/npm/l/@jcode.labs/ragmir)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 
-Confidential local RAG for coding agents and Node.js applications. Core indexes the project files
-you choose and retrieves bounded, cited evidence offline by default. It uploads no corpus, calls no
-LLM, and opens no HTTP port.
+Open-source confidential local RAG for coding agents and Node.js applications. Core indexes the
+project files you choose and retrieves bounded, cited evidence offline by default. It uploads no
+corpus, calls no LLM, and opens no HTTP port.
 
 [Project overview](https://github.com/jcode-works/jcode-ragmir#readme) ·
 [CLI](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md) ·

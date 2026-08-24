@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir",
   "version": "0.4.12",
-  "description": "Confidential local RAG for coding agents, with offline cited retrieval through CLI, MCP, and TypeScript.",
+  "description": "Open-source confidential local RAG for coding agents, with offline cited retrieval through CLI, MCP, and TypeScript.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": {
