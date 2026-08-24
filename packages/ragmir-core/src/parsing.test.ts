@@ -38,6 +38,56 @@ describe("parseFile", () => {
     expect(parsed.text).not.toContain("hidden image")
   })
 
+  it("should concatenate non-empty YAML documents in source order", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-yaml-stream-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "context.yaml")
+    await writeFile(
+      filePath,
+      [
+        "---",
+        'project_context: "test"',
+        "quality_score: 5",
+        "---",
+        "---",
+        "# Title",
+        "",
+        "This is the body of the YAML document.",
+      ].join("\n"),
+      "utf8",
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".yaml"))
+
+    expect(parsed.text).toContain("project_context")
+    expect(parsed.text).toContain("quality_score: 5")
+    expect(parsed.text).toContain("This is the body of the YAML document.")
+    expect(parsed.text.indexOf("project_context")).toBeLessThan(
+      parsed.text.indexOf("This is the body of the YAML document."),
+    )
+    expect(parsed.text).not.toMatch(/(^|\n)null($|\n)/u)
+  })
+
+  it("should preserve single-document YAML parsing", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-yaml-single-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "context.yml")
+    await writeFile(filePath, "project: ragmir\nquality: 5\n", "utf8")
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".yml"))
+
+    expect(parsed.text).toBe("project: ragmir\nquality: 5")
+  })
+
+  it("should reject invalid documents in a YAML stream", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-yaml-invalid-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "invalid.yaml")
+    await writeFile(filePath, "---\nvalid: true\n---\nbroken: [\n", "utf8")
+
+    await expect(parseFile(sourceFile(root, filePath, ".yaml"))).rejects.toThrow(/Flow sequence/iu)
+  })
+
   it("extracts text from docx files", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-docx-"))
     tempDirs.push(root)
