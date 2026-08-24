@@ -1,10 +1,10 @@
 # Agent integration
 
-Ragmir is the local retrieval and evidence layer for agentic RAG workflows. It indexes the selected
-project files locally and gives the AI or automation you choose cited passages through CLI or one
-stdio MCP server. It is not an autonomous agent, planner, or action runtime: planning, tool use, and
-action authority stay in the host. The default `local-hash` path keeps ingestion and retrieval
-offline. Core is model-agnostic, never uploads the corpus, and never calls a model itself.
+Ragmir is the open-source local retrieval and evidence layer for agentic RAG workflows. It indexes
+the selected project files locally and gives the AI or automation you choose cited passages through
+CLI or one stdio MCP server. It is not an autonomous agent, planner, or action runtime: planning,
+tool use, and action authority stay in the host. The default `local-hash` path keeps ingestion and
+retrieval offline. Core is model-agnostic, never uploads the corpus, and never calls a model itself.
 
 For an interactive repository-aware installation, paste the canonical prompt from the
 [quick-start guide](./quick-start.md) into the coding agent. It detects the package manager and
@@ -13,11 +13,15 @@ verifies the selected clients.
 
 Choose the handoff that matches the corpus:
 
-| Path | What stays local | What crosses the boundary |
+| Mode | What stays local | What crosses the boundary |
 | --- | --- | --- |
-| Preferred hosted AI | Corpus, index, and retrieval | Only returned passages, under the AI provider's data policy |
-| Local AI or automation | Corpus, index, retrieval, and the consumer | Nothing, unless that consumer uses another network service |
-| Ragmir Chat | Corpus, index, retrieval, and answer generation | One explicit model download during setup, then no network |
+| Preferred coding agents | Corpus, index, and retrieval | Only requested passages; a hosted provider's data policy applies |
+| Fully local | Corpus, index, retrieval, and the consumer | Nothing, unless the chosen consumer uses another network service |
+
+Fully local can mean a local CLI or MCP agent, deterministic automation without a model, or optional
+Ragmir Chat. Chat requires one explicit model download during setup, then generates on the
+workstation. Claude Code, Codex, Kimi, OpenCode, and Cline have generated native helpers; other
+compatible clients use the same CLI or stdio MCP contract.
 
 Prepare the target repository once:
 
