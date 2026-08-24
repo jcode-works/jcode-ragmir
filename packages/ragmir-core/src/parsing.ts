@@ -118,7 +118,19 @@ export async function parseFile(
     }
     case ".yaml":
     case ".yml": {
-      text = YAML.stringify(YAML.parse(await readFile(file.absolutePath, "utf8")))
+      const documents = YAML.parseAllDocuments(await readFile(file.absolutePath, "utf8"))
+      for (const document of documents) {
+        const [error] = document.errors
+        if (error) {
+          throw error
+        }
+      }
+      text = documents
+        .flatMap((document) => {
+          const value = document.toJS()
+          return value === null ? [] : [YAML.stringify(value)]
+        })
+        .join("\n")
       break
     }
     case ".rtf":
