@@ -1,5 +1,5 @@
 ---
-import { Cloud, Cpu, FolderOutput, Terminal, Workflow } from "@lucide/astro"
+import { Cloud, Cpu, FolderOutput } from "@lucide/astro"
 import { CommandCopyBox } from "../command-copy"
 
 interface Props {
@@ -9,11 +9,9 @@ interface Props {
 const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 
-const agentTargets = [
-  { icon: Cloud, name: t("agents_preferred_name"), text: t("agents_preferred_text") },
-  { icon: Terminal, name: t("agents_local_name"), text: t("agents_local_text") },
-  { icon: Cpu, name: t("agents_offline_name"), text: t("agents_offline_text") },
-  { icon: Workflow, name: t("agents_automation_name"), text: t("agents_automation_text") },
+const operatingModes = [
+  { icon: Cpu, name: t("agents_full_local_name"), text: t("agents_full_local_text") },
+  { icon: Cloud, name: t("agents_connected_name"), text: t("agents_connected_text") },
 ]
 ---
 
@@ -66,13 +64,13 @@ const agentTargets = [
       <p class="text-sm text-muted-foreground leading-6">{t("agents_targets_text")}</p>
     </div>
     <div class="grid gap-3 p-5 sm:grid-cols-2 md:p-6">
-      {agentTargets.map((agent) => (
+      {operatingModes.map((mode) => (
         <div class="rounded-lg border border-border bg-muted/45 p-4">
           <div class="flex items-center gap-3">
-            <agent.icon class="size-5 text-muted-foreground" aria-hidden="true" />
-            <p class="font-bold text-sm">{agent.name}</p>
+            <mode.icon class="size-5 text-muted-foreground" aria-hidden="true" />
+            <p class="font-bold text-sm">{mode.name}</p>
           </div>
-          <p class="mt-2 text-muted-foreground text-sm leading-6">{agent.text}</p>
+          <p class="mt-2 text-muted-foreground text-sm leading-6">{mode.text}</p>
         </div>
       ))}
     </div>

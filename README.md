@@ -6,14 +6,15 @@
 [![Node.js](https://img.shields.io/node/v/@jcode.labs/ragmir)](https://www.npmjs.com/package/@jcode.labs/ragmir)
 [![AGPL-3.0](https://img.shields.io/github/license/jcode-works/jcode-ragmir)](./LICENSE)
 
-**Confidential local RAG for coding agents, scripts, and Node.js applications.**
+**Open-source confidential local RAG for coding agents, scripts, and Node.js applications.**
 
 Ragmir turns specifications, Word files, PDFs, spreadsheets, code, and local exports into cited
 evidence indexed and retrieved on your machine. Core works offline by default, never uploads your
 corpus, and calls no model. Ragmir is the local retrieval and evidence layer for agentic RAG
 workflows: the host agent plans and acts, while Ragmir supplies bounded, cited project evidence.
-Connect the agent or automation you already use through CLI, MCP, or a typed TypeScript API, or keep
-the complete workflow local with the optional Chat package.
+Choose the boundary that fits the project: keep the complete workflow local with a local consumer
+or the optional Chat package, or connect Claude Code, Codex, Kimi, OpenCode, Cline, or another
+compatible agent through CLI or MCP. In either mode, the corpus, index, and retrieval stay local.
 
 [Website](https://ragmir.com) · [npm](https://www.npmjs.com/package/@jcode.labs/ragmir) ·
 [Documentation](https://github.com/jcode-works/jcode-ragmir/wiki) ·
