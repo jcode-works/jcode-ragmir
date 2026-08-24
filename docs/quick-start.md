@@ -1,7 +1,8 @@
 # Quick start
 
-Ragmir requires Node.js 22 or later. Choose the guided setup for a repository-aware installation,
-or use the manual commands below.
+Ragmir is open-source confidential local RAG and requires Node.js 22 or later. Choose the guided
+setup for a repository-aware installation or use the manual commands below. Core keeps the corpus,
+index, and retrieval local; connect your preferred coding agent or keep the consumer local too.
 
 <!-- ragmir-setup-prompt:start -->
 <details>

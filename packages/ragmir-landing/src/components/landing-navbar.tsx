@@ -116,8 +116,8 @@ export function LandingNavbar({
   const navLinks = [
     { href: localizedUseCasesUrl, label: t("nav_use_cases") },
     { href: localizedLibraryUrl, label: t("nav_library") },
-    { href: localizedFeaturesUrl, label: t("nav_features") },
     { href: localizedAgentsUrl, label: t("nav_agents") },
+    { href: localizedFeaturesUrl, label: t("nav_features") },
     { href: localizedTeamUrl, label: t("nav_team") },
   ]
 

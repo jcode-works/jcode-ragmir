@@ -91,17 +91,17 @@ describe("landing public contract", () => {
   })
 
   it("should keep a prominent outlined headline on three localized lines", () => {
-    expect(en.hero_title).toBe("Confidential local RAG for your coding agents.")
-    expect(fr.hero_title).toBe("Un RAG local et confidentiel pour vos agents de code.")
+    expect(en.hero_title).toBe("Open-source confidential local RAG for your coding agents.")
+    expect(fr.hero_title).toBe("RAG open source, local et confidentiel pour vos agents de code.")
     expect([en.hero_title_line_1, en.hero_title_line_2, en.hero_title_line_3]).toEqual([
-      "Confidential local",
-      "RAG for your",
-      "coding agents.",
+      "Open-source",
+      "confidential local RAG",
+      "for your coding agents.",
     ])
     expect([fr.hero_title_line_1, fr.hero_title_line_2, fr.hero_title_line_3]).toEqual([
-      "Un RAG local",
-      "et confidentiel pour",
-      "vos agents de code.",
+      "RAG open source,",
+      "local et confidentiel",
+      "pour vos agents de code.",
     ])
     expect(en.hero_description).toContain("Ragmir turns specs")
     expect(fr.hero_description).toContain("Ragmir transforme les spécifications")
@@ -133,6 +133,16 @@ describe("landing public contract", () => {
     expect(fr.hero_metric_mcp_value).toBe("Bibliothèque + CLI + MCP")
     expect(en.seo_home_keywords).not.toContain("local RAG API")
     expect(fr.seo_home_keywords).not.toContain("API RAG locale")
+  })
+
+  it("should explain both operating modes immediately before the feature map", () => {
+    expect(homePageSource.indexOf("<Agents translations={translations} />")).toBeLessThan(
+      homePageSource.indexOf("<Features translations={translations} />"),
+    )
+    expect(en.agents_targets_title).toBe("Choose your operating mode")
+    expect(fr.agents_targets_title).toBe("Choisissez votre mode de fonctionnement")
+    expect(agentsSource).toContain('t("agents_full_local_name")')
+    expect(agentsSource).toContain('t("agents_connected_name")')
   })
 
   it("should present the bounded agent setup prompt before manual package-manager tabs", () => {

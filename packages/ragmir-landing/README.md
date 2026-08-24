@@ -63,6 +63,8 @@ and omits the production sitemap.
 ## Public-copy contract
 
 - Lead with model-agnostic Core: cited local retrieval through a library, CLI, and MCP.
+- Place the two operating modes before the feature map: fully local, or bounded cited passages sent
+  to the user's preferred coding agents.
 - Present preferred cloud agents, local consumers, and model-free automation as clear choices.
 - Keep Chat, TTS, semantic embeddings, model downloads, Edge speech, OCR, and IndexNow explicit.
 - Explain team use positively and briefly: merge reviewed changes upstream, run `rgr team sync`,
