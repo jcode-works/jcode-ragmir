@@ -32,7 +32,7 @@ again deliberately if needed. The backup remains local and should not be committ
 
 | Removed | Use instead |
 | --- | --- |
-| Ragmir Chat and `rgr chat` | Your agent/chat application and chosen model; see the Ollama integration example. |
+| Ragmir Chat and `rgr chat` | Your coding agent or a local/self-hosted chat; see the [two integration workflows](./agent-integration.md). |
 | Ragmir TTS and `rgr audio` | A separate TTS tool receiving text from your application. |
 | `ask()` / `rgr ask` | `search()` and exact citations, with synthesis in the consumer. |
 | `research()` / `rgr research` | An agent-controlled loop of search and citation expansion. |

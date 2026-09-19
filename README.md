@@ -22,8 +22,8 @@ Requires Node.js 22.12 or later. Use your project's package manager; here is the
 
 ```bash
 pnpm add -D @jcode.labs/ragmir
-pnpm exec rgr setup --no-ingest --agents codex
-pnpm exec rgr sources add "docs/**/*.md" "src/**/*.ts"
+pnpm exec rgr setup --no-ingest --agents claude,codex
+pnpm exec rgr sources add "docs/**/*.md" "specs/**/*.docx" "src/**/*.ts"
 pnpm exec rgr ingest
 pnpm exec rgr search "authentication contract" --compact
 ```
@@ -73,7 +73,10 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 </details>
 <!-- ragmir-setup-prompt:end -->
 
-## Agentic RAG with your existing agent
+## Develop with Claude Code or Codex
+
+Ask your coding agent: "Implement account recovery from the specification and authentication ADR.
+Use Ragmir to find the rules, check exceptions, then update the code and tests. Cite your sources."
 
 ```mermaid
 flowchart LR
@@ -91,7 +94,22 @@ Ragmir supplies retrieval; planning, chat history, generation, and actions remai
 app. Scripts can use the same retrieval API without a language model.
 
 Run `rgr serve-mcp` with the project's working directory, or use the helpers created by setup.
-[Agent integration](./docs/agent-integration.md) includes a minimal example with a local Ollama model.
+The retrieved passages become part of the agent's context. With a cloud-backed agent, those
+passages go to its model provider; a local index does not make that conversation local.
+
+## Use a confidential local or self-hosted chat
+
+Ask your chat: "According to our internal architecture notes, should attachments go in PostgreSQL
+or object storage? Show the passages supporting the decision."
+
+The chat retrieves and expands evidence with Ragmir, then sends it to the model you configured.
+Use a local chat with a downloaded Ollama model and remote calls disabled, or host the chat and
+model on infrastructure you operate. Local mode can keep the whole exchange on the machine;
+self-hosted mode sends the selected excerpts to your server.
+
+[Agent integration](./docs/agent-integration.md) covers both workflows, including the MCP setup
+and a small chat client with local and self-hosted model options. Ragmir does not bundle that chat
+or a generation model.
 
 ## TypeScript
 
@@ -166,23 +184,6 @@ stale. Rebuilds retain the previous index until a replacement passes validation.
 owns its local index; use your normal Git workflow to update sources, then run `rgr ingest`.
 Monorepos can keep separate bases, selected with `rgr bases` or `--project-root`.
 
-## Choose your chat or model
-
-Connect Ragmir to a compatible agent through MCP, or call its TypeScript API from your own chat
-application. The application sends selected passages and the user's question to its model, then
-returns an answer with the source citations. A basic search-then-answer chat needs no autonomous
-loop; an agent can call search and expand repeatedly when the task requires more evidence.
-
-| Consumer | Where retrieved passages go |
-| --- | --- |
-| Local chat and model, for example Ollama | Stay on the machine when the chat, model, and other tools make no external calls |
-| Self-hosted model on your own server or private cloud | Travel to the infrastructure you operate; its access controls, network, and logging govern confidentiality |
-| Cloud model provider | Are sent to that provider by the consuming app; its configuration and data-handling terms apply |
-
-[Agent integration](./docs/agent-integration.md) shows the MCP connection and a minimal local Ollama
-example. You can keep that retrieval flow and replace the generation client with your self-hosted
-or cloud model's API. Ragmir does not bundle a chat UI or a generation model.
-
 ## Is it confidential?
 
 Ragmir has no telemetry or hosted storage. Its index stays on the machine where you run it, and it
@@ -203,7 +204,7 @@ authorization, and rate limits. Local index writer locks coordinate processes on
 - [CLI reference](./docs/cli-reference.md)
 - [TypeScript API](./docs/api-reference.md)
 - [Configuration and formats](./docs/configuration.md)
-- [Agent and Ollama integration](./docs/agent-integration.md)
+- [Agentic and confidential chat workflows](./docs/agent-integration.md)
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Synthetic examples](./packages/ragmir-core/examples/sovereign-rag-demo/README.md)

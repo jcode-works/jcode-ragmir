@@ -224,14 +224,14 @@ describe("landing public contract", () => {
     expect(referencedKeys.every((key) => key in en && key in fr)).toBe(true)
   })
 
-  it("should show developer retrieval, a local model, scoped bases, and OCR", () => {
-    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual([
-      "word",
-      "local",
-      "monorepo",
-      "ocr",
-    ])
-    expect(USE_CASES.map((useCase) => useCase.id)).toEqual(["spec", "local", "monorepo", "ocr"])
+  it("should distinguish agentic development from confidential chat workflows", () => {
+    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual(["word", "local"])
+    expect(USE_CASES.map((useCase) => useCase.id)).toEqual(["spec", "local"])
+    expect(findHeroDemoScenario("word").terminalTitle).toContain("Claude Code / Codex")
+    expect(findHeroDemoScenario("word").lines.some((line) => line.kind === "codex")).toBe(true)
+    expect(findHeroDemoScenario("local").lines.some((line) => line.kind === "codex")).toBe(false)
+    expect(en.demo_chat_model_options).toContain("self-hosted")
+    expect(fr.demo_chat_model_options).toContain("auto-hébergé")
     expect(coreCliSource).toContain('.command("ocr")')
     expect(agentsSource).toContain("docs/agent-integration.md")
   })

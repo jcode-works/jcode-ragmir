@@ -4,8 +4,8 @@ Install with the existing package manager and Node.js 22.12+:
 
 ```bash
 pnpm add -D @jcode.labs/ragmir
-pnpm exec rgr setup --no-ingest --agents codex
-pnpm exec rgr sources add "docs/**/*.md" "src/**/*.ts"
+pnpm exec rgr setup --no-ingest --agents claude,codex
+pnpm exec rgr sources add "docs/**/*.md" "specs/**/*.docx" "src/**/*.ts"
 pnpm exec rgr preview --json
 pnpm exec rgr ingest
 pnpm exec rgr search "authentication contract" --compact
@@ -17,6 +17,14 @@ Connect the helper in `.ragmir/agent-setup.md`. Keep generated state ignored. Ra
 source text. Your chat or agent decides where passages go: a local model, your own server, or a
 cloud provider. See the [integration guide](./agent-integration.md) for setup examples and the
 confidentiality boundary of each mode.
+
+Choose the workflow for your task:
+
+- **Claude Code or Codex:** "Implement account recovery from the specification and ADR. Use
+  Ragmir to retrieve the rules and exceptions, then update code and tests with cited sources."
+- **Confidential chat, local or self-hosted:** "According to our internal architecture notes,
+  should attachments go in PostgreSQL or object storage? Cite the passages supporting the choice."
+  Connect the chat to Ragmir and to a model on your machine or infrastructure you operate.
 
 For semantic retrieval, first install optional `@huggingface/transformers`, then explicitly preload
 with `rgr setup --semantic`. For scanned PDFs, run `rgr ocr doctor` then `rgr ocr setup` and ingest.

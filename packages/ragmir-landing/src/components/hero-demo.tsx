@@ -1,12 +1,4 @@
-import {
-  Boxes,
-  Code2,
-  FileText,
-  type LucideIcon,
-  MessageSquare,
-  RotateCcw,
-  ScanText,
-} from "lucide-react"
+import { Code2, FileText, type LucideIcon, MessageSquare, RotateCcw } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "../lib/utils"
 import { CommandCopyButton } from "./command-copy"
@@ -42,8 +34,6 @@ const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
   word: FileText,
   local: MessageSquare,
-  monorepo: Boxes,
-  ocr: ScanText,
 }
 
 export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
@@ -230,7 +220,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
 
   const linePrefix: Partial<Record<TerminalLineKind, string>> = {
     shell: "$ shell",
-    codex: "Codex",
+    codex: t("demo_agent_prefix"),
     script: t("demo_script_prefix"),
     mcp: "Ragmir",
   }
@@ -303,7 +293,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
             <RotateCcw aria-hidden="true" className="size-3.5" />
           </button>
         </div>
-        <p className="h-16 overflow-y-auto px-4 py-3 text-xs font-medium leading-5 text-muted-foreground">
+        <p className="min-h-16 px-4 py-3 text-xs font-medium leading-5 text-muted-foreground">
           {t(activeScenario.descriptionKey)}
         </p>
       </div>
