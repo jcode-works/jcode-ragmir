@@ -2,7 +2,7 @@
   "name": "jcode-ragmir",
   "version": "0.4.12",
   "private": true,
-  "description": "Monorepo for Ragmir, open-source confidential local RAG with offline cited retrieval for coding agents and scripts, plus optional local Chat and TTS.",
+  "description": "Open-source retrieval for agentic RAG: local document search, exact citations, OCR, CLI, MCP, and TypeScript.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": "Jean-Baptiste Thery (https://github.com/jb-thery)",
@@ -17,8 +17,8 @@
   "keywords": [
     "ragmir",
     "rag",
+    "agentic-rag",
     "local-rag",
-    "confidential-rag",
     "mcp",
     "ai-agents",
     "coding-agents",
@@ -54,36 +54,33 @@
     "bench:status": "pnpm --filter @jcode.labs/ragmir bench:status",
     "bench:vector-index": "pnpm --filter @jcode.labs/ragmir bench:vector-index",
     "audit:security": "pnpm audit --audit-level moderate",
-    "build": "pnpm --filter @jcode.labs/ragmir-landing build && pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm --filter @jcode.labs/ragmir build",
-    "check": "pnpm --filter @jcode.labs/ragmir-landing check && pnpm --filter @jcode.labs/ragmir-tts check && pnpm --filter @jcode.labs/ragmir-chat check && pnpm --filter @jcode.labs/ragmir check",
+    "build": "pnpm --filter @jcode.labs/ragmir-landing build && pnpm --filter @jcode.labs/ragmir build",
+    "check": "pnpm --filter @jcode.labs/ragmir-landing check && pnpm --filter @jcode.labs/ragmir check",
     "commitlint": "commitlint --from=HEAD~1 --to=HEAD --verbose",
     "dev:landing": "pnpm --filter @jcode.labs/ragmir-landing dev",
-    "example": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm --filter @jcode.labs/ragmir build && node packages/ragmir-core/examples/library-api-demo/run.mjs",
+    "example": "pnpm --filter @jcode.labs/ragmir build && node packages/ragmir-core/examples/library-api-demo/run.mjs",
     "format": "biome format --write .",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
     "license:check": "node scripts/license-policy-smoke.mjs",
     "offline:smoke": "node scripts/offline-install-smoke.mjs",
-    "package:check": "pnpm --filter @jcode.labs/ragmir-tts package:check && pnpm --filter @jcode.labs/ragmir-chat package:check && pnpm --filter @jcode.labs/ragmir package:check",
+    "package:check": "pnpm --filter @jcode.labs/ragmir package:check",
     "public:smoke": "node scripts/public-surface-smoke.mjs && pnpm license:check",
     "release:artifacts": "node scripts/release-artifacts.mjs",
     "release:semantic:smoke": "node scripts/semantic-release-smoke.mjs",
-    "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/ragmir mcp:smoke && pnpm --filter @jcode.labs/ragmir-tts smoke && pnpm --filter @jcode.labs/ragmir-chat smoke",
-    "test": "pnpm --filter @jcode.labs/ragmir-landing test && pnpm --filter @jcode.labs/ragmir-tts test && pnpm --filter @jcode.labs/ragmir-chat test && pnpm --filter @jcode.labs/ragmir test",
-    "test:coverage": "pnpm --filter @jcode.labs/ragmir-landing test:coverage && pnpm --filter @jcode.labs/ragmir-tts test:coverage && pnpm --filter @jcode.labs/ragmir-chat test:coverage && pnpm --filter @jcode.labs/ragmir test:coverage",
-    "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test:coverage && pnpm build && pnpm api:check && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts"
+    "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/ragmir mcp:smoke",
+    "test": "pnpm --filter @jcode.labs/ragmir-landing test && pnpm --filter @jcode.labs/ragmir test",
+    "test:coverage": "pnpm --filter @jcode.labs/ragmir-landing test:coverage && pnpm --filter @jcode.labs/ragmir test:coverage",
+    "validate": "pnpm lint && pnpm audit:security && pnpm check && pnpm test:coverage && pnpm build && pnpm api:check && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts",
+    "bench:developer-evidence": "pnpm --filter @jcode.labs/ragmir bench:developer-evidence"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.9",
+    "@biomejs/biome": "^2.5.14",
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
     "@semantic-release/exec": "^7.1.0",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "5.0.1",
     "semantic-release": "^25.0.9",
-    "yaml": "^2.9.0"
-  },
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+    "yaml": "^2.9.1"
   }
 }

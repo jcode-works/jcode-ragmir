@@ -15,14 +15,11 @@ export function testConfig(
 
   const config: Config = {
     projectRoot,
-    privacyProfile: DEFAULT_CONFIG.privacyProfile,
     retrievalProfile: DEFAULT_CONFIG.retrievalProfile,
-    acceptedRisks: [...DEFAULT_CONFIG.acceptedRisks],
     rawDir: path.join(projectRoot, DEFAULT_CONFIG.rawDir),
     storageDir: path.join(projectRoot, DEFAULT_CONFIG.storageDir),
     sourcesFile: path.join(projectRoot, DEFAULT_CONFIG.sourcesFile),
     sources: [...DEFAULT_CONFIG.sources],
-    accessLogPath: path.join(projectRoot, DEFAULT_CONFIG.accessLogPath),
     embeddingModelPath: path.join(projectRoot, DEFAULT_CONFIG.embeddingModelPath),
     tableName: DEFAULT_CONFIG.tableName,
     embeddingProvider: DEFAULT_CONFIG.embeddingProvider,
@@ -30,11 +27,6 @@ export function testConfig(
     embeddingModelRevision: DEFAULT_CONFIG.embeddingModelRevision,
     embeddingModelDigest: DEFAULT_CONFIG.embeddingModelDigest,
     transformersAllowRemoteModels: DEFAULT_CONFIG.transformersAllowRemoteModels,
-    redaction: {
-      ...DEFAULT_CONFIG.redaction,
-      patterns: [...DEFAULT_CONFIG.redaction.patterns],
-    },
-    accessLog: DEFAULT_CONFIG.accessLog,
     mcpMaxTopK: DEFAULT_CONFIG.mcpMaxTopK,
     mcpMaxOutputBytes: DEFAULT_CONFIG.mcpMaxOutputBytes,
     topK: DEFAULT_CONFIG.topK,

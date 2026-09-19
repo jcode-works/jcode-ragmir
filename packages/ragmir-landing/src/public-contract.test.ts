@@ -92,20 +92,20 @@ describe("landing public contract", () => {
   })
 
   it("should keep a prominent outlined headline on three localized lines", () => {
-    expect(en.hero_title).toBe("Open-source confidential local RAG for your coding agents.")
-    expect(fr.hero_title).toBe("RAG open source, local et confidentiel pour vos agents de code.")
+    expect(en.hero_title).toBe("Agentic RAG. For developers. With your sources.")
+    expect(fr.hero_title).toBe("RAG agentique. Pour développeurs. Avec vos sources.")
     expect([en.hero_title_line_1, en.hero_title_line_2, en.hero_title_line_3]).toEqual([
-      "Open-source",
-      "confidential local RAG",
-      "for your coding agents.",
+      "Agentic RAG.",
+      "For developers.",
+      "With your sources.",
     ])
     expect([fr.hero_title_line_1, fr.hero_title_line_2, fr.hero_title_line_3]).toEqual([
-      "RAG open source,",
-      "local et confidentiel",
-      "pour vos agents de code.",
+      "RAG agentique.",
+      "Pour développeurs.",
+      "Avec vos sources.",
     ])
-    expect(en.hero_description).toContain("Ragmir turns specs")
-    expect(fr.hero_description).toContain("Ragmir transforme les spécifications")
+    expect(en.hero_description).toContain("Ragmir indexes locally")
+    expect(fr.hero_description).toContain("Ragmir indexe en local")
     expect(heroSource).toContain('aria-label={t("hero_title")}')
     expect(heroSource).toContain("hero-title-outline")
     expect(heroSource).toContain("heroTitleLines.map")
@@ -114,43 +114,37 @@ describe("landing public contract", () => {
   })
 
   it("should position Ragmir as the evidence layer for agentic RAG workflows", () => {
-    expect(en.seo_home_title).toContain("agentic RAG workflows")
-    expect(fr.seo_home_title).toContain("workflows RAG agentiques")
-    expect(en.seo_home_description).toContain("TypeScript RAG library, CLI, and local MCP server")
-    expect(fr.seo_home_description).toContain(
-      "Bibliothèque TypeScript open source, CLI et serveur MCP local",
-    )
-    for (const description of [en.seo_home_description, en.hero_description, en.agents_text]) {
-      expect(description).toContain("action authority")
+    expect(en.seo_home_title).toContain("Agentic RAG for developers")
+    expect(fr.seo_home_title).toContain("RAG agentique pour développeurs")
+    expect(en.seo_home_description).toContain("exact citations")
+    expect(fr.seo_home_description).toContain("citations précises")
+    for (const source of [llmsSource, aiSource]) {
+      expect(source).toContain("retrieval and evidence layer for agentic RAG workflows")
+      expect(source).toContain("The agent decides when to search")
+      expect(source).toContain("It owns reasoning, generation, and actions")
     }
-    for (const description of [fr.seo_home_description, fr.hero_description, fr.agents_text]) {
-      expect(description).toContain("autorité d'action")
-    }
-    expect(llmsSource).toContain("retrieval and evidence layer for agentic RAG workflows")
-    expect(aiSource).toContain("retrieval and evidence layer for agentic RAG workflows")
-    expect(llmsSource).toContain("retains action authority")
-    expect(aiSource).toContain("retains action authority")
     expect(en.hero_metric_mcp_value).toBe("Library + CLI + MCP")
     expect(fr.hero_metric_mcp_value).toBe("Bibliothèque + CLI + MCP")
     expect(en.seo_home_keywords).not.toContain("local RAG API")
     expect(fr.seo_home_keywords).not.toContain("API RAG locale")
   })
 
-  it("should explain both operating modes immediately before the feature map", () => {
+  it("should distinguish local, self-hosted, and provider modes before the feature map", () => {
     expect(homePageSource.indexOf("<Agents translations={translations} />")).toBeLessThan(
       homePageSource.indexOf("<Features translations={translations} />"),
     )
     expect(en.agents_targets_title).toBe("Choose your operating mode")
     expect(fr.agents_targets_title).toBe("Choisissez votre mode de fonctionnement")
     expect(agentsSource).toContain('t("agents_full_local_name")')
+    expect(agentsSource).toContain('t("agents_self_hosted_name")')
     expect(agentsSource).toContain('t("agents_connected_name")')
   })
 
   it("should present the bounded agent setup prompt before manual package-manager tabs", () => {
     expect(RAGMIR_SETUP_PROMPT.length).toBeLessThanOrEqual(4_000)
-    expect(RAGMIR_SETUP_PROMPT).toContain("pnpm, npm, Yarn, or Bun")
-    expect(RAGMIR_SETUP_PROMPT).toContain("Core only, or optional Chat")
-    expect(RAGMIR_SETUP_PROMPT).toContain("Optional TTS")
+    expect(RAGMIR_SETUP_PROMPT).toContain("Prefer the declared manager, then the lockfile")
+    expect(RAGMIR_SETUP_PROMPT).toContain("local-hash")
+    expect(RAGMIR_SETUP_PROMPT).toContain("OCR")
     expect(librarySource).toContain('defaultValue="prompt"')
     expect(librarySource.indexOf('t("quickstart_prompt_tab")')).toBeLessThan(
       librarySource.indexOf("packageManagers.map((manager)"),
@@ -230,29 +224,16 @@ describe("landing public contract", () => {
     expect(referencedKeys.every((key) => key in en && key in fr)).toBe(true)
   })
 
-  it("should keep the OpenClaw export second in both landing showcases", () => {
-    const openclawScenario = HERO_DEMO_SCENARIOS[1]
-    const shellCommands = openclawScenario?.lines.flatMap((line) =>
-      line.kind === "shell" && line.text ? [line.text] : [],
-    )
-
-    expect({
-      heroOrder: HERO_DEMO_SCENARIOS.slice(0, 2).map((scenario) => scenario.id),
-      workflowOrder: USE_CASES.slice(0, 2).map((useCase) => useCase.id),
-      portableExport: shellCommands?.includes(
-        "npx rgr portable export --output ~/knowledge/ragmir-openclaw --replace",
-      ),
-      openclawRegistration: shellCommands?.includes(
-        'openclaw mcp set ragmir "$(node bin/configure.cjs openclaw)"',
-      ),
-      openclawProbe: shellCommands?.includes("openclaw mcp doctor ragmir --probe"),
-    }).toEqual({
-      heroOrder: ["word", "openclaw"],
-      workflowOrder: ["spec", "openclaw"],
-      portableExport: true,
-      openclawRegistration: true,
-      openclawProbe: true,
-    })
+  it("should show developer retrieval, a local model, scoped bases, and OCR", () => {
+    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual([
+      "word",
+      "local",
+      "monorepo",
+      "ocr",
+    ])
+    expect(USE_CASES.map((useCase) => useCase.id)).toEqual(["spec", "local", "monorepo", "ocr"])
+    expect(coreCliSource).toContain('.command("ocr")')
+    expect(agentsSource).toContain("docs/agent-integration.md")
   })
 
   it("should keep hero terminal stories aligned with the current CLI and MCP contracts", () => {
@@ -274,7 +255,6 @@ describe("landing public contract", () => {
     expect(coreCliSource).toContain('.command("ingest")')
     expect(coreCliSource).toContain('.command("bases")')
     expect(coreCliSource).toContain('.option("--no-ingest"')
-    expect(coreCliSource).toContain('.option("--no-code"')
     expect(coreCliSource).toContain('.option("--compact"')
     expect(coreMcpSource).toContain('"ragmir_search"')
     expect(coreMcpSource).toContain("topK: z.number()")
@@ -294,8 +274,6 @@ describe("landing public contract", () => {
     ).toBe(true)
     expect(en.agents_text).toContain("three compact citations by default")
     expect(fr.agents_text).toContain("trois citations compactes par défaut")
-    expect(en.demo_youtube_script_research).toContain("--no-code --compact --json")
-    expect(fr.demo_visa_script_research).toContain("--no-code --compact --json")
     expect(
       Math.max(...HERO_DEMO_SCENARIOS.map((scenario) => scenario.lines.length)),
     ).toBeLessThanOrEqual(14)
@@ -319,39 +297,22 @@ describe("landing public contract", () => {
     ).toBe(true)
   })
 
-  it("should explain the team workflow positively and concisely in both locales", () => {
-    expect(en.faq_team_answer).toContain("advanced metadata-only comparisons")
-    expect(fr.faq_team_answer).toContain("comparaisons avancées sans contenu source")
+  it("should keep collaboration in the source-sharing workflow", () => {
     for (const answer of [en.faq_team_answer, fr.faq_team_answer]) {
       expect(answer).toContain("Git")
-      expect(answer).toContain("Ragmir")
-      expect(answer).toContain("rgr team sync")
-      expect(answer).toContain("--no-pull")
+      expect(answer).toContain("rgr ingest")
       expect(answer.length).toBeLessThan(500)
     }
-    expect(en.faq_offline_answer).toContain("--no-fetch")
-    expect(fr.faq_offline_answer).toContain("--no-fetch")
-  })
-
-  it("should present portable knowledge folders without claiming action authority", () => {
-    expect(en.agents_portable_command).toBe("npx rgr portable export")
-    expect(fr.agents_portable_command).toBe("npx rgr portable export")
-    expect(en.faq_portable_answer).toContain("SHA-256")
-    expect(fr.faq_portable_answer).toContain("SHA-256")
-    expect(en.faq_portable_answer).toContain("action authority")
-    expect(fr.faq_portable_answer).toContain("autorité d'action")
-    expect(en.faq_portable_answer).toContain("--replace")
-    expect(fr.faq_portable_answer).toContain("--replace")
-    expect(en.faq_portable_answer).toContain("timestamped backup")
-    expect(fr.faq_portable_answer).toContain("sauvegarde horodatée")
-    expect(agentsSource).toContain('t("agents_portable_title")')
-    expect(agentsSource).toContain('t("agents_portable_command")')
-    expect(coreCliSource).toContain('.command("portable")')
+    for (const answer of [en.faq_offline_answer, fr.faq_offline_answer]) {
+      expect(answer).toContain("local-hash")
+      expect(answer).toContain("Transformers")
+      expect(answer).toContain("Ollama")
+    }
   })
 
   it("should keep visible localized FAQs without FAQPage structured data", () => {
-    expect(getFaqItems(en)).toHaveLength(11)
-    expect(getFaqItems(fr)).toHaveLength(11)
+    expect(getFaqItems(en)).toHaveLength(10)
+    expect(getFaqItems(fr)).toHaveLength(10)
     expect(homePageSource).toContain("<Faq translations={translations} />")
     expect(homePageSource).not.toContain('"@type": "FAQPage"')
     expect(homePageSource).not.toContain("mainEntity: faqItems.map")

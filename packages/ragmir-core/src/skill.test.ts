@@ -20,9 +20,6 @@ describe("installSkill", () => {
 
     const result = await installSkill({ cwd: root })
     const skill = await readFile(path.join(result.skillPath, "SKILL.md"), "utf8")
-    const audioSkill = await readFile(path.join(result.audioSkillPath, "SKILL.md"), "utf8")
-    const reportSkill = await readFile(path.join(result.reportSkillPath, "SKILL.md"), "utf8")
-    const legalSkill = await readFile(path.join(result.legalSkillPath, "SKILL.md"), "utf8")
     const mcpConfig = JSON.parse(await readFile(result.mcpConfigPath, "utf8")) as {
       mcpServers: {
         ragmir: {
@@ -59,15 +56,8 @@ describe("installSkill", () => {
     const agentSetup = await readFile(result.agentSetupPath, "utf8")
 
     expect(skill).toContain("name: ragmir")
-    expect(skill).toContain("rgr team sync --json")
-    expect(skill).toContain("rgr team compare")
-    expect(skill).toContain("never stashes, resets, rebases")
-    expect(skill).toContain("warn the user in the language they are using")
     expect(skill).toContain("rgr upgrade --check")
     expect(skill).toContain("never delete `.ragmir/storage/` as the first upgrade step")
-    expect(audioSkill).toContain("name: ragmir-audio-summary")
-    expect(reportSkill).toContain("name: ragmir-markdown-report")
-    expect(legalSkill).toContain("name: ragmir-legal-dossier")
     expect(mcpConfig.mcpServers.ragmir.command).toBe("node")
     expect(mcpConfig.mcpServers.ragmir.args).toEqual([result.runnerPath, "serve-mcp"])
     expect(mcpConfig.mcpServers.ragmir.cwd).toBe(root)
@@ -84,7 +74,6 @@ describe("installSkill", () => {
     expect(codexConfig).toContain(`cwd = ${JSON.stringify(root)}`)
     expect(codexConfig).toContain("[[skills.config]]")
     expect(codexConfig).toContain(path.join(root, ".ragmir", "skills", "ragmir"))
-    expect(codexConfig).toContain(path.join(root, ".ragmir", "skills", "ragmir-legal-dossier"))
     expect(kimiConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(opencodeConfig.mcp.ragmir).toEqual({
       type: "local",
@@ -95,9 +84,7 @@ describe("installSkill", () => {
     expect(clineConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(agentSetup).toContain("Claude Code")
     expect(agentSetup).toContain("Default agent loop")
-    expect(agentSetup).toContain("research may add three code matches")
     expect(agentSetup).toContain("compact: false")
-    expect(agentSetup).toContain("ragmir_route_prompt")
     expect(agentSetup).toContain("Kimi Code CLI")
     expect(agentSetup).toContain("OpenCode")
     expect(agentSetup).toContain("Cline")
@@ -146,9 +133,6 @@ describe("installSkill", () => {
 
     expect(first.written).toContain(".gitignore")
     expect(second.written).not.toContain(".gitignore")
-    expect(first.written).toContain(path.join(".ragmir", "skills", "ragmir-audio-summary"))
-    expect(first.written).toContain(path.join(".ragmir", "skills", "ragmir-markdown-report"))
-    expect(first.written).toContain(path.join(".ragmir", "skills", "ragmir-legal-dossier"))
     expect(first.written).toContain(path.join(".ragmir", "run.cjs"))
     expect(first.written).toContain(path.join(".ragmir", "claude-mcp-server.json"))
     expect(first.written).toContain(path.join(".ragmir", "codex-mcp.toml"))
@@ -272,8 +256,6 @@ describe("installAgentSkills", () => {
     expect(await realpath(kimiSkillDir)).toBe(canonicalSkillDir)
     expect(existsSync(path.join(root, ".codex", "skills", "ragmir", "SKILL.md"))).toBe(false)
     expect(result.written).toContain(path.join(".claude", "skills", "ragmir"))
-    expect(result.written).toContain(path.join(".kimi", "skills", "ragmir-markdown-report"))
-    expect(result.written).toContain(path.join(".kimi", "skills", "ragmir-legal-dossier"))
     const gitignore = await readFile(path.join(root, ".gitignore"), "utf8")
     expect(gitignore).toContain(".agents/skills/ragmir")
     expect(gitignore).toContain(".claude/skills/ragmir")

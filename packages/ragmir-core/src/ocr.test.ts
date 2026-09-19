@@ -3,7 +3,6 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { isRecord } from "./guards.js"
-import { initProject } from "./init.js"
 import {
   configurePdfOcr,
   extractPdfPage,
@@ -78,24 +77,6 @@ describe("PDF OCR onboarding", () => {
     ])
     expect(raw.pdfOcrTimeoutMs).toBe(45_000)
   }, 10_000)
-
-  it("should reject OCR configuration under the strict privacy profile", async () => {
-    const root = await createTempRoot("ragmir-ocr-strict-")
-    await initProject(root)
-    const configPath = path.join(root, ".ragmir", "config.json")
-    const raw: unknown = JSON.parse(await readFile(configPath, "utf8"))
-    if (!isRecord(raw)) {
-      throw new Error("Expected an object config fixture.")
-    }
-    await writeFile(
-      configPath,
-      `${JSON.stringify({ ...raw, privacyProfile: "strict" }, null, 2)}\n`,
-    )
-
-    await expect(configurePdfOcr({ cwd: root })).rejects.toThrow(
-      "strict privacy profile disables external extractors",
-    )
-  })
 
   it("should extract one PDF page with the local Tesseract pipeline", async () => {
     const root = await createTempRoot("ragmir-ocr-tesseract-")

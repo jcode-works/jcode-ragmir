@@ -68,7 +68,6 @@ describe("ingest", () => {
       discoveryMs: expect.any(Number),
       hashingMs: expect.any(Number),
       parsingMs: expect.any(Number),
-      redactionMs: expect.any(Number),
       chunkingMs: expect.any(Number),
       embeddingMs: expect.any(Number),
       storageWriteMs: expect.any(Number),
@@ -745,7 +744,7 @@ describe("ingest", () => {
     await ingest({ cwd: root })
     await writeFile(
       path.join(root, ".ragmir", "config.json"),
-      JSON.stringify({ redaction: { enabled: false } }),
+      JSON.stringify({ chunkSize: 500, chunkOverlap: 50 }),
     )
 
     const result = await ingest({ cwd: root })

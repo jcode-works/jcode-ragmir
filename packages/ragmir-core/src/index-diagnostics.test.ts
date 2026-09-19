@@ -111,11 +111,11 @@ describe("getIndexFreshnessWarning", () => {
     expect(warning).toContain("schema is incompatible")
   })
 
-  it("warns when the redaction policy differs", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-freshness-redaction-"))
+  it("warns when the stored content policy differs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-freshness-content-"))
     tempDirs.push(root)
-    const config = testConfig(root, { redaction: { enabled: false, builtIn: true, patterns: [] } })
-    await writeIndexManifest(baseManifest(), config)
+    const config = testConfig(root)
+    await writeIndexManifest({ ...baseManifest(), indexPolicyFingerprint: "legacy-policy" }, config)
 
     expect(await getIndexFreshnessWarning(config)).toContain("content policy differs")
   })

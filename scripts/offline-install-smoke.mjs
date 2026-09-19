@@ -54,17 +54,6 @@ try {
     env: offlineEnvironment(),
     maxBuffer: 1024 * 1024,
   })
-  const installedRoute = await execFileAsync(
-    installedCliPath,
-    ["route-prompt", "--json", "find indexed architecture evidence"],
-    {
-      cwd: consumerRoot,
-      env: offlineEnvironment(),
-      maxBuffer: 1024 * 1024,
-    },
-  )
-  const installedRouteDecision = JSON.parse(installedRoute.stdout)
-
   const workerPath = path.join(consumerRoot, "verify.mjs")
   await writeFile(workerPath, offlineWorkerSource(), "utf8")
   const { stdout } = await execFileAsync(process.execPath, [workerPath], {
@@ -79,6 +68,9 @@ try {
   const ttsInstalled = existsSync(
     path.join(consumerRoot, "node_modules", "@jcode.labs", "ragmir-tts"),
   )
+  const heavyInstalled = (await readdir(path.join(consumerRoot, "node_modules", ".pnpm"))).filter(
+    (entry) => /huggingface\+transformers|onnxruntime|^sharp@|node-llama-cpp/u.test(entry),
+  )
   const passed =
     result.provider === "local-hash" &&
     result.indexedFiles === 1 &&
@@ -86,7 +78,8 @@ try {
     Array.isArray(result.forbiddenResolutions) &&
     result.forbiddenResolutions.length === 0 &&
     installedVersion.stdout.trim().length > 0 &&
-    installedRouteDecision.shouldUseRagmir === true &&
+    heavyInstalled.length === 0 &&
+    result.missingSemanticRuntimeExplained === true &&
     !chatInstalled &&
     !ttsInstalled
   process.stdout.write(
@@ -95,7 +88,7 @@ try {
       preloadMode: "lockfile-and-tarballs",
       installMode: "pnpm-offline-frozen-store",
       installedCliVersion: installedVersion.stdout.trim(),
-      installedRouteTool: installedRouteDecision.tool,
+      heavyInstalled,
       chatInstalled,
       ttsInstalled,
       passed,
@@ -133,9 +126,10 @@ import path from "node:path"
 
 const forbidden = /(?:@huggingface\\/transformers|onnxruntime|sharp)/iu
 const forbiddenResolutions = []
+let checkingMissingPeer = false
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (forbidden.test(specifier)) {
+    if (!checkingMissingPeer && forbidden.test(specifier)) {
       forbiddenResolutions.push(specifier)
       throw new Error(\`local-hash attempted to load forbidden runtime \${specifier}.\`)
     }
@@ -143,7 +137,7 @@ registerHooks({
   },
 })
 
-const { initProject, ingest, loadConfig, search } = await import("@jcode.labs/ragmir")
+const { initProject, ingest, loadConfig, search, expandCitation } = await import("@jcode.labs/ragmir")
 const projectRoot = path.join(process.cwd(), "project")
 await initProject(projectRoot)
 await mkdir(path.join(projectRoot, ".ragmir", "raw"), { recursive: true })
@@ -155,7 +149,16 @@ await writeFile(
 const config = await loadConfig(projectRoot)
 const ingestion = await ingest({ cwd: projectRoot })
 const results = await search("PORTABLE-EVIDENCE local retrieval", { cwd: projectRoot, topK: 1 })
+const expanded = await expandCitation(results[0].citation, { cwd: projectRoot })
+if (!expanded.found) throw new Error("Packed citation expansion failed")
+// Disable the resolution guard only for this explicit missing-runtime check.
+checkingMissingPeer = true
+let missingSemanticRuntimeExplained = false
+await writeFile(path.join(projectRoot, ".ragmir", "config.json"), JSON.stringify({ embeddingProvider: "transformers" }))
+const missing = await ingest({ cwd: projectRoot, rebuild: true }).catch((error) => ({ errors: [{ message: error.message }] }))
+missingSemanticRuntimeExplained = missing.errors.some((error) => error.message.includes("Install it in your project"))
 process.stdout.write(JSON.stringify({
+  missingSemanticRuntimeExplained,
   provider: config.embeddingProvider,
   indexedFiles: ingestion.indexedFiles,
   resultPath: results[0]?.relativePath ?? null,

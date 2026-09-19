@@ -72,13 +72,7 @@ if (landingSetupPrompt !== coreSetupPrompt) {
   failures.push("landing setup prompt differs from the Core canonical prompt")
 }
 
-for (const file of [
-  "README.md",
-  "docs/quick-start.md",
-  "packages/ragmir-core/README.md",
-  "packages/ragmir-chat/README.md",
-  "packages/ragmir-tts/README.md",
-]) {
+for (const file of ["README.md", "docs/quick-start.md", "packages/ragmir-core/README.md"]) {
   const content = await readFile(path.join(repoRoot, file), "utf8")
   const prompt = content.match(
     /<!-- ragmir-setup-prompt:start -->[\s\S]*?~~~text\n([\s\S]*?)\n~~~[\s\S]*?<!-- ragmir-setup-prompt:end -->/u,

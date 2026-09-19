@@ -78,17 +78,6 @@ describe("destroyIndex", () => {
     expect(existsSync(config.storageDir)).toBe(false)
   })
 
-  it("writes a destroy-index access log entry", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-log-"))
-    tempDirs.push(root)
-    const config = testConfig(root)
-    await mkdir(path.dirname(config.accessLogPath), { recursive: true })
-
-    await destroyIndex(root)
-
-    expect(existsSync(config.accessLogPath)).toBe(true)
-  })
-
   it("should wait for the active writer before destroying index storage", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-destroy-locked-"))
     tempDirs.push(root)

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { channel } from "node:diagnostics_channel"
 import {
   BooleanQuery,
@@ -8,7 +9,6 @@ import {
   Operator,
   PhraseQuery,
 } from "@lancedb/lancedb"
-import { flushAccessLog, recordAccess } from "./access-log.js"
 import { citationForCoordinates, stripCitationCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
 import { MAX_SEARCH_TOP_K, VECTOR_DISTANCE_METRIC } from "./defaults.js"
@@ -16,6 +16,13 @@ import { embedText } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
 import { acquireGenerationReadLease } from "./generation-retention.js"
 import { indexFreshnessWarning } from "./index-diagnostics.js"
+import { knowledgeBaseIdentity } from "./knowledge-bases.js"
+import {
+  addLexicalDocument,
+  type LexicalCorpusStatistics,
+  lexicalDocument,
+  lexicalDocumentScore,
+} from "./lexical-scoring.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 import type { RankedRow } from "./ranking.js"
@@ -32,8 +39,8 @@ import type { IndexReadSnapshot } from "./store.js"
 import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
 import { tokenize } from "./text.js"
 import type {
-  AskResult,
   Config,
+  EvidenceVersion,
   ExpandCitationOptions,
   ExpandedCitation,
   IndexManifest,
@@ -50,10 +57,13 @@ import { runWorkload } from "./workload.js"
 type RowsTable = NonNullable<IndexReadSnapshot["table"]>
 
 interface SearchRow {
+  id: string
+  checksum: string
   source: string
   relativePath: string
   chunkIndex: number
   contextPath: string
+  headerChunkIndex?: number
   searchText: string
   text: string
   charStart?: number
@@ -95,10 +105,13 @@ const SOURCE_PATH_QUERY_PATTERN = /^[\p{L}\p{N}_. /\\-]+\.[a-z0-9]{1,12}$/iu
 export const QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL = "ragmir:query-explanation"
 const queryExplanationDiagnostics = channel(QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL)
 const SEARCH_COLUMNS = [
+  "id",
+  "checksum",
   "source",
   "relativePath",
   "chunkIndex",
   "contextPath",
+  "headerChunkIndex",
   "searchText",
   "text",
   "charStart",
@@ -144,7 +157,6 @@ interface LexicalCandidateOptions {
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
   const results = await searchWithConfig(query, options, config)
-  await flushAccessLog(config)
   return results
 }
 
@@ -185,6 +197,7 @@ async function searchWithinGeneration(
   workloadQueueMs = 0,
 ): Promise<SearchResult[]> {
   const signal = activeSignal ?? operationSignal(options)
+  const sanitized = sanitizeRetrievalQuery(query)
   const topK = normalizeTopK(options.topK ?? config.topK)
   const maxChunksPerDocument = normalizeMaxChunksPerDocument(
     options.maxChunksPerDocument ?? config.maxChunksPerDocument,
@@ -200,7 +213,6 @@ async function searchWithinGeneration(
   }
   assertIndexFreshness(config, snapshot.manifest)
 
-  const sanitized = sanitizeRetrievalQuery(query)
   const evidence = queryEvidence(sanitized.query)
   const queryTokens = evidence.tokens
   if (!sanitized.query || queryTokens.length === 0) {
@@ -276,6 +288,7 @@ async function searchWithinGeneration(
   const rows = diversity.rows
   const contextByRow = await contextChunksByRow(table, rows, contextRadius, retrievalPredicate)
   throwIfAborted(signal)
+  const knowledgeBaseId = knowledgeBaseIdentity(config.projectRoot)?.id ?? null
 
   const results = rows.map((row) => {
     const vectorDistance = typeof row.row._distance === "number" ? row.row._distance : null
@@ -294,9 +307,13 @@ async function searchWithinGeneration(
       pageStart: nullablePageNumber(row.row.pageStart),
       pageEnd: nullablePageNumber(row.row.pageEnd),
       context: contextByRow.get(rowKey(row.row)) ?? [],
+      evidence: evidenceVersionForRow(row.row, snapshot, knowledgeBaseId),
       ...(options.explain
         ? {
             score: {
+              retrievalQuery: sanitized.query,
+              queryNormalized: sanitized.changed,
+              originalQueryLength: sanitized.originalLength,
               fusion: "rrf" as const,
               combinedScore: row.combinedScore,
               vectorContribution: row.vectorScore,
@@ -327,12 +344,6 @@ async function searchWithinGeneration(
         : {}),
     }
   })
-  void recordAccess(config, {
-    action: "search",
-    query: sanitized.query,
-    topK,
-    resultCount: results.length,
-  })
   return results
 }
 
@@ -347,46 +358,6 @@ export function lexicalCandidateLimit(
 ): number {
   const policy = LEXICAL_CANDIDATE_POLICY[profile]
   return Math.min(MAX_LEXICAL_CANDIDATES, Math.max(policy.minimum, topK * policy.multiplier))
-}
-
-export async function ask(query: string, options: SearchOptions = {}): Promise<AskResult> {
-  const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  return askWithConfig(query, options, config)
-}
-
-export async function askWithConfig(
-  query: string,
-  options: SearchOptions,
-  config: Config,
-  connection?: Connection,
-  snapshot?: IndexReadSnapshot,
-): Promise<AskResult> {
-  const signal = operationSignal(options)
-  throwIfAborted(signal)
-  const sources = await searchWithConfig(query, options, config, connection, signal, snapshot)
-  const staleWarning = null
-  throwIfAborted(signal)
-
-  if (sources.length === 0) {
-    return {
-      answer: "No relevant passages were found. Add documents and run `rgr doctor --fix` first.",
-      sources,
-      staleWarning,
-    }
-  }
-
-  await recordAccess(config, {
-    action: "ask",
-    query: sanitizeRetrievalQuery(query).query,
-    topK: options.topK ?? config.topK,
-    resultCount: sources.length,
-  })
-
-  return {
-    answer: retrievalOnlyAnswer(sources),
-    sources,
-    staleWarning,
-  }
 }
 
 export async function expandCitation(
@@ -431,6 +402,15 @@ async function expandCitationWithinGeneration(
   const requestedCitation = citation.trim()
   const target = parseCitationTarget(requestedCitation)
   const contextRadius = normalizeContextRadius(options.contextRadius)
+  if (
+    options.expectedEvidenceId !== undefined &&
+    !/^[a-f0-9]{64}$/u.test(options.expectedEvidenceId)
+  ) {
+    throw new RagmirError(
+      "INVALID_ARGUMENT",
+      "expectedEvidenceId must be a SHA-256 identifier from search.",
+    )
+  }
   const table = snapshot.table
   throwIfAborted(signal)
   if (!table) {
@@ -476,6 +456,33 @@ async function expandCitationWithinGeneration(
   if (citationForRow(targetRow) !== requestedCitation) {
     throw new Error("Citation coordinates do not match the indexed passage.")
   }
+  const evidence = evidenceVersionForRow(
+    targetRow,
+    snapshot,
+    knowledgeBaseIdentity(config.projectRoot)?.id ?? null,
+  )
+  if (options.expectedEvidenceId !== undefined && options.expectedEvidenceId !== evidence.id) {
+    throw new RagmirError(
+      "EVIDENCE_CHANGED",
+      "The indexed evidence has changed. Search again before expanding this citation.",
+    )
+  }
+  if (
+    targetRow.headerChunkIndex !== undefined &&
+    targetRow.headerChunkIndex >= 0 &&
+    !rows.some((row) => row.chunkIndex === targetRow.headerChunkIndex)
+  ) {
+    const headers = (await table
+      .query()
+      .select(SEARCH_COLUMNS)
+      .where(
+        `relativePath = ${sqlString(target.relativePath)} AND chunkIndex = ${targetRow.headerChunkIndex}`,
+      )
+      .limit(1)
+      .toArray()) as SearchRow[]
+    throwIfAborted(signal)
+    rows.push(...headers)
+  }
 
   return {
     requestedCitation,
@@ -483,23 +490,25 @@ async function expandCitationWithinGeneration(
     relativePath: target.relativePath,
     chunkIndex: target.chunkIndex,
     contextRadius,
+    evidence,
     passages: rows.sort(compareChunkRows).map(contextChunkForRow),
   }
 }
 
-function retrievalOnlyAnswer(sources: SearchResult[]): string {
-  const snippets = sources
-    .map((source, index) => {
-      const text = answerText(source).replace(/\s+/gu, " ").trim()
-      return `[${index + 1}] ${source.citation}: ${text}`
-    })
-    .join("\n\n")
-
-  return [
-    "Ragmir returns retrieval context only. Use these passages as grounded context for your agent or LLM:",
-    "",
-    snippets,
-  ].join("\n")
+function evidenceVersionForRow(
+  row: SearchRow,
+  snapshot: IndexReadSnapshot,
+  knowledgeBaseId: string | null,
+): EvidenceVersion {
+  return {
+    id: createHash("sha256")
+      .update(JSON.stringify([row.relativePath, row.checksum, row.id, citationForRow(row)]))
+      .digest("hex"),
+    sourceChecksum: row.checksum,
+    indexGeneration: snapshot.tableName,
+    indexedAt: snapshot.manifest?.createdAt ?? null,
+    knowledgeBaseId,
+  }
 }
 
 async function lexicalCandidateRows(
@@ -572,9 +581,13 @@ async function lexicalCandidateRows(
       const unindexedRows = stats.numUnindexedRows
       const coveredRows = indexedRows + unindexedRows
       const exactPathMatches = new Set(
-        sourcePathQuery?.exactRelativePath
+        sourcePathQuery
           ? sourcePathRows
-              .filter((row) => row.relativePath === sourcePathQuery.exactRelativePath)
+              .filter(
+                (row) =>
+                  sourcePathQuery.exactRelativePath === null ||
+                  row.relativePath === sourcePathQuery.exactRelativePath,
+              )
               .map(rowKey)
           : [],
       )
@@ -594,11 +607,13 @@ async function lexicalCandidateRows(
       }
     } catch {
       fallbackReason = "fts-query-failed"
-      // A complete bounded scan remains safe for small or explicitly bounded corpora.
+      // The fallback reads the complete snapshot in two passes with bounded candidates.
     }
   }
   const fallback = await scanFallbackRows(
     table,
+    query,
+    options.ftsLimit,
     options.fallbackBatchSize,
     options.pathPredicate,
     options.signal,
@@ -611,11 +626,15 @@ async function lexicalCandidateRows(
   for (const row of sourcePathRows) {
     rowsByKey.set(rowKey(row), row)
   }
-  const rows = [...rowsByKey.values()]
+  const rows = [...rowsByKey.values()].sort(compareFallbackRows).slice(0, options.ftsLimit)
   const exactPathMatches = new Set(
-    sourcePathQuery?.exactRelativePath
+    sourcePathQuery
       ? sourcePathRows
-          .filter((row) => row.relativePath === sourcePathQuery.exactRelativePath)
+          .filter(
+            (row) =>
+              sourcePathQuery.exactRelativePath === null ||
+              row.relativePath === sourcePathQuery.exactRelativePath,
+          )
           .map(rowKey)
       : [],
   )
@@ -625,7 +644,7 @@ async function lexicalCandidateRows(
     backend: "fallback",
     fallbackActivated: true,
     fallbackReason,
-    candidateLimit: Math.max(options.indexedChunkCount, rows.length),
+    candidateLimit: options.ftsLimit,
     candidatesMaterialized: rows.length,
     queryVariants: 0,
     indexedRows: 0,
@@ -637,13 +656,53 @@ async function lexicalCandidateRows(
 
 async function scanFallbackRows(
   table: RowsTable,
+  query: string,
+  candidateLimit: number,
   batchSize: number,
   pathPredicate: string | null,
   signal?: AbortSignal,
 ): Promise<{ rows: SearchRow[]; batches: number }> {
-  const rows: SearchRow[] = []
-  let offset = 0
+  const queryTokens = [...new Set(tokenize(query))]
+  const statistics: LexicalCorpusStatistics = {
+    documentCount: 0,
+    totalLength: 0,
+    documentFrequencies: new Map(),
+  }
   let batches = 0
+  for await (const batch of fallbackRowBatches(table, batchSize, pathPredicate, signal)) {
+    batches += 1
+    for (const row of batch) {
+      addLexicalDocument(statistics, lexicalDocument(row.searchText), queryTokens)
+    }
+  }
+  const rows: SearchRow[] = []
+  for await (const batch of fallbackRowBatches(table, batchSize, pathPredicate, signal)) {
+    batches += 1
+    for (const row of batch) {
+      const score = lexicalDocumentScore(lexicalDocument(row.searchText), statistics, queryTokens)
+      if (score > 0) rows.push({ ...row, _score: score })
+    }
+    rows.sort(compareFallbackRows)
+    rows.length = Math.min(rows.length, candidateLimit)
+  }
+  return { rows, batches }
+}
+
+function compareFallbackRows(left: SearchRow, right: SearchRow): number {
+  return (
+    (right._score ?? 0) - (left._score ?? 0) ||
+    left.relativePath.localeCompare(right.relativePath) ||
+    left.chunkIndex - right.chunkIndex
+  )
+}
+
+async function* fallbackRowBatches(
+  table: RowsTable,
+  batchSize: number,
+  pathPredicate: string | null,
+  signal?: AbortSignal,
+): AsyncGenerator<SearchRow[]> {
+  let offset = 0
 
   while (true) {
     throwIfAborted(signal)
@@ -656,15 +715,12 @@ async function scanFallbackRows(
     if (batch.length === 0) {
       break
     }
-    rows.push(...batch)
-    batches += 1
+    yield batch
     offset += batch.length
     if (batch.length < batchSize) {
       break
     }
   }
-
-  return { rows, batches }
 }
 
 async function executeFullTextQuery(
@@ -756,7 +812,10 @@ async function contextChunksByRow(
   retrievalPredicate: string | null,
 ): Promise<Map<string, SearchContextChunk[]>> {
   const radius = Math.min(MAX_CONTEXT_RADIUS, Math.max(0, requestedRadius))
-  if (radius === 0 || rows.length === 0) {
+  if (
+    rows.length === 0 ||
+    (radius === 0 && !rows.some(({ row }) => (row.headerChunkIndex ?? -1) >= 0))
+  ) {
     return new Map()
   }
 
@@ -767,6 +826,13 @@ async function contextChunksByRow(
         `(relativePath = ${sqlString(relativePath)} AND chunkIndex >= ${minimum} AND chunkIndex <= ${maximum})`,
     ),
   )
+  for (const { row } of rows) {
+    if (row.headerChunkIndex !== undefined && row.headerChunkIndex >= 0) {
+      predicates.push(
+        `(relativePath = ${sqlString(row.relativePath)} AND chunkIndex = ${row.headerChunkIndex})`,
+      )
+    }
+  }
   const rangePredicate = predicates.join(" OR ")
   const hydrationPredicate = retrievalPredicate
     ? `(${rangePredicate}) AND (${retrievalPredicate})`
@@ -787,7 +853,9 @@ async function contextChunksByRow(
     const minChunk = Math.max(0, row.chunkIndex - radius)
     const maxChunk = row.chunkIndex + radius
     const contextRows = (contextRowsByPath.get(row.relativePath) ?? []).filter(
-      (candidate) => candidate.chunkIndex >= minChunk && candidate.chunkIndex <= maxChunk,
+      (candidate) =>
+        (radius > 0 && candidate.chunkIndex >= minChunk && candidate.chunkIndex <= maxChunk) ||
+        candidate.chunkIndex === row.headerChunkIndex,
     )
     contexts.set(rowKey(row), contextRows.sort(compareChunkRows).map(contextChunkForRow))
   }
@@ -862,13 +930,6 @@ function assertVectorIndexCompatibility(
 
 type IndexManifestWithVectorIndex = IndexManifest & {
   vectorIndex: VectorIndexManifest
-}
-
-function answerText(source: SearchResult): string {
-  if (source.context.length === 0) {
-    return source.text
-  }
-  return source.context.map((chunk) => `[${chunk.citation}] ${chunk.text}`).join("\n\n")
 }
 
 function contextChunkForRow(row: SearchRow): SearchContextChunk {

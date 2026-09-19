@@ -89,7 +89,6 @@ export async function doctorWithConfig(
     oversizedFiles === 0
   const operationalReady = initialized && manifest !== null && chunksIndexed > 0 && coverageComplete
   const indexPolicyCurrent = manifest !== null && freshnessWarning === null
-  const privacyCompliant = diagnosticSnapshotAvailable && securityWarnings.length === 0
   const retrievalQualityVerified = deep
     ? await isCompatibleQualityReport(manifest?.qualityReport, manifest, config)
     : false
@@ -136,9 +135,6 @@ export async function doctorWithConfig(
     storageDir: config.storageDir,
     embeddingProvider: config.embeddingProvider,
     transformersAllowRemoteModels: config.transformersAllowRemoteModels,
-    redactionEnabled: config.redaction.enabled,
-    accessLog: config.accessLog,
-    privacyProfile: config.privacyProfile,
     retrievalProfile: config.retrievalProfile,
     supportedFiles,
     supportedBytes,
@@ -156,14 +152,12 @@ export async function doctorWithConfig(
     corpusFingerprint: manifest?.corpusFingerprint ?? null,
     securityWarnings,
     indexFreshness,
-    ready: operationalReady && indexPolicyCurrent && privacyCompliant,
+    ready: operationalReady && indexPolicyCurrent,
     readiness: {
       operationalReady,
       coverageComplete,
       indexPolicyCurrent,
-      privacyCompliant,
       retrievalQualityVerified,
-      acceptedRisks: config.acceptedRisks,
     },
     nextSteps,
   }
@@ -271,12 +265,6 @@ function nextActions(input: NextActionInput): string[] {
       )
     }
     steps.push(`Run \`${input.run(["search", '"your question"'])}\` to retrieve source passages.`)
-    steps.push(
-      `Run \`${input.run(["ask", '"your question"'])}\` to produce cited retrieval context.`,
-    )
-    steps.push(
-      `Run \`${input.run(["research", '"your topic"'])}\` for audit-backed multi-query evidence.`,
-    )
     if (input.agentKitInstalled && input.nativeAgentCount > 0) {
       steps.push(
         "Restart or reload the selected agents so they discover the installed Ragmir skills.",

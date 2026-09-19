@@ -124,7 +124,7 @@ function canAutoIngest(report: DoctorReport): boolean {
 function setupNextSteps(report: DoctorReport): string[] {
   if (report.ready) {
     return [
-      "Ask questions with the search or ask command shown by `rgr doctor`.",
+      "Retrieve citations with the search command shown by `rgr doctor`.",
       "Restart or reload the selected agents so they discover the installed Ragmir skills.",
       "Wire the matching MCP helper from .ragmir/ when the agent should call Ragmir tools directly.",
     ]

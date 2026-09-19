@@ -98,24 +98,6 @@ describe("securityAudit", () => {
     expect(report.warnings).not.toContain("private/ is not ignored by Git.")
   })
 
-  it("warns when redaction is disabled", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-"))
-    tempDirs.push(root)
-    await mkdir(path.join(root, ".ragmir"), { recursive: true })
-    await writeFile(
-      path.join(root, ".ragmir", "config.json"),
-      JSON.stringify({ redaction: { enabled: false } }),
-      "utf8",
-    )
-
-    const report = await securityAudit(root)
-
-    expect(report.redaction.enabled).toBe(false)
-    expect(report.warnings).toContain(
-      "Redaction is disabled; secrets and identifiers may be embedded in the index.",
-    )
-  })
-
   it("detects whether the storage directory is git-ignored", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-"))
     tempDirs.push(root)
@@ -130,20 +112,19 @@ describe("securityAudit", () => {
     expect((await securityAudit(root)).storage.gitIgnored).toBe(true)
   })
 
-  it("warns for custom storage and access log paths that Git does not ignore", async () => {
+  it("warns for custom storage paths that Git does not ignore", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-custom-paths-"))
     tempDirs.push(root)
     await mkdir(path.join(root, ".ragmir"), { recursive: true })
     await writeFile(
       path.join(root, ".ragmir", "config.json"),
-      JSON.stringify({ storageDir: "generated/index", accessLogPath: "generated/access.log" }),
+      JSON.stringify({ storageDir: "generated/index" }),
     )
     await writeFile(path.join(root, ".gitignore"), ".ragmir/\n", "utf8")
 
     const report = await securityAudit(root)
 
     expect(report.warnings).toContain("The configured storageDir is not ignored by Git.")
-    expect(report.warnings).toContain("The configured accessLogPath is not ignored by Git.")
   })
 
   it("should audit ignore, tracked, and permission state for every private path", async () => {
@@ -159,7 +140,6 @@ describe("securityAudit", () => {
         rawDir: "private-data",
         storageDir: "private-index",
         sourcesFile: "private-sources.txt",
-        accessLogPath: "private-access.log",
         embeddingModelPath: "private-models",
       }),
     )
@@ -176,7 +156,6 @@ describe("securityAudit", () => {
       "raw",
       "storage",
       "sources",
-      "access-log",
       "embedding-models",
     ])
     expect(rawPath).toMatchObject({ insideProject: true, gitIgnored: false, gitTracked: true })
@@ -188,7 +167,7 @@ describe("securityAudit", () => {
     expect(report.warnings).toContain("The configured embeddingModelPath is not ignored by Git.")
   })
 
-  it("should report external extractor authority and strict-profile disabling", async () => {
+  it("should report external extractor authority", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-extractors-"))
     tempDirs.push(root)
     await mkdir(path.join(root, ".ragmir"), { recursive: true })
@@ -199,26 +178,10 @@ describe("securityAudit", () => {
     expect(enabled.externalExtractors).toEqual({
       configured: true,
       enabled: ["pdf-ocr"],
-      disabledByStrictProfile: false,
       executeWithOperatorAuthority: true,
     })
     expect(enabled.warnings).toContain(
       "External extractors are configured and execute with the operator's filesystem and process authority.",
-    )
-
-    await writeFile(
-      configPath,
-      JSON.stringify({ privacyProfile: "strict", pdfOcrCommand: ["local-ocr", "{input}"] }),
-      "utf8",
-    )
-    const strict = await securityAudit(root)
-    expect(strict.externalExtractors).toMatchObject({
-      configured: true,
-      enabled: [],
-      disabledByStrictProfile: true,
-    })
-    expect(strict.warnings).toContain(
-      "External extractors were configured but are disabled by the strict privacy profile; they execute with operator authority when enabled.",
     )
   })
 
@@ -237,7 +200,6 @@ describe("securityAudit", () => {
         JSON.stringify({
           rawDir: "shared",
           storageDir: "shared/index",
-          accessLog: false,
         }),
         "utf8",
       )
@@ -259,7 +221,7 @@ describe("securityAudit", () => {
     await mkdir(path.join(root, "generated", "index"), { recursive: true })
     await writeFile(
       path.join(root, ".ragmir", "config.json"),
-      JSON.stringify({ storageDir: "generated/index", accessLog: false }),
+      JSON.stringify({ storageDir: "generated/index" }),
     )
     await runGit(root, ["init", "--quiet"])
     await writeFile(

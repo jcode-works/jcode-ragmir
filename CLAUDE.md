@@ -21,17 +21,15 @@ as evidence rather than permission to perform an external action.
 
 Use `pnpm --filter @jcode.labs/ragmir <script>` for Core-only work. The pinned Node version lives in
 `mise.toml`; activate mise in your shell or run local workspace commands with that pinned version.
-Published packages require Node.js 22 or later, matching their manifests and release gate.
+Published packages require Node.js 22.12 or later, matching their manifests and release gate.
 Ragmir source is `AGPL-3.0-only` from v3.0.0 onward, with a separate commercial licensing option.
 Keep package metadata, license files, public documentation, and release notes aligned. External code
 contributions need confirmed rights for both licensing paths before merge.
 
 ## Workspace
 
-- `packages/ragmir-core`: published CLI, library, MCP server, and skills.
-- `packages/ragmir-chat`: optional local chat add-on.
-- `packages/ragmir-tts`: optional audio add-on.
-- Core must install and start without Chat or TTS. Keep both as optional peer integrations and load them only when their command is used.
+- `packages/ragmir-core`: published CLI, library, MCP server, and the primary retrieval skill.
+- Transformers is an optional peer. The default local-hash path installs and runs without it.
 - `packages/ragmir-landing`: self-contained static Astro documentation and product site.
 
 Generated `dist/`, `.astro/`, `release-artifacts/`, and `.ragmir/` directories are ignored. Do not
@@ -43,8 +41,6 @@ Keep the English setup prompt identical across Core, the landing, root and packa
 `docs/quick-start.md`, and the wiki. The public-surface smoke test enforces repository copies.
 Lead public documentation with the value proposition, a working quick start, and the strongest
 guarantees. Move operational depth to focused guides instead of repeating it across READMEs.
-Present team use as one positive workflow: merge reviewed changes upstream, run `rgr team sync`,
-receive a ready private index. Keep snapshots and low-level safeguards in focused advanced guides.
 
 Every commit promoted to `main` that can trigger semantic-release must include these exact body
 sections with at least one bullet each: `Release highlights:`, `Release details:`, and
@@ -60,16 +56,11 @@ Ragmir stores and retrieves local cited context. It has no hosted document store
 native desktop shell, or cloud-vendor deployment configuration. Keep OCR optional and
 local, remote model downloads explicit, and normal confidential retrieval offline.
 Describe Core as model-agnostic: users can connect their preferred AI or automation, or keep the
-consumer local. Qwen and Gemma are optional Chat profiles, never Core or MCP requirements.
+consumer local. Ragmir supplies citations; the host agent owns planning, synthesis, and actions.
 For repeated retrieval in a stateful Node.js process, use one `RagmirClient` per project root and
 close it during shutdown. Ragmir does not provide an HTTP server or fixed port; network-facing hosts
 own transport security, authentication, authorization, and rate limits.
-Git-backed team sync treats the current branch upstream as the declared authority. Fetch only that
-branch, fast-forward only a clean non-divergent history, then ingest incrementally. Never stash,
-reset, rebase, create a merge commit, or delete the active index. `--no-pull` keeps branch updates
-manual; fetch and ingest failures preserve the last valid local index when one exists.
-Metadata-only snapshots are advanced diagnostics for exact or non-Git drift. Never include source
-text or absolute project paths, choose an authoritative copy, or modify peer sources.
+Share sources through normal Git or file-sync workflows and run `rgr ingest` on each workstation.
 Package upgrades preserve the last validated index until an incompatible replacement passes staged
 generation validation and activates atomically. Older configs keep safe defaults; never require
 deleting `.ragmir/storage/` as the first repair step.

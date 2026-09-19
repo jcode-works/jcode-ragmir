@@ -31,18 +31,13 @@ describe("loadConfig", () => {
     const config = await loadConfig(nested)
     expect(config.rawDir).toBe(path.join(root, "docs"))
     expect(config.storageDir).toBe(path.join(root, ".ragmir/index"))
-    expect(config.accessLogPath).toBe(path.join(root, ".ragmir/access.log"))
     expect(config.embeddingModelPath).toBe(path.join(root, ".ragmir/models"))
     expect(config.embeddingProvider).toBe("local-hash")
-    expect(config.privacyProfile).toBe("private")
     expect(config.retrievalProfile).toBe("balanced")
-    expect(config.acceptedRisks).toEqual([])
     expect(config.embeddingModel).toBe("intfloat/multilingual-e5-small")
     expect(config.embeddingModelRevision).toMatch(/^[0-9a-f]{40}$/u)
     expect(config.embeddingModelDigest).toBeNull()
     expect(config.transformersAllowRemoteModels).toBe(false)
-    expect(config.redaction.enabled).toBe(true)
-    expect(config.accessLog).toBe(true)
     expect(config.mcpMaxTopK).toBe(10)
     expect(config.mcpMaxOutputBytes).toBe(32_768)
     expect(config.maxChunksPerDocument).toBe(1)
@@ -147,7 +142,6 @@ describe("loadConfig", () => {
       expect(config.rawDir).toBe(path.join(root, "private"))
       expect(config.storageDir).toBe(path.join(root, ".kb/storage"))
       expect(config.sourcesFile).toBe(path.join(root, ".kb/sources.txt"))
-      expect(config.accessLogPath).toBe(path.join(root, ".kb/access.log"))
       expect(config.includeExtensions).toEqual([".legacy"])
     } finally {
       if (original === undefined) {
@@ -488,39 +482,6 @@ describe("loadConfig", () => {
     await expect(loadConfig(root)).rejects.toThrow(/topKk|Unrecognized key/i)
   })
 
-  it("enforces the strict privacy floor after environment overrides", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-strict-profile-"))
-    tempDirs.push(root)
-    await mkdir(path.join(root, ".ragmir"), { recursive: true })
-    await writeFile(
-      path.join(root, ".ragmir", "config.json"),
-      JSON.stringify({
-        privacyProfile: "strict",
-        transformersAllowRemoteModels: true,
-        redaction: { enabled: false, builtIn: false },
-        mcpMaxTopK: 50,
-        mcpMaxOutputBytes: 100_000,
-        pdfOcrCommand: ["ocr-wrapper"],
-      }),
-    )
-    const originalRemote = process.env.RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS
-    const originalRedaction = process.env.RAGMIR_REDACTION_ENABLED
-    process.env.RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS = "true"
-    process.env.RAGMIR_REDACTION_ENABLED = "false"
-    try {
-      const config = await loadConfig(root)
-      expect(config.transformersAllowRemoteModels).toBe(false)
-      expect(config.redaction.enabled).toBe(true)
-      expect(config.redaction.builtIn).toBe(true)
-      expect(config.mcpMaxTopK).toBe(5)
-      expect(config.mcpMaxOutputBytes).toBe(16_384)
-      expect(config.pdfOcrCommand).toEqual([])
-    } finally {
-      restoreEnv("RAGMIR_TRANSFORMERS_ALLOW_REMOTE_MODELS", originalRemote)
-      restoreEnv("RAGMIR_REDACTION_ENABLED", originalRedaction)
-    }
-  })
-
   it("applies retrieval profile defaults without overriding explicit values", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-retrieval-profile-"))
     tempDirs.push(root)
@@ -620,24 +581,6 @@ describe("loadConfig", () => {
     } finally {
       restoreEnv("RAGMIR_INGEST_CONCURRENCY", original)
     }
-  })
-
-  it("should reject unsafe custom redaction patterns before processing content", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-redos-"))
-    tempDirs.push(root)
-    await mkdir(path.join(root, ".ragmir"), { recursive: true })
-    await writeFile(
-      path.join(root, ".ragmir", "config.json"),
-      JSON.stringify({
-        redaction: {
-          patterns: [{ name: "catastrophic", pattern: "(a+)+$" }],
-        },
-      }),
-    )
-
-    const startedAt = performance.now()
-    await expect(loadConfig(root)).rejects.toThrow(/catastrophic backtracking/i)
-    expect(performance.now() - startedAt).toBeLessThan(500)
   })
 
   it("should merge partial workload admission limits with safe defaults", async () => {

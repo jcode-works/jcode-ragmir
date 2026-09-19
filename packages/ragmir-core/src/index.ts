@@ -1,8 +1,7 @@
-export type { AccessLogWriterMetrics } from "./access-log.js"
-export { accessLogUsageReport, accessLogWriterMetrics, flushAccessLog } from "./access-log.js"
 export type { RagmirClientOptions } from "./client.js"
 export { createRagmirClient, RagmirClient } from "./client.js"
 export { loadConfig } from "./config.js"
+export type { ConfigMigration } from "./config-migration.js"
 export {
   getKnowledgeBaseContext,
   getKnowledgeBaseSourceCatalog,
@@ -38,7 +37,6 @@ export { getIngestionProgress } from "./ingestion-state.js"
 export { initProject } from "./init.js"
 export { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 export { ingestionLimits } from "./limits.js"
-export type { CreateMcpServerOptions } from "./mcp.js"
 export { connectMcpServer, createMcpServer, serveMcp } from "./mcp.js"
 export type {
   ConfigurePdfOcrOptions,
@@ -54,23 +52,9 @@ export type {
 export { configurePdfOcr, extractPdfPage, extractPdfPages, inspectPdfOcr } from "./ocr.js"
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
-export type {
-  ExportPortableKnowledgeBaseOptions,
-  ExportPortableKnowledgeBaseResult,
-  PortableKnowledgeBaseManifest,
-  PortableKnowledgeBaseVerification,
-} from "./portable.js"
-export {
-  exportPortableKnowledgeBase,
-  portableKnowledgeBaseManifestSchema,
-  verifyPortableKnowledgeBase,
-} from "./portable.js"
 export { previewChunks } from "./preview.js"
-export type { PromptRouteDecision, PromptRouteTool } from "./prompt-routing.js"
-export { routePrompt } from "./prompt-routing.js"
-export { ask, expandCitation, search } from "./query.js"
-export { redactText } from "./redaction.js"
-export { compactResearchReport, compactSearchResults, research } from "./research.js"
+export { expandCitation, search } from "./query.js"
+export { compactSearchResults } from "./search-output.js"
 export { securityAudit } from "./security.js"
 export type { EnableSemanticEmbeddingsResult } from "./semantic-config.js"
 export { enableSemanticEmbeddings } from "./semantic-config.js"
@@ -112,38 +96,9 @@ export type {
 } from "./storage-maintenance.js"
 export { optimizeStorage } from "./storage-maintenance.js"
 export type {
-  CreateTeamSnapshotOptions,
-  TeamChangedFile,
-  TeamComparison,
-  TeamComparisonStatus,
-  TeamConfigurationDifference,
-  TeamSnapshot,
-  TeamSnapshotFile,
-} from "./team-diagnostics.js"
-export {
-  compareTeamSnapshots,
-  createTeamSnapshot,
-  readTeamSnapshot,
-  writeTeamSnapshot,
-} from "./team-diagnostics.js"
-export type {
-  SyncTeamKnowledgeOptions,
-  TeamSyncGitReport,
-  TeamSyncGitState,
-  TeamSyncIndexReport,
-  TeamSyncReport,
-  TeamSyncStatus,
-} from "./team-sync.js"
-export { syncTeamKnowledge } from "./team-sync.js"
-export type {
-  AccessLogAction,
-  AccessLogUsageOptions,
-  AccessLogUsageReport,
-  AskResult,
   AuditOptions,
   AuditReport,
   ChunkStats,
-  CodeEvidence,
   CompactSearchResult,
   Config,
   DestroyIndexResult,
@@ -152,6 +107,7 @@ export type {
   EvaluationCaseResult,
   EvaluationOptions,
   EvaluationResult,
+  EvidenceVersion,
   ExpandCitationOptions,
   ExpandedCitation,
   GoldenQuery,
@@ -179,7 +135,6 @@ export type {
   KnowledgeBaseSourceCatalog,
   KnowledgeBaseSourceCatalogOptions,
   McpOutputTool,
-  McpOutputUsageReport,
   OperationOptions,
   ParsedPage,
   PdfOcrMetrics,
@@ -187,11 +142,6 @@ export type {
   PreviewChunksOptions,
   PreviewFile,
   PreviewReport,
-  PrivacyProfile,
-  RedactionCount,
-  ResearchEvidence,
-  ResearchOptions,
-  ResearchReport,
   RetrievalProfile,
   RuntimeInfo,
   RuntimePackageVersion,

@@ -2,8 +2,8 @@ import { createHash } from "node:crypto"
 import { PDF_OCR_PARSER_POLICY } from "./ocr-cache.js"
 import type { Config } from "./types.js"
 
-const INDEX_CONTENT_POLICY_VERSION = 1
-const CHUNKING_ADAPTER_VERSION = 3
+const INDEX_CONTENT_POLICY_VERSION = 2
+const CHUNKING_ADAPTER_VERSION = 4
 
 export function indexPolicyFingerprint(config: Config): string {
   const policy = {
@@ -20,9 +20,8 @@ export function indexPolicyFingerprint(config: Config): string {
       size: config.chunkSize,
       overlap: config.chunkOverlap,
     },
-    redaction: config.redaction,
     extraction: {
-      parserVersion: 2,
+      parserVersion: 3,
       pdfOcrCommand: config.pdfOcrCommand,
       pdfOcrParserPolicy: config.pdfOcrCommand.length > 0 ? PDF_OCR_PARSER_POLICY : null,
       imageOcrCommand: config.imageOcrCommand,

@@ -22,30 +22,23 @@
 
 ## Product boundary
 
-- `packages/ragmir-core` provides `@jcode.labs/ragmir`: the `rgr` CLI, TypeScript library, MCP server, and portable skills.
-- `packages/ragmir-chat` is the optional local GGUF synthesis add-on used by `rgr chat`.
-- `packages/ragmir-tts` is the optional local/offline audio add-on used by `rgr audio`.
-- Core must install and start without Chat or TTS. Keep both as optional peer integrations and load them only when their command is used.
+- `packages/ragmir-core` provides `@jcode.labs/ragmir`: the `rgr` CLI, TypeScript library, MCP server, and the primary retrieval skill.
+- Transformers is an optional peer. The default local-hash path installs and runs without it.
 - `packages/ragmir-landing` is a self-contained, telemetry-free Astro site. Keep it static, open-source focused, and free of vendor deployment configuration.
-- Ragmir Core stays retrieval-first: `local-hash` supports offline retrieval, `transformers` is the explicit semantic option, and local chat remains a separate add-on.
+- Ragmir Core stays retrieval-first: `local-hash` supports offline retrieval, `transformers` is the explicit semantic option, and the consuming application owns generation.
 - Long-running Node.js processes use one `RagmirClient` per project root and close it during shutdown. Keep the top-level API for one-shot scripts.
 - Ragmir does not provide an HTTP server or fixed port. A network-facing host owns transport security, authentication, authorization, and rate limits.
 - Index writers are serialized across local OS processes through a private lock under `storageDir`; do not claim a distributed or shared-network-filesystem lock.
-- Git-backed team sync treats the current branch upstream as the declared authority. Fetch only
-  that branch, fast-forward only a clean non-divergent history, then ingest incrementally. Never
-  stash, reset, rebase, create a merge commit, or delete the active index. `--no-pull` keeps branch
-  updates manual; fetch and ingest failures preserve the last valid local index when one exists.
-- Metadata-only snapshots are advanced diagnostics for exact or non-Git drift. Never include source
-  text or absolute project paths, choose an authoritative copy, or modify peer sources.
+- Share source documents through normal Git or file-sync workflows; run `rgr ingest` locally.
 - Package upgrades must preserve the last validated index until an incompatible replacement passes
   staged-generation validation and activates atomically. Older configs keep safe defaults; never
   require deleting `.ragmir/storage/` as the first repair step.
-- Public copy must lead with model-agnostic Core and the choice between the user's preferred AI or automation and a fully local consumer. Qwen and Gemma are optional Chat profiles, never Core or MCP requirements.
+- Public copy must lead with model-agnostic Core and the choice between the user's preferred AI or automation and a fully local consumer. Ragmir supplies citations; the host agent owns planning, synthesis, and actions.
 
 ## Privacy and ingestion
 
 - Resolve project data from the caller’s working directory or explicit configuration, never from the package installation path.
-- Keep `.ragmir/` ignored. Use local-hash retrieval by default, redact before indexing, keep access logs metadata-only, and bound MCP retrieval.
+- Keep `.ragmir/` ignored. Use local-hash retrieval by default, preserve source text faithfully, exclude credentials at discovery, and bound MCP retrieval.
 - Keep ingestion windows bounded independently by source bytes, estimated chunks, vector bytes, file count, and concurrency; commit durable progress per file.
 - External extraction remains opt-in. OCR only runs for blank PDF pages through a configured local command, never a shell or cloud service.
 - Emit line citations only when they map to source lines; use format-native page, slide, sheet/cell, and EPUB spine coordinates for transformed documents.
@@ -54,7 +47,7 @@
 ## Documentation
 
 - The root `README.md` is the short canonical entrypoint: what Ragmir is, installation, first use, library API, MCP, and links to focused docs.
-- Keep `docs/` concise and task-oriented: CLI, API, configuration, agent integration, troubleshooting, local chat, and local TTS. Remove future plans and obsolete surfaces rather than documenting them.
+- Keep `docs/` concise and task-oriented: CLI, API, configuration, agent integration, troubleshooting, and migration. Remove future plans and obsolete surfaces rather than documenting them.
 - Package READMEs are brief npm entrypoints that link to the root README.
 - Keep the English setup prompt identical across Core, the landing, root and package READMEs,
   `docs/quick-start.md`, and the wiki. The public-surface smoke test enforces repository copies.
@@ -62,8 +55,6 @@
 - When code changes public behavior, commands, configuration, supported formats, architecture, or product claims, update the relevant docs and landing in the same change. For internal-only changes, verify both surfaces and leave them unchanged when no update is needed.
 - Lead public documentation with the value proposition, a working quick start, and the strongest
   guarantees. Move operational depth to focused guides instead of repeating it across READMEs.
-- Present team use as one positive workflow: merge reviewed changes upstream, run `rgr team sync`,
-  receive a ready private index. Keep snapshots and low-level safeguards in focused advanced guides.
 
 ## Validation
 
@@ -80,7 +71,7 @@
 
 ## Code conventions
 
-- Keep responsibilities small and reuse the existing Core modules for discovery, parsing, redaction, chunking, embeddings, storage, and retrieval.
+- Keep responsibilities small and reuse the existing Core modules for discovery, parsing, chunking, embeddings, storage, and retrieval.
 - Validate external inputs at boundaries with Zod or CLI parsers. Prefer type guards over casts and named exports over defaults.
 - Only the CLI writes to stdout or stderr. Pipeline and library modules return values.
 

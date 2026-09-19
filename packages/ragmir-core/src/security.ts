@@ -50,7 +50,6 @@ export async function securityAuditWithConfig(
         rawDir: config.rawDir,
         storageDir: config.storageDir,
         sourcesFile: config.sourcesFile,
-        accessLogPath: config.accessLogPath,
         embeddingModelPath: config.embeddingModelPath,
       },
       signal,
@@ -58,8 +57,8 @@ export async function securityAuditWithConfig(
   ])
   throwIfAborted(signal)
 
-  const usesLegacyKb = [config.storageDir, config.sourcesFile, config.accessLogPath].some(
-    (filePath) => usesProjectDirectory(config.projectRoot, filePath, LEGACY_KB_DIR),
+  const usesLegacyKb = [config.storageDir, config.sourcesFile].some((filePath) =>
+    usesProjectDirectory(config.projectRoot, filePath, LEGACY_KB_DIR),
   )
   const usesLegacyPrivate = usesProjectDirectory(
     config.projectRoot,
@@ -99,17 +98,10 @@ export async function securityAuditWithConfig(
   )
   throwIfAborted(signal)
 
-  if (
-    config.privacyProfile !== "trusted" &&
-    config.embeddingProvider === "transformers" &&
-    config.transformersAllowRemoteModels
-  ) {
+  if (config.embeddingProvider === "transformers" && config.transformersAllowRemoteModels) {
     warnings.push(
       "Transformers remote model loading is enabled; model files can be downloaded from Hugging Face.",
     )
-  }
-  if (config.privacyProfile !== "trusted" && !config.redaction.enabled) {
-    warnings.push("Redaction is disabled; secrets and identifiers may be embedded in the index.")
   }
   if (!ragmirIgnored) {
     warnings.push(`${RAGMIR_GITIGNORE_ENTRY} is not ignored by Git.`)
@@ -128,17 +120,13 @@ export async function securityAuditWithConfig(
     if (privatePath.gitTracked === true) {
       warnings.push(`The ${label} is tracked by Git and may expose private Ragmir data.`)
     }
-    if (privatePath.kind !== "access-log" || config.accessLog) {
-      addPermissionWarning(warnings, privatePath.permissionPrivate, label)
-    }
+    addPermissionWarning(warnings, privatePath.permissionPrivate, label)
   }
   const enabledExternalExtractors = externalExtractorNames(config)
   const extractorsConfigured = externalExtractorsRequested(config)
   if (extractorsConfigured) {
     warnings.push(
-      enabledExternalExtractors.length === 0 && config.privacyProfile === "strict"
-        ? "External extractors were configured but are disabled by the strict privacy profile; they execute with operator authority when enabled."
-        : "External extractors are configured and execute with the operator's filesystem and process authority.",
+      "External extractors are configured and execute with the operator's filesystem and process authority.",
     )
   }
 
@@ -146,7 +134,6 @@ export async function securityAuditWithConfig(
   return {
     projectRoot: config.projectRoot,
     zeroTelemetry: true,
-    privacyProfile: config.privacyProfile,
     retrievalProfile: config.retrievalProfile,
     providers: {
       embedding: config.embeddingProvider,
@@ -157,16 +144,6 @@ export async function securityAuditWithConfig(
       transformersAllowRemoteModels: config.transformersAllowRemoteModels,
       llmGeneration: false,
     },
-    redaction: {
-      enabled: config.redaction.enabled,
-      builtIn: config.redaction.builtIn,
-      customPatterns: config.redaction.patterns.map((pattern) => pattern.name),
-    },
-    accessLog: {
-      enabled: config.accessLog,
-      path: config.accessLogPath,
-      storesRawQueries: false,
-    },
     storage: {
       path: config.storageDir,
       gitIgnored: storageGitIgnored,
@@ -176,10 +153,6 @@ export async function securityAuditWithConfig(
     externalExtractors: {
       configured: extractorsConfigured,
       enabled: enabledExternalExtractors,
-      disabledByStrictProfile:
-        extractorsConfigured &&
-        config.privacyProfile === "strict" &&
-        enabledExternalExtractors.length === 0,
       executeWithOperatorAuthority: true,
     },
     permissions,
@@ -208,7 +181,6 @@ interface PermissionPaths {
   rawDir: string
   storageDir: string
   sourcesFile: string
-  accessLogPath: string
   embeddingModelPath: string
 }
 
@@ -224,7 +196,6 @@ async function inspectPermissions(
       rawDirPrivate: null,
       storageDirPrivate: null,
       sourcesFilePrivate: null,
-      accessLogPrivate: null,
       embeddingModelPathPrivate: null,
     }
   }
@@ -233,14 +204,12 @@ async function inspectPermissions(
     rawDirPrivate,
     storageDirPrivate,
     sourcesFilePrivate,
-    accessLogPrivate,
     embeddingModelPathPrivate,
   ] = await Promise.all([
     isPrivatePath(paths.configPath, signal),
     isPrivatePath(paths.rawDir, signal),
     isPrivatePath(paths.storageDir, signal),
     isPrivatePath(paths.sourcesFile, signal),
-    isPrivatePath(paths.accessLogPath, signal),
     isPrivatePath(paths.embeddingModelPath, signal),
   ])
   throwIfAborted(signal)
@@ -250,7 +219,6 @@ async function inspectPermissions(
     rawDirPrivate,
     storageDirPrivate,
     sourcesFilePrivate,
-    accessLogPrivate,
     embeddingModelPathPrivate,
   }
 }
@@ -269,7 +237,6 @@ function privatePathsForConfig(config: Config, configPath: string): PrivatePathD
     { kind: "raw", filePath: config.rawDir },
     { kind: "storage", filePath: config.storageDir },
     { kind: "sources", filePath: config.sourcesFile },
-    { kind: "access-log", filePath: config.accessLogPath },
     {
       kind: "embedding-models",
       filePath: config.embeddingModelPath,
@@ -314,8 +281,6 @@ function privatePathPermission(
       return permissions.storageDirPrivate
     case "sources":
       return permissions.sourcesFilePrivate
-    case "access-log":
-      return permissions.accessLogPrivate
     case "embedding-models":
       return permissions.embeddingModelPathPrivate
   }
@@ -331,8 +296,6 @@ function privatePathLabel(kind: SecurityAuditReport["privatePaths"][number]["kin
       return "configured storageDir"
     case "sources":
       return "configured sourcesFile"
-    case "access-log":
-      return "configured accessLogPath"
     case "embedding-models":
       return "configured embeddingModelPath"
   }

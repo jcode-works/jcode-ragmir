@@ -93,18 +93,12 @@ function benchmarkConfig(root) {
     rawDir: path.join(root, DEFAULT_CONFIG.rawDir),
     storageDir: path.join(root, DEFAULT_CONFIG.storageDir),
     sourcesFile: path.join(root, DEFAULT_CONFIG.sourcesFile),
-    accessLogPath: path.join(root, DEFAULT_CONFIG.accessLogPath),
     embeddingModelPath: path.join(root, DEFAULT_CONFIG.embeddingModelPath),
-    acceptedRisks: [...DEFAULT_CONFIG.acceptedRisks],
     sources: [...DEFAULT_CONFIG.sources],
     includeExtensions: [...DEFAULT_CONFIG.includeExtensions],
     pdfOcrCommand: [...DEFAULT_CONFIG.pdfOcrCommand],
     imageOcrCommand: [...DEFAULT_CONFIG.imageOcrCommand],
     legacyWordCommand: [...DEFAULT_CONFIG.legacyWordCommand],
-    redaction: {
-      ...DEFAULT_CONFIG.redaction,
-      patterns: [...DEFAULT_CONFIG.redaction.patterns],
-    },
   }
 }
 
