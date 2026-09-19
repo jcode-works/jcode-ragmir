@@ -1,4 +1,12 @@
-import { Code2, FileText, type LucideIcon, MessageSquare, RotateCcw } from "lucide-react"
+import {
+  Bug,
+  Code2,
+  FileText,
+  GitBranch,
+  type LucideIcon,
+  MessageSquare,
+  RotateCcw,
+} from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "../lib/utils"
 import { CommandCopyButton } from "./command-copy"
@@ -32,7 +40,9 @@ const TYPEABLE_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
 const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"])
 
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
-  word: FileText,
+  feature: FileText,
+  incident: Bug,
+  migration: GitBranch,
   local: MessageSquare,
 }
 
@@ -262,7 +272,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
                   <button
                     aria-selected={isActive}
                     className={cn(
-                      "relative flex h-10 shrink-0 items-center gap-1.5 border-r border-border px-3 font-mono font-semibold uppercase transition focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-4",
+                      "relative flex h-10 shrink-0 items-center gap-1 border-r border-border px-1 font-mono font-semibold uppercase transition focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-2",
                       isActive
                         ? "bg-[#121212] text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-[var(--accent-title)]"
                         : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
@@ -285,12 +295,12 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
           </div>
           <button
             aria-label={t("demo_replay_label")}
-            className="flex h-10 w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="flex h-10 w-7 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-10"
             onClick={startSequence}
             title={t("demo_replay_label")}
             type="button"
           >
-            <RotateCcw aria-hidden="true" className="size-3.5" />
+            <RotateCcw aria-hidden="true" className="size-3 sm:size-3.5" />
           </button>
         </div>
         <p className="min-h-16 px-4 py-3 text-xs font-medium leading-5 text-muted-foreground">

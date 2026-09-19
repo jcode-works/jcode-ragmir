@@ -127,4 +127,21 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint commit messages
-        run: pnpm exec commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # A release PR promotes an already-reviewed develop history through one merge commit.
+          # Lint its first-parent commits so inherited history is not checked a second time.
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" == release/* ]]; then
+            while IFS= read -r commit; do
+              git show -s --format=%B "$commit" | pnpm exec commitlint --verbose
+            done < <(git rev-list --first-parent "$BASE_SHA..$HEAD_SHA")
+            exit 0
+          fi
+
+          pnpm exec commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
