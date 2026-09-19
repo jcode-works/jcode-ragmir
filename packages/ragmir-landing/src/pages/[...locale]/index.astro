@@ -31,7 +31,7 @@ const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
 const sourceDescription =
-  "Open-source confidential local RAG for coding agents: a TypeScript library, CLI, and local MCP server where the host keeps action authority."
+  "The open-source retrieval layer for agentic RAG: local document search and exact citations through TypeScript, CLI, and MCP. Your agent reasons and acts with your choice of model."
 const structuredData = [
   {
     "@context": "https://schema.org",
@@ -48,8 +48,8 @@ const structuredData = [
     },
     knowsAbout: [
       "local-first retrieval",
-      "confidential local RAG",
-      "confidential document search",
+      "agentic RAG workflows",
+      "cited document search",
       "Model Context Protocol",
       "AI agent tooling",
       "Node.js RAG library",
@@ -79,7 +79,7 @@ const structuredData = [
     codeSampleType: "full solution",
     runtimePlatform: "Node.js 22 on Linux x64 or macOS ARM64",
     programmingLanguage: "TypeScript",
-    keywords: ["local RAG", "coding agents", "cited retrieval", "MCP", "TypeScript", "AGPL open source"],
+    keywords: ["agentic RAG", "local RAG", "coding agents", "cited retrieval", "MCP", "TypeScript", "AGPL open source"],
     license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
     usageInfo:
       "https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md",

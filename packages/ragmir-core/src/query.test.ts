@@ -9,7 +9,6 @@ import type { RagmirError } from "./errors.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import {
-  ask,
   expandCitation,
   lexicalCandidateLimit,
   QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL,
@@ -28,6 +27,66 @@ afterEach(async () => {
 })
 
 describe("search", () => {
+  it("should preserve long-query constraints and report the effective query", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-long-query-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(
+      path.join(raw, "auth.md"),
+      "AUTH_REDIRECT_ORIGIN_X17 requires an exact origin match.\n",
+    )
+    await writeFile(
+      path.join(raw, "general.md"),
+      "La règle générale est de consulter un responsable.\n",
+    )
+    await ingest({ cwd: root })
+    const query = `AUTH_REDIRECT_ORIGIN_X17. ${"Respecter les contraintes existantes avant de modifier le code. ".repeat(6)}Quelle règle appliquer ?`
+    const [result] = await search(query, { cwd: root, topK: 1, explain: true })
+    expect(result?.relativePath).toBe(".ragmir/raw/auth.md")
+    expect(result?.score?.retrievalQuery).toBe(query)
+    expect(result?.score?.originalQueryLength).toBe(query.length)
+    expect(result?.score?.queryNormalized).toBe(false)
+  })
+
+  it("should reject an old evidence version after the source changes at the same coordinates", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evidence-version-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    const file = path.join(raw, "retention.md")
+    await writeFile(file, "# Retention\n\nKeep cancelled invoices for 90 days.\n")
+    await ingest({ cwd: root })
+    const [old] = await search("cancelled invoices retention", { cwd: root })
+    if (!old?.evidence) throw new Error("Expected versioned evidence")
+    const options = { cwd: root, expectedEvidenceId: old.evidence.id }
+    await expect(expandCitation(old.citation, options)).resolves.toMatchObject({ found: true })
+
+    await writeFile(file, "# Retention\n\nKeep cancelled invoices for 30 days.\n")
+    const indexed = await expandCitation(old.citation, options)
+    expect(indexed.passages[0]?.text).toContain("90 days")
+    await ingest({ cwd: root })
+    await expect(expandCitation(old.citation, options)).rejects.toMatchObject({
+      code: "EVIDENCE_CHANGED",
+    })
+    const [current] = await search("cancelled invoices retention", { cwd: root })
+    expect(current?.citation).toBe(old.citation)
+    expect(current?.evidence?.id).not.toBe(old.evidence.id)
+    await expect(expandCitation(old.citation, { cwd: root })).resolves.toMatchObject({
+      found: true,
+      passages: [expect.objectContaining({ text: expect.stringContaining("30 days") })],
+    })
+    await ingest({ cwd: root, rebuild: true })
+    await expect(
+      expandCitation(old.citation, { cwd: root, expectedEvidenceId: current?.evidence?.id ?? "" }),
+    ).resolves.toMatchObject({ found: true })
+    await expect(
+      expandCitation(old.citation, { cwd: root, expectedEvidenceId: "invalid" }),
+    ).rejects.toMatchObject({ code: "INVALID_ARGUMENT" })
+  })
+
   it("should release generation leases after search and citation expansion", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-generation-lease-"))
     tempDirs.push(root)
@@ -476,7 +535,7 @@ describe("search", () => {
     expect(result?.score).toMatchObject({
       lexicalBackend: "fallback",
       lexicalFallbackActivated: true,
-      lexicalScanBatches: 2,
+      lexicalScanBatches: 4,
       lexicalCandidatesMaterialized: 2,
       lexicalCoverage: 1,
     })
@@ -517,6 +576,33 @@ describe("search", () => {
     expect(vectorCandidateLimit(1)).toBeLessThan(90)
   }, 20_000)
 
+  it.each([false, true])(
+    "should retrieve a basename when text omits it and fallback is %s",
+    async (fallback) => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-basename-"))
+      tempDirs.push(root)
+      await initProject(root)
+      await mkdir(path.join(root, ".ragmir/raw/nested"), { recursive: true })
+      await writeFile(
+        path.join(root, ".ragmir/raw/nested/current-storage.md"),
+        "Store attachment bytes in object storage.\n",
+      )
+      await ingest({ cwd: root })
+      if (fallback) {
+        const table = await openRowsTable(await loadConfig(root))
+        await table?.dropIndex("searchText_idx")
+      }
+      const results = await search("current-storage.md", { cwd: root, topK: 1, explain: true })
+      expect(results[0]?.relativePath).toBe(".ragmir/raw/nested/current-storage.md")
+      expect(results[0]?.score?.lexicalExactPathMatch).toBe(true)
+      const excluded = await search("current-storage.md", {
+        cwd: root,
+        excludePaths: [".ragmir/raw/nested"],
+      })
+      expect(excluded).toEqual([])
+    },
+  )
+
   it("should explain complete lexical fallback activation and coverage", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-fallback-explain-"))
     tempDirs.push(root)
@@ -538,6 +624,49 @@ describe("search", () => {
       lexicalCoverage: 1,
     })
   })
+
+  it("should retain a late lexical match without materializing the whole corpus", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-bounded-fallback-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({
+        retrievalProfile: "fast",
+        hybridTextScanLimit: 19,
+        chunkSize: 500,
+        chunkOverlap: 0,
+      }),
+    )
+    await writeFile(
+      path.join(raw, "noise.md"),
+      Array.from(
+        { length: 180 },
+        (_, index) =>
+          `# Ordinary record ${index}\n\nRoutine approval evidence without an exception.\n`,
+      ).join("\n"),
+    )
+    await writeFile(
+      path.join(raw, "z-last.md"),
+      "Rare approval exception: a countersignature is mandatory.\n",
+    )
+    const indexed = await ingest({ cwd: root })
+    expect(indexed.chunks).toBeGreaterThan(lexicalCandidateLimit(4, "fast"))
+    const table = await openRowsTable(await loadConfig(root))
+    await table?.dropIndex("searchText_idx")
+    const [result] = await search("approval exception countersignature", {
+      cwd: root,
+      topK: 1,
+      explain: true,
+    })
+    expect(result?.relativePath).toBe(".ragmir/raw/z-last.md")
+    expect(result?.score?.lexicalCandidateLimit).toBe(100)
+    expect(result?.score?.lexicalCandidatesMaterialized).toBeLessThanOrEqual(100)
+    expect(result?.score?.lexicalScanBatches).toBe(2 * Math.ceil(indexed.chunks / 19))
+    expect(result?.score?.lexicalCoverage).toBe(1)
+  }, 20_000)
 
   it("should retrieve later Markdown chunks through their heading context", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-markdown-context-"))
@@ -887,41 +1016,12 @@ describe("expandCitation", () => {
   })
 
   it("should reject malformed citation input", async () => {
-    await expect(expandCitation("raw/policy.md:L1-L2")).rejects.toThrow("chunk suffix")
-  })
-})
-
-describe("ask", () => {
-  it("returns a no-evidence message when the index is empty", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-ask-empty-"))
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-citation-invalid-"))
     tempDirs.push(root)
     await initProject(root)
-
-    const result = await ask("anything", { cwd: root })
-
-    expect(result.sources).toEqual([])
-    expect(result.answer).toContain("No relevant passages")
-  })
-
-  it("returns cited retrieval context when evidence is found", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-ask-"))
-    tempDirs.push(root)
-    await initProject(root)
-    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
-    await writeFile(
-      path.join(root, ".ragmir", "raw", "policy.md"),
-      "Tokens must be rotated every 30 days and kept out of source control.\n",
-      "utf8",
+    await expect(expandCitation("raw/policy.md:L1-L2", { cwd: root })).rejects.toThrow(
+      "chunk suffix",
     )
-    await ingest({ cwd: root })
-
-    const result = await ask("token rotation", { cwd: root, topK: 1 })
-
-    expect(result.sources).toHaveLength(1)
-    expect(result.answer).toContain("retrieval context only")
-    expect(result.answer).toContain("[1]")
-    expect(result.answer).toContain("policy.md:L1-")
-    expect(result.staleWarning).toBeNull()
   })
 })
 

@@ -2,7 +2,7 @@
 import { runFastCli } from "./cli-fast.js"
 
 try {
-  const result = await runFastCli(process.argv.slice(2), process.argv[1])
+  const result = await runFastCli(process.argv.slice(2))
   if (result.handled) {
     process.exitCode = result.exitCode
   } else {

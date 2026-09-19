@@ -109,7 +109,6 @@ async function writeBenchmarkConfig(root, provider, workloadLimits) {
           process.env.RAGMIR_BENCH_MODEL_PATH ?? path.join(invocationRoot, ".ragmir", "models"),
         ),
         transformersAllowRemoteModels: false,
-        accessLog: false,
         workloadLimits,
       },
       null,

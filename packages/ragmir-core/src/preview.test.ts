@@ -15,7 +15,7 @@ afterEach(async () => {
 })
 
 describe("previewChunks", () => {
-  it("should preview redacted structured chunks without writing an index", async () => {
+  it("should preview exact structured chunks without writing an index", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-preview-"))
     tempDirs.push(root)
     await initProject(root)
@@ -46,7 +46,6 @@ describe("previewChunks", () => {
 
     expect(report.matchedFiles).toBe(1)
     expect(report.unmatchedPaths).toEqual([])
-    expect(report.files[0]?.redactions).toBe(1)
     expect(report.files[0]?.chunkStats.count).toBeGreaterThan(1)
     expect(report.files[0]?.chunkStats.contextualRatio).toBe(1)
     expect(report.files[0]?.chunks).toHaveLength(1)
@@ -72,7 +71,12 @@ describe("previewChunks", () => {
   })
 
   it("should reject invalid limits at the library boundary", async () => {
-    await expect(previewChunks({ maxFiles: 0 })).rejects.toThrow("maxFiles")
-    await expect(previewChunks({ maxChunksPerFile: 1.5 })).rejects.toThrow("maxChunksPerFile")
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-preview-invalid-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await expect(previewChunks({ cwd: root, maxFiles: 0 })).rejects.toThrow("maxFiles")
+    await expect(previewChunks({ cwd: root, maxChunksPerFile: 1.5 })).rejects.toThrow(
+      "maxChunksPerFile",
+    )
   })
 })

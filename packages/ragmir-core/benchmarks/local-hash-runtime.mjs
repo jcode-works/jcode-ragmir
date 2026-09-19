@@ -26,9 +26,7 @@ const config = {
   rawDir: path.join(projectRoot, DEFAULT_CONFIG.rawDir),
   storageDir: path.join(projectRoot, DEFAULT_CONFIG.storageDir),
   sourcesFile: path.join(projectRoot, DEFAULT_CONFIG.sourcesFile),
-  accessLogPath: path.join(projectRoot, DEFAULT_CONFIG.accessLogPath),
   embeddingModelPath: path.join(projectRoot, DEFAULT_CONFIG.embeddingModelPath),
-  accessLog: false,
 }
 const embeddings = await embedTexts(["offline local retrieval", "deterministic evidence"], config)
 

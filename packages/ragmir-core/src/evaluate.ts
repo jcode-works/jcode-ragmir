@@ -3,7 +3,6 @@ import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import type { Connection } from "@lancedb/lancedb"
 import { z } from "zod"
-import { flushAccessLog, recordAccess } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import { retainEmbeddingModel } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
@@ -375,12 +374,6 @@ export async function evaluateGoldenQueriesWithConfig(
       : unanswerableCases.filter((result) => result.abstained).length / unanswerableCases.length
 
   throwIfAborted(signal)
-  await recordAccess(config, {
-    action: "evaluate",
-    topK: defaultTopK,
-    resultCount: cases.length,
-  })
-  await flushAccessLog(config)
   throwIfAborted(signal)
   const returnedCases = caseDetailLimit === undefined ? cases : cases.slice(0, caseDetailLimit)
   const omittedCases = cases.length - returnedCases.length

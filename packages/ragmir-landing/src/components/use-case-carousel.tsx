@@ -2,14 +2,11 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
-  BookOpen,
+  Bot,
   Boxes,
-  Clapperboard,
-  Cloud,
   FileCheck2,
   FileInput,
   FolderGit2,
-  ListChecks,
   type LucideIcon,
   MessageSquareQuote,
   Search,
@@ -20,7 +17,7 @@ import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
-type UseCaseId = "spec" | "monorepo" | "drive" | "youtube" | "visa"
+type UseCaseId = "spec" | "local" | "monorepo" | "ocr"
 
 interface UseCaseDefinition {
   id: UseCaseId
@@ -71,7 +68,7 @@ const DESKTOP_NODE_MIN_WIDTH_REM = 11.75
 const DESKTOP_CONNECTOR_WIDTH_REM = 2
 const DESKTOP_CANVAS_HORIZONTAL_PADDING_REM = 3
 
-const USE_CASES: readonly UseCaseDefinition[] = [
+export const USE_CASES: readonly UseCaseDefinition[] = [
   {
     id: "spec",
     icon: FileCheck2,
@@ -106,6 +103,36 @@ const USE_CASES: readonly UseCaseDefinition[] = [
     ],
   },
   {
+    id: "local",
+    icon: Bot,
+    tabKey: "use_case_local_tab",
+    titleKey: "use_case_local_title",
+    descriptionKey: "use_case_local_description",
+    evidence: { targetStepId: "retrieval", titleKey: "use_case_local_evidence" },
+    steps: [
+      {
+        icon: Search,
+        id: "retrieval",
+        accent: "primary",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_local_retrieval",
+      },
+      {
+        icon: ServerCog,
+        id: "model",
+        labelKey: "use_cases_consumer_label",
+        titleKey: "use_case_local_model",
+      },
+      {
+        icon: FileCheck2,
+        id: "answer",
+        accent: "success",
+        labelKey: "use_cases_result_label",
+        titleKey: "use_case_local_answer",
+      },
+    ],
+  },
+  {
     id: "monorepo",
     icon: Boxes,
     tabKey: "use_case_monorepo_tab",
@@ -135,103 +162,32 @@ const USE_CASES: readonly UseCaseDefinition[] = [
     ],
   },
   {
-    id: "drive",
-    icon: Cloud,
-    tabKey: "use_case_drive_tab",
-    titleKey: "use_case_drive_title",
-    descriptionKey: "use_case_drive_description",
-    evidence: {
-      targetStepId: "retrieval",
-      titleKey: "use_case_drive_evidence",
-    },
-    steps: [
-      {
-        icon: MessageSquareQuote,
-        id: "request",
-        labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_drive_request",
-      },
-      {
-        accent: "primary",
-        icon: Search,
-        id: "retrieval",
-        labelKey: "use_cases_retrieval_step_label",
-        titleKey: "use_case_drive_retrieval",
-      },
-      {
-        icon: ListChecks,
-        id: "plan",
-        labelKey: "use_cases_consumer_label",
-        titleKey: "use_case_drive_plan",
-      },
-      {
-        accent: "success",
-        icon: FileCheck2,
-        id: "result",
-        labelKey: "use_cases_result_label",
-        titleKey: "use_case_drive_result",
-      },
-    ],
-  },
-  {
-    id: "youtube",
-    icon: Clapperboard,
-    tabKey: "use_case_youtube_tab",
-    titleKey: "use_case_youtube_title",
-    descriptionKey: "use_case_youtube_description",
-    evidence: {
-      targetStepId: "retrieval",
-      titleKey: "use_case_youtube_evidence",
-    },
-    steps: [
-      {
-        icon: Clapperboard,
-        id: "topic",
-        labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_youtube_request",
-      },
-      {
-        accent: "primary",
-        icon: BookOpen,
-        id: "retrieval",
-        labelKey: "use_cases_retrieval_step_label",
-        titleKey: "use_case_youtube_retrieval",
-      },
-      {
-        accent: "success",
-        icon: Clapperboard,
-        id: "draft",
-        labelKey: "use_cases_result_label",
-        titleKey: "use_case_youtube_result",
-      },
-    ],
-  },
-  {
-    id: "visa",
-    icon: ListChecks,
-    tabKey: "use_case_visa_tab",
-    titleKey: "use_case_visa_title",
-    descriptionKey: "use_case_visa_description",
+    id: "ocr",
+    icon: FileInput,
+    tabKey: "use_case_ocr_tab",
+    titleKey: "use_case_ocr_title",
+    descriptionKey: "use_case_ocr_description",
+    evidence: { targetStepId: "retrieval", titleKey: "use_case_ocr_evidence" },
     steps: [
       {
         icon: FileInput,
-        id: "evidence",
+        id: "scan",
         labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_visa_request",
+        titleKey: "use_case_ocr_scan",
       },
       {
-        accent: "primary",
-        icon: ServerCog,
+        icon: Search,
         id: "retrieval",
+        accent: "primary",
         labelKey: "use_cases_retrieval_step_label",
-        titleKey: "use_case_visa_retrieval",
+        titleKey: "use_case_ocr_retrieval",
       },
       {
+        icon: FileCheck2,
+        id: "result",
         accent: "success",
-        icon: ListChecks,
-        id: "plan",
         labelKey: "use_cases_result_label",
-        titleKey: "use_case_visa_result",
+        titleKey: "use_case_ocr_result",
       },
     ],
   },

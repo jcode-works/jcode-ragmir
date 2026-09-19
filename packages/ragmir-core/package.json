@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir",
   "version": "0.4.12",
-  "description": "Open-source confidential local RAG for coding agents, with offline cited retrieval through CLI, MCP, and TypeScript.",
+  "description": "Open-source retrieval for agentic RAG: local document search, exact citations, OCR, CLI, MCP, and TypeScript.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": {
@@ -13,11 +13,10 @@
     "ragmir",
     "open-source",
     "rag",
-    "confidential-rag",
+    "agentic-rag",
     "ai-agents",
     "coding-agents",
     "knowledge-base",
-    "confidential-data",
     "offline-first",
     "cited-retrieval",
     "local-first",
@@ -39,7 +38,7 @@
     "url": "https://github.com/jcode-works/jcode-ragmir/issues"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "exports": {
     ".": {
@@ -48,8 +47,6 @@
     }
   },
   "bin": {
-    "ragmir": "dist/cli-entry.js",
-    "kb": "dist/cli-entry.js",
     "rgr": "dist/cli-entry.js"
   },
   "files": [
@@ -88,49 +85,43 @@
     "bench:storage": "pnpm build && node benchmarks/storage-maintenance.mjs",
     "bench:status": "pnpm build && node benchmarks/status.mjs",
     "bench:vector-index": "pnpm build && node benchmarks/vector-index.mjs",
-    "build": "tsc -p tsconfig.json",
-    "check": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
     "mcp:smoke": "pnpm build && node scripts/mcp-smoke.mjs",
     "package:check": "publint",
-    "test": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm build && vitest run",
-    "test:coverage": "pnpm --filter @jcode.labs/ragmir-tts build && pnpm --filter @jcode.labs/ragmir-chat build && pnpm build && vitest run --coverage"
+    "test": "pnpm build && vitest run",
+    "test:coverage": "pnpm build && vitest run --coverage",
+    "bench:developer-evidence": "pnpm build && node benchmarks/developer-evidence.mjs"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0",
     "@lancedb/lancedb": "^0.30.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "commander": "^14.0.3",
+    "commander": "^15.0.0",
     "fast-glob": "^3.3.3",
     "fflate": "^0.8.3",
-    "html-to-text": "^10.0.0",
-    "mammoth": "^1.12.1",
+    "html-to-text": "^10.0.1",
+    "mammoth": "^1.12.3",
     "picocolors": "^1.1.1",
     "read-excel-file": "^9.3.10",
-    "safe-regex2": "^5.1.1",
     "unpdf": "^1.8.1",
-    "yaml": "^2.9.0",
-    "zod": "^4.1.13"
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   },
   "peerDependencies": {
-    "@jcode.labs/ragmir-chat": "workspace:*",
-    "@jcode.labs/ragmir-tts": "workspace:*"
+    "@huggingface/transformers": "^4.3.0"
   },
   "peerDependenciesMeta": {
-    "@jcode.labs/ragmir-chat": {
-      "optional": true
-    },
-    "@jcode.labs/ragmir-tts": {
+    "@huggingface/transformers": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@jcode.labs/ragmir-chat": "workspace:*",
-    "@jcode.labs/ragmir-tts": "workspace:*",
+    "@huggingface/transformers": "^4.3.0",
     "@types/html-to-text": "^9.0.4",
-    "@types/node": "^22.20.1",
+    "@types/node": "^22.20.3",
     "apache-arrow": "^18.1.0",
-    "publint": "^0.3.23",
-    "typescript": "^6.0.2",
-    "vitest": "^4.1.10"
+    "publint": "^0.3.24",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }

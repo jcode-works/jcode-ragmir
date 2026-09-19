@@ -4,8 +4,8 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const packageDirs = ["packages/ragmir-tts", "packages/ragmir-chat", "packages/ragmir-core"]
-const optionalCorePackages = ["@jcode.labs/ragmir-chat", "@jcode.labs/ragmir-tts"]
+const packageDirs = ["packages/ragmir-core"]
+const optionalCorePackages = ["@huggingface/transformers"]
 const checkOnly = process.argv.includes("--check")
 let coreManifest
 

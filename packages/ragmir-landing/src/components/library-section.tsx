@@ -45,13 +45,18 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
     {
       key: "setup",
       label: t("quickstart_setup_label"),
-      build: (manager: PackageManager) => `${manager.exec} rgr setup`,
+      build: (manager: PackageManager) => `${manager.exec} rgr setup --no-ingest --agents codex`,
     },
     {
-      key: "agent",
-      label: t("quickstart_agent_label"),
+      key: "sources",
+      label: t("quickstart_sources_label"),
       build: (manager: PackageManager) =>
-        `${manager.exec} rgr install-agent --agents claude,codex,kimi`,
+        `${manager.exec} rgr sources add "docs/**/*.md" "src/**/*.ts"`,
+    },
+    {
+      key: "ingest",
+      label: t("quickstart_ingest_label"),
+      build: (manager: PackageManager) => `${manager.exec} rgr ingest`,
     },
     {
       key: "search",

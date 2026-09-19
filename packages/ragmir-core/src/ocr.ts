@@ -28,7 +28,6 @@ export interface OcrExecutableStatus {
 
 export interface PdfOcrStatus {
   projectRoot: string
-  privacyProfile: "strict" | "private" | "trusted" | "custom"
   configured: boolean
   configuredCommand: string[]
   recommendedEngine: PdfOcrEngine | null
@@ -140,7 +139,6 @@ export async function inspectPdfOcr(cwd = process.cwd()): Promise<PdfOcrStatus> 
 
   return {
     projectRoot: config.projectRoot,
-    privacyProfile: config.privacyProfile,
     configured: config.pdfOcrCommand.length > 0,
     configuredCommand: config.pdfOcrCommand,
     recommendedEngine,
@@ -157,11 +155,6 @@ export async function configurePdfOcr(
   const cwd = options.cwd ?? process.cwd()
   await initProject(cwd)
   const config = await loadConfig(cwd)
-  if (config.privacyProfile === "strict") {
-    throw new Error(
-      "The strict privacy profile disables external extractors. Use the private or custom profile before configuring local OCR.",
-    )
-  }
 
   const status = await inspectPdfOcr(cwd)
   const requestedEngine = parsePdfOcrEngine(options.engine, true)

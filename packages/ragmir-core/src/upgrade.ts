@@ -1,19 +1,25 @@
-import { loadConfig } from "./config.js"
+import { findProjectConfig, loadConfig, retiredConfigKeys } from "./config.js"
+import { type ConfigMigration, migrateRetiredConfig } from "./config-migration.js"
 import { doctor } from "./doctor.js"
 import { getIngestionProgress } from "./ingestion-state.js"
+import { readProjectConfigObject } from "./project-config-file.js"
 import { type SetupOptions, setupProject } from "./setup.js"
 import { readIndexManifestHeader } from "./store.js"
 import type { DoctorReport, IngestionRunMode, IngestResult } from "./types.js"
 import { VERSION } from "./version.js"
 
-export type UpgradeStatus = "current" | "index-required" | "rebuild-required" | "repair-required"
+export type UpgradeStatus =
+  | "current"
+  | "index-required"
+  | "rebuild-required"
+  | "repair-required"
+  | "config-migration-required"
 
 export interface UpgradeInspection {
   status: UpgradeStatus
   runtimeRagmirVersion: string
   indexedWithRagmirVersion: string | null
   ready: boolean
-  privacyCompliant: boolean
   advisories: string[]
   reason: string | null
   recommendedCommand: "rgr upgrade"
@@ -21,6 +27,7 @@ export interface UpgradeInspection {
 }
 
 export interface UpgradeResult extends UpgradeInspection {
+  configMigration: ConfigMigration
   action: "none" | "indexed" | "rebuilt"
   previousIndexedWithRagmirVersion: string | null
   previousIndexKeptUntilActivation: boolean
@@ -34,6 +41,21 @@ export interface UpgradeOptions {
 }
 
 export async function inspectUpgrade(cwd = process.cwd()): Promise<UpgradeInspection> {
+  const retired = retiredConfigKeys(await readProjectConfigObject(findProjectConfig(cwd)))
+  if (retired.length > 0) {
+    return {
+      status: "config-migration-required",
+      runtimeRagmirVersion: VERSION,
+      indexedWithRagmirVersion: null,
+      ready: false,
+      advisories: [
+        "Retrieved source text will no longer be masked. Use a local or self-hosted consumer when content must stay private.",
+      ],
+      reason: `Back up and remove retired fields: ${retired.join(", ")}, then rebuild the index.`,
+      recommendedCommand: "rgr upgrade",
+      safeActivation: true,
+    }
+  }
   const config = await loadConfig(cwd)
   const [report, manifest] = await Promise.all([
     doctor(config.projectRoot),
@@ -45,7 +67,6 @@ export async function inspectUpgrade(cwd = process.cwd()): Promise<UpgradeInspec
     runtimeRagmirVersion: VERSION,
     indexedWithRagmirVersion: manifest?.ragmirVersion ?? null,
     ready: status === "current",
-    privacyCompliant: report.readiness.privacyCompliant,
     advisories: report.securityWarnings,
     reason: upgradeReason(report, status),
     recommendedCommand: "rgr upgrade",
@@ -55,6 +76,7 @@ export async function inspectUpgrade(cwd = process.cwd()): Promise<UpgradeInspec
 
 export async function upgradeProject(options: UpgradeOptions = {}): Promise<UpgradeResult> {
   const cwd = options.cwd ?? process.cwd()
+  const configMigration = await migrateRetiredConfig(cwd)
   const before = await inspectUpgrade(cwd)
   const setupOptions: SetupOptions = { cwd, ingest: true }
   if (options.agents !== undefined) {
@@ -76,6 +98,7 @@ export async function upgradeProject(options: UpgradeOptions = {}): Promise<Upgr
 
   return {
     ...after,
+    configMigration,
     action,
     previousIndexedWithRagmirVersion: before.indexedWithRagmirVersion,
     previousIndexKeptUntilActivation: action === "rebuilt",

@@ -94,7 +94,7 @@ export function indexFreshnessWarning(
 
   const activeFingerprint = indexPolicyFingerprint(config)
   if (manifest.indexPolicyFingerprint !== activeFingerprint) {
-    return "Index content policy differs from the active parsing, redaction, chunking, or embedding policy. Run `rgr upgrade` to rebuild safely."
+    return "Index content policy differs from the active parsing, chunking, or embedding policy. Run `rgr upgrade` to rebuild safely."
   }
 
   return null

@@ -1,7 +1,8 @@
 # Ragmir Core benchmarks
 
-Reproducible performance, scale, storage, and retrieval-quality harnesses for Ragmir Core. Generated
-corpora, model caches, and raw results stay outside Git.
+Reproducible performance, scale, storage, and retrieval-quality harnesses for the retrieval layer
+in agentic RAG. These measure Ragmir Core, not the consuming model's generated answers or actions.
+Generated corpora, model caches, and raw results stay outside Git.
 
 ## Run a benchmark
 
@@ -10,6 +11,7 @@ corpora, model caches, and raw results stay outside Git.
 | `pnpm bench:smoke` | Fast functional calibration, not product-claim evidence |
 | `pnpm bench:quality` | Recall@10, false positives, citations, and deterministic fingerprints |
 | `pnpm bench:quality -- --size XS --profile fast` | Focused quality profile |
+| `pnpm bench:developer-evidence [local-hash\|mixedbread\|e5]` | Required facts, exceptions, table headers, and natural unanswered questions |
 | `pnpm bench:scale -- --size M` | S/M/L ingestion and retrieval scale |
 | `pnpm bench:vector-index -- --sizes S,M,L` | Exact, IVF-PQ, HNSW-SQ, and path-index tradeoffs |
 | `pnpm bench:observability` | Diagnostic completeness, privacy, and disabled-path cost |
@@ -23,10 +25,16 @@ and explicit reranker, compression, hashing, and content-dedup experiments.
 ## Claim rules
 
 - `bench:quality` requires clean indexes with matching corpus and outcome fingerprints. It separates
-  p50/p95 latency from deterministic quality and evaluates vector-only, lexical-only, an
-  undiversified hybrid baseline, the default one-chunk document cap, a two-chunk cap, MMR, and
-  experimental lexical weights. Ranking variants report the mean number of distinct documents in
-  the first ten results.
+  p50/p95 latency from deterministic quality. Its ranking variants reorder the hybrid top-100 pool
+  by vector or lexical rank, document caps, MMR, and experimental lexical weights. They are not
+  independent retrievers. Workload version 3 makes that scope explicit, and reports distinct
+  documents in the first ten results.
+- `bench:developer-evidence` uses 22 synthetic diagnostic questions, including five natural
+  unanswered questions. It checks required facts in retrieved text and cited header context,
+  rather than counting a document name as complete evidence. Dense L2 and BM25 baselines rank the
+  complete corpus independently, with a one-chunk document cap and no calibrated abstention.
+  The gate covers exact references, long-query preservation, and spreadsheet header retrieval.
+  Other outcomes are reported, not presented as representative developer-task success rates.
 - `bench:compare` recognizes scale and quality reports separately. It validates both quality runs,
   their absolute gates, and explicit workload versions. Missing identities or metrics are invalid,
   incompatible workloads are inconclusive, and only complete comparable reports can pass.
@@ -39,9 +47,10 @@ and explicit reranker, compression, hashing, and content-dedup experiments.
 - Results from different machine fingerprints are inconclusive unless comparison is explicitly
   allowed.
 
-Every JSON result records commit, runtime, machine, corpus hash, provider, model revision, samples,
+Scale reports record commit, runtime, machine, corpus hash, provider, model revision, samples,
 quality metrics, latency percentiles, throughput, process resources, and physical source/index
-sizes. Scale runs also count manifest reads and table opens for persistent and one-shot searches.
+sizes. They also count manifest reads and table opens for persistent and one-shot searches. Other
+harnesses report the configuration, measurements, and gates relevant to their workload.
 The deterministic corpus covers prose, code-like Markdown, JSON, JSONL, HTML, YAML, CSV, XML, PDF,
 DOCX, XLSX, PPTX, and EPUB.
 

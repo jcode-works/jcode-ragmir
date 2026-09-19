@@ -53,14 +53,12 @@ function modelConfig(embeddingModelDigest, suffix) {
     rawDir: path.join(projectRoot, DEFAULT_CONFIG.rawDir),
     storageDir: path.join(projectRoot, DEFAULT_CONFIG.storageDir),
     sourcesFile: path.join(projectRoot, DEFAULT_CONFIG.sourcesFile),
-    accessLogPath: path.join(projectRoot, DEFAULT_CONFIG.accessLogPath),
     embeddingModelPath: modelPath,
     embeddingProvider: "transformers",
     embeddingModel: model,
     embeddingModelRevision: revision,
     embeddingModelDigest,
     transformersAllowRemoteModels: false,
-    accessLog: false,
   }
 }
 

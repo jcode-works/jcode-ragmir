@@ -114,7 +114,6 @@ async function createCorpus(root, fileCount, fileBytes) {
     path.join(ragmirDir, "config.json"),
     `${JSON.stringify(
       {
-        accessLog: false,
         chunkSize: 1_000_000,
         chunkOverlap: 0,
         maxFileBytes: fileBytes,

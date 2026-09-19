@@ -239,7 +239,20 @@ function transformersCacheKey(config: Config): string {
 
 async function createTransformersExtractor(config: Config): Promise<TransformersExtractor> {
   return withTransformersEnvironment(async () => {
-    const transformers = await import("@huggingface/transformers")
+    const transformers = await import("@huggingface/transformers").catch((error: unknown) => {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ERR_MODULE_NOT_FOUND" &&
+        error.message.includes("'@huggingface/transformers'")
+      ) {
+        throw new Error(
+          "Semantic retrieval requires the optional @huggingface/transformers package. Install it in your project with `pnpm add @huggingface/transformers` (or your package manager), then retry. The local-hash provider works without it.",
+          { cause: error },
+        )
+      }
+      throw error
+    })
     const previous = {
       localModelPath: transformers.env.localModelPath,
       cacheDir: transformers.env.cacheDir,

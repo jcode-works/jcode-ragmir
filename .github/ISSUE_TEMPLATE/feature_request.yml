@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to suggest a feature. Ragmir focuses on
-        confidential local RAG for coding agents and private project files. Features
+        local retrieval and exact citations for agentic RAG in developer workflows. Features
         that add cloud dependencies, telemetry, or hosted services are out of
         scope.
   - type: textarea
@@ -37,11 +37,11 @@ body:
       label: Area
       description: Which part of Ragmir does this concern?
       options:
-        - Ingestion (parsing, chunking, redaction)
-        - Retrieval (search, ask, research, evaluate)
+        - Ingestion (parsing, chunking, OCR)
+        - Retrieval (search, expand, evaluate)
         - MCP server / agent integration
         - CLI
-        - Skills (audio, report, legal)
+        - Retrieval skill
         - Documentation
         - Other
     validations:

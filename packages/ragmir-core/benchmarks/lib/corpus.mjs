@@ -40,7 +40,6 @@ export async function generateCorpus({
     embeddingModelRevision: modelRevision,
     embeddingModelPath: modelPath,
     transformersAllowRemoteModels: false,
-    accessLog: false,
     retrievalProfile,
     chunkSize: 800,
     chunkOverlap: 100,

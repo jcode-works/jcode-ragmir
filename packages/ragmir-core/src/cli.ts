@@ -1,23 +1,15 @@
 #!/usr/bin/env node
 import path from "node:path"
-import type { ChatSource } from "@jcode.labs/ragmir-chat"
 import { Command } from "commander"
 import pc from "picocolors"
-import { accessLogUsageReport } from "./access-log.js"
 import {
-  type AudioLanguage,
-  audioAllowRemoteModels,
-  audioEngine,
-  audioLanguage,
   parseAgentInstallMode,
   parseAgentInstallScope,
   parseIncrementalFailurePolicy,
   parseNonNegativeInt,
-  parseNumber,
   parsePositiveInt,
   parseRecallThreshold,
 } from "./cli-options.js"
-import { readBoundedStdin } from "./cli-stdin.js"
 import { loadConfig } from "./config.js"
 import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js"
 import { destroyIndex } from "./destroy.js"
@@ -42,11 +34,9 @@ import {
   parsePdfOcrPages,
 } from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
-import { exportPortableKnowledgeBase, verifyPortableKnowledgeBase } from "./portable.js"
 import { previewChunks } from "./preview.js"
-import { routePrompt } from "./prompt-routing.js"
-import { ask, search } from "./query.js"
-import { compactResearchReport, compactSearchResults, research } from "./research.js"
+import { search } from "./query.js"
+import { compactSearchResults } from "./search-output.js"
 import { securityAudit } from "./security.js"
 import { enableSemanticEmbeddings } from "./semantic-config.js"
 import { setupProject } from "./setup.js"
@@ -60,39 +50,14 @@ import {
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { optimizeStorage } from "./storage-maintenance.js"
 import { readIndexManifestHeader } from "./store.js"
-import {
-  compareTeamSnapshots,
-  createTeamSnapshot,
-  readTeamSnapshot,
-  type TeamComparison,
-  writeTeamSnapshot,
-} from "./team-diagnostics.js"
-import {
-  type SyncTeamKnowledgeOptions,
-  syncTeamKnowledge,
-  type TeamSyncReport,
-} from "./team-sync.js"
-import type { IncrementalFailurePolicy, PreviewChunksOptions, ResearchReport } from "./types.js"
+import type { IncrementalFailurePolicy, PreviewChunksOptions } from "./types.js"
 import { inspectUpgrade, upgradeProject } from "./upgrade.js"
 import { VERSION } from "./version.js"
 
 const SEARCH_TEXT_PREVIEW_LENGTH = 900
-const CHAT_PACKAGE_NAME = "@jcode.labs/ragmir-chat"
-const TTS_PACKAGE_NAME = "@jcode.labs/ragmir-tts"
-const DEPRECATED_CLI_NAMES = new Set(["ragmir", "kb"])
 const PUBLIC_CLI_NAME = "rgr"
-const TEAM_DIFF_PREVIEW_LIMIT = 20
 
 const program = new Command()
-
-const deprecatedCliName = deprecatedCliInvocation()
-if (deprecatedCliName !== null) {
-  console.error(
-    pc.yellow(
-      `The \`${deprecatedCliName}\` CLI command is deprecated and will be removed in a future release. Use \`rgr\` instead.`,
-    ),
-  )
-}
 
 program
   .name(PUBLIC_CLI_NAME)
@@ -262,7 +227,7 @@ ocrCommand
 
 program
   .command("doctor")
-  .description("Diagnose setup, index freshness, privacy posture, and next steps.")
+  .description("Diagnose setup, index freshness, and next steps.")
   .option("--fix", "Create missing scaffolding, install the agent kit, and rebuild stale indexes.")
   .option("--deep", "Run the O(corpus) source inventory and executable security probes.")
   .option("--json", "Print machine-readable JSON.")
@@ -316,7 +281,6 @@ program
           `indexedWithRagmirVersion=${inspection.indexedWithRagmirVersion ?? "unavailable"}`,
         )
         console.log(`ready=${inspection.ready}`)
-        console.log(`privacyCompliant=${inspection.privacyCompliant}`)
         console.log(`safeActivation=${inspection.safeActivation}`)
         if (inspection.reason) {
           console.log(`reason=${inspection.reason}`)
@@ -339,7 +303,6 @@ program
       console.log(`runtimeRagmirVersion=${result.runtimeRagmirVersion}`)
       console.log(`indexedWithRagmirVersion=${result.indexedWithRagmirVersion ?? "unavailable"}`)
       console.log(`ready=${result.ready}`)
-      console.log(`privacyCompliant=${result.privacyCompliant}`)
       console.log(`safeActivation=${result.safeActivation}`)
       console.log(`action=${result.action}`)
       console.log(
@@ -510,7 +473,7 @@ sourcesCommand
 
 program
   .command("ingest")
-  .description("Parse changed documents, redact, chunk, embed locally, and update LanceDB.")
+  .description("Parse changed documents, chunk, embed locally, and update LanceDB.")
   .option("--rebuild", "Force a full local index rebuild instead of reusing unchanged rows.")
   .option("--batch-size <number>", "Files committed per resumable batch.", parsePositiveInt)
   .option(
@@ -548,7 +511,7 @@ program
 
       console.log(
         pc.green(
-          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} staleLastKnownGood=${result.staleLastKnownGood.length} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} redactions=${result.redactions} ocrPages=${result.ocr.pages} ocrCacheHits=${result.ocr.cacheHits} ocrBatches=${result.ocr.batches} ocrSubprocesses=${result.ocr.subprocesses} ocrDurationMs=${result.ocr.durationMs} errors=${result.errors.length}`,
+          `Done. runId=${result.runId} resumed=${result.resumed} batchSize=${result.batchSize} discoveredFiles=${result.discoveredFiles} supportedFiles=${result.supportedFiles} supportedBytes=${result.supportedBytes} largestFileBytes=${result.largestFileBytes} indexedFiles=${result.indexedFiles} rebuiltFiles=${result.rebuiltFiles} reusedFiles=${result.reusedFiles} staleLastKnownGood=${result.staleLastKnownGood.length} chunks=${result.chunks} skippedFiles=${result.skippedFiles} unsupportedFiles=${result.unsupportedFiles} oversizedFiles=${result.oversizedFiles} sensitiveFiles=${result.sensitiveFiles} emptyTextFiles=${result.emptyTextFiles.length} ocrPages=${result.ocr.pages} ocrCacheHits=${result.ocr.cacheHits} ocrBatches=${result.ocr.batches} ocrSubprocesses=${result.ocr.subprocesses} ocrDurationMs=${result.ocr.durationMs} errors=${result.errors.length}`,
         ),
       )
       printUnsupportedSummary(result.unsupportedExtensions)
@@ -579,7 +542,7 @@ program
 
 program
   .command("preview")
-  .description("Preview redacted chunks and structure without writing the index.")
+  .description("Preview source chunks and structure without writing the index.")
   .option(
     "--path <prefix>",
     "Preview only source paths under this prefix. Repeat for multiple prefixes.",
@@ -622,7 +585,7 @@ program
       }
       for (const file of report.files) {
         console.log(
-          `\n${pc.cyan(file.relativePath)} chunks=${file.chunkStats.count} redactions=${file.redactions} minChars=${file.chunkStats.minChars} p50Chars=${file.chunkStats.p50Chars} p95Chars=${file.chunkStats.p95Chars} maxChars=${file.chunkStats.maxChars} contextualRatio=${file.chunkStats.contextualRatio.toFixed(3)}`,
+          `\n${pc.cyan(file.relativePath)} chunks=${file.chunkStats.count} minChars=${file.chunkStats.minChars} p50Chars=${file.chunkStats.p50Chars} p95Chars=${file.chunkStats.p95Chars} maxChars=${file.chunkStats.maxChars} contextualRatio=${file.chunkStats.contextualRatio.toFixed(3)}`,
         )
         if (file.ocr) {
           console.log(
@@ -742,197 +705,6 @@ program
       }
     },
   )
-
-program
-  .command("ask")
-  .description("Return cited retrieval context for a question without calling an LLM.")
-  .argument("<query>", "Question to answer.")
-  .option("-k, --top-k <number>", "Number of passages to use.", parsePositiveInt)
-  .option(
-    "--max-chunks-per-document <number>",
-    "Maximum primary passages per document before ranked backfill.",
-    parsePositiveInt,
-  )
-  .option(
-    "--context-radius <number>",
-    "Include neighboring chunks around each matched passage.",
-    parseNonNegativeInt,
-  )
-  .option(
-    "--include-path <prefix>",
-    "Use only indexed source paths under this prefix. Repeat for multiple prefixes.",
-    collectOptionValue,
-    [],
-  )
-  .option(
-    "--exclude-path <prefix>",
-    "Exclude indexed source paths under this prefix. Repeat for multiple prefixes.",
-    collectOptionValue,
-    [],
-  )
-  .option(
-    "--context-path <prefix>",
-    "Use only chunks under this structural context. Repeat for multiple prefixes.",
-    collectOptionValue,
-    [],
-  )
-  .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
-  .option("--exact-vector-search", "Bypass ANN and use exhaustive vector search for diagnostics.")
-  .option("--json", "Print machine-readable JSON.")
-  .action(
-    async (
-      query: string,
-      options: {
-        topK?: number
-        maxChunksPerDocument?: number
-        contextRadius?: number
-        includePath: string[]
-        excludePath: string[]
-        contextPath: string[]
-        explain?: boolean
-        exactVectorSearch?: boolean
-        json?: boolean
-      },
-      command: Command,
-    ) => {
-      const cwd = projectRoot(command)
-      const result = await ask(query, withSearchOptions(cwd, options))
-      if (options.json) {
-        console.log(JSON.stringify({ query, ...result }, null, 2))
-        if (result.sources.length === 0) {
-          process.exitCode = 1
-        }
-        return
-      }
-
-      console.log(`\n${result.answer}\n`)
-      if (result.staleWarning) {
-        console.error(pc.yellow(result.staleWarning))
-      }
-      if (result.sources.length > 0) {
-        console.log(pc.dim("Sources:"))
-        for (const [index, source] of result.sources.entries()) {
-          const score = source.score ? ` score=${source.score.combinedScore.toFixed(6)}` : ""
-          console.log(`  [${index + 1}] ${source.citation} chunk=${source.chunkIndex}${score}`)
-        }
-      }
-    },
-  )
-
-program
-  .command("research")
-  .description("Run a bounded multi-query research pass with cited evidence.")
-  .argument("<query>", "Research question or topic.")
-  .option("-k, --top-k <number>", "Maximum number of evidence passages to keep.", parsePositiveInt)
-  .option("--no-code", "Skip the lightweight repository code search.")
-  .option("--full-audit", "Run a full source inventory instead of manifest health checks.")
-  .option("--timeout-ms <number>", "Bound the complete research operation.", parsePositiveInt)
-  .option("--code-top-k <number>", "Maximum number of code matches to keep.", parsePositiveInt)
-  .option("--code-scan-max-files <number>", "Maximum code files to read.", parsePositiveInt)
-  .option("--code-scan-max-bytes <number>", "Maximum total code bytes to read.", parsePositiveInt)
-  .option(
-    "--code-scan-concurrency <number>",
-    "Maximum concurrent code file reads.",
-    parsePositiveInt,
-  )
-  .option(
-    "--include-path <prefix>",
-    "Use only indexed source paths under this prefix. Repeat for multiple prefixes.",
-    collectOptionValue,
-    [],
-  )
-  .option(
-    "--exclude-path <prefix>",
-    "Exclude indexed source paths under this prefix. Repeat for multiple prefixes.",
-    collectOptionValue,
-    [],
-  )
-  .option(
-    "--context-path <prefix>",
-    "Use only chunks under this structural context. Repeat for multiple prefixes.",
-    collectOptionValue,
-    [],
-  )
-  .option("--compact", "Return snippets instead of full retrieved passages.")
-  .option("--json", "Print machine-readable JSON.")
-  .action(
-    async (
-      query: string,
-      options: {
-        topK?: number
-        code?: boolean
-        fullAudit?: boolean
-        timeoutMs?: number
-        codeTopK?: number
-        codeScanMaxFiles?: number
-        codeScanMaxBytes?: number
-        codeScanConcurrency?: number
-        includePath: string[]
-        excludePath: string[]
-        contextPath: string[]
-        compact?: boolean
-        json?: boolean
-      },
-      command: Command,
-    ) => {
-      const cwd = projectRoot(command)
-      const researchOptions: Parameters<typeof research>[1] = { cwd }
-      addOption(researchOptions, "topK", options.topK)
-      addOption(researchOptions, "includeCode", options.code)
-      addOption(researchOptions, "fullAudit", options.fullAudit)
-      addOption(researchOptions, "timeoutMs", options.timeoutMs)
-      addOption(researchOptions, "codeTopK", options.codeTopK)
-      addOption(researchOptions, "codeScanMaxFiles", options.codeScanMaxFiles)
-      addOption(researchOptions, "codeScanMaxBytes", options.codeScanMaxBytes)
-      addOption(researchOptions, "codeScanConcurrency", options.codeScanConcurrency)
-      addPathFilters(researchOptions, options)
-      const report = await research(query, researchOptions)
-      const output = options.compact ? compactResearchReport(report) : report
-      if (options.json) {
-        console.log(JSON.stringify(output, null, 2))
-        if (!report.ready) {
-          process.exitCode = 1
-        }
-        return
-      }
-
-      printResearchReport(output)
-      if (!report.ready) {
-        process.exitCode = 1
-      }
-    },
-  )
-
-program
-  .command("route-prompt")
-  .description("Classify a prompt and suggest whether an agent should use Ragmir local context.")
-  .argument("[prompt...]", "Prompt text to classify. Reads stdin when omitted.")
-  .option("--json", "Print machine-readable JSON.")
-  .action(async (promptParts: string[] | undefined, options: { json?: boolean }) => {
-    const prompt = await promptInput(promptParts)
-    if (prompt.trim().length === 0) {
-      console.error(pc.red("Missing prompt. Pass text or pipe it on stdin."))
-      process.exitCode = 1
-      return
-    }
-
-    const decision = routePrompt(prompt)
-    if (options.json) {
-      console.log(JSON.stringify(decision, null, 2))
-      return
-    }
-
-    console.log(`shouldUseRagmir=${decision.shouldUseRagmir}`)
-    console.log(`confidence=${decision.confidence.toFixed(2)}`)
-    console.log(`tool=${decision.tool}`)
-    if (decision.query !== null) {
-      console.log(`query=${decision.query}`)
-    }
-    console.log(`reason=${decision.reason}`)
-    if (decision.matchedSignals.length > 0) {
-      console.log(`matchedSignals=${decision.matchedSignals.join(", ")}`)
-    }
-  })
 
 program
   .command("evaluate")
@@ -1100,35 +872,6 @@ program
   })
 
 program
-  .command("usage-report")
-  .description("Summarize the metadata-only local access log.")
-  .option("--days <number>", "Number of recent days to include.", parsePositiveInt, 7)
-  .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { days: number; json?: boolean }, command: Command) => {
-    const cwd = projectRoot(command)
-    const report = await accessLogUsageReport({ cwd, days: options.days })
-    if (options.json) {
-      console.log(JSON.stringify(report, null, 2))
-      return
-    }
-
-    console.log(`accessLogEnabled=${report.accessLogEnabled}`)
-    console.log(`since=${report.since}`)
-    console.log(`until=${report.until}`)
-    console.log(`totalEvents=${report.totalEvents}`)
-    console.log(`invalidLines=${report.invalidLines}`)
-    console.log(`uniqueQueryHashes=${report.uniqueQueryHashes}`)
-    console.log(`averageResultCount=${report.averageResultCount ?? "n/a"}`)
-    console.log(`lastEventAt=${report.lastEventAt ?? "n/a"}`)
-    for (const [action, count] of Object.entries(report.eventsByAction)) {
-      console.log(`events.${action}=${count}`)
-    }
-    for (const [action, average] of Object.entries(report.averageResultCountByAction)) {
-      console.log(`averageResults.${action}=${average ?? "n/a"}`)
-    }
-  })
-
-program
   .command("limits")
   .description("Show active ingestion limits and practical corpus scaling boundaries.")
   .option("--json", "Print machine-readable JSON.")
@@ -1183,104 +926,6 @@ program
     }
   })
 
-const teamCommand = program
-  .command("team")
-  .description("Synchronize Git-backed team knowledge or inspect advanced index drift.")
-
-teamCommand
-  .command("sync")
-  .description("Safely fast-forward from Git upstream and refresh the local index.")
-  .option("--no-pull", "Fetch and compare without changing the checked-out branch.")
-  .option("--no-fetch", "Use only the cached upstream reference and local worktree.")
-  .option("--check", "Fetch and report without changing the worktree or index.")
-  .option("--git-timeout-ms <number>", "Bound each Git command.", parsePositiveInt)
-  .option("--json", "Print machine-readable JSON.")
-  .option("--strict", "Exit with code 1 unless Git and the local index are synchronized.")
-  .action(
-    async (
-      options: {
-        pull: boolean
-        fetch: boolean
-        check?: boolean
-        gitTimeoutMs?: number
-        json?: boolean
-        strict?: boolean
-      },
-      command: Command,
-    ) => {
-      const syncOptions: SyncTeamKnowledgeOptions = {
-        cwd: projectRoot(command),
-        autoPull: options.pull,
-        fetch: options.fetch,
-        check: options.check === true,
-      }
-      addOption(syncOptions, "gitTimeoutMs", options.gitTimeoutMs)
-      const report = await syncTeamKnowledge(syncOptions)
-      if (options.json) {
-        console.log(JSON.stringify(report, null, 2))
-      } else {
-        printTeamSync(report)
-      }
-      if (options.strict && !report.synchronized) {
-        process.exitCode = 1
-      }
-    },
-  )
-
-teamCommand
-  .command("snapshot")
-  .description("Export relative paths, checksums, configuration, readiness, and corpus identity.")
-  .requiredOption("--output <path>", "Snapshot file to create or replace.")
-  .option("--label <label>", "Human-readable environment label.", "local")
-  .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { output: string; label: string; json?: boolean }, command: Command) => {
-    const cwd = projectRoot(command)
-    const snapshot = await createTeamSnapshot({ cwd, label: options.label })
-    const outputPath = await writeTeamSnapshot(snapshot, path.resolve(cwd, options.output))
-    if (options.json) {
-      console.log(JSON.stringify({ outputPath, snapshot }, null, 2))
-      return
-    }
-    console.log(pc.green("Team snapshot ready."))
-    console.log(`outputPath=${outputPath}`)
-    console.log(`label=${snapshot.label}`)
-    console.log(`ready=${snapshot.ready}`)
-    console.log(`securityAdvisories=${snapshot.health.securityWarnings}`)
-    console.log(`corpusFingerprint=${snapshot.corpus.fingerprint ?? "unavailable"}`)
-    console.log(`indexedFiles=${snapshot.corpus.indexedFiles}`)
-    console.log(`notice=${snapshot.notice}`)
-  })
-
-teamCommand
-  .command("compare")
-  .description("Compare the current local index with a peer snapshot and print actionable drift.")
-  .argument("<snapshot>", "Peer snapshot created by `rgr team snapshot`.")
-  .option("--local-label <label>", "Human-readable label for this environment.", "local")
-  .option("--json", "Print machine-readable JSON.")
-  .option("--strict", "Exit with code 1 unless both indexes are synchronized.")
-  .action(
-    async (
-      snapshotPath: string,
-      options: { localLabel: string; json?: boolean; strict?: boolean },
-      command: Command,
-    ) => {
-      const cwd = projectRoot(command)
-      const [local, peer] = await Promise.all([
-        createTeamSnapshot({ cwd, label: options.localLabel }),
-        readTeamSnapshot(path.resolve(cwd, snapshotPath)),
-      ])
-      const comparison = compareTeamSnapshots(local, peer)
-      if (options.json) {
-        console.log(JSON.stringify(comparison, null, 2))
-      } else {
-        printTeamComparison(comparison)
-      }
-      if (options.strict && !comparison.synchronized) {
-        process.exitCode = 1
-      }
-    },
-  )
-
 program
   .command("status")
   .description("Show active configuration, readiness, corpus fingerprint, and index counts.")
@@ -1309,13 +954,10 @@ program
       rawDir: config.rawDir,
       storageDir: config.storageDir,
       sourcesFile: config.sourcesFile,
-      accessLogPath: config.accessLogPath,
       embeddingModelPath: config.embeddingModelPath,
       embeddingProvider: config.embeddingProvider,
       embeddingModel: config.embeddingModel,
       transformersAllowRemoteModels: config.transformersAllowRemoteModels,
-      redactionEnabled: config.redaction.enabled,
-      accessLog: config.accessLog,
       mcpMaxTopK: config.mcpMaxTopK,
       mcpMaxOutputBytes: config.mcpMaxOutputBytes,
       topK: config.topK,
@@ -1352,13 +994,10 @@ program
     console.log(`rawDir=${config.rawDir}`)
     console.log(`storageDir=${config.storageDir}`)
     console.log(`sourcesFile=${config.sourcesFile}`)
-    console.log(`accessLogPath=${config.accessLogPath}`)
     console.log(`embeddingModelPath=${config.embeddingModelPath}`)
     console.log(`embeddingProvider=${config.embeddingProvider}`)
     console.log(`embeddingModel=${config.embeddingModel}`)
     console.log(`transformersAllowRemoteModels=${config.transformersAllowRemoteModels}`)
-    console.log(`redactionEnabled=${config.redaction.enabled}`)
-    console.log(`accessLog=${config.accessLog}`)
     console.log(`mcpMaxTopK=${config.mcpMaxTopK}`)
     console.log(`mcpMaxOutputBytes=${config.mcpMaxOutputBytes}`)
     console.log(`topK=${config.topK}`)
@@ -1398,7 +1037,7 @@ program
 
 program
   .command("security-audit")
-  .description("Show local privacy, provider, redaction, MCP, and gitignore posture.")
+  .description("Show local providers, file permissions, MCP bounds, and Git exclusions.")
   .option("--json", "Print machine-readable JSON.")
   .option("--strict", "Exit with code 1 when warnings are present.")
   .action(async (options: { json?: boolean; strict?: boolean }, command: Command) => {
@@ -1413,10 +1052,6 @@ program
       console.log(`embeddingModelPath=${report.providers.embeddingModelPath}`)
       console.log(`transformersAllowRemoteModels=${report.providers.transformersAllowRemoteModels}`)
       console.log(`llmGeneration=${report.providers.llmGeneration}`)
-      console.log(`redactionEnabled=${report.redaction.enabled}`)
-      console.log(`redactionBuiltIn=${report.redaction.builtIn}`)
-      console.log(`accessLog=${report.accessLog.enabled}`)
-      console.log(`accessLogStoresRawQueries=${report.accessLog.storesRawQueries}`)
       console.log(`storageGitIgnored=${report.storage.gitIgnored}`)
       console.log(`mcpMaxTopK=${report.mcp.maxTopK}`)
       console.log(`mcpMaxOutputBytes=${report.mcp.maxOutputBytes}`)
@@ -1510,160 +1145,6 @@ program
   })
 
 program
-  .command("chat")
-  .description("Answer with a verified local model grounded in Ragmir citations.")
-  .argument("[input...]", "Question to answer, or `setup` / `doctor`.")
-  .option("-k, --top-k <number>", "Number of passages to retrieve.", parsePositiveInt)
-  .option("--profile <profile>", "Local chat profile: lite, fast, or quality.")
-  .option("--thinking <mode>", "Thinking mode: off, standard, or deep.")
-  .option("--model-path <path>", "Local Gemma model root.")
-  .option("--offline", "Require an already verified local model.")
-  .option(
-    "--allow-remote-models",
-    "Compatibility flag for explicit chat setup; normal answers stay local.",
-  )
-  .option("--verify", "Recompute the full model SHA256 during doctor.")
-  .option("--max-new-tokens <number>", "Maximum generated tokens.", parsePositiveInt)
-  .option(
-    "--context-limit <number>",
-    "Maximum context characters sent to the model.",
-    parsePositiveInt,
-  )
-  .option("--json", "Print machine-readable JSON.")
-  .action(async (input: string[] | undefined, options: ChatOptions, command: Command) => {
-    const cwd = projectRoot(command)
-    const chat = await loadChat()
-    const mode = chatMode(input)
-
-    if (mode === "doctor") {
-      const doctorOptions: ChatDoctorOptions = { cwd }
-      addOption(doctorOptions, "profile", options.profile)
-      addOption(doctorOptions, "modelPath", options.modelPath)
-      addOption(doctorOptions, "verifyHash", options.verify)
-      const report = await chat.doctor(doctorOptions)
-      printMaybeJson(report, options.json)
-      return
-    }
-
-    if (mode === "setup") {
-      const setupOptions: ChatSetupOptions = { cwd }
-      addOption(setupOptions, "profile", options.profile)
-      addOption(setupOptions, "modelPath", options.modelPath)
-      addOption(
-        setupOptions,
-        "allowRemoteModels",
-        options.offline ? false : options.allowRemoteModels,
-      )
-      const result = await chat.setupChatModel(setupOptions)
-      printMaybeJson(result, options.json)
-      return
-    }
-
-    const question = await promptInput(input)
-    if (question.trim().length === 0) {
-      console.error(pc.red('Missing question. Use `rgr chat "your question"`.'))
-      process.exitCode = 1
-      return
-    }
-
-    const sources = await search(question, withTopK(cwd, options.topK))
-    const chatOptions: ChatGenerateOptions = {
-      cwd,
-      question,
-      sources: sources.map(toChatSource),
-    }
-    addOption(chatOptions, "profile", options.profile)
-    addOption(chatOptions, "thinking", options.thinking)
-    addOption(chatOptions, "modelPath", options.modelPath)
-    addOption(chatOptions, "allowRemoteModels", chatAllowRemoteModels(options))
-    addOption(chatOptions, "maxNewTokens", options.maxNewTokens)
-    addOption(chatOptions, "contextCharLimit", options.contextLimit)
-
-    const result = await chat.generateChatAnswer(chatOptions)
-    if (options.json) {
-      console.log(JSON.stringify({ query: question, ...result }, null, 2))
-      if (result.emptyContext) {
-        process.exitCode = 1
-      }
-      return
-    }
-
-    console.log(`\n${result.answer}\n`)
-    if (!result.emptyContext && result.citationStatus !== "valid") {
-      console.error(
-        pc.yellow(
-          `Citation status: ${result.citationStatus}. Review the answer against the retrieved passages.`,
-        ),
-      )
-    }
-    if (result.sources.length > 0) {
-      console.log(pc.dim("Sources:"))
-      for (const [index, source] of result.sources.entries()) {
-        console.log(`  [${index + 1}] ${source.relativePath} chunk=${source.chunkIndex}`)
-      }
-    } else {
-      const repairCommand = await rgrCommand(cwd, ["doctor", "--fix"])
-      console.error(pc.yellow(`No Ragmir context found. Run \`${repairCommand.display}\`.`))
-      process.exitCode = 1
-    }
-  })
-
-program
-  .command("audio")
-  .description("Render narration as offline WAV or explicitly selected online Edge MP3.")
-  .argument("[text-file]", "Narration text file to render.")
-  .option("-o, --out <path>", "Output MP3 or WAV path.")
-  .option("--engine <engine>", "TTS engine: auto, edge, or transformers.")
-  .option(
-    "--lang <language>",
-    "TTS language. Offline: en, es, fr. Edge also: ja, th, zh. Default: fr.",
-  )
-  .option("--model <id>", "Transformers.js TTS model ID.")
-  .option("--model-path <path>", "Local model/cache path.")
-  .option("--offline", "Force the Transformers.js local/offline WAV path.")
-  .option("--allow-remote-models", "Explicitly allow remote model downloads.")
-  .option("--voice <voice>", "Edge voice override. Default matches --lang.")
-  .option("--rate <rate>", "Edge rate. Defaults to +0%.")
-  .option("--speaker-embeddings <path>", "Optional model-specific speaker embedding path or URL.")
-  .option("--speed <number>", "Optional model-specific speech speed.", parseNumber)
-  .option("--doctor", "Show TTS runtime readiness instead of rendering.")
-  .option("--json", "Print machine-readable JSON.")
-  .action(async (textFile: string | undefined, options: AudioOptions, command: Command) => {
-    const cwd = projectRoot(command)
-    const tts = await loadTts()
-
-    if (options.doctor) {
-      const report = await tts.doctor()
-      printMaybeJson(report, options.json)
-      return
-    }
-
-    if (!textFile) {
-      console.error(pc.red("Missing text file. Use `rgr audio <text-file>`."))
-      process.exitCode = 1
-      return
-    }
-
-    const renderOptions: TtsRenderOptions = {
-      cwd,
-      textFile,
-      engine: audioEngine(options),
-    }
-    addOption(renderOptions, "language", audioLanguage(options))
-    addOption(renderOptions, "outputPath", options.out)
-    addOption(renderOptions, "model", options.model)
-    addOption(renderOptions, "modelPath", options.modelPath)
-    addOption(renderOptions, "allowRemoteModels", audioAllowRemoteModels(options))
-    addOption(renderOptions, "voice", options.voice)
-    addOption(renderOptions, "rate", options.rate)
-    addOption(renderOptions, "speakerEmbeddings", options.speakerEmbeddings)
-    addOption(renderOptions, "speed", options.speed)
-
-    const result = await tts.renderSpeech(renderOptions)
-    printMaybeJson(result, options.json)
-  })
-
-program
   .command("serve-mcp")
   .description(
     "Start the MCP server over stdio for Claude, Codex, and other MCP-compatible agents.",
@@ -1671,76 +1152,6 @@ program
   .action(async (_options: unknown, command: Command) => {
     const explicitRoot = explicitProjectRoot(command)
     await serveMcp(explicitRoot)
-  })
-
-const portableCommand = program
-  .command("portable")
-  .description("Export or verify a frozen, relocatable Ragmir knowledge-base folder.")
-
-portableCommand
-  .command("export")
-  .description("Export the active index, skills, launcher, and MCP adapters into one folder.")
-  .option("-o, --output <directory>", "Destination directory. Defaults under .ragmir/exports/.")
-  .option("--name <name>", "Portable knowledge-base display name.")
-  .option(
-    "--replace",
-    "Replace an existing portable destination after preserving it as a sibling backup.",
-  )
-  .option("--json", "Print machine-readable JSON.")
-  .action(
-    async (
-      options: { output?: string; name?: string; replace?: boolean; json?: boolean },
-      command: Command,
-    ) => {
-      const exportOptions: Parameters<typeof exportPortableKnowledgeBase>[0] = {
-        cwd: projectRoot(command),
-        replaceExisting: options.replace === true,
-      }
-      addOption(exportOptions, "outputDir", options.output)
-      addOption(exportOptions, "name", options.name)
-      const result = await exportPortableKnowledgeBase(exportOptions)
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2))
-        return
-      }
-      console.log(pc.green("Portable knowledge base exported."))
-      console.log(`outputDir=${result.outputDir}`)
-      if (result.previousOutputDir) {
-        console.log(`previousOutputDir=${result.previousOutputDir}`)
-      }
-      console.log(`manifestPath=${result.manifestPath}`)
-      console.log(`fileCount=${result.fileCount}`)
-      console.log(`totalBytes=${result.totalBytes}`)
-      console.log(`embeddingModelIncluded=${result.embeddingModelIncluded}`)
-      console.log(
-        result.previousOutputDir
-          ? "Next: verify the active destination, restart its consumers, then retire the preserved previous folder when safe."
-          : "Next: move the folder, then run `node bin/rgr.cjs portable verify . --json`.",
-      )
-    },
-  )
-
-portableCommand
-  .command("verify")
-  .description("Verify file integrity, index compatibility, and active table readability.")
-  .argument("[directory]", "Portable knowledge-base directory.", ".")
-  .option("--json", "Print machine-readable JSON.")
-  .action(async (directory: string, options: { json?: boolean }) => {
-    const result = await verifyPortableKnowledgeBase(directory)
-    if (options.json) {
-      console.log(JSON.stringify(result, null, 2))
-    } else {
-      console.log(
-        result.valid
-          ? pc.green("Portable knowledge base is valid.")
-          : pc.red("Portable knowledge base is invalid."),
-      )
-      console.log(`root=${result.root}`)
-      console.log(`checkedFiles=${result.checkedFiles}`)
-      for (const warning of result.warnings) console.log(pc.yellow(`warning=${warning}`))
-      for (const error of result.errors) console.log(pc.red(`error=${error}`))
-    }
-    if (!result.valid) process.exitCode = 1
   })
 
 program
@@ -1803,8 +1214,6 @@ program
         console.log(`  - ${file}`)
       }
       console.log(`Skill path: ${result.skillPath}`)
-      console.log(`Optional audio skill path: ${result.audioSkillPath}`)
-      console.log(`Optional Markdown report skill path: ${result.reportSkillPath}`)
       console.log(`MCP config example: ${result.mcpConfigPath}`)
       for (const helper of result.agentHelpers) {
         console.log(`${helper.label} MCP helper: ${helper.path}`)
@@ -1903,30 +1312,6 @@ function explicitProjectRoot(command: Command): string | undefined {
   return options.projectRoot ? path.resolve(options.projectRoot) : undefined
 }
 
-function deprecatedCliInvocation(): string | null {
-  const invokedPath = process.argv[1]
-  if (!invokedPath) return null
-
-  const commandName = path.basename(invokedPath).replace(/\.(?:cmd|ps1)$/iu, "")
-  return DEPRECATED_CLI_NAMES.has(commandName) ? commandName : null
-}
-
-async function promptInput(promptParts: string[] | undefined): Promise<string> {
-  if (promptParts !== undefined && promptParts.length > 0) {
-    return promptParts.join(" ")
-  }
-
-  if (process.stdin.isTTY) {
-    return ""
-  }
-
-  return readBoundedStdin(process.stdin)
-}
-
-function withTopK(cwd: string, topK: number | undefined): { cwd: string; topK?: number } {
-  return topK === undefined ? { cwd } : { cwd, topK }
-}
-
 function withSearchOptions(
   cwd: string,
   options: {
@@ -1987,197 +1372,6 @@ function addPathFilters(
   }
 }
 
-interface AudioOptions {
-  out?: string
-  engine?: string
-  lang?: string
-  model?: string
-  modelPath?: string
-  offline?: boolean
-  allowRemoteModels?: boolean
-  voice?: string
-  rate?: string
-  speakerEmbeddings?: string
-  speed?: number
-  doctor?: boolean
-  json?: boolean
-}
-
-interface ChatOptions {
-  topK?: number
-  profile?: ChatProfile
-  thinking?: ChatThinkingMode
-  modelPath?: string
-  offline?: boolean
-  allowRemoteModels?: boolean
-  verify?: boolean
-  maxNewTokens?: number
-  contextLimit?: number
-  json?: boolean
-}
-
-type ChatMode = "ask" | "doctor" | "setup"
-type ChatProfile = "lite" | "fast" | "quality"
-type ChatThinkingMode = "off" | "standard" | "deep"
-
-interface ChatModule {
-  doctor: (options?: ChatDoctorOptions) => Promise<unknown>
-  generateChatAnswer: (options: ChatGenerateOptions) => Promise<ChatGenerateResult>
-  setupChatModel: (options?: ChatSetupOptions) => Promise<unknown>
-}
-
-interface ChatDoctorOptions {
-  cwd: string
-  profile?: ChatProfile
-  modelPath?: string
-  verifyHash?: boolean
-}
-
-interface ChatSetupOptions {
-  cwd: string
-  profile?: ChatProfile
-  modelPath?: string
-  allowRemoteModels?: boolean
-}
-
-interface ChatGenerateOptions {
-  cwd: string
-  question: string
-  sources: ChatSource[]
-  profile?: ChatProfile
-  thinking?: ChatThinkingMode
-  modelPath?: string
-  allowRemoteModels?: boolean
-  maxNewTokens?: number
-  contextCharLimit?: number
-}
-
-interface ChatGenerateResult {
-  answer: string
-  sources: ChatSource[]
-  emptyContext: boolean
-  citationStatus: "none" | "missing" | "valid" | "partial" | "invalid"
-}
-
-interface TtsModule {
-  doctor: () => Promise<unknown>
-  renderSpeech: (options: TtsRenderOptions) => Promise<unknown>
-}
-
-interface TtsRenderOptions {
-  cwd: string
-  textFile: string
-  outputPath?: string
-  engine: "auto" | "edge" | "transformers"
-  language?: AudioLanguage
-  model?: string
-  modelPath?: string
-  allowRemoteModels?: boolean
-  voice?: string
-  rate?: string
-  speakerEmbeddings?: string
-  speed?: number
-}
-
-async function loadChat(): Promise<ChatModule> {
-  let module: unknown
-  try {
-    module = await import(CHAT_PACKAGE_NAME)
-  } catch (error) {
-    if (isMissingOptionalPackage(error, CHAT_PACKAGE_NAME)) {
-      throw new Error(
-        `Ragmir Chat is optional and is not installed. Add ${CHAT_PACKAGE_NAME} to this project before using \`rgr chat\`.`,
-      )
-    }
-    throw error
-  }
-  if (!isChatModule(module)) {
-    throw new Error(`${CHAT_PACKAGE_NAME} did not expose the expected chat API.`)
-  }
-  return module
-}
-
-function isChatModule(value: unknown): value is ChatModule {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "doctor" in value &&
-    typeof value.doctor === "function" &&
-    "generateChatAnswer" in value &&
-    typeof value.generateChatAnswer === "function" &&
-    "setupChatModel" in value &&
-    typeof value.setupChatModel === "function"
-  )
-}
-
-function chatMode(input: string[] | undefined): ChatMode {
-  if (input?.length === 1 && input[0] === "doctor") {
-    return "doctor"
-  }
-  if (input?.length === 1 && input[0] === "setup") {
-    return "setup"
-  }
-  return "ask"
-}
-
-function chatAllowRemoteModels(options: ChatOptions): boolean | undefined {
-  if (options.offline) {
-    return false
-  }
-  if (options.allowRemoteModels) {
-    return true
-  }
-  return undefined
-}
-
-function toChatSource(source: Awaited<ReturnType<typeof search>>[number]): ChatSource {
-  return {
-    source: source.source,
-    relativePath: source.relativePath,
-    chunkIndex: source.chunkIndex,
-    text: source.text,
-    distance: source.distance,
-  }
-}
-
-async function loadTts(): Promise<TtsModule> {
-  let module: unknown
-  try {
-    module = await import(TTS_PACKAGE_NAME)
-  } catch (error) {
-    if (isMissingOptionalPackage(error, TTS_PACKAGE_NAME)) {
-      throw new Error(
-        `Ragmir TTS is optional and is not installed. Add ${TTS_PACKAGE_NAME} to this project before using \`rgr audio\`.`,
-      )
-    }
-    throw error
-  }
-  if (!isTtsModule(module)) {
-    throw new Error(`${TTS_PACKAGE_NAME} did not expose the expected TTS API.`)
-  }
-  return module
-}
-
-function isMissingOptionalPackage(error: unknown, packageName: string): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    error.code === "ERR_MODULE_NOT_FOUND" &&
-    error.message.includes(packageName)
-  )
-}
-
-function isTtsModule(value: unknown): value is TtsModule {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "doctor" in value &&
-    typeof value.doctor === "function" &&
-    "renderSpeech" in value &&
-    typeof value.renderSpeech === "function"
-  )
-}
-
 function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`mode=${report.mode}`)
   console.log(`cost=${report.cost}`)
@@ -2211,8 +1405,6 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   }
   console.log(`embeddingProvider=${report.embeddingProvider}`)
   console.log(`transformersAllowRemoteModels=${report.transformersAllowRemoteModels}`)
-  console.log(`redactionEnabled=${report.redactionEnabled}`)
-  console.log(`accessLog=${report.accessLog}`)
   console.log(`supportedFiles=${report.supportedFiles}`)
   console.log(`supportedBytes=${report.supportedBytes}`)
   console.log(`largestFileBytes=${report.largestFileBytes}`)
@@ -2300,182 +1492,7 @@ function printGenerationGarbageCollection(
   }
 }
 
-function printResearchReport(
-  report: ResearchReport | ReturnType<typeof compactResearchReport>,
-): void {
-  console.log(`query=${report.query}`)
-  console.log(`ready=${report.ready}`)
-  console.log(`generatedQueries=${report.generatedQueries.length}`)
-  console.log(
-    `audit.mode=${report.audit.mode} audit.inventoryVerified=${report.audit.inventoryVerified} audit.supportedFiles=${report.audit.supportedFiles} audit.supportedBytes=${report.audit.supportedBytes} audit.largestFileBytes=${report.audit.largestFileBytes} audit.indexedFiles=${report.audit.indexedFiles} audit.totalChunks=${report.audit.totalChunks} audit.skippedFiles=${report.audit.skippedFiles} audit.oversizedFiles=${report.audit.oversizedFiles} audit.missingFromIndex=${report.audit.missingFromIndex} audit.staleInIndex=${report.audit.staleInIndex}`,
-  )
-  console.log(
-    `budgets.timeoutMs=${report.budgets.timeoutMs ?? "none"} budgets.evidenceTopK=${report.budgets.evidenceTopK} budgets.codeEvidenceTopK=${report.budgets.codeEvidenceTopK} budgets.codeFiles=${report.budgets.codeFilesScanned}/${report.budgets.codeScanMaxFiles} budgets.codeBytes=${report.budgets.codeBytesScanned}/${report.budgets.codeScanMaxBytes} budgets.codeConcurrency=${report.budgets.codeScanConcurrency} budgets.codeTruncated=${report.budgets.codeScanTruncated}`,
-  )
-  console.log(`securityWarnings=${report.securityWarnings.length}`)
-  console.log(
-    `sourceDiagnostics.duplicates=${report.sourceDiagnostics.duplicateCandidates.length} sourceDiagnostics.archives=${report.sourceDiagnostics.archiveCandidates.length} sourceDiagnostics.mirrors=${report.sourceDiagnostics.mirrorCandidates.length}`,
-  )
-
-  if (report.sourceDiagnostics.duplicateCandidates.length > 0) {
-    console.log("")
-    console.log(pc.cyan("Duplicate Candidates:"))
-    for (const candidate of report.sourceDiagnostics.duplicateCandidates.slice(0, 5)) {
-      console.log(`  - ${candidate.key}: ${candidate.files.join(", ")}`)
-    }
-  }
-
-  if (report.evidence.length > 0) {
-    console.log("")
-    console.log(pc.cyan("Evidence:"))
-    for (const [index, evidence] of report.evidence.entries()) {
-      const distance = evidence.distance === null ? "n/a" : evidence.distance.toFixed(4)
-      console.log(
-        `  [${index + 1}] ${evidence.relativePath} chunk=${evidence.chunkIndex} distance=${distance} researchScore=${evidence.researchScore.toFixed(6)} bestRank=${evidence.bestRank}`,
-      )
-      console.log(`      ${researchEvidencePreview(evidence)}`)
-    }
-  }
-
-  if (report.codeEvidence.length > 0) {
-    console.log("")
-    console.log(pc.cyan("Code Evidence:"))
-    for (const evidence of report.codeEvidence.slice(0, 10)) {
-      console.log(
-        `  - ${evidence.relativePath}:${evidence.lineNumber} score=${evidence.score} terms=${evidence.matchedTerms.join(",")}`,
-      )
-      console.log(`      ${evidence.snippet}`)
-    }
-  }
-
-  if (report.gaps.length > 0) {
-    console.log("")
-    console.log(pc.yellow("Gaps:"))
-    for (const gap of report.gaps) {
-      console.log(pc.yellow(`  - ${gap}`))
-    }
-  }
-
-  console.log("")
-  console.log(pc.cyan("Next Steps:"))
-  for (const step of report.nextSteps) {
-    console.log(`  - ${step}`)
-  }
-}
-
-function researchEvidencePreview(
-  evidence: ResearchReport["evidence"][number] | { snippet: string },
-): string {
-  if ("snippet" in evidence) {
-    return evidence.snippet
-  }
-  return evidence.text.replace(/\s+/gu, " ").trim().slice(0, SEARCH_TEXT_PREVIEW_LENGTH)
-}
-
-function printTeamComparison(comparison: TeamComparison): void {
-  const statusColor = comparison.synchronized ? pc.green : pc.yellow
-  console.log(statusColor(`Team status: ${comparison.status}`))
-  console.log(`summary=${comparison.summary}`)
-  console.log(`local=${comparison.localLabel}`)
-  console.log(`peer=${comparison.peerLabel}`)
-  console.log(`localSecurityAdvisories=${comparison.securityAdvisories.local}`)
-  console.log(`peerSecurityAdvisories=${comparison.securityAdvisories.peer}`)
-  console.log(`sameConfiguration=${comparison.sameConfiguration}`)
-  console.log(`sameCorpus=${comparison.sameCorpus}`)
-  console.log(`authorityDecisionRequired=${comparison.authorityDecisionRequired}`)
-
-  if (comparison.configurationDifferences.length > 0) {
-    console.log("")
-    console.log(pc.cyan("Configuration differences:"))
-    for (const difference of comparison.configurationDifferences) {
-      console.log(
-        `  - ${difference.field} (${difference.scope}, rebuild=${difference.requiresRebuild}): local=${formatTeamValue(difference.local)} peer=${formatTeamValue(difference.peer)}`,
-      )
-    }
-  }
-
-  printTeamPaths("Local-only files", comparison.files.localOnly)
-  printTeamPaths("Peer-only files", comparison.files.peerOnly)
-  if (comparison.files.changed.length > 0) {
-    console.log("")
-    console.log(pc.cyan(`Changed files (${comparison.files.changed.length}):`))
-    for (const file of comparison.files.changed.slice(0, TEAM_DIFF_PREVIEW_LIMIT)) {
-      console.log(
-        `  - ${file.relativePath} local=${file.localChecksum.slice(0, 12)} peer=${file.peerChecksum.slice(0, 12)}`,
-      )
-    }
-    printTeamOmitted(comparison.files.changed.length)
-  }
-
-  if (comparison.recommendedActions.length > 0) {
-    console.log("")
-    console.log(pc.cyan("Recommended actions:"))
-    for (const [index, action] of comparison.recommendedActions.entries()) {
-      console.log(`  ${index + 1}. ${action}`)
-    }
-  }
-}
-
-function printTeamSync(report: TeamSyncReport): void {
-  const statusColor = report.synchronized
-    ? pc.green
-    : report.status === "index-not-ready"
-      ? pc.red
-      : pc.yellow
-  console.log(statusColor(`Team sync: ${report.status}`))
-  console.log(`summary=${report.summary}`)
-  console.log(`gitState=${report.git.state}`)
-  console.log(`branch=${report.git.branch ?? "none"}`)
-  console.log(`upstream=${report.git.upstream ?? "none"}`)
-  console.log(`ahead=${report.git.ahead ?? "unknown"}`)
-  console.log(`behind=${report.git.behind ?? "unknown"}`)
-  console.log(`dirty=${report.git.dirty ?? "unknown"}`)
-  console.log(`fetched=${report.git.fetched}`)
-  console.log(`updated=${report.git.updated}`)
-  console.log(`indexReady=${report.index.operationalReady && report.index.indexPolicyCurrent}`)
-  console.log(`indexedFiles=${report.index.indexedFiles}`)
-  console.log(`chunksIndexed=${report.index.chunksIndexed}`)
-  console.log(`securityAdvisories=${report.index.securityAdvisories}`)
-
-  if (report.warnings.length > 0) {
-    console.log("")
-    console.log(pc.yellow("Warnings:"))
-    for (const warning of report.warnings) {
-      console.log(`  - ${warning}`)
-    }
-  }
-  if (report.recommendedActions.length > 0) {
-    console.log("")
-    console.log(pc.cyan("Next action:"))
-    console.log(`  ${report.recommendedActions[0]}`)
-  }
-}
-
-function printTeamPaths(title: string, files: string[]): void {
-  if (files.length === 0) {
-    return
-  }
-  console.log("")
-  console.log(pc.cyan(`${title} (${files.length}):`))
-  for (const file of files.slice(0, TEAM_DIFF_PREVIEW_LIMIT)) {
-    console.log(`  - ${file}`)
-  }
-  printTeamOmitted(files.length)
-}
-
-function printTeamOmitted(total: number): void {
-  const omitted = total - TEAM_DIFF_PREVIEW_LIMIT
-  if (omitted > 0) {
-    console.log(`  ... ${omitted} more; use --json for the complete diff.`)
-  }
-}
-
-function formatTeamValue(value: string | number | boolean | null | string[]): string {
-  return Array.isArray(value) ? JSON.stringify(value) : String(value)
-}
-
 function printPdfOcrStatus(status: Awaited<ReturnType<typeof inspectPdfOcr>>): void {
-  console.log(`privacyProfile=${status.privacyProfile}`)
   console.log(`configured=${status.configured}`)
   console.log(`recommendedEngine=${status.recommendedEngine ?? "none"}`)
   console.log(`ocrmypdf.available=${status.ocrmypdf.available}`)
@@ -2486,23 +1503,6 @@ function printPdfOcrStatus(status: Awaited<ReturnType<typeof inspectPdfOcr>>): v
   console.log(`pdftoppm.available=${status.pdftoppm.available}`)
   console.log(`pdftoppm.version=${status.pdftoppm.version ?? "unavailable"}`)
   console.log(`languages=${status.languages.join(",")}`)
-  if (status.privacyProfile === "strict") {
-    console.log(
-      pc.yellow(
-        "The strict privacy profile disables external OCR even when local tools are installed.",
-      ),
-    )
-  } else if (!status.recommendedEngine) {
-    console.log(
-      pc.yellow(
-        "Install OCRmyPDF 12.6+ or install both Tesseract and Poppler, then run `rgr ocr setup`.",
-      ),
-    )
-  } else if (!status.configured) {
-    console.log(
-      `Run \`rgr ocr setup --engine ${status.recommendedEngine}\` to enable local PDF OCR.`,
-    )
-  }
 }
 
 function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: string): void {
@@ -2522,8 +1522,6 @@ function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: str
   console.log("")
   console.log(pc.cyan("Agent integration:"))
   console.log(`  - skill: ${result.agentKit.skillPath}`)
-  console.log(`  - audio skill: ${result.agentKit.audioSkillPath}`)
-  console.log(`  - report skill: ${result.agentKit.reportSkillPath}`)
   console.log(`  - MCP config: ${result.agentKit.mcpConfigPath}`)
   for (const helper of result.agentKit.agentHelpers) {
     console.log(`  - ${helper.label} MCP helper: ${helper.path}`)
@@ -2600,20 +1598,6 @@ function printEmptyTextFiles(files: string[]): void {
       "These supported files produced no indexable text. For scanned PDFs, run `rgr ocr doctor` then `rgr ocr setup`; for images, configure imageOcrCommand or store local OCR text beside the source file.",
     ),
   )
-}
-
-function printMaybeJson(value: unknown, json: boolean | undefined): void {
-  if (json) {
-    console.log(JSON.stringify(value, null, 2))
-    return
-  }
-  if (typeof value === "object" && value !== null) {
-    for (const [key, entry] of Object.entries(value)) {
-      console.log(`${key}=${String(entry)}`)
-    }
-    return
-  }
-  console.log(String(value))
 }
 
 function addOption<T extends object, K extends keyof T>(
