@@ -5,7 +5,7 @@ import { createRagmirClient, evaluateGoldenQueries } from "../dist/index.js"
 import { CORPUS_PRESETS, generateCorpus } from "./lib/corpus.mjs"
 import { environmentMetadata, sha256, stableJson } from "./lib/metrics.mjs"
 
-const QUALITY_WORKLOAD_VERSION = 2
+const QUALITY_WORKLOAD_VERSION = 3
 
 const options = parseArguments(process.argv.slice(2))
 const invocationRoot = process.env.INIT_CWD ?? process.cwd()
@@ -47,6 +47,7 @@ try {
     environment: environmentMetadata(),
     configuration: {
       workloadVersion: QUALITY_WORKLOAD_VERSION,
+      rankingVariantScope: "Reordering of the hybrid top-100 candidate pool; not independent retrieval baselines.",
       size,
       provider,
       model,
@@ -131,8 +132,8 @@ async function runCleanEvaluation(label) {
 
 async function evaluateRankingVariants(client, goldenQueries) {
   const variants = {
-    "vector-only": [],
-    "lexical-only": [],
+    "candidate-vector-order": [],
+    "candidate-lexical-order": [],
     hybrid: [],
     "hybrid-lexical-1.25": [],
     "hybrid-lexical-1.5": [],
@@ -160,7 +161,7 @@ async function evaluateRankingVariants(client, goldenQueries) {
             left.chunkIndex - right.chunkIndex,
         )
         .slice(0, 10)
-    variants["vector-only"].push(
+    variants["candidate-vector-order"].push(
       scoreVariantCase(
         testCase,
         stableRows(
@@ -171,7 +172,7 @@ async function evaluateRankingVariants(client, goldenQueries) {
         ),
       ),
     )
-    variants["lexical-only"].push(
+    variants["candidate-lexical-order"].push(
       scoreVariantCase(
         testCase,
         stableRows(

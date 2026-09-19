@@ -1,8 +1,8 @@
 # Document evidence benchmark
 
 A deterministic, public-safe benchmark for the retrieval and citation quality a coding agent
-receives from Ragmir. Six golden queries require the expected path and an exact file, line, chunk,
-or PDF-page citation. The fictional corpus runs offline with `local-hash`.
+receives from Ragmir as the retrieval layer in agentic RAG. Six golden queries require the expected
+path and an exact file, line, chunk, or PDF-page citation. The fictional corpus runs offline with `local-hash`.
 
 ## What passes
 
@@ -28,6 +28,8 @@ ingestion and evaluation pipeline.
 
 ## Run it
 
+From a checkout of the Ragmir repository, start at its root:
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
@@ -50,5 +52,5 @@ into an ignored workspace. Record the smallest expected source set and exact coo
 the source is stable. Never commit private documents, queries, or reports.
 
 A perfect score proves this fixture, not universal retrieval quality. Continue with the
-[confidential local RAG demo](../sovereign-rag-demo/README.md) or
+[local retrieval demo](../sovereign-rag-demo/README.md) or
 [Core README](../../README.md).

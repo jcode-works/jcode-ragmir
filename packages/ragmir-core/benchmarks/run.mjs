@@ -155,9 +155,6 @@ try {
   const quality = await measured("evaluate", () =>
     evaluateGoldenQueries({ cwd: root, goldenPath: corpus.goldenPath, topK: 5 }),
   )
-  const research = await measured("research", () =>
-    client.research(queries[0], { topK: 5, includeCode: false }),
-  )
   const mutationScenarios = await runMutationScenarios({ client, corpus, root, queries })
   await client.close()
   client = undefined
@@ -217,13 +214,6 @@ try {
       cli,
       mcp,
       concurrent,
-    },
-    research: {
-      measurement: research.measurement,
-      evidenceCount: research.value.evidence.length,
-      ready: research.value.ready,
-      auditMode: research.value.audit.mode,
-      budgets: research.value.budgets,
     },
     storage: {
       physicalBytesAfterRebuild,

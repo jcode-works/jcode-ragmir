@@ -22,14 +22,12 @@ import {
   MAX_INCLUDE_EXTENSIONS,
   MAX_INGEST_CONCURRENCY,
   MAX_MCP_OUTPUT_BYTES,
-  MAX_REDACTION_PATTERNS,
   MAX_SEARCH_TOP_K,
   MAX_WORKLOAD_CONCURRENCY,
   MAX_WORKLOAD_QUEUE,
   MAX_WORKLOAD_QUEUE_TIMEOUT_MS,
 } from "./defaults.js"
 import { isRecord } from "./guards.js"
-import { redactionPatternSafetyError } from "./redaction.js"
 import type { Config, WorkloadLimit } from "./types.js"
 
 export const CONFIG_LOAD_DIAGNOSTICS_CHANNEL = "ragmir:config-load"
@@ -46,29 +44,12 @@ const embeddingModelDigestSchema = z
   .string()
   .regex(/^sha256:[0-9a-f]{64}$/u)
   .nullable()
-const privacyProfileSchema = z.enum(["strict", "private", "trusted", "custom"])
 const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
 const sourceFingerprintModeSchema = z.enum(["fast", "strict"])
 const incrementalFailurePolicySchema = z.enum(["preserve-last-good", "remove-stale"])
 const configPathSchema = z.string().min(1).max(MAX_CONFIG_PATH_CHARACTERS)
 const configTextSchema = z.string().min(1).max(MAX_CONFIG_TEXT_CHARACTERS)
 const externalCommandSchema = z.array(configTextSchema).max(MAX_EXTERNAL_COMMAND_ARGUMENTS)
-const redactionPatternSchema = z
-  .object({
-    name: z.string().min(1).max(100),
-    pattern: configTextSchema,
-    flags: z.string().max(8).optional(),
-    replacement: z.string().max(MAX_CONFIG_TEXT_CHARACTERS).optional(),
-    verify: z.enum(["luhn"]).optional(),
-  })
-  .strict()
-  .superRefine((pattern, context) => {
-    const safetyError = redactionPatternSafetyError(pattern.pattern, pattern.flags)
-    if (safetyError) {
-      context.addIssue({ code: "custom", message: safetyError, path: ["pattern"] })
-    }
-  })
-const externalExtractorsByConfig = new WeakMap<Config, boolean>()
 function workloadLimitSchema(defaults: WorkloadLimit) {
   return z
     .object({
@@ -91,14 +72,11 @@ function workloadLimitSchema(defaults: WorkloadLimit) {
 
 const rawConfigSchema = z
   .object({
-    privacyProfile: privacyProfileSchema.default(DEFAULT_CONFIG.privacyProfile),
     retrievalProfile: retrievalProfileSchema.default(DEFAULT_CONFIG.retrievalProfile),
-    acceptedRisks: z.array(configTextSchema).max(128).default(DEFAULT_CONFIG.acceptedRisks),
     rawDir: configPathSchema.default(DEFAULT_CONFIG.rawDir),
     storageDir: configPathSchema.default(DEFAULT_CONFIG.storageDir),
     sourcesFile: configPathSchema.default(DEFAULT_CONFIG.sourcesFile),
     sources: z.array(configPathSchema).max(MAX_CONFIG_ARRAY_ITEMS).default(DEFAULT_CONFIG.sources),
-    accessLogPath: configPathSchema.default(DEFAULT_CONFIG.accessLogPath),
     embeddingModelPath: configPathSchema.default(DEFAULT_CONFIG.embeddingModelPath),
     tableName: z
       .string()
@@ -113,18 +91,6 @@ const rawConfigSchema = z
     transformersAllowRemoteModels: z
       .boolean()
       .default(DEFAULT_CONFIG.transformersAllowRemoteModels),
-    redaction: z
-      .object({
-        enabled: z.boolean().default(DEFAULT_CONFIG.redaction.enabled),
-        builtIn: z.boolean().default(DEFAULT_CONFIG.redaction.builtIn),
-        patterns: z
-          .array(redactionPatternSchema)
-          .max(MAX_REDACTION_PATTERNS)
-          .default(DEFAULT_CONFIG.redaction.patterns),
-      })
-      .strict()
-      .default(DEFAULT_CONFIG.redaction),
-    accessLog: z.boolean().default(DEFAULT_CONFIG.accessLog),
     mcpMaxTopK: z.number().int().positive().default(DEFAULT_CONFIG.mcpMaxTopK),
     mcpMaxOutputBytes: z
       .number()
@@ -195,6 +161,18 @@ const rawConfigSchema = z
 
 type RawConfig = z.infer<typeof rawConfigSchema>
 
+export const RETIRED_CONFIG_KEYS = [
+  "privacyProfile",
+  "acceptedRisks",
+  "redaction",
+  "accessLog",
+  "accessLogPath",
+] as const
+
+export function retiredConfigKeys(raw: Record<string, unknown>): string[] {
+  return RETIRED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key))
+}
+
 interface ProjectConfigFile {
   projectRoot: string
   configPath: string
@@ -247,13 +225,18 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
       `${path.relative(projectConfig.projectRoot, projectConfig.configPath)} must contain a JSON object.`,
     )
   }
+  const retired = retiredConfigKeys(raw)
+  if (retired.length > 0) {
+    throw new Error(
+      `Retired configuration fields: ${retired.join(", ")}. Run \`rgr upgrade\` to back up and migrate the config and rebuild the index. Ragmir now preserves source text without masking; your consuming model controls where retrieved content is sent.`,
+    )
+  }
   const defaults = projectConfig.legacy ? LEGACY_DEFAULT_CONFIG : DEFAULT_CONFIG
 
   const parsed = rawConfigSchema.parse(configWithModelIdentityDefaults(defaults, raw))
   const withProfile = applyRetrievalProfile(parsed, raw)
   const withEnv = rawConfigSchema.parse(applyEnv(withProfile))
-  const externalExtractorsConfigured = configuredExternalExtractors(withEnv)
-  const effective = applyPrivacyFloor(withEnv)
+  const effective = withEnv
 
   assertAtMost("maxFileBytes", effective.maxFileBytes, MAX_CONFIGURED_FILE_BYTES)
   assertAtMost("ingestConcurrency", effective.ingestConcurrency, MAX_INGEST_CONCURRENCY)
@@ -269,14 +252,11 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
 
   const config: Config = {
     projectRoot: projectConfig.projectRoot,
-    privacyProfile: effective.privacyProfile,
     retrievalProfile: effective.retrievalProfile,
-    acceptedRisks: effective.acceptedRisks,
     rawDir: resolveFromRoot(projectConfig.projectRoot, effective.rawDir),
     storageDir: resolveFromRoot(projectConfig.projectRoot, effective.storageDir),
     sourcesFile: resolveFromRoot(projectConfig.projectRoot, effective.sourcesFile),
     sources: effective.sources,
-    accessLogPath: resolveFromRoot(projectConfig.projectRoot, effective.accessLogPath),
     embeddingModelPath: resolveFromRoot(projectConfig.projectRoot, effective.embeddingModelPath),
     tableName: effective.tableName,
     embeddingProvider: effective.embeddingProvider,
@@ -284,8 +264,6 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     embeddingModelRevision: effective.embeddingModelRevision,
     embeddingModelDigest: effective.embeddingModelDigest,
     transformersAllowRemoteModels: effective.transformersAllowRemoteModels,
-    redaction: effective.redaction,
-    accessLog: effective.accessLog,
     mcpMaxTopK: effective.mcpMaxTopK,
     mcpMaxOutputBytes: effective.mcpMaxOutputBytes,
     topK: effective.topK,
@@ -313,12 +291,11 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
       configPath: projectConfig.configPath,
     } satisfies ConfigLoadDiagnosticsEvent)
   }
-  externalExtractorsByConfig.set(config, externalExtractorsConfigured)
   return config
 }
 
 export function externalExtractorsRequested(config: Config): boolean {
-  return externalExtractorsByConfig.get(config) ?? configuredExternalExtractors(config)
+  return configuredExternalExtractors(config)
 }
 
 function configuredExternalExtractors(
@@ -381,22 +358,6 @@ function applyRetrievalProfile(config: RawConfig, raw: Record<string, unknown>):
   return config
 }
 
-function applyPrivacyFloor(config: RawConfig): RawConfig {
-  if (config.privacyProfile !== "strict") {
-    return config
-  }
-  return {
-    ...config,
-    transformersAllowRemoteModels: false,
-    redaction: { ...config.redaction, enabled: true, builtIn: true },
-    mcpMaxTopK: Math.min(config.mcpMaxTopK, 5),
-    mcpMaxOutputBytes: Math.min(config.mcpMaxOutputBytes, 16_384),
-    pdfOcrCommand: [],
-    imageOcrCommand: [],
-    legacyWordCommand: [],
-  }
-}
-
 function resolveFromRoot(projectRoot: string, input: string): string {
   return path.isAbsolute(input) ? input : path.resolve(projectRoot, input)
 }
@@ -426,11 +387,6 @@ function applyEnv(config: RawConfig): RawConfig {
     rawDir: readStringEnv("RAGMIR_RAW_DIR", "KB_RAW_DIR", config.rawDir),
     storageDir: readStringEnv("RAGMIR_STORAGE_DIR", "KB_STORAGE_DIR", config.storageDir),
     sourcesFile: readStringEnv("RAGMIR_SOURCES_FILE", "KB_SOURCES_FILE", config.sourcesFile),
-    accessLogPath: readStringEnv(
-      "RAGMIR_ACCESS_LOG_PATH",
-      "KB_ACCESS_LOG_PATH",
-      config.accessLogPath,
-    ),
     embeddingProvider: readEmbeddingProviderEnv(
       "RAGMIR_EMBEDDING_PROVIDER",
       "KB_EMBEDDING_PROVIDER",
@@ -449,20 +405,6 @@ function applyEnv(config: RawConfig): RawConfig {
       "KB_TRANSFORMERS_ALLOW_REMOTE_MODELS",
       config.transformersAllowRemoteModels,
     ),
-    redaction: {
-      ...config.redaction,
-      enabled: readBooleanEnv(
-        "RAGMIR_REDACTION_ENABLED",
-        "KB_REDACTION_ENABLED",
-        config.redaction.enabled,
-      ),
-      builtIn: readBooleanEnv(
-        "RAGMIR_REDACTION_BUILT_IN",
-        "KB_REDACTION_BUILT_IN",
-        config.redaction.builtIn,
-      ),
-    },
-    accessLog: readBooleanEnv("RAGMIR_ACCESS_LOG", "KB_ACCESS_LOG", config.accessLog),
     mcpMaxTopK: readPositiveIntEnv("RAGMIR_MCP_MAX_TOP_K", "KB_MCP_MAX_TOP_K", config.mcpMaxTopK),
     mcpMaxOutputBytes: readIntegerAtLeastEnv(
       "RAGMIR_MCP_MAX_OUTPUT_BYTES",

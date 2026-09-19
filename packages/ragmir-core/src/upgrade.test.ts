@@ -98,7 +98,6 @@ describe("upgrade continuity", () => {
     await expect(inspectUpgrade(root)).resolves.toMatchObject({
       status: "current",
       ready: true,
-      privacyCompliant: false,
       advisories: [warning],
       reason: null,
     })

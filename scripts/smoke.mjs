@@ -9,7 +9,6 @@ import {
   readFile,
   realpath,
   rm,
-  symlink,
   writeFile,
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -19,8 +18,6 @@ import { fileURLToPath } from "node:url"
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const corePackageRoot = path.join(repoRoot, "packages", "ragmir-core")
 const cliPath = path.join(corePackageRoot, "dist", "cli-entry.js")
-const chatCliPath = path.join(repoRoot, "packages", "ragmir-chat", "dist", "cli.js")
-const ttsCliPath = path.join(repoRoot, "packages", "ragmir-tts", "dist", "cli.js")
 const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-smoke-"))
 const MCP_REQUEST_TIMEOUT_MS = 10_000
 const MCP_CLOSE_TIMEOUT_MS = 2_000
@@ -43,130 +40,6 @@ try {
     ocrHelp.stdout,
     "extract-page",
     "OCR help should hide the internal page extractor",
-  )
-
-  const deprecatedCliPath = path.join(tempRoot, "ragmir")
-  await symlink(cliPath, deprecatedCliPath)
-  const deprecatedHelp = await runProcess(process.execPath, [deprecatedCliPath, "--help"], tempRoot)
-  assertIncludes(
-    deprecatedHelp.stderr,
-    "The `ragmir` CLI command is deprecated",
-    "deprecated ragmir bin should tell users to use rgr",
-  )
-  assertIncludes(deprecatedHelp.stderr, "Use `rgr` instead.", "deprecated bin should name rgr")
-
-  const deprecatedKbCliPath = path.join(tempRoot, "kb")
-  await symlink(cliPath, deprecatedKbCliPath)
-  const deprecatedKbHelp = await runProcess(
-    process.execPath,
-    [deprecatedKbCliPath, "--help"],
-    tempRoot,
-  )
-  assertIncludes(
-    deprecatedKbHelp.stderr,
-    "The `kb` CLI command is deprecated",
-    "deprecated kb bin should tell users to use rgr",
-  )
-  assertIncludes(deprecatedKbHelp.stderr, "Use `rgr` instead.", "deprecated kb bin should name rgr")
-
-  const ttsHelp = await runProcess(process.execPath, [ttsCliPath], tempRoot)
-  assertIncludes(ttsHelp.stdout, "rgr-tts", "TTS help should expose rgr-tts as the public command")
-  assertNotIncludes(
-    ttsHelp.stdout,
-    "ragmir-tts",
-    "TTS help should not advertise the previous command alias",
-  )
-  assertIncludes(
-    ttsHelp.stdout,
-    "Offline: en, es, fr. Edge also: ja, th, zh.",
-    "TTS help should distinguish offline and Edge language support",
-  )
-  assertIncludes(
-    ttsHelp.stdout,
-    "Default matches --lang.",
-    "TTS help should explain automatic Edge voice selection",
-  )
-
-  const audioHelp = await runKb(["audio", "--help"], tempRoot)
-  assertIncludes(
-    audioHelp.stdout,
-    "Offline: en, es, fr.",
-    "Core audio help should list offline language support",
-  )
-  assertIncludes(
-    audioHelp.stdout,
-    "th, zh. Default: fr.",
-    "Core audio help should list the remaining Edge languages and default",
-  )
-
-  const deprecatedTtsCliPath = path.join(tempRoot, "ragmir-tts")
-  await symlink(ttsCliPath, deprecatedTtsCliPath)
-  const deprecatedTtsHelp = await runProcess(process.execPath, [deprecatedTtsCliPath], tempRoot)
-  assertIncludes(
-    deprecatedTtsHelp.stderr,
-    "The `ragmir-tts` CLI command is deprecated",
-    "deprecated ragmir-tts bin should tell users to use rgr-tts",
-  )
-  assertIncludes(
-    deprecatedTtsHelp.stderr,
-    "Use `rgr-tts` instead.",
-    "deprecated TTS bin should name rgr-tts",
-  )
-
-  const chatHelp = await runProcess(process.execPath, [chatCliPath], tempRoot)
-  assertIncludes(
-    chatHelp.stdout,
-    "rgr-chat",
-    "chat help should expose rgr-chat as the public command",
-  )
-  assertNotIncludes(
-    chatHelp.stdout,
-    "ragmir-chat",
-    "chat help should not advertise the previous command alias",
-  )
-  assertIncludes(
-    chatHelp.stdout,
-    "lite (Qwen2.5 0.5B)",
-    "chat help should identify the lightweight Qwen profile",
-  )
-  assertIncludes(
-    chatHelp.stdout,
-    "fast (Gemma 4 E2B, default)",
-    "chat help should identify the default Gemma profile",
-  )
-  assertIncludes(
-    chatHelp.stdout,
-    "Lite always uses off.",
-    "chat help should explain the lite thinking boundary",
-  )
-
-  const deprecatedChatCliPath = path.join(tempRoot, "ragmir-chat")
-  await symlink(chatCliPath, deprecatedChatCliPath)
-  const deprecatedChatHelp = await runProcess(process.execPath, [deprecatedChatCliPath], tempRoot)
-  assertIncludes(
-    deprecatedChatHelp.stderr,
-    "The `ragmir-chat` CLI command is deprecated",
-    "deprecated ragmir-chat bin should tell users to use rgr-chat",
-  )
-  assertIncludes(
-    deprecatedChatHelp.stderr,
-    "Use `rgr-chat` instead.",
-    "deprecated chat bin should name rgr-chat",
-  )
-  const chatEmptyContext = await runProcess(
-    process.execPath,
-    [chatCliPath, "answer", "What is covered?", "--json"],
-    tempRoot,
-  )
-  assertIncludes(
-    chatEmptyContext.stdout,
-    '"emptyContext": true',
-    "chat answer without context should return an empty-context result",
-  )
-  assertIncludes(
-    chatEmptyContext.stdout,
-    '"allowRemoteModels": false',
-    "chat answer without context should keep remote model loading disabled",
   )
 
   const setup = await runKb(["setup"], tempRoot)
@@ -253,22 +126,6 @@ try {
   if (!/^\d+\.\d+\.\d+/u.test(runnerVersion.stdout.trim())) {
     throw new Error(`generated runner should execute installed CLI, got ${runnerVersion.stdout}`)
   }
-  const runnerRoute = parseJson(
-    (
-      await runProcess(
-        process.execPath,
-        [runnerPath, "route-prompt", "--json", "find indexed architecture evidence"],
-        tempRoot,
-      )
-    ).stdout,
-    "generated runner route JSON",
-  )
-  if (runnerRoute.shouldUseRagmir !== true) {
-    throw new Error(
-      `generated runner should route local evidence, got ${JSON.stringify(runnerRoute)}`,
-    )
-  }
-
   await configureProject(tempRoot)
   await writeFixtureDocuments(tempRoot)
 
@@ -283,11 +140,10 @@ try {
   )
   if (
     previewJson.matchedFiles !== 1 ||
-    previewJson.files?.[0]?.chunks?.[0]?.contextPath !== "Tax situation" ||
-    previewJson.files?.[0]?.chunks?.[0]?.text?.includes("maintainer@example.com")
+    previewJson.files?.[0]?.chunks?.[0]?.contextPath !== "Tax situation"
   ) {
     throw new Error(
-      `preview --json should expose redacted structured chunks, got ${JSON.stringify(previewJson)}`,
+      `preview --json should expose exact structured chunks, got ${JSON.stringify(previewJson)}`,
     )
   }
   if (existsSync(path.join(tempRoot, ".ragmir", "storage", "chunks.lance"))) {
@@ -327,35 +183,6 @@ try {
   if (statusJson.mcpMaxOutputBytes !== 32_768) {
     throw new Error(
       `status --json should expose mcpMaxOutputBytes, got ${statusJson.mcpMaxOutputBytes}`,
-    )
-  }
-  const teamSync = parseJson(
-    (await runKb(["team", "sync", "--check", "--json"], tempRoot)).stdout,
-    "team sync JSON",
-  )
-  if (teamSync.status !== "local-only" || teamSync.git?.state !== "not-repository") {
-    throw new Error(
-      `team sync should keep a non-Git knowledge base local, got ${JSON.stringify(teamSync)}`,
-    )
-  }
-  const teamSnapshotPath = path.join(tempRoot, ".ragmir", "team", "smoke.json")
-  const teamSnapshot = await runKb(
-    ["team", "snapshot", "--label", "smoke", "--output", teamSnapshotPath],
-    tempRoot,
-  )
-  assertIncludes(teamSnapshot.stdout, "Team snapshot ready.", "team snapshot should be created")
-  const teamComparison = parseJson(
-    (
-      await runKb(
-        ["team", "compare", teamSnapshotPath, "--local-label", "smoke", "--strict", "--json"],
-        tempRoot,
-      )
-    ).stdout,
-    "team comparison JSON",
-  )
-  if (!teamComparison.synchronized || teamComparison.status !== "synchronized") {
-    throw new Error(
-      `team comparison should confirm identical indexes, got ${JSON.stringify(teamComparison)}`,
     )
   }
   const upgradeInspection = parseJson(
@@ -480,68 +307,9 @@ try {
     )
   }
 
-  const askJson = parseJson(
-    (
-      await runKb(
-        [
-          "ask",
-          "What proves the French tax residency risk?",
-          "--top-k",
-          "1",
-          "--context-radius",
-          "1",
-          "--json",
-        ],
-        tempRoot,
-      )
-    ).stdout,
-    "ask JSON",
-  )
-  if (!askJson.answer?.includes("Ragmir returns retrieval context only")) {
-    throw new Error(
-      `ask --json should expose retrieval-only answer, got ${JSON.stringify(askJson)}`,
-    )
-  }
-  if (!Array.isArray(askJson.sources?.[0]?.context) || askJson.sources[0].context.length === 0) {
-    throw new Error(`ask --json should expose neighboring context, got ${JSON.stringify(askJson)}`)
-  }
-
   const search = await runKb(["search", "French tax residency", "--top-k", "1"], tempRoot)
   assertIncludes(search.stdout, "tax.md", "search should retrieve the tax document")
   assertIncludes(search.stdout, "French tax residency", "search should return indexed content")
-
-  const ask = await runKb(
-    ["ask", "What proves the French tax residency risk?", "--top-k", "1"],
-    tempRoot,
-  )
-  assertIncludes(
-    ask.stdout,
-    "Ragmir returns retrieval context only",
-    "ask should return retrieval context without calling an LLM",
-  )
-
-  const usageJson = parseJson(
-    (await runKb(["usage-report", "--days", "7", "--json"], tempRoot)).stdout,
-    "usage report JSON",
-  )
-  if (usageJson.totalEvents < 1 || usageJson.uniqueQueryHashes < 1) {
-    throw new Error(`usage-report should summarize local usage, got ${JSON.stringify(usageJson)}`)
-  }
-  if (typeof usageJson.averageResultCountByAction?.search !== "number") {
-    throw new Error(
-      `usage-report should expose per-action result averages, got ${JSON.stringify(usageJson)}`,
-    )
-  }
-  assertNotIncludes(
-    JSON.stringify(usageJson),
-    "French tax residency",
-    "usage-report should not expose raw query text",
-  )
-  assertNotIncludes(
-    JSON.stringify(usageJson),
-    tempRoot,
-    "usage-report should not expose local project paths",
-  )
 
   const audit = await runKb(["audit"], tempRoot)
   assertIncludes(audit.stdout, "missingFromIndex=0", "audit should find no missing files")
@@ -574,52 +342,9 @@ try {
     "security audit should report retrieval-only core behavior",
   )
 
-  const audioDoctor = await runKb(["audio", "--doctor", "--json"], tempRoot)
-  assertIncludes(
-    audioDoctor.stdout,
-    '"pythonRequired": false',
-    "audio doctor should not require Python",
-  )
-  assertIncludes(
-    audioDoctor.stdout,
-    '"outputFormat": "mp3-or-wav"',
-    "audio doctor should report MP3 or WAV output",
-  )
-  assertIncludes(
-    audioDoctor.stdout,
-    '"defaultEngine": "transformers"',
-    "audio doctor should default to the offline/confidential engine",
-  )
-
-  const audioMp3WithoutEngine = await runKbFailure(
-    ["audio", path.join(tempRoot, ".ragmir", "raw", "tax.md"), "--out", ".ragmir/audio/tax.mp3"],
-    tempRoot,
-  )
-  assertIncludes(
-    audioMp3WithoutEngine.stderr,
-    "MP3 output uses online Edge TTS",
-    "audio should require explicit Edge selection for MP3 output",
-  )
-
-  const chatDoctor = await runKb(["chat", "doctor", "--json"], tempRoot)
-  assertIncludes(
-    chatDoctor.stdout,
-    '"provider": "node-llama-cpp"',
-    "chat doctor should report the local llama.cpp provider",
-  )
-  assertIncludes(
-    chatDoctor.stdout,
-    '"ollamaRequired": false',
-    "chat doctor should not require Ollama",
-  )
-
   await runKb(["install-skill"], tempRoot)
   const skill = await readFile(
     path.join(tempRoot, ".ragmir", "skills", "ragmir", "SKILL.md"),
-    "utf8",
-  )
-  const audioSkill = await readFile(
-    path.join(tempRoot, ".ragmir", "skills", "ragmir-audio-summary", "SKILL.md"),
     "utf8",
   )
   assertIncludes(skill, "name: ragmir", "install-skill should copy the bundled skill")
@@ -632,11 +357,6 @@ try {
     skill,
     "knowledgeBaseId",
     "installed skill should verify the active MCP knowledge base",
-  )
-  assertIncludes(
-    audioSkill,
-    "name: ragmir-audio-summary",
-    "install-skill should copy the optional audio summary skill",
   )
   const gitignore = await readFile(path.join(tempRoot, ".gitignore"), "utf8")
   assertIncludes(gitignore, ".ragmir/", "setup should ignore local Ragmir state")
@@ -834,16 +554,6 @@ async function smokeExampleWorkspace() {
       "review-notes.evidence",
       "example search should index the custom .evidence extension",
     )
-
-    const retrievalOnlyAsk = await runKb(
-      ["ask", "What evidence supports offline operation?", "--top-k", "2"],
-      exampleTemp,
-    )
-    assertIncludes(
-      retrievalOnlyAsk.stdout,
-      "Ragmir returns retrieval context only",
-      "example ask should return cited retrieval context",
-    )
   } finally {
     await rm(exampleTemp, { recursive: true, force: true })
   }
@@ -1023,42 +733,16 @@ async function smokeMcp(cwd) {
 
     const tools = await client.request("tools/list", {})
     assertIncludes(JSON.stringify(tools), "ragmir_status", "MCP should expose ragmir_status")
-    assertIncludes(
-      JSON.stringify(tools),
-      "ragmir_route_prompt",
-      "MCP should expose ragmir_route_prompt",
-    )
-    assertIncludes(JSON.stringify(tools), "ragmir_search", "MCP should expose ragmir_search")
-    assertIncludes(JSON.stringify(tools), "ragmir_ask", "MCP should expose ragmir_ask")
-    assertIncludes(JSON.stringify(tools), "ragmir_research", "MCP should expose ragmir_research")
-    assertIncludes(JSON.stringify(tools), "ragmir_expand", "MCP should expose ragmir_expand")
-    assertIncludes(JSON.stringify(tools), "ragmir_audit", "MCP should expose ragmir_audit")
-    assertIncludes(JSON.stringify(tools), "ragmir_evaluate", "MCP should expose ragmir_evaluate")
-    assertIncludes(
-      JSON.stringify(tools),
-      "ragmir_usage_report",
-      "MCP should expose ragmir_usage_report",
-    )
-    assertIncludes(
-      JSON.stringify(tools),
-      "ragmir_security_audit",
-      "MCP should expose ragmir_security_audit",
-    )
+    for (const name of ["ragmir_search", "ragmir_expand", "ragmir_audit"]) {
+      assertIncludes(JSON.stringify(tools), name, `MCP should expose ${name}`)
+    }
+    if (tools.result?.tools?.length !== 4) throw new Error("Expected exactly four MCP tools")
 
     const status = await client.request("tools/call", {
       name: "ragmir_status",
       arguments: {},
     })
     assertIncludes(mcpText(status), "chunksIndexed", "MCP status should return index metadata")
-
-    const route = await client.request("tools/call", {
-      name: "ragmir_route_prompt",
-      arguments: { prompt: "Find cited local docs about French tax residency evidence." },
-    })
-    const routeJson = parseJson(mcpText(route), "MCP route prompt JSON")
-    if (routeJson.shouldUseRagmir !== true || routeJson.tool !== "ragmir_search") {
-      throw new Error(`MCP route prompt should recommend Ragmir search: ${mcpText(route)}`)
-    }
 
     const search = await client.request("tools/call", {
       name: "ragmir_search",
@@ -1111,90 +795,11 @@ async function smokeMcp(cwd) {
       throw new Error(`MCP should expand an exact returned citation: ${mcpText(expanded)}`)
     }
 
-    const ask = await client.request("tools/call", {
-      name: "ragmir_ask",
-      arguments: { query: "What proves the French tax residency risk?" },
-    })
-    const askJson = parseJson(mcpText(ask), "MCP ask JSON")
-    if (
-      !askJson.answer?.includes("compact cited retrieval") ||
-      !Array.isArray(askJson.sources) ||
-      askJson.sources.length < 1 ||
-      askJson.sources.length > 2 ||
-      askJson.sources.some(
-        (source) =>
-          typeof source.citation !== "string" ||
-          !source.citation.includes(":L") ||
-          typeof source.snippet !== "string" ||
-          "text" in source ||
-          "context" in source,
-      )
-    ) {
-      throw new Error(`MCP ask should return cited retrieval context: ${mcpText(ask)}`)
-    }
-
-    const research = await client.request("tools/call", {
-      name: "ragmir_research",
-      arguments: { query: "French tax residency" },
-    })
-    const researchJson = parseJson(mcpText(research), "MCP research JSON")
-    if (!Array.isArray(researchJson.evidence) || researchJson.evidence.length < 1) {
-      throw new Error(`MCP research should return cited evidence: ${mcpText(research)}`)
-    }
-    if (!("snippet" in researchJson.evidence[0]) || "text" in researchJson.evidence[0]) {
-      throw new Error(
-        `MCP compact research should return snippet-only evidence: ${mcpText(research)}`,
-      )
-    }
-
     const audit = await client.request("tools/call", {
       name: "ragmir_audit",
       arguments: {},
     })
     assertIncludes(mcpText(audit), "missingFromIndex", "MCP audit should return index coverage")
-
-    await writeFile(
-      path.join(cwd, "mcp-golden-queries.json"),
-      `${JSON.stringify(
-        {
-          queries: [
-            {
-              query: "What proves the French tax residency risk?",
-              expectedPaths: [".ragmir/raw/tax.md"],
-            },
-          ],
-        },
-        null,
-        2,
-      )}\n`,
-      "utf8",
-    )
-    const evaluation = await client.request("tools/call", {
-      name: "ragmir_evaluate",
-      arguments: { goldenPath: "mcp-golden-queries.json", failUnder: 1 },
-    })
-    const evaluationJson = parseJson(mcpText(evaluation), "MCP evaluation JSON")
-    if (evaluationJson.recall !== 1 || evaluationJson.passed !== true) {
-      throw new Error(`MCP evaluate should pass the temporary golden set: ${mcpText(evaluation)}`)
-    }
-
-    const usage = await client.request("tools/call", {
-      name: "ragmir_usage_report",
-      arguments: { days: 7 },
-    })
-    const usageJson = parseJson(mcpText(usage), "MCP usage report JSON")
-    if (usageJson.totalEvents < 1) {
-      throw new Error(`MCP usage report should summarize local usage: ${mcpText(usage)}`)
-    }
-    if (usageJson.mcpOutput?.responses < 1 || usageJson.mcpOutput.returnedBytes < 1) {
-      throw new Error(`MCP usage report should include output metrics: ${mcpText(usage)}`)
-    }
-
-    const security = await client.request("tools/call", {
-      name: "ragmir_security_audit",
-      arguments: {},
-    })
-    assertIncludes(mcpText(security), "warnings", "MCP security audit should return posture data")
   } finally {
     await client.close()
   }

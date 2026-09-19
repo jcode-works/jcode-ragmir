@@ -232,23 +232,36 @@ async function parseXlsx(
   validateOfficeArchive(buffer, signal)
   const workbook = await readExcelFile(buffer, { trim: false })
   throwIfAborted(signal)
-  const parts: Array<{ text: string; contextPath: string; location: SourceLocation }> = []
+  const parts: Array<{
+    text: string
+    contextPath: string
+    location: SourceLocation
+    headerRegionIndex?: number
+  }> = []
 
   for (const [sheetIndex, sheet] of workbook.entries()) {
     throwIfAborted(signal)
     let firstRow = true
+    let headerRegionIndex: number | undefined
     for (const [rowIndex, rawRow] of sheet.data.entries()) {
       throwIfAborted(signal)
       const row = spreadsheetRowToText(rawRow)
       const firstColumn = row.findIndex(Boolean)
       if (firstColumn < 0) {
+        headerRegionIndex = undefined
         continue
       }
       const lastColumn = lastNonEmptyIndex(row)
       const rowNumber = rowIndex + 1
+      const populatedCells = rawRow.filter((value) => value !== null && value !== "")
+      const isHeader =
+        headerRegionIndex === undefined &&
+        populatedCells.length >= 2 &&
+        populatedCells.every((value) => typeof value === "string")
       parts.push({
         text: `${firstRow ? `# ${sheet.sheet}\n` : ""}${row.join("\t")}`,
         contextPath: `Sheet: ${sheet.sheet}`,
+        ...(headerRegionIndex === undefined ? {} : { headerRegionIndex }),
         location: {
           kind: "sheet",
           start: sheetIndex + 1,
@@ -258,6 +271,9 @@ async function parseXlsx(
           cellEnd: `${spreadsheetColumnName(lastColumn + 1)}${rowNumber}`,
         },
       })
+      if (isHeader) {
+        headerRegionIndex = parts.length - 1
+      }
       firstRow = false
     }
   }
@@ -395,7 +411,12 @@ function orderedPresentationSlides(
 }
 
 function joinLocatedParts(
-  parts: Array<{ text: string; contextPath: string; location: SourceLocation }>,
+  parts: Array<{
+    text: string
+    contextPath: string
+    location: SourceLocation
+    headerRegionIndex?: number
+  }>,
   signal: AbortSignal | undefined,
 ): { text: string; regions: ParsedRegion[] } {
   let text = ""
@@ -416,6 +437,9 @@ function joinLocatedParts(
       charEnd: text.length,
       contextPath: part.contextPath,
       location: part.location,
+      ...(part.headerRegionIndex === undefined
+        ? {}
+        : { headerRegionIndex: part.headerRegionIndex }),
     })
   }
   return { text, regions }

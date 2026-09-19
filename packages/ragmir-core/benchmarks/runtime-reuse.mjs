@@ -32,7 +32,6 @@ try {
     "Phoenix approval policy requires signed release evidence before production.\n",
     "utf8",
   )
-  await disableAccessLog(root)
   const goldenQueries = Array.from({ length: EVALUATION_CASES }, (_value, index) => ({
     id: `runtime-${index}`,
     query: "phoenix approval signed release evidence",
@@ -271,12 +270,6 @@ async function measureConfigInvalidation(projectRoot) {
       connectionOpen > tableClose,
     events: kinds,
   }
-}
-
-async function disableAccessLog(projectRoot) {
-  const configPath = path.join(projectRoot, ".ragmir", "config.json")
-  const config = JSON.parse(await readFile(configPath, "utf8"))
-  await writeFile(configPath, `${JSON.stringify({ ...config, accessLog: false }, null, 2)}\n`)
 }
 
 async function fileDescriptorCount() {

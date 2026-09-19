@@ -1,8 +1,8 @@
 # Ragmir Landing
 
 The static, telemetry-free website for [Ragmir](https://ragmir.com). It presents the open-source
-Core library, CLI, local MCP server, optional Chat and TTS packages, privacy boundaries, and
-English/French public documentation. It hosts no corpus, account, upload flow, or Ragmir API.
+retrieval layer for agentic RAG: a TypeScript library, CLI, local MCP server, optional semantic
+embeddings, local OCR, and English/French public documentation. It hosts no corpus, account, upload flow, or Ragmir API.
 
 ## Structure
 
@@ -62,14 +62,15 @@ and omits the production sitemap.
 
 ## Public-copy contract
 
-- Lead with model-agnostic Core: cited local retrieval through a library, CLI, and MCP.
-- Place the two operating modes before the feature map: fully local, or bounded cited passages sent
-  to the user's preferred coding agents.
-- Present preferred cloud agents, local consumers, and model-free automation as clear choices.
-- Keep Chat, TTS, semantic embeddings, model downloads, Edge speech, OCR, and IndexNow explicit.
-- Explain team use positively and briefly: merge reviewed changes upstream, run `rgr team sync`,
-  receive a ready private local index. Keep snapshots and low-level safeguards in focused advanced
-  guides.
+- Lead with agentic RAG for developers: cited project evidence through a TypeScript library, CLI,
+  and MCP. The consuming agent chooses searches, expands citations, refines queries, and generates.
+- Explain how existing chat and agent applications use that evidence with local models,
+  self-hosted models (including private cloud), or cloud providers.
+- Distinguish local indexing from end-to-end confidentiality. Retrieved text is not masked; the
+  consuming application's model, tools, network, access controls, and logs determine where it goes.
+- Keep model-free automation available through the same retrieval API.
+- Keep semantic embeddings, model downloads, local OCR, and IndexNow explicit.
+- Share sources through existing Git or file-sharing tools, then run `rgr ingest` locally.
 - Keep localized FAQ copy visible without publishing `FAQPage` structured data.
 - Keep English and French messages aligned, and ground every claim in current code and tests.
 - Never claim hosted storage, universal formats, blanket compliance, or guaranteed confidentiality.

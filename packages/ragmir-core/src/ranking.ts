@@ -1,4 +1,10 @@
 import { createHash } from "node:crypto"
+import {
+  addLexicalDocument,
+  type LexicalCorpusStatistics,
+  lexicalDocument,
+  lexicalDocumentScore,
+} from "./lexical-scoring.js"
 import { tokenize } from "./text.js"
 import type { EmbeddingProvider, RetrievalProfile } from "./types.js"
 
@@ -21,7 +27,7 @@ export interface RankedRow<Row extends RankingRow = RankingRow> {
 }
 
 export interface RankingPolicy {
-  version: 4
+  version: 5
   embeddingProvider: EmbeddingProvider
   retrievalProfile: RetrievalProfile
   maxChunksPerDocument: number
@@ -40,12 +46,21 @@ export interface QueryEvidence {
 const RRF_K = 60
 const RRF_VECTOR_WEIGHT = 1
 const RRF_LEXICAL_WEIGHT = 1
-const BM25_K1 = 1.2
-const BM25_B = 0.75
 const MIN_FUZZY_TOKEN_LENGTH = 7
 const MIN_TRIGRAM_DICE_SIMILARITY = 0.5
 const TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE = 1.1
-const IDENTIFIER_PATTERN = /[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)+/gu
+const IDENTIFIER_PATTERN = /[\p{L}\p{N}]+(?:[-_./][\p{L}\p{N}]+)+/gu
+const LOW_INFORMATION_WORDS = new Set(
+  (
+    "a about an and are as at be been by can could describe did do does for from had has have how " +
+    "i if in into is it its me my of on or our should that the their them there these they this to " +
+    "us was we were what when where which who why will with would you your " +
+    "au aux avec ce ces cet cette dans de des du elle elles en est et eux faire il ils je la le " +
+    "les leur leurs lui ma mais me mes mon ne nos notre nous on ou par pas peux peut pour quel " +
+    "quelle quelles quels qui quoi sa se ses son sont sur ta te tes toi ton tu un une vos votre vous " +
+    "comment dois doit"
+  ).split(" "),
+)
 
 export function rankingPolicyFor(
   embeddingProvider: EmbeddingProvider,
@@ -53,7 +68,7 @@ export function rankingPolicyFor(
   maxChunksPerDocument: number,
 ): RankingPolicy {
   return {
-    version: 4,
+    version: 5,
     embeddingProvider,
     retrievalProfile,
     maxChunksPerDocument,
@@ -70,14 +85,17 @@ export function rankingPolicyFingerprint(policy: RankingPolicy): string {
 }
 
 export function queryEvidence(query: string): QueryEvidence {
-  const tokens = tokenize(query)
+  const tokens = tokenize(query).filter((token) => !LOW_INFORMATION_WORDS.has(token))
   const compoundAnchors = [...query.matchAll(IDENTIFIER_PATTERN)]
     .map((match) => match[0])
-    .filter((anchor) => /\d|_/u.test(anchor))
+    .filter((anchor) => /\d|_|\.|\//u.test(anchor))
     .map(normalizeAnchor)
   const tokenAnchors = tokens.filter(
     (token) =>
-      token.length >= 4 && /\d/u.test(token) && (/\p{L}/u.test(token) || /^\d{4,}$/u.test(token)),
+      token.length >= 4 &&
+      /\d/u.test(token) &&
+      (/\p{L}/u.test(token) || /^\d{4,}$/u.test(token)) &&
+      !compoundAnchors.some((anchor) => anchor.includes(token)),
   )
   return {
     query,
@@ -93,7 +111,19 @@ export function rankHybridRows<Row extends RankingRow>(
   policy: RankingPolicy,
 ): Array<RankedRow<Row>> {
   const queryTokens = tokenize(query)
+  const evidence = queryEvidence(query)
   const rows = mergeRows(vectorRows, textRows)
+  const exactAnchorMatches = new Map<string, number>()
+  if (evidence.anchors.length > 0) {
+    const requestedAnchors = new Set(evidence.anchors)
+    for (const row of rows) {
+      const matches = new Set<string>()
+      for (const match of normalizeAnchor(row.searchText).matchAll(IDENTIFIER_PATTERN)) {
+        if (requestedAnchors.has(match[0])) matches.add(match[0])
+      }
+      exactAnchorMatches.set(rowKey(row), matches.size)
+    }
+  }
   const vectorRanked = [...vectorRows]
     .filter((row) => Number.isFinite(rowDistance(row)))
     .sort(compareVectorRows)
@@ -135,7 +165,11 @@ export function rankHybridRows<Row extends RankingRow>(
       }
     })
     .filter((ranked) => ranked.combinedScore > 0)
-    .sort(compareRankedRows)
+    .sort(
+      (left, right) =>
+        (exactAnchorMatches.get(rowKey(right.row)) ?? 0) -
+          (exactAnchorMatches.get(rowKey(left.row)) ?? 0) || compareRankedRows(left, right),
+    )
 }
 
 export function candidatePassesAbstention(
@@ -146,7 +180,7 @@ export function candidatePassesAbstention(
   const evidence =
     typeof evidenceOrQuery === "string" ? queryEvidence(evidenceOrQuery) : evidenceOrQuery
   const lexicalSupport = hasLexicalEvidence(evidence, row.searchText)
-  if (policy.embeddingProvider === "local-hash") {
+  if (policy.embeddingProvider === "local-hash" || evidence.anchors.length > 0) {
     return lexicalSupport
   }
   return (
@@ -180,15 +214,12 @@ export function tokensAreLexicallyRelated(queryToken: string, textToken: string)
 
 function hasLexicalEvidence(evidence: QueryEvidence, text: string): boolean {
   if (evidence.anchors.length > 0) {
-    const textAnchors = [...text.matchAll(IDENTIFIER_PATTERN)].map((match) =>
-      normalizeAnchor(match[0]),
-    )
-    const textTokens = tokenize(text)
-    return evidence.anchors.some(
-      (anchor) =>
-        textAnchors.some((textAnchor) => identifiersAreRelated(anchor, textAnchor)) ||
-        textTokens.includes(anchor),
-    )
+    for (const match of normalizeAnchor(text).matchAll(IDENTIFIER_PATTERN)) {
+      if (evidence.anchors.some((anchor) => identifiersAreRelated(anchor, match[0]))) return true
+    }
+    const standaloneAnchors = evidence.anchors.filter((anchor) => !/[-_./]/u.test(anchor))
+    const textTokens = standaloneAnchors.length > 0 ? tokenize(text) : []
+    return standaloneAnchors.some((anchor) => textTokens.includes(anchor))
   }
   const textTokens = tokenize(text)
   return evidence.tokens.some((queryToken) =>
@@ -200,8 +231,8 @@ function identifiersAreRelated(queryAnchor: string, textAnchor: string): boolean
   if (queryAnchor === textAnchor) {
     return true
   }
-  const queryParts = queryAnchor.split(/[-_]/u)
-  const textParts = textAnchor.split(/[-_]/u)
+  const queryParts = queryAnchor.split(/[-_./]/u)
+  const textParts = textAnchor.split(/[-_./]/u)
   if (queryParts.length !== textParts.length) {
     return false
   }
@@ -281,40 +312,17 @@ function bm25Scores<Row extends RankingRow>(
     return scores
   }
   const uniqueQueryTokens = [...new Set(queryTokens)]
-  const documents = rows.map((row) => {
-    const tokens = tokenize(row.searchText)
-    const frequencies = new Map<string, number>()
-    for (const token of tokens) {
-      frequencies.set(token, (frequencies.get(token) ?? 0) + 1)
-    }
-    return { row, tokens, frequencies }
-  })
-  const averageLength =
-    documents.reduce((sum, document) => sum + document.tokens.length, 0) / documents.length || 1
-  const documentFrequencies = new Map<string, number>()
-  for (const token of uniqueQueryTokens) {
-    documentFrequencies.set(
-      token,
-      documents.filter((document) => document.frequencies.has(token)).length,
-    )
+  const documents = rows.map((row) => ({ row, document: lexicalDocument(row.searchText) }))
+  const statistics: LexicalCorpusStatistics = {
+    documentCount: 0,
+    totalLength: 0,
+    documentFrequencies: new Map(),
   }
-  for (const document of documents) {
-    let score = 0
-    for (const token of uniqueQueryTokens) {
-      const frequency = document.frequencies.get(token) ?? 0
-      if (frequency === 0) {
-        continue
-      }
-      const documentFrequency = documentFrequencies.get(token) ?? 0
-      const inverseDocumentFrequency = Math.log(
-        1 + (documents.length - documentFrequency + 0.5) / (documentFrequency + 0.5),
-      )
-      const denominator =
-        frequency + BM25_K1 * (1 - BM25_B + BM25_B * (document.tokens.length / averageLength))
-      score += inverseDocumentFrequency * ((frequency * (BM25_K1 + 1)) / denominator)
-    }
+  for (const { document } of documents) addLexicalDocument(statistics, document, uniqueQueryTokens)
+  for (const { row, document } of documents) {
+    const score = lexicalDocumentScore(document, statistics, uniqueQueryTokens)
     if (score > 0) {
-      scores.set(rowKey(document.row), score)
+      scores.set(rowKey(row), score)
     }
   }
   return scores

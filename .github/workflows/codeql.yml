@@ -21,8 +21,6 @@ jobs:
         include:
           - language: javascript-typescript
             label: TypeScript
-          - language: python
-            label: Python
     steps:
       - name: Checkout
         uses: actions/checkout@v6

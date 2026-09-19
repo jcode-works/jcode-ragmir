@@ -40,7 +40,6 @@ export interface IngestionFileState {
   lastGoodBytes: number | null
   lastGoodMtimeMs: number | null
   staleLastKnownGood: boolean
-  redactions: number
   error: string | null
   reused: boolean
   updatedAt: string
@@ -56,7 +55,6 @@ type IngestionFileUpdate = Partial<
     | "lastGoodBytes"
     | "lastGoodMtimeMs"
     | "staleLastKnownGood"
-    | "redactions"
     | "error"
     | "reused"
   >
@@ -144,7 +142,6 @@ export function createIngestionRunState(
         lastGoodBytes: previous?.bytes ?? (reused ? file.bytes : null),
         lastGoodMtimeMs: previous?.mtimeMs ?? (reused ? file.mtimeMs : null),
         staleLastKnownGood: lastGoodChecksum !== null && lastGoodChecksum !== file.checksum,
-        redactions: 0,
         error: null,
         reused,
         updatedAt: now,
@@ -758,7 +755,6 @@ function isIngestionFileState(
       (value.lastGoodBytes === null || isNonNegativeSafeInteger(value.lastGoodBytes)) &&
       (value.lastGoodMtimeMs === null || isNonNegativeFiniteNumber(value.lastGoodMtimeMs)) &&
       typeof value.staleLastKnownGood === "boolean" &&
-      isNonNegativeSafeInteger(value.redactions) &&
       (value.error === null || typeof value.error === "string") &&
       typeof value.reused === "boolean" &&
       isIsoTimestamp(value.updatedAt) &&

@@ -802,6 +802,8 @@ interface StoredVectorRow
     | "locationLabel"
     | "cellStart"
     | "cellEnd"
+    | "headerChunkIndex"
+    | "headerText"
   > {
   vector: unknown
   lineStart?: unknown
@@ -814,6 +816,8 @@ interface StoredVectorRow
   locationLabel?: unknown
   cellStart?: unknown
   cellEnd?: unknown
+  headerChunkIndex?: unknown
+  headerText?: unknown
 }
 
 function storedRows(rows: VectorRow[]): Array<Record<string, unknown>> {
@@ -829,6 +833,8 @@ function storedRows(rows: VectorRow[]): Array<Record<string, unknown>> {
     locationLabel: row.locationLabel ?? "",
     cellStart: row.cellStart ?? "",
     cellEnd: row.cellEnd ?? "",
+    headerChunkIndex: row.headerChunkIndex ?? -1,
+    headerText: row.headerText ?? "",
   }))
 }
 
@@ -844,6 +850,8 @@ function vectorRowFromStored(row: StoredVectorRow): VectorRow {
     locationLabel,
     cellStart,
     cellEnd,
+    headerChunkIndex,
+    headerText,
     ...rest
   } = row
   return {
@@ -859,6 +867,12 @@ function vectorRowFromStored(row: StoredVectorRow): VectorRow {
     ...(nonEmptyStoredString(locationLabel) ? { locationLabel } : {}),
     ...(nonEmptyStoredString(cellStart) ? { cellStart } : {}),
     ...(nonEmptyStoredString(cellEnd) ? { cellEnd } : {}),
+    ...(typeof headerChunkIndex === "number" &&
+    Number.isInteger(headerChunkIndex) &&
+    headerChunkIndex >= 0
+      ? { headerChunkIndex }
+      : {}),
+    ...(nonEmptyStoredString(headerText) ? { headerText } : {}),
   }
 }
 

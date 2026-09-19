@@ -26,7 +26,8 @@ export function generateNotes(_pluginConfig, context) {
     "## Verification",
     "",
     ...release.verification,
-    "- Signed release artifacts include checksums, an SBOM, package reports, and the release manifest",
+    "- Release assets include the Core tarball, checksums, an SBOM, and the release manifest",
+    "- The protected npm workflow requires publication with provenance",
     "",
     "## Install or upgrade",
     "",
@@ -34,10 +35,10 @@ export function generateNotes(_pluginConfig, context) {
     `npm install --save-dev @jcode.labs/ragmir@${version}`,
     "```",
     "",
-    "Optional local packages use the same version:",
+    "Requires Node.js 22.12 or later. Semantic embeddings use the separately installed optional Transformers package.",
     "",
-    `- [\`@jcode.labs/ragmir-chat@${version}\`](https://www.npmjs.com/package/@jcode.labs/ragmir-chat)`,
-    `- [\`@jcode.labs/ragmir-tts@${version}\`](https://www.npmjs.com/package/@jcode.labs/ragmir-tts)`,
+    `[Core on npm](https://www.npmjs.com/package/@jcode.labs/ragmir/v/${version}) · [Migration guide](${REPOSITORY_URL}/blob/${nextTag}/docs/migration.md)`,
+    "",
   ]
 
   if (previousTag) {

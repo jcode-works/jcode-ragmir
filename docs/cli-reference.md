@@ -6,10 +6,11 @@ are the source of truth for option details.
 ## First use
 
 Use the [agent-guided quick start](./quick-start.md) when the setup should adapt to the repository,
-package manager, existing installation, team workflow, and optional Chat or TTS choices.
+package manager, existing installation, selected sources, and optional semantic embeddings or OCR.
 
 ```bash
-rgr setup
+rgr setup --no-ingest
+rgr sources add "docs/**/*.md" "src/**/*.ts"
 rgr ingest
 rgr search "release decision"
 ```
@@ -19,17 +20,12 @@ rgr search "release decision"
 | `setup [--semantic]` | Initialize `.ragmir/`, agent helpers, and optionally preload embeddings. |
 | `init` | Create basic local configuration only. |
 | `doctor [--fix]` | Check setup, index freshness, and safe repairs. |
-| `preview` | Parse, redact, and chunk selected sources without writing the index. |
+| `preview` | Parse and chunk selected sources without writing the index. |
 | `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY] [--metrics] [--json]` | Index configured sources through bounded windows with per-file durable progress; optionally return privacy-safe phase and throughput metrics. |
 | `search <query>` | Return ranked cited passages. |
-| `ask <query>` | Return cited context without model synthesis. |
-| `research <query>` | Run a bounded, rank-aware multi-query retrieval pass. |
 | `audit [--unsupported]` | Compare sources with the index and list skipped files. |
 | `bases` | List root and nested monorepo bases and mark the active one. |
 | `status` | Show configuration, indexed chunk count, and the latest ingestion progress. |
-| `team sync` | Safely fast-forward the current Git upstream and refresh the local index. |
-| `team snapshot`, `team compare` | Run advanced privacy-bounded drift diagnostics. |
-| `portable export`, `portable verify` | Export or verify a frozen, relocatable knowledge-base folder. |
 | `upgrade [--check]` | Inspect compatibility or safely rebuild and refresh managed helpers. |
 | `security-audit [--strict]` | Check local privacy and Git-ignore posture. |
 
@@ -46,16 +42,16 @@ rgr search "migration" --context-path "Guide > Migration" --explain
 rgr search "migration" --exact-vector-search
 ```
 
-`sources add` accepts paths, globs, and `!` exclusions. Search, ask, and research accept `--top-k`,
-`--include-path`, `--exclude-path`, and repeatable `--context-path`. Search and ask accept
+`sources add` accepts paths, globs, and `!` exclusions. Search accepts `--top-k`,
+`--include-path`, `--exclude-path`, and repeatable `--context-path`. Search accepts
 `--max-chunks-per-document` and `--explain`. The document cap defaults to one, applies after scoring,
 and over-retrieves internally before final truncation. Ranked backfill keeps the requested result
 count when the corpus has too few distinct documents. The optional score object reports RRF
 contributions, retriever ranks, raw backend scores, document-cap and backfill state, FTS or
 complete-fallback activation and reason, fallback scan batches, candidate and index coverage, queue
-wait, and matched query terms without changing ranking. Use `--compact` on search or research when
-agent context is limited. This remains explicit for CLI automation; MCP search, ask, and research
-are compact by default. Search and ask accept `--exact-vector-search` to bypass an active ANN index
+wait, and matched query terms without changing ranking. Use `--compact` on search when
+agent context is limited. This remains explicit for CLI automation; MCP search
+is compact by default. Search accepts `--exact-vector-search` to bypass an active ANN index
 for diagnostics against exhaustive vector search. `--top-k` and `--max-chunks-per-document` are
 limited to 100, and `--context-radius` is clamped to three chunks.
 
@@ -64,126 +60,20 @@ to the exact provider, profile, document cap, fusion, and abstention settings. E
 have a stable source-and-chunk tie-break. Search returns no result when all candidates fail the
 provider-aware evidence threshold; it does not force a low-confidence passage into the response.
 
-`preview` uses the active redaction and chunking configuration but never writes storage. `audit`
-reports min, mean, p50, p95, and max chunk sizes plus structural-context coverage.
+Queries retain all their constraints up to 20,000 UTF-16 code units; longer input is rejected.
+`--explain` includes the actual retrieval query, normalization flag, and original length. Exact
+identifiers are prioritized before RRF scores. If FTS is unavailable, two complete passes compute
+BM25 while keeping only a bounded batch and the best candidates in memory; fallback latency still
+grows with the corpus. The batch counter includes both passes.
 
-### Bounded research
+Full JSON results include evidence identity and separately cited XLSX header context. Compact
+results keep the identity but require API/MCP expansion for complete context. Retrieved passages
+can be incomplete for the question, especially semantic matches: the consumer must verify that the
+required facts, exceptions, and current decisions are actually present.
 
-```bash
-rgr research "release obligations" --timeout-ms 10000 --code-top-k 10
-rgr research "release obligations" --code-scan-max-files 500 --code-scan-max-bytes 8388608
-rgr research "release obligations" --full-audit
-```
-
-Research uses language-aware expansions and deterministic weighted cross-query RRF. The direct
-query keeps enough weight to preserve its candidate set; expansions add support and fill remaining
-slots. The default path reads a fresh manifest health snapshot instead of walking every source.
-`--full-audit` explicitly requests that inventory and its duplicate, archive, and mirror
-diagnostics. `--top-k` and `--code-top-k` bound output items; `--timeout-ms`,
-`--code-scan-max-files`, `--code-scan-max-bytes`, and `--code-scan-concurrency` bound work. The
-report records both configured and consumed budgets.
-
-## Portable knowledge-base folders
-
-```bash
-rgr portable export
-rgr portable export --output ../operations-knowledge --name "Operations knowledge"
-rgr portable export --output ../operations-knowledge --replace
-rgr portable verify ../operations-knowledge --json
-```
-
-`portable export` requires a current, complete index with no unresolved security warning. Its
-default destination is a timestamped directory under `.ragmir/exports/`; `--output` chooses another
-new directory. Existing destinations are refused unless `--replace` is explicit. Replacement is
-limited to a directory that identifies itself as a Ragmir portable bundle. Export takes the local
-writer lock, copies only the active LanceDB table and its required manifest state, includes the
-configured local embedding model when the index uses Transformers, then activates the destination
-only after its SHA-256 inventory and table row count pass verification.
-
-With `--replace`, Ragmir renames the prior destination to a timestamped sibling, activates the new
-verified folder at the stable path, and attempts to restore the prior folder if activation fails.
-It never deletes the previous bundle. The JSON result and human output expose
-`previousOutputDir`; restart long-running consumers before retiring that directory.
-
-The folder contains no raw source files, access logs, external extractor commands, or remote-model
-permission. It includes indexed passages, so treat the entire directory as sensitive. Configured
-PDF OCR, image OCR, or legacy Word commands must be disabled before export because their executable
-paths and authority are not portable.
-
-After moving the folder, run its restricted launcher:
-
-```bash
-cd /path/to/operations-knowledge
-node bin/rgr.cjs portable verify . --json
-node bin/rgr.cjs search "release approval" --compact --json
-node bin/configure.cjs generic
-```
-
-Node.js 22 or later and the platform recorded in `manifest.json` are required. The runtime and its
-native retrieval dependencies are embedded, so the folder needs no package-manager install or
-registry access after transfer. The launcher allows retrieval, status, verification, and MCP
-serving, while blocking ingestion, setup, repair, upgrade, storage, source, and deletion commands.
-See the
-[portable knowledge-base guide](./portable-knowledge-bases.md) for tool-specific configuration and
-security boundaries.
-
-## Team synchronization
-
-```bash
-rgr team sync
-```
-
-Use this after reviewed source changes merge into the current branch upstream. That upstream is the
-declared authority, and Git remains the place where the team reviews differences. `team sync`
-fetches only that branch, fast-forwards only a clean non-divergent history with no local-only
-commits, then ingests changed sources incrementally. Git authentication is non-interactive and each
-Git command is bounded.
-
-| Result | Meaning |
-| --- | --- |
-| `current` | The checked-out sources and private local index already match upstream. |
-| `updated` | A safe fast-forward and incremental ingest completed. |
-| Needs action | Git history and the active index were preserved; follow the one recommended action. |
-
-| Option | Behavior |
-| --- | --- |
-| `--no-pull` | Fetch and compare, but keep branch updates manual. |
-| `--no-fetch` | Avoid network access and use only cached Git state plus local sources. |
-| `--check` | Fetch and report without changing the worktree or index. |
-| `--git-timeout-ms N` | Bound each Git command, from 1 ms to 300,000 ms. |
-| `--strict` | Exit with code 1 unless upstream freshness and local index readiness are proven. |
-| `--json` | Return the complete typed report. |
-
-A dirty, ahead, diverged, detached, or no-upstream state never rewrites history. Fetch and ingestion
-failures preserve the previous valid local index when one exists. Resolve the Git state through the
-normal pull-request or merge-request workflow, then rerun the same command.
-
-<details>
-<summary>Advanced: diagnose exact drift or a non-Git authority</summary>
-
-Snapshots are not part of the normal Git workflow. Use them for a non-Git authority or a specific
-per-file comparison:
-
-```bash
-rgr team snapshot --label local --output .ragmir/team/local.json
-rgr team compare .ragmir/team/local.json --local-label peer
-```
-
-`team snapshot` exports a schema-validated JSON file with relative paths, content checksums,
-readiness, version, source contract, and retrieval/index settings. Source text, absolute project
-paths, vectors, and logs are excluded. Keep snapshots under ignored `.ragmir/team/` state unless an
-authorized teammate explicitly needs a copy.
-
-`team compare` previews up to 20 local-only, peer-only, and changed files and prints every
-configuration difference plus ordered actions. `--json` returns the complete diff; `--strict` exits
-with code 1 unless both operational indexes are synchronized. `securityAdvisories`,
-`localSecurityAdvisories`, and `peerSecurityAdvisories` keep privacy follow-ups visible without
-turning matching operational indexes into `not-ready`. Review them with `rgr security-audit`; they
-do not require deleting or rebuilding the index. Snapshots written by Ragmir v2.19.0 through
-v2.19.2 remain compatible. These advanced commands never change source files or decide which side
-is authoritative.
-
-</details>
+`preview` uses the active extraction and chunking configuration without changing the search index.
+It can populate the local OCR cache and returns extracted chunk text. `audit` reports min, mean,
+p50, p95, and max chunk sizes plus structural-context coverage.
 
 ## Safe upgrades
 
@@ -192,19 +82,20 @@ rgr upgrade --check
 rgr upgrade
 ```
 
-`upgrade --check` reports `current`, `index-required`, `rebuild-required`, or `repair-required`,
+`upgrade --check` reports `current`, `index-required`, `rebuild-required`, `repair-required`, or `config-migration-required`,
 including the version that wrote the active index. Run it after updating the package and before the
 first retrieval with the new runtime. Incompatible retrieval is refused with a direct `rgr upgrade`
 instruction instead of reading an untrusted layout. `ready` describes upgrade and retrieval
-continuity. `privacyCompliant` and repeated `advisory` lines report separate security follow-ups;
+continuity. Repeated `advisory` lines report separate security follow-ups;
 they do not turn a compatible operational index into `repair-required`.
 
 `upgrade` refreshes managed agent helpers and performs any required ingest or rebuild. Schema,
-embedding, chunking, redaction, and index-policy changes use the staged-generation flow: Ragmir
+embedding, chunking, extraction, and index-policy changes use the staged-generation flow: Ragmir
 never deletes the active index first, and only a replacement that passes row-count, checksum, and
 duplicate-ID validation activates. Failed or interrupted rebuilds never activate a partial table
 and can resume. Older configs that omit newer optional fields receive current safe defaults.
-`rgr doctor --fix` uses the same repair path. A long-running host can keep its already loaded
+`rgr doctor --fix` repairs setup and index state for current configurations. Use `rgr upgrade`
+to migrate retired configuration fields. A long-running host can keep its already loaded
 runtime on the previous generation, then restart or cut over after the upgrade reports
 `status=current` and `ready=true`. Address any advisory with `rgr security-audit` or
 `rgr security-audit --strict`; deleting and rebuilding a healthy index is not required.
@@ -245,7 +136,7 @@ IVF-PQ, HNSW-SQ, and `relativePath` BTree lookup with 10 warm-ups, 100 samples, 
 repetitions. A production ANN candidate must improve p95 with less than 0.01 absolute Recall@10
 loss against exhaustive search.
 
-`--metrics` adds queue and write-lock wait, discovery, hashing, parsing, redaction, chunking,
+`--metrics` adds queue and write-lock wait, discovery, hashing, parsing, chunking,
 embedding, Lance payload write, maintenance, throughput, cache-state, RSS, OCR subprocess, fallback,
 error, timeout, and bound-activation counters to the result. The local `ragmir:ingestion`
 diagnostics channel emits the same bounded summary when subscribed. It never includes a project
@@ -254,8 +145,7 @@ sampling stay disabled.
 
 Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
 text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and
-`:spine2` for EPUB. Character offsets refer to redacted indexed text. Transformed formats and files
-whose redaction changes line mapping omit line coordinates.
+`:spine2` for EPUB. Character offsets refer to parsed indexed text. Transformed formats omit invented source lines.
 
 If a changed file fails during parsing, embedding, or its LanceDB write, incremental ingestion keeps
 the previous rows searchable and records the current error, last-good checksum, and stale state.
@@ -340,51 +230,12 @@ Commands resolve the nearest configured ancestor. Use the root base for shared o
 knowledge and an app base for app-specific evidence. `--project-root` overrides the working
 directory deterministically. Root and nested bases use separate storage and never share index rows.
 
-## Optional local features
-
-```bash
-rgr models pull --enable
-rgr ocr doctor
-rgr ocr setup --language eng+fra
-rgr chat setup --profile fast
-printf '%s\n' "Non-sensitive model preload text." > /tmp/ragmir-tts-preload.txt
-rgr audio /tmp/ragmir-tts-preload.txt --lang en --allow-remote-models --out .ragmir/audio/preload.wav
-rgr audio ./brief.md --lang en --offline --out .ragmir/audio/brief.wav
-```
-
-Keep the same Chat profile across `setup`, `doctor`, and answers: `lite` is the ~0.49 GB Qwen option,
-`fast` is the default ~3.35 GB Gemma option, and `quality` is the explicit ~5.15 GB Gemma option.
-For offline TTS, keep the same `--lang` across preload and render: `en`, `fr`, and `es` select their
-own local model automatically. Edge additionally supports `ja`, `th`, and `zh` when explicitly
-selected.
-
-| Command | Purpose |
-| --- | --- |
-| `models pull [--enable]` | Preload the configured embedding model, report its immutable revision and artifact digest, and optionally persist that identity while enabling semantic retrieval. |
-| `ocr doctor` / `ocr setup` | Detect and configure local batched, resumable PDF OCR. |
-| `chat setup|doctor|<question>` | Prepare, inspect, or use the optional local chat add-on. |
-| `audio <file>` | Render text with the optional TTS add-on. |
-
-OCR runs only for PDF pages without embedded text. The generated command processes bounded page
-groups and stores private content-addressed page results, so interruption resumes only missing pages.
-Ingest and preview JSON expose OCR pages, cache hits, batches, subprocesses, and phase time without
-document content. The strict privacy profile disables external extractors. The first audio command above explicitly downloads the model from non-sensitive text;
-the second uses the prepared cache and does not download anything. See the
-[offline TTS guide](./offline-tts-preload.md) for model paths and verification.
-See [offline Chat](./offline-chat-preload.md) for profile selection and air-gapped preparation.
-
-Bundled embedding profiles resolve to pinned model commits. `models pull --enable` hashes the local
-artifact tree and stores both `embeddingModelRevision` and `embeddingModelDigest`; rebuild the index
-afterward. For a custom model, configure a 40-character commit instead of mutable `main` when two
-installations must produce the same index policy and ranking.
-
 ## Agents, maintenance, and JSON
 
 ```bash
 rgr install-agent --agents codex,claude
 rgr serve-mcp
 rgr evaluate --golden .ragmir/golden.json --fail-under 0.8
-rgr usage-report --days 30
 rgr storage optimize --dry-run --json
 rgr storage generations --json
 rgr storage gc --dry-run --json
@@ -395,8 +246,6 @@ rgr destroy-index --yes
 - `install-skill` refreshes only the canonical kit; `install-agent` changes native scope or link mode.
 - `install-agent --force` replaces a conflicting same-name skill only when explicitly requested.
 - `serve-mcp` starts the local stdio MCP server.
-- `route-prompt` classifies whether a prompt should use Ragmir without storing it. Piped prompt
-  input is limited to 64 KiB before classification.
 - `evaluate` measures retrieval against a local golden-query file of at most 16 MiB and 1,000
   cases. Wrapped files can declare graded `relevanceJudgments`, `answerable: false` hard negatives,
   categories, locales, exact citations, and independent thresholds for Recall@1/3/5/10,
@@ -406,7 +255,23 @@ rgr destroy-index --yes
   every threshold stores a fingerprint in the active manifest. `rgr doctor --deep` reports retrieval
   quality as verified only while that report still matches the golden file, corpus, model revision,
   retrieval profile, and index policy.
-- `usage-report --days` accepts an integer from 1 to 3650; `limits`, `storage optimize`,
+- `limits`, `storage optimize`,
   `storage generations`, `storage gc`, and `destroy-index` expose the other local maintenance
   operations.
 - Add `--json` to machine-readable commands. Do not parse human-readable output in automation.
+
+## Semantic retrieval and local OCR
+
+```bash
+pnpm add -D @huggingface/transformers
+rgr models pull --enable
+rgr ingest --rebuild
+rgr ocr doctor
+rgr ocr setup --language eng+fra
+rgr ingest
+```
+
+Semantic setup explicitly downloads model weights; ordinary retrieval keeps remote loading disabled.
+OCR runs only on PDF pages without extracted text, in bounded batches with a local cache.
+See [configuration](./configuration.md) for local extractor contracts and [migration](./migration.md)
+for removed commands and explicit old-config migration.

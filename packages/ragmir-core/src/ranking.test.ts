@@ -14,7 +14,7 @@ describe("hybrid ranking", () => {
     const alpha = row("alpha.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const beta = row("beta.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const policy = rankingPolicyFor("local-hash", "balanced", 1)
-    expect(policy.version).toBe(4)
+    expect(policy.version).toBe(5)
 
     const forward = rankHybridRows("policy evidence", [beta, alpha], [alpha, beta], policy)
     const reversed = rankHybridRows("policy evidence", [alpha, beta], [beta, alpha], policy)
@@ -54,6 +54,48 @@ describe("hybrid ranking", () => {
     expect(candidatePassesAbstention("archive duration", semantic, policy)).toBe(true)
     expect(candidatePassesAbstention("archive duration", negative, policy)).toBe(false)
     expect(candidatePassesAbstention("quantum-banana", lexical, policy)).toBe(true)
+  })
+
+  it("should require identifier evidence even when a semantic candidate is close", () => {
+    const policy = rankingPolicyFor("transformers", "balanced", 2)
+    const nearby = row("old.md", "AUTH_REDIRECT_ORIGIN_X16 requires approval.", {
+      distance: 0.1,
+    })
+    const exact = row("current.md", "AUTH_REDIRECT_ORIGIN_X17 requires the tenant owner.", {
+      distance: 1.4,
+    })
+    expect(candidatePassesAbstention("AUTH_REDIRECT_ORIGIN_X17", nearby, policy)).toBe(false)
+    expect(candidatePassesAbstention("AUTH_REDIRECT_ORIGIN_X17", exact, policy)).toBe(true)
+  })
+
+  it("should rank a dotted API identifier before a general semantic match", () => {
+    const policy = rankingPolicyFor("transformers", "balanced", 2)
+    const exact = row("api.md", "payments.capture.status is a terminal state.", { score: 5 })
+    const other = row("overview.md", "Payment processing state machine.", {
+      distance: 0.1,
+      score: 10,
+    })
+    const ranked = rankHybridRows("payments.capture.status", [other], [other, exact], policy)
+    expect(ranked[0]?.row.relativePath).toBe("api.md")
+    expect(candidatePassesAbstention("payments.capture.status", other, policy)).toBe(false)
+  })
+
+  it("should reject common words as the only lexical evidence in English and French", () => {
+    const policy = rankingPolicyFor("local-hash", "balanced", 1)
+    const document = row(
+      "permissions.md",
+      "The owner can approve a refund. Le responsable valide.",
+      {
+        distance: 0.1,
+      },
+    )
+    expect(candidatePassesAbstention("What is the color of penguins?", document, policy)).toBe(
+      false,
+    )
+    expect(
+      candidatePassesAbstention("Quelle est la couleur des manchots ?", document, policy),
+    ).toBe(false)
+    expect(candidatePassesAbstention("Who can approve a refund?", document, policy)).toBe(true)
   })
 })
 

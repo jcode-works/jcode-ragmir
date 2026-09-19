@@ -1,6 +1,5 @@
 import type { PathLike } from "node:fs"
 import type { Connection } from "@lancedb/lancedb"
-import { flushAccessLog } from "./access-log.js"
 import { loadConfig } from "./config.js"
 import {
   getKnowledgeBaseContextWithConfig,
@@ -9,8 +8,7 @@ import {
 import { retainEmbeddingModel } from "./embeddings.js"
 import { normalizeRagmirError, RagmirError } from "./errors.js"
 import { ingestWithConfig } from "./ingest.js"
-import { askWithConfig, expandCitationWithConfig, searchWithConfig } from "./query.js"
-import { researchWithConfig } from "./research.js"
+import { expandCitationWithConfig, searchWithConfig } from "./query.js"
 import type { IndexReadSnapshot } from "./store.js"
 import {
   closeIndexReadSnapshot,
@@ -20,7 +18,6 @@ import {
   loadIndexReadSnapshot,
 } from "./store.js"
 import type {
-  AskResult,
   Config,
   ExpandCitationOptions,
   ExpandedCitation,
@@ -30,8 +27,6 @@ import type {
   KnowledgeBaseSourceCatalog,
   KnowledgeBaseSourceCatalogOptions,
   OperationOptions,
-  ResearchOptions,
-  ResearchReport,
   SearchOptions,
   SearchResult,
 } from "./types.js"
@@ -119,37 +114,6 @@ export class RagmirClient {
     })
   }
 
-  async ask(query: string, options: Omit<SearchOptions, "cwd"> = {}): Promise<AskResult> {
-    return this.run(async () => {
-      const lease = await this.indexSnapshotForRead()
-      try {
-        return await askWithConfig(query, options, this.config, this.connection, lease.snapshot)
-      } finally {
-        lease.release()
-      }
-    })
-  }
-
-  async research(
-    query: string,
-    options: Omit<ResearchOptions, "cwd"> = {},
-  ): Promise<ResearchReport> {
-    return this.run(async () => {
-      const lease = await this.indexSnapshotForRead()
-      try {
-        return await researchWithConfig(
-          query,
-          options,
-          this.config,
-          this.connection,
-          lease.snapshot,
-        )
-      } finally {
-        lease.release()
-      }
-    })
-  }
-
   async expandCitation(
     citation: string,
     options: Omit<ExpandCitationOptions, "cwd"> = {},
@@ -186,17 +150,13 @@ export class RagmirClient {
       this.closePromise = (async () => {
         await Promise.allSettled([...this.activeOperations])
         try {
-          await flushAccessLog(this.config)
-        } finally {
-          try {
-            this.invalidateIndexSnapshot()
-            for (const entry of this.retiredIndexSnapshots) {
-              this.closeRetiredIndexSnapshot(entry)
-            }
-            closeStoreConnection(this.connection, this.config)
-          } finally {
-            await this.releaseEmbeddingModel()
+          this.invalidateIndexSnapshot()
+          for (const entry of this.retiredIndexSnapshots) {
+            this.closeRetiredIndexSnapshot(entry)
           }
+          closeStoreConnection(this.connection, this.config)
+        } finally {
+          await this.releaseEmbeddingModel()
         }
       })()
     }

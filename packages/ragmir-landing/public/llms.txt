@@ -1,113 +1,52 @@
 # Ragmir
 
-Ragmir is an open-source local retrieval and evidence layer for agentic RAG workflows, coding
-agents, scripts, and Node.js applications. It turns selected project files into cited evidence
-indexed and retrieved locally through a CLI, TypeScript API, or read-focused MCP server. Core works
-offline by default, never uploads the corpus, and calls no model. Ragmir retrieves evidence; the
-host application or agent retains action authority.
+Ragmir is the open-source local retrieval and evidence layer for agentic RAG workflows.
+Developer agents, scripts, and TypeScript applications consume precise project citations through
+its library, CLI, or MCP server. The agent decides when to search, expand a citation, and refine
+the query. It owns reasoning, generation, and actions, with the model chosen by the developer.
 
-## Product boundary
+## Core facts
 
-- Ragmir v3.0.0 and later use AGPL-3.0-only. A separate commercial license is available from JCode
-  Works for proprietary use; earlier releases keep their published license.
-- `@jcode.labs/ragmir` is retrieval-first. Core does not call an LLM or write generated answers.
-- Ragmir supports agentic RAG workflows as their bounded retrieval and evidence layer. The host
-  decides and acts, and retains action authority.
-- Core is model-agnostic. The user can connect a preferred coding agent or script through CLI,
-  TypeScript, or MCP.
-- `createRagmirClient()` reuses one local connection for repeated work in a stateful Node.js process,
-  supports cancellation and timeouts, and closes after active operations finish.
-- Ragmir does not open an HTTP port. Network transports, authentication, authorization, and rate
-  limits belong to the embedding application.
-- The default `local-hash` path works offline with no account, API key, or model download.
-- Semantic Transformers.js embeddings are an explicit opt-in and require a rebuilt index.
-- Vector search stays exhaustive below 100,000 rows. Larger tables use a benchmarked IVF-PQ policy
-  only with complete coverage, with an explicit exact diagnostic mode.
-- `@jcode.labs/ragmir-chat` adds optional local GGUF synthesis: `lite` uses Qwen, while default
-  `fast` and explicit `quality` use Gemma.
-- `@jcode.labs/ragmir-tts` supports offline English, French, and Spanish; explicit online Edge mode
-  also supports Japanese, Thai, and Chinese.
-- Chat profiles and TTS models are not Core or MCP requirements.
-- MCP byte budgets select typed summaries with exact scalar values, omission counters, and the best
-  search citation instead of shortening identifiers or paths.
-- MCP search, ask, and research start with at most three compact document citations by default;
-  research may add up to three code matches. Agents expand one selected citation and request
-  `compact: false` only for an explicit full payload.
-- Optional ingestion metrics attribute phase time, throughput, cache state, and peak RSS locally.
-  Their bounded diagnostic omits project roots, source paths, queries, and source text; collection
-  stays disabled unless requested or subscribed.
-- Ragmir is not a hosted document store, cloud-sync service, agent-memory replacement, or universal
-  code-search replacement.
+- Install `@jcode.labs/ragmir`; use the `rgr` executable. Node.js 22 or later is required.
+- Set up with `rgr setup --no-ingest`, add selected source directories with `rgr sources add`,
+  then run `rgr ingest` and `rgr search "query" --compact`.
+- Default local-hash retrieval needs no model, API key, or network. It is lexical/hash retrieval.
+- Semantic retrieval requires the optional `@huggingface/transformers` peer and a local model.
+  Use `rgr setup --semantic` to configure and preload one. Default installs exclude that runtime.
+- Text, Markdown, structured files, PDF, Office, EPUB, and configured local extractors are supported.
+  `rgr audit --unsupported` reports gaps. Do not claim universal binary support.
+- Local PDF OCR runs only on blank pages. `rgr ocr doctor` checks prerequisites and `rgr ocr setup`
+  configures the engine. Page caches and bounded batches avoid repeated work.
+- Citations use source lines only when valid; transformed formats use pages, slides, cells, or
+  EPUB spine coordinates. Indexed content is not masked or paraphrased.
+- MCP exposes `ragmir_status`, `ragmir_search`, `ragmir_expand`, and `ragmir_audit`, plus bounded
+  `ragmir://context` and `ragmir://sources` resources. Search starts with three compact citations.
+- Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.
+- Use one `createRagmirClient()` per project root in a long-running process and close it at shutdown.
+  Top-level functions serve one-shot scripts. Ragmir opens no HTTP port.
+- Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
+  target one explicitly. Data resolves from the caller's project, never the installation directory.
+- Ingestion is bounded and resumable. Rebuilds stage a replacement and activate it atomically only
+  after validation, preserving the last valid index on failure.
+- After updating, run `rgr upgrade --check`, then `rgr upgrade` when needed. Retired configuration
+  keys are explicitly migrated with a private backup; old masking-policy indexes need rebuilding.
+- `rgr preview`, `rgr evaluate`, `rgr doctor --deep`, `rgr audit`, and `rgr storage optimize` support
+  source inspection, retrieval quality, live diagnostics, and index maintenance.
+- Optional ingestion metrics are local counters and timings, without source content or raw queries.
+- Keep `.ragmir/` and credentials out of Git. Share reviewed sources normally, then ingest locally.
+- The index stays on the machine running Ragmir. The consuming application decides where
+  unmasked passages go: a local model, a self-hosted server (including private cloud), or a provider.
+  Local indexing and self-hosting alone do not guarantee confidentiality. Control the client,
+  model endpoint, access, transport, and logs; a cloud provider’s data policy applies to sent content.
+- AGPL-3.0-only from v3.0.0, with separate commercial licensing from JCode Works. Earlier releases
+  keep their original license. No accounts, activation, hosted storage, or cloud OCR.
 
-## Team workflow
+## Documentation
 
-- Git-backed teams run `rgr team sync`: Ragmir fetches the current upstream, applies only a clean
-  non-divergent fast-forward, then refreshes the private local index. `--no-pull` disables branch
-  updates and `--check` previews without changing the worktree or index.
-- Dirty, ahead, diverged, detached, offline, and no-upstream states never rewrite history. Advanced
-  snapshots remain available for exact or non-Git drift diagnostics.
-- Use `sourceFingerprintMode: "strict"` when synchronization can replace content without changing
-  metadata, and keep actively written `.ragmir/storage/` directories local to each workstation.
-- The TypeScript API can automate the same setup, Git sync, advanced comparison, and upgrade flow.
-
-## Upgrade continuity
-
-- After updating the package and before retrieval with the new runtime, run `rgr upgrade --check`.
-- `rgr upgrade` safely stages a required rebuild and never deletes the active index first.
-- A long-running host can keep its loaded runtime serving, then cut over after the upgrade reports
-  `status=current` and `ready=true`.
-
-## Privacy boundary
-
-- The corpus, index, reports, model cache, and metadata-only access log stay on the local machine.
-- Ragmir never uploads the whole corpus to a hosted RAG service.
-- A local consumer can keep the full workflow offline.
-- A cloud agent receives retrieved passages only when the user chooses that workflow, under that
-  provider's data policy.
-- OCR is optional and local. Ragmir prefers embedded PDF text and invokes a configured executable
-  only for blank PDF pages.
-
-## Best fit
-
-- Developer corpora assembled from specifications, PDFs, Word and Office files, and locally synced
-  or exported shared folders.
-- Large or fragmented corpora where answers must remain traceable to exact sources.
-- Coding agents that need bounded evidence over MCP instead of a full-corpus prompt.
-- CI jobs and internal automations that consume cited JSON evidence before applying deterministic
-  rules or requesting human approval.
-
-Ragmir works alongside repository indexes and agent memory, adding cited retrieval for the project
-documents around the code.
-
-## Supported content
-
-Text, Markdown, source code, configuration, logs, CSV, JSON, JSONL, YAML, PDF, DOCX, PPTX, XLSX,
-OpenDocument, EPUB, HTML, RTF, email, notebooks, and configured text extensions. Run
-`rgr audit --unsupported` to see exactly what was skipped.
-
-## Quick start
-
-For an interactive setup tailored to the repository, package manager, existing index, tools, team,
-Chat, and TTS choices, use the canonical English prompt in the
-[quick-start guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md).
-
-```sh
-pnpm add -D @jcode.labs/ragmir
-pnpm exec rgr setup --agents codex
-pnpm exec rgr sources add "docs/**/*.md"
-pnpm exec rgr ingest
-pnpm exec rgr search "Which decision changed the rollout?"
-```
-
-## Canonical documentation
-
-- [Documentation wiki](https://github.com/jcode-works/jcode-ragmir/wiki)
-- [README](https://github.com/jcode-works/jcode-ragmir#readme)
 - [Quick start](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md)
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
-- [Release history](https://github.com/jcode-works/jcode-ragmir/releases)
-- [Changelog and compatibility policy](https://github.com/jcode-works/jcode-ragmir/blob/main/CHANGELOG.md)
 - [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
-- [Agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
-- [Security hardening](https://github.com/jcode-works/jcode-ragmir/blob/main/SECURITY-HARDENING.md)
+- [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
+- [Migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md)
+- [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const expectedLicense = "AGPL-3.0-only"
-const publishedPackageDirs = ["packages/ragmir-core", "packages/ragmir-chat", "packages/ragmir-tts"]
+const publishedPackageDirs = ["packages/ragmir-core"]
 const manifestDirs = [".", ...publishedPackageDirs, "packages/ragmir-landing"]
 const requiredPackageFiles = ["LICENSE", "COMMERCIAL-LICENSE.md", "NOTICE"]
 const publicPolicyFiles = [
@@ -14,8 +14,6 @@ const publicPolicyFiles = [
   "README.md",
   "RELEASING.md",
   "packages/ragmir-core/README.md",
-  "packages/ragmir-chat/README.md",
-  "packages/ragmir-tts/README.md",
   "packages/ragmir-landing/README.md",
 ]
 const failures = []

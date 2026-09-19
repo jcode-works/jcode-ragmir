@@ -3,6 +3,11 @@
 Ragmir is an open-source `AGPL-3.0-only` project with a separate commercial licensing option.
 Issues and pull requests are welcome.
 
+Keep contributions focused on the retrieval layer for agentic RAG: source discovery, document
+extraction and local OCR, indexing, search quality, exact citations, and developer integration.
+Consuming agents and chat applications own planning, generation, and model hosting. Local indexing
+is not an end-to-end confidentiality guarantee when a consumer sends excerpts to another service.
+
 Ragmir is maintained by a single developer ([Jean-Baptiste Thery](https://github.com/jb-thery)).
 Be kind, be specific, and keep the scope of each contribution focused so it can be reviewed
 within a reasonable time.
@@ -14,7 +19,8 @@ Use the [issue templates](https://github.com/jcode-works/jcode-ragmir/issues/new
 - **Bug report**: include the Ragmir version, a minimal reproduction (commands + sample files,
   no private documents or secrets), and the expected behavior.
 - **Feature request**: describe the problem you are trying to solve and the proposed solution.
-  Confirm the feature stays compatible with Ragmir's local-first, zero-telemetry posture.
+  Explain how it improves cited retrieval for developers and stays compatible with Ragmir's
+  local-first, zero-telemetry posture.
 
 Before opening a new issue, search [existing issues](https://github.com/jcode-works/jcode-ragmir/issues)
 to avoid duplicates. Security vulnerabilities must not be reported through public issues. Follow
@@ -30,8 +36,8 @@ pnpm bootstrap
 ```
 
 `pnpm bootstrap` runs `mise install && pnpm install`. Without mise, install the Node.js 22 release
-pinned in `mise.toml` and pnpm, then run `pnpm install` directly. The published packages and the
-repository toolchain require Node.js 22 or later.
+pinned in `mise.toml` and pnpm, then run `pnpm install` directly. The published Core package and the
+repository toolchain require Node.js 22.12 or later.
 
 Activate mise in your shell (`mise activate`, per the
 [mise docs](https://mise.jdx.dev/getting-started.html)) so that entering this repository puts the
@@ -58,6 +64,13 @@ Run the security audit alone with:
 pnpm audit:security
 ```
 
+Dependency compatibility is deliberate: LanceDB stays on `0.30.x` because newer stable releases
+install Transformers and OpenAI runtimes by default; Arrow stays on its supported `18.x` peer.
+Core uses TypeScript 7, while the landing uses TypeScript 6 within `@astrojs/check`'s peer range.
+Node types track the pinned Node 22 runtime. Revisit these constraints against current upstream
+metadata before upgrading. Transformers 4.3 is an optional peer and needs the declared
+`onnxruntime-common` package extension; default installs must still pass `pnpm offline:smoke`.
+
 ## Pull Requests
 
 - Branch from `develop` for normal feature work, using `feature/<short-name>`.
@@ -71,7 +84,7 @@ pnpm audit:security
   files, tokens, credentials, or interview notes.
 - Use conventional commit messages such as `feat: add source parser` or
   `fix: handle empty index`.
-- Non-release branches run CI only. npm publishing of Core, Chat, and TTS is restricted to the
+- Non-release branches run CI only. npm publishing of Core is restricted to the
   protected semantic-release workflow from `main`; versions come from Conventional Commits, not
   manual package bumps.
 

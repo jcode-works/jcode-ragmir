@@ -26,6 +26,7 @@ export function chunkDocument(
   }
 
   const chunks: TextChunk[] = []
+  const firstChunkByRegion = new Map<number, TextChunk>()
   const lineStarts = lineStartOffsets(document.text, options.signal)
   const locationRegions = sortedCharacterIntervals(document.regions ?? [])
   const pages = sortedCharacterIntervals(document.pages ?? [])
@@ -33,6 +34,7 @@ export function chunkDocument(
     charStart: region.charStart,
     charEnd: region.charEnd,
     contextPath: region.contextPath,
+    headerRegionIndex: region.headerRegionIndex,
   }))
   const structured =
     sourceRegions.length > 0
@@ -57,6 +59,15 @@ export function chunkDocument(
 
   for (const region of regions) {
     throwIfAborted(options.signal)
+    const headerRegion =
+      "headerRegionIndex" in region && typeof region.headerRegionIndex === "number"
+        ? document.regions?.[region.headerRegionIndex]
+        : undefined
+    const headerChunk = headerRegion ? firstChunkByRegion.get(headerRegion.charStart) : undefined
+    const completeHeader =
+      headerRegion && headerChunk && headerChunk.charEnd >= headerRegion.charEnd
+        ? headerChunk
+        : undefined
     let cursor = region.charStart
     while (cursor < region.charEnd) {
       throwIfAborted(options.signal)
@@ -85,6 +96,9 @@ export function chunkDocument(
           relativePath: document.file.relativePath,
           chunkIndex,
           contextPath: region.contextPath,
+          ...(completeHeader
+            ? { headerChunkIndex: completeHeader.chunkIndex, headerText: completeHeader.text }
+            : {}),
           text: span.text,
           charStart: span.start,
           charEnd: span.end,
@@ -95,6 +109,10 @@ export function chunkDocument(
           bytes: document.file.bytes,
           mtimeMs: document.file.mtimeMs,
         })
+        const chunk = chunks.at(-1)
+        if (chunk && !firstChunkByRegion.has(region.charStart)) {
+          firstChunkByRegion.set(region.charStart, chunk)
+        }
         chunkIndex += 1
       }
 
@@ -132,8 +150,10 @@ function sourceLocationForSpan(
   }
 }
 
-export function chunkSearchText(chunk: Pick<TextChunk, "contextPath" | "text">): string {
-  return chunk.contextPath ? `${chunk.contextPath}\n${chunk.text}` : chunk.text
+export function chunkSearchText(
+  chunk: Pick<TextChunk, "contextPath" | "text" | "headerText">,
+): string {
+  return [chunk.contextPath, chunk.headerText, chunk.text].filter(Boolean).join("\n")
 }
 
 function pageRangeForSpan(

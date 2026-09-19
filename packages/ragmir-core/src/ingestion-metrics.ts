@@ -14,7 +14,6 @@ type TimedPhase =
   | "inventory"
   | "hashing"
   | "parsing"
-  | "redaction"
   | "chunking"
   | "embedding"
   | "storageWrite"
@@ -170,7 +169,6 @@ export class IngestionMetricsCollector {
         discoveryMs: round(Math.max(0, inventoryMs - hashingMs)),
         hashingMs: round(hashingMs),
         parsingMs: round(this.duration("parsing")),
-        redactionMs: round(this.duration("redaction")),
         chunkingMs: round(this.duration("chunking")),
         embeddingMs: round(this.duration("embedding")),
         storageWriteMs: round(this.duration("storageWrite")),

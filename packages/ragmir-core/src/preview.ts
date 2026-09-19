@@ -4,7 +4,6 @@ import { citationForCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
 import { inventorySourceFiles } from "./files.js"
 import { parseFile } from "./parsing.js"
-import { redactDocument, totalRedactions } from "./redaction.js"
 import type {
   PreviewChunk,
   PreviewChunksOptions,
@@ -75,16 +74,14 @@ async function previewFile(
 ): Promise<{ file: PreviewFile } | { error: { path: string; message: string } }> {
   try {
     const parsed = await parseFile(file, config)
-    const redacted = redactDocument(parsed, config)
-    const chunks = chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap)
+    const chunks = chunkDocument(parsed, config.chunkSize, config.chunkOverlap)
     return {
       file: {
         source: file.source,
         relativePath: file.relativePath,
         extension: file.extension,
         bytes: file.bytes,
-        parsedChars: redacted.document.text.length,
-        redactions: totalRedactions(redacted.counts),
+        parsedChars: parsed.text.length,
         ocr: parsed.ocr ?? null,
         chunkStats: summarizeChunkStats(chunks),
         chunks: chunks.slice(0, maxChunksPerFile).map(previewChunk),

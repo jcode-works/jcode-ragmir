@@ -18,14 +18,11 @@ export interface AgentIntegrationReport {
 
 export interface Config {
   projectRoot: string
-  privacyProfile: PrivacyProfile
   retrievalProfile: RetrievalProfile
-  acceptedRisks: string[]
   rawDir: string
   storageDir: string
   sourcesFile: string
   sources: string[]
-  accessLogPath: string
   embeddingModelPath: string
   tableName: string
   embeddingProvider: EmbeddingProvider
@@ -33,8 +30,6 @@ export interface Config {
   embeddingModelRevision: string
   embeddingModelDigest: string | null
   transformersAllowRemoteModels: boolean
-  redaction: RedactionConfig
-  accessLog: boolean
   mcpMaxTopK: number
   mcpMaxOutputBytes: number
   topK: number
@@ -56,8 +51,6 @@ export interface Config {
   legacyWordCommand: string[]
   legacyWordTimeoutMs: number
 }
-
-export type PrivacyProfile = "strict" | "private" | "trusted" | "custom"
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
 export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
 export type SourceFingerprintMode = "fast" | "strict"
@@ -71,44 +64,7 @@ export interface WorkloadLimit {
 
 export type WorkloadLimits = Record<WorkloadKind, WorkloadLimit>
 
-export type AccessLogAction =
-  | "ingest"
-  | "search"
-  | "ask"
-  | "research"
-  | "evaluate"
-  | "destroy-index"
-
-export interface AccessLogUsageOptions extends OperationOptions {
-  cwd?: PathLike
-  days?: number
-}
-
-export interface AccessLogUsageReport {
-  accessLogEnabled: boolean
-  since: string
-  until: string
-  totalEvents: number
-  invalidLines: number
-  eventsByAction: Record<AccessLogAction, number>
-  uniqueQueryHashes: number
-  averageResultCount: number | null
-  averageResultCountByAction: Record<AccessLogAction, number | null>
-  mcpOutput: McpOutputUsageReport
-  lastEventAt: string | null
-}
-
-export type McpOutputTool = "ragmir_search" | "ragmir_ask" | "ragmir_research" | "ragmir_expand"
-
-export interface McpOutputUsageReport {
-  responses: number
-  retrievedBytes: number
-  returnedBytes: number
-  savedBytes: number
-  reductionRatio: number | null
-  compactedResponses: number
-  truncatedResponses: number
-}
+export type McpOutputTool = "ragmir_search" | "ragmir_expand"
 
 export interface IngestionLimitsReport {
   maxFileBytes: number
@@ -256,26 +212,6 @@ export interface IndexManifestStaleFile {
   error: string
 }
 
-export interface RedactionConfig {
-  enabled: boolean
-  builtIn: boolean
-  patterns: RedactionPattern[]
-}
-
-export interface RedactionPattern {
-  name: string
-  pattern: string
-  flags?: string | undefined
-  replacement?: string | undefined
-  /** Optional post-match verification for patterns prone to false positives. */
-  verify?: "luhn" | undefined
-}
-
-export interface RedactionCount {
-  name: string
-  count: number
-}
-
 export interface SourceFile {
   absolutePath: string
   relativePath: string
@@ -346,6 +282,7 @@ export interface ParsedRegion {
   charEnd: number
   contextPath: string
   location: SourceLocation
+  headerRegionIndex?: number
 }
 
 export interface TextChunk {
@@ -354,6 +291,8 @@ export interface TextChunk {
   relativePath: string
   chunkIndex: number
   contextPath: string
+  headerChunkIndex?: number
+  headerText?: string
   text: string
   charStart: number
   charEnd: number
@@ -412,7 +351,6 @@ export interface IngestionPhaseDurations {
   discoveryMs: number
   hashingMs: number
   parsingMs: number
-  redactionMs: number
   chunkingMs: number
   embeddingMs: number
   storageWriteMs: number
@@ -469,7 +407,6 @@ export interface IngestResult {
   sensitiveFiles: number
   emptyTextFiles: string[]
   unsupportedExtensions: Array<{ extension: string; count: number }>
-  redactions: number
   ocr: PdfOcrMetrics
   vectorIndexWarning: string | null
   lexicalIndexWarning: string | null
@@ -532,7 +469,6 @@ export interface PreviewFile {
   extension: string
   bytes: number
   parsedChars: number
-  redactions: number
   ocr: PdfOcrMetrics | null
   chunkStats: ChunkStats
   chunks: PreviewChunk[]
@@ -575,7 +511,6 @@ export interface KnowledgeBaseInventory {
 export interface KnowledgeBaseContextReport {
   knowledgeBaseId: string | null
   projectRoot: string
-  privacyProfile: PrivacyProfile
   retrievalProfile: RetrievalProfile
   embeddingProvider: EmbeddingProvider
   corpusFingerprint: string | null
@@ -672,10 +607,22 @@ export interface SearchResult {
   pageStart: number | null
   pageEnd: number | null
   context: SearchContextChunk[]
+  evidence?: EvidenceVersion
   score?: SearchScoreExplanation
 }
 
+export interface EvidenceVersion {
+  id: string
+  sourceChecksum: string
+  indexGeneration: string
+  indexedAt: string | null
+  knowledgeBaseId: string | null
+}
+
 export interface SearchScoreExplanation {
+  retrievalQuery: string
+  queryNormalized: boolean
+  originalQueryLength: number
   fusion: "rrf"
   combinedScore: number
   vectorContribution: number
@@ -706,6 +653,7 @@ export interface SearchScoreExplanation {
 export interface ExpandCitationOptions extends OperationOptions {
   cwd?: PathLike
   contextRadius?: number
+  expectedEvidenceId?: string
 }
 
 export interface ExpandedCitation {
@@ -715,6 +663,7 @@ export interface ExpandedCitation {
   chunkIndex: number
   contextRadius: number
   passages: SearchContextChunk[]
+  evidence?: EvidenceVersion
 }
 
 export interface CompactSearchResult {
@@ -729,6 +678,7 @@ export interface CompactSearchResult {
   lineEnd: number | null
   pageStart: number | null
   pageEnd: number | null
+  evidence?: EvidenceVersion
   score?: SearchScoreExplanation
 }
 
@@ -746,87 +696,6 @@ export interface SourceDiagnostics {
   duplicateCandidates: SourceDuplicateCandidate[]
   archiveCandidates: SourcePathCandidate[]
   mirrorCandidates: SourcePathCandidate[]
-}
-
-export interface ResearchOptions extends OperationOptions {
-  cwd?: PathLike
-  topK?: number
-  includeCode?: boolean
-  fullAudit?: boolean
-  codeTopK?: number
-  codeScanMaxFiles?: number
-  codeScanMaxBytes?: number
-  codeScanConcurrency?: number
-  includePaths?: string[]
-  excludePaths?: string[]
-  contextPaths?: string[]
-}
-
-export interface ResearchEvidence {
-  source: string
-  relativePath: string
-  chunkIndex: number
-  contextPath: string
-  citation: string
-  text: string
-  distance: number | null
-  charStart: number | null
-  charEnd: number | null
-  lineStart: number | null
-  lineEnd: number | null
-  pageStart: number | null
-  pageEnd: number | null
-  queries: string[]
-  bestRank: number
-  researchScore: number
-}
-
-export interface CodeEvidence {
-  relativePath: string
-  lineNumber: number
-  snippet: string
-  matchedTerms: string[]
-  score: number
-}
-
-export interface ResearchReport {
-  query: string
-  generatedQueries: string[]
-  ready: boolean
-  audit: {
-    mode: "manifest" | "full"
-    inventoryVerified: boolean
-    supportedFiles: number
-    supportedBytes: number
-    largestFileBytes: number
-    skippedFiles: number
-    unsupportedFiles: number
-    oversizedFiles: number
-    indexedFiles: number
-    totalChunks: number
-    missingFromIndex: number
-    staleInIndex: number
-    emptyTextFiles: number
-  }
-  securityWarnings: string[]
-  sourceDiagnostics: SourceDiagnostics
-  evidence: ResearchEvidence[]
-  codeEvidence: CodeEvidence[]
-  budgets: {
-    timeoutMs: number | null
-    evidenceTopK: number
-    maxChunksPerDocument: number
-    diversityBackfillActivated: boolean
-    codeEvidenceTopK: number
-    codeScanMaxFiles: number
-    codeScanMaxBytes: number
-    codeScanConcurrency: number
-    codeFilesScanned: number
-    codeBytesScanned: number
-    codeScanTruncated: boolean
-  }
-  gaps: string[]
-  nextSteps: string[]
 }
 
 export interface GoldenQuery {
@@ -1001,12 +870,6 @@ export interface IndexQualityReport {
   qualityReportFingerprint: string
 }
 
-export interface AskResult {
-  answer: string
-  sources: SearchResult[]
-  staleWarning: string | null
-}
-
 export interface AuditOptions extends OperationOptions {
   previewLimit?: number
 }
@@ -1063,9 +926,6 @@ export interface DoctorReport {
   storageDir: string
   embeddingProvider: EmbeddingProvider
   transformersAllowRemoteModels: boolean
-  redactionEnabled: boolean
-  accessLog: boolean
-  privacyProfile: PrivacyProfile
   retrievalProfile: RetrievalProfile
   supportedFiles: number
   supportedBytes: number
@@ -1091,9 +951,7 @@ export interface DoctorReport {
     operationalReady: boolean
     coverageComplete: boolean
     indexPolicyCurrent: boolean
-    privacyCompliant: boolean
     retrievalQualityVerified: boolean
-    acceptedRisks: string[]
   }
   nextSteps: string[]
 }
@@ -1127,7 +985,6 @@ export interface DoctorOptions extends OperationOptions {
 export interface SecurityAuditReport {
   projectRoot: string
   zeroTelemetry: true
-  privacyProfile: PrivacyProfile
   retrievalProfile: RetrievalProfile
   providers: {
     embedding: EmbeddingProvider
@@ -1138,23 +995,13 @@ export interface SecurityAuditReport {
     transformersAllowRemoteModels: boolean
     llmGeneration: false
   }
-  redaction: {
-    enabled: boolean
-    builtIn: boolean
-    customPatterns: string[]
-  }
-  accessLog: {
-    enabled: boolean
-    path: string
-    storesRawQueries: false
-  }
   storage: {
     path: string
     gitIgnored: boolean
     encryptedAtRest: "external-required"
   }
   privatePaths: Array<{
-    kind: "config" | "raw" | "storage" | "sources" | "access-log" | "embedding-models"
+    kind: "config" | "raw" | "storage" | "sources" | "embedding-models"
     path: string
     insideProject: boolean
     gitIgnored: boolean | null
@@ -1164,7 +1011,6 @@ export interface SecurityAuditReport {
   externalExtractors: {
     configured: boolean
     enabled: Array<"pdf-ocr" | "image-ocr" | "legacy-word">
-    disabledByStrictProfile: boolean
     executeWithOperatorAuthority: true
   }
   permissions: {
@@ -1173,7 +1019,6 @@ export interface SecurityAuditReport {
     rawDirPrivate: boolean | null
     storageDirPrivate: boolean | null
     sourcesFilePrivate: boolean | null
-    accessLogPrivate: boolean | null
     embeddingModelPathPrivate: boolean | null
   }
   mcp: {

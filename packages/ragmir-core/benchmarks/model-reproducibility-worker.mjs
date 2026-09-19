@@ -37,7 +37,6 @@ try {
         embeddingModelDigest: digest,
         embeddingModelPath: modelPath,
         transformersAllowRemoteModels: false,
-        accessLog: false,
       },
       null,
       2,

@@ -1,13 +1,16 @@
 import { existsSync } from "node:fs"
-import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { strToU8, zipSync } from "fflate"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { chunkDocument } from "./chunking.js"
 import { citationForCoordinates } from "./citation.js"
+import { ingest } from "./ingest.js"
+import { initProject } from "./init.js"
 import { MAX_EXTERNAL_TEXT_STDIO_BYTES } from "./limits.js"
 import { parseFile } from "./parsing.js"
+import { expandCitation, search } from "./query.js"
 import type { SourceFile } from "./types.js"
 
 const tempDirs: string[] = []
@@ -207,6 +210,79 @@ describe("parseFile", () => {
     expect(chunk && citationForCoordinates(chunk)).toBe(
       "dataset.xlsx:sheet=Finance%20%26%20Ops:cells=A1-D1#0",
     )
+  })
+
+  it("should return distant spreadsheet headers with their own citations", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-table-evidence-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(
+      path.join(raw, "limits.xlsx"),
+      createXlsxPackage([
+        {
+          name: "Limits",
+          rows: [
+            ["Role", "Refund approval limit EUR", "Export limit rows"],
+            ["Viewer", 0, 100],
+            ["Operator", 500, 1000],
+            ["Manager", 5000, 10000],
+            ["Auditor", 0, 50000],
+          ],
+        },
+      ]),
+    )
+    await ingest({ cwd: root })
+
+    const results = await search("What is the refund approval limit for an auditor?", {
+      cwd: root,
+      topK: 5,
+      contextRadius: 0,
+    })
+    const auditor = results.find((result) => result.text.includes("Auditor"))
+    expect(auditor).toBeDefined()
+    if (!auditor) throw new Error("The auditor row was not retrieved")
+    expect(auditor.citation).toContain(":cells=A5-C5#4")
+    expect(auditor.text).not.toContain("Refund approval limit")
+    expect(auditor.context).toEqual([
+      expect.objectContaining({
+        citation: expect.stringContaining(":cells=A1-C1#0"),
+        text: expect.stringContaining("Refund approval limit EUR"),
+      }),
+    ])
+    const expanded = await expandCitation(auditor.citation, { cwd: root, contextRadius: 0 })
+    expect(expanded.passages.map((passage) => passage.chunkIndex)).toEqual([0, 4])
+    expect(expanded.passages[1]?.text).toContain("Auditor\t0\t50000")
+  })
+
+  it("should keep separate spreadsheet tables and sheets from sharing headers", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-table-headers-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "tables.xlsx")
+    await writeFile(
+      filePath,
+      createXlsxPackage([
+        {
+          name: "Finance",
+          rows: [["Role", "Refund"], ["Auditor", 0], [], ["Region", "Tax"], ["France", 20]],
+        },
+        {
+          name: "Data",
+          rows: [
+            ["Raw numeric data", 42],
+            ["Another row", 50],
+          ],
+        },
+      ]),
+    )
+    const parsed = await parseFile(sourceFile(root, filePath, ".xlsx"))
+    const chunks = chunkDocument(parsed, 1_200, 0)
+    expect(chunks[1]?.headerText).toContain("Refund")
+    expect(chunks[3]?.headerText).toContain("Tax")
+    expect(chunks[3]?.headerText).not.toContain("Refund")
+    expect(chunks[4]?.headerText).toBeUndefined()
+    expect(chunks[5]?.headerText).toBeUndefined()
   })
 
   it.each([{ extension: ".docx" }, { extension: ".xlsx" }])(

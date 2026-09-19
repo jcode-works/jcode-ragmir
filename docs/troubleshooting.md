@@ -52,53 +52,14 @@ rgr ingest
 ```
 
 OCR is local and opt-in. Generated PDF OCR runs in bounded page groups and resumes from private
-content-addressed cache entries. Use `rgr ingest --json` or `rgr preview --json` to inspect OCR cache
-hits, batches, subprocesses, and duration without exposing page text in diagnostics. Images and
-legacy `.doc` files need explicitly configured local extractors.
+content-addressed cache entries. The OCR metrics in `rgr ingest --json` and `rgr preview --json`
+report cache hits, batches, subprocesses, and duration without page text. The full preview output
+also includes extracted chunk text, so review it before sharing. Images and legacy `.doc` files
+need explicitly configured local extractors.
 
 ## Search is weak
 
-First confirm source coverage with `rgr audit`. Then try a specific query, `--context-radius 1`, or a higher `--top-k`. For semantic retrieval, run `rgr models pull --enable` followed by `rgr ingest --rebuild`.
-
-## Team members get different results
-
-For a Git-backed repository, start with the single safe path:
-
-```bash
-rgr team sync --json
-```
-
-`current` and `updated` mean the fetched upstream and local index are aligned. `dirty`, `ahead`,
-`diverged`, `detached`, and `no-upstream` never modify the branch; follow the first
-`recommendedActions` item through the normal Git or merge-request workflow. `fetch-failed` keeps
-the last valid local index, but its upstream freshness is unverified. Use `--no-pull` when branch
-updates must remain manual and `--check` for a no-worktree-change preview.
-
-The active `.ragmir/config.json` is intentionally local and ignored. If results still differ after
-Git is current, verify that both workstations use the same reviewed source-contract template and
-Ragmir version. Do not start with snapshots: use them only for an exact diagnosis or a non-Git
-authority:
-
-```bash
-rgr team snapshot --label local --output .ragmir/team/local.json
-rgr team compare .ragmir/team/local.json --local-label peer
-```
-
-The comparison names configuration drift plus local-only, peer-only, and changed files. Do not pick
-the side with more files automatically. Confirm the declared Drive revision, shared folder, or Git
-commit, apply the recommended ingest or rebuild command, and compare fresh snapshots. Never share
-an actively written `.ragmir/storage/` directory.
-
-If the comparison reports `status=synchronized` together with security advisories, the indexed
-bytes and operational configuration match. Review each side with `rgr security-audit`; do not run a
-repair or rebuild only because an extractor or permission advisory remains. Ragmir also interprets
-v2.19.0 through v2.19.2 snapshots from their stored health fields, so an older snapshot that marked
-an advisory as `ready=false` can still be compared after upgrading.
-
-The lower-level `corpusFingerprint` in `rgr status --json` remains a quick equality signal. A
-different value identifies divergence, not which machine is correct.
-If an index created before corpus fingerprints were introduced reports `null`, run `rgr ingest`
-once with the current Ragmir version to write the fingerprint into its local manifest.
+First confirm source coverage with `rgr audit`. Then try a specific query, `--context-radius 1`, or a higher `--top-k`. For semantic retrieval, install optional `@huggingface/transformers`, then run `rgr models pull --enable` followed by `rgr ingest --rebuild`.
 
 ## Search stops after updating Ragmir
 
@@ -109,27 +70,31 @@ generation while the previous valid index remains untouched. Only a fully valida
 activates. If the process is interrupted, rerun the command to resume; do not delete
 `.ragmir/storage/` first. A long-running host can keep its already loaded runtime serving during the
 rebuild, then restart or cut over once the upgrade reports `status=current` and `ready=true`. Use
-`rgr doctor --fix` for the same repair flow when setup or agent helpers also need attention.
-`privacyCompliant=false` and `advisory=...` can accompany `status=current`: retrieval is compatible,
+`rgr doctor --fix` for current-config setup repairs. Retired configuration fields require
+`rgr upgrade` first.
+`advisory=...` can accompany `status=current`: retrieval is compatible,
 but a separate local security control still needs review. Run `rgr security-audit` for the exact
 follow-up instead of deleting a healthy index.
 
-## Strict audit fails
 
-Run `rgr security-audit --strict`. It reports the exact local control that conflicts with the strict profile. Strict mode requires ignored local state, redaction, bounded MCP output, and no external extractors.
+## Old configuration is rejected
 
-The audit also reports tracked private paths and local extractor authority. Move tracked private
-data out of Git, add the containing path to `.gitignore`, and rotate any credential that reached a
-remote. External extractors run with the current operator's filesystem and process permissions;
-strict privacy disables them.
+Run `rgr upgrade --check` then `rgr upgrade`. It backs up retired masking/profile/logging settings
+and stages the required index rebuild. Source text is now preserved. See [migration](./migration.md).
 
-## Configuration rejects a regex or environment variable
+## A security audit warning remains
 
-Custom redaction expressions that are invalid or may cause catastrophic backtracking are rejected
-before content processing. Replace nested or ambiguous repetition with bounded, linear patterns.
-Invalid `RAGMIR_*` values now name the failing variable instead of silently falling back; correct or
-unset the override and rerun the command.
+`rgr security-audit --strict` exits with an error when warnings are present. Inspect the named file
+permissions, Git exclusions, or external extractor. Warnings are separate from operational readiness.
+OCR remains usable while its explicit external-process advisory is reported.
 
-## Chat or audio is not ready
+## Two workstations return different results
 
-Run `rgr chat doctor` or `rgr audio --doctor`. Setup commands download optional public model files explicitly; normal offline use requires those files to be present already. See the dedicated local chat and TTS guides for model preparation.
+Compare source revisions, configured globs, package versions, model identity, and chunk settings.
+Update sources through your normal Git workflow, then run `rgr ingest` on each machine. Use
+`rgr audit` to check live coverage. Keep each actively written index local to its workstation.
+
+## An environment override is rejected
+
+Correct or remove the variable named in the error. Unknown JSON keys and invalid bounds are errors,
+so a typo never silently selects a different behavior.

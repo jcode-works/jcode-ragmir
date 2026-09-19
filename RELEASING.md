@@ -11,7 +11,7 @@ Do not publish from a local machine.
    release pull request into `main`.
 4. Let the `Release npm` workflow run on `main`, or dispatch it manually from `main`.
 5. Approve the protected `npm-publish` environment when GitHub asks for review.
-6. Verify all three npm packages, the curated GitHub release notes, and release artifacts.
+6. Verify the Core npm package, the curated GitHub release notes, and release artifacts.
 7. Build and deploy the static landing through the external deployment process, then verify the
    published package version and canonical site URL.
 
@@ -19,9 +19,8 @@ For every release, verify that npm metadata declares `AGPL-3.0-only` and that ea
 `LICENSE`, `COMMERCIAL-LICENSE.md`, and `NOTICE`. The protected validation gate enforces this policy.
 
 The workflow runs `pnpm validate`, then semantic-release derives the next version from
-Conventional Commits. It prepares and publishes, in order, `@jcode.labs/ragmir-tts`,
-`@jcode.labs/ragmir-chat`, and `@jcode.labs/ragmir`, all with npm provenance. Installing Core still
-keeps Chat and TTS optional.
+Conventional Commits. It prepares and publishes `@jcode.labs/ragmir` with npm provenance.
+The landing is private and is not published to npm.
 
 The repository intentionally contains no cloud-vendor landing configuration and the npm workflow
 does not deploy the site. The external deployment must build with the released version in
@@ -68,9 +67,9 @@ The first AGPL release is `v3.0.0` because changing the public license from MIT 
 change. Release notes must state that earlier versions keep their original license and link to the
 commercial licensing option.
 
-For CLI compatibility releases, make the migration explicit in the Conventional Commit body or
-footer. For example, the `ragmir` to `rgr` rename must mention that `ragmir` remains as a deprecated
-compatibility bin and users should migrate scripts to `rgr`.
+For breaking CLI/API releases, make the migration explicit in the Conventional Commit body or
+footer and link to `docs/migration.md`. Removed commands and exports require a major release.
+Only the `rgr` executable is published.
 
 ## Required Local Checks
 

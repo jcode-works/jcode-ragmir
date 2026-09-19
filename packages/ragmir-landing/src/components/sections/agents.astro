@@ -1,5 +1,5 @@
 ---
-import { Cloud, Cpu, FolderOutput } from "@lucide/astro"
+import { BookOpen, Cloud, Cpu, Server } from "@lucide/astro"
 import { CommandCopyBox } from "../command-copy"
 
 interface Props {
@@ -11,6 +11,7 @@ const t = (key: string): string => translations[key] ?? key
 
 const operatingModes = [
   { icon: Cpu, name: t("agents_full_local_name"), text: t("agents_full_local_text") },
+  { icon: Server, name: t("agents_self_hosted_name"), text: t("agents_self_hosted_text") },
   { icon: Cloud, name: t("agents_connected_name"), text: t("agents_connected_text") },
 ]
 ---
@@ -41,17 +42,13 @@ const operatingModes = [
       </div>
       <div class="mt-3 rounded-lg border border-border bg-muted/45 p-4">
         <div class="flex items-center gap-3">
-          <FolderOutput class="size-5 text-muted-foreground" aria-hidden="true" />
-          <p class="font-bold text-sm">{t("agents_portable_title")}</p>
+          <BookOpen class="size-5 text-muted-foreground" aria-hidden="true" />
+          <p class="font-bold text-sm">{t("agents_model_title")}</p>
         </div>
-        <p class="mt-2 text-muted-foreground text-sm leading-6">{t("agents_portable_text")}</p>
-        <div class="mt-3">
-          <CommandCopyBox
-            client:visible
-            command={t("agents_portable_command")}
-            copyLabel={t("copy_command")}
-          />
-        </div>
+        <p class="mt-2 text-muted-foreground text-sm leading-6">{t("agents_model_text")}</p>
+        <a class="mt-3 inline-block text-sm font-semibold underline underline-offset-4" href="https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md">
+          {t("agents_model_link")}
+        </a>
       </div>
     </div>
   </div>
@@ -63,7 +60,7 @@ const operatingModes = [
       <h3 class="font-black text-xl">{t("agents_targets_title")}</h3>
       <p class="text-sm text-muted-foreground leading-6">{t("agents_targets_text")}</p>
     </div>
-    <div class="grid gap-3 p-5 sm:grid-cols-2 md:p-6">
+    <div class="grid gap-3 p-5 md:p-6">
       {operatingModes.map((mode) => (
         <div class="rounded-lg border border-border bg-muted/45 p-4">
           <div class="flex items-center gap-3">

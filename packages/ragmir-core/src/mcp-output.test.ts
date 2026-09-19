@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest"
-import type { McpAskPayload, McpResearchPayload, McpSearchPayload } from "./mcp-output.js"
+import type { McpSearchPayload } from "./mcp-output.js"
 import {
   budgetMcpJson,
-  fitAskPayload,
   fitExpandedCitation,
   fitMcpJsonOutput,
-  fitResearchPayload,
   fitSearchPayload,
   resolveMcpOutputBudget,
 } from "./mcp-output.js"
@@ -66,37 +64,6 @@ describe("MCP output budgeting", () => {
   it("should clamp requested budgets to the configured maximum", () => {
     expect(resolveMcpOutputBudget(8_192, 20_000)).toBe(8_192)
     expect(resolveMcpOutputBudget(8_192, 1_024)).toBe(1_024)
-  })
-
-  it("should retain an ask object when sources must be omitted", () => {
-    const value: McpAskPayload = {
-      answer: "answer ".repeat(400),
-      sources: [searchResult("source ".repeat(400))],
-      staleWarning: null,
-    }
-
-    const fitted = fitAskPayload(value, 1_024)
-
-    expect(Array.isArray(fitted.value.sources)).toBe(true)
-    expect(Buffer.byteLength(JSON.stringify(fitted.value), "utf8")).toBeLessThanOrEqual(1_024)
-    expect(fitted.truncated).toBe(true)
-  })
-
-  it("should trim research detail while preserving its report shape", () => {
-    const value = researchPayload("diagnostic ".repeat(300))
-    value.query = "é".repeat(3_000)
-
-    const fitted = fitResearchPayload(value, 1_024)
-
-    expect(fitted.value.audit.totalChunks).toBe(4)
-    expect(fitted.value).toMatchObject({
-      queryIncluded: false,
-      omitted: {
-        generatedQueries: 2,
-        securityWarnings: 1,
-      },
-    })
-    expect(Buffer.byteLength(JSON.stringify(fitted.value), "utf8")).toBeLessThanOrEqual(1_024)
   })
 
   it("should prioritize the requested passage when expansion must be truncated", () => {
@@ -220,50 +187,6 @@ function searchResult(text: string): SearchResult {
     pageStart: null,
     pageEnd: null,
     context: [],
-  }
-}
-
-function researchPayload(detail: string): McpResearchPayload {
-  return {
-    query: "release evidence",
-    generatedQueries: [detail, detail],
-    ready: true,
-    audit: {
-      mode: "full",
-      inventoryVerified: true,
-      supportedFiles: 1,
-      supportedBytes: 100,
-      largestFileBytes: 100,
-      skippedFiles: 0,
-      unsupportedFiles: 0,
-      oversizedFiles: 0,
-      indexedFiles: 1,
-      totalChunks: 4,
-      missingFromIndex: 0,
-      staleInIndex: 0,
-      emptyTextFiles: 0,
-    },
-    securityWarnings: [detail],
-    sourceDiagnostics: {
-      duplicateCandidates: [{ key: "duplicate", files: [detail] }],
-      archiveCandidates: [{ relativePath: detail, reason: "archive" }],
-      mirrorCandidates: [{ relativePath: detail, reason: "mirror" }],
-    },
-    evidence: [],
-    codeEvidence: [],
-    budgets: {
-      timeoutMs: 10_000,
-      evidenceTopK: 5,
-      codeEvidenceTopK: 20,
-      codeScanMaxFiles: 1_000,
-      codeScanMaxBytes: 32 * 1024 * 1024,
-      codeScanConcurrency: 4,
-      codeFilesScanned: 10,
-      codeBytesScanned: 1_000,
-      codeScanTruncated: false,
-    },
-    gaps: [detail],
-    nextSteps: [detail],
   }
 }
 
