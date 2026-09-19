@@ -12,8 +12,8 @@ indexing and validated rebuilds keep the local index usable as sources change.
 
 ```bash
 npm install -D @jcode.labs/ragmir
-npx rgr setup --no-ingest --agents codex
-npx rgr sources add "docs/**/*.md" "src/**/*.ts"
+npx rgr setup --no-ingest --agents claude,codex
+npx rgr sources add "docs/**/*.md" "specs/**/*.docx" "src/**/*.ts"
 npx rgr ingest
 npx rgr search "authentication contract" --compact
 ```
@@ -23,11 +23,15 @@ Semantic embeddings are optional: install `@huggingface/transformers`, then run
 `npx rgr setup --semantic` to preload the embedding model. Scanned PDFs need a supported local OCR
 engine; inspect `npx rgr ocr doctor`, then configure it with `npx rgr ocr setup`.
 
-## Use your own chat and model
+## Choose your workflow
 
-Connect a compatible agent with the generated MCP helper, or call Ragmir's TypeScript API from
-your chat application. Ragmir returns evidence; your application calls a local model such as
-Ollama, a self-hosted model, or a cloud provider to generate the answer.
+- **Develop with Claude Code or Codex.** Ask your agent to implement account recovery from the
+  project's specification and ADR. It searches with Ragmir, opens cited passages, checks exceptions,
+  then changes the code and tests. Connect it with the generated MCP helper or retrieval skill.
+- **Use a confidential local or self-hosted chat.** Ask whether internal architecture rules call
+  for attachments in PostgreSQL or object storage. The chat retrieves cited evidence with Ragmir
+  and sends it to a downloaded model running in Ollama with remote calls disabled,
+  or to a model on your own server. It returns a sourced answer for your decision.
 
 The index stays on the machine running Ragmir. Retrieved text is not masked. With an entirely
 local consumer it can stay on that machine; with your own server or private-cloud model it travels
@@ -35,7 +39,7 @@ to your infrastructure; with a cloud provider the consuming app sends it to that
 Confidentiality depends on the full setup, including access controls, tools, and logs. Ragmir has
 no telemetry or hosted storage, but local indexing does not make every connected chat private.
 
-See the [MCP and Ollama integration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
+See the [agentic and confidential chat workflows](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
 and [TypeScript API](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md).
 
 <!-- ragmir-setup-prompt:start -->
@@ -79,7 +83,7 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 
 [Full documentation](https://github.com/jcode-works/jcode-ragmir#readme),
 [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md),
-[agent and Ollama integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md),
+[agentic and confidential chat workflows](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md),
 and [migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md).
 
 Open source under AGPL-3.0-only with a separate commercial licensing option from JCode Works.

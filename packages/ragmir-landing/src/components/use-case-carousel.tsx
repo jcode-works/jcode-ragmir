@@ -3,10 +3,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Bot,
-  Boxes,
   FileCheck2,
   FileInput,
-  FolderGit2,
   type LucideIcon,
   MessageSquareQuote,
   Search,
@@ -17,7 +15,7 @@ import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
-type UseCaseId = "spec" | "local" | "monorepo" | "ocr"
+type UseCaseId = "spec" | "local"
 
 interface UseCaseDefinition {
   id: UseCaseId
@@ -129,65 +127,6 @@ export const USE_CASES: readonly UseCaseDefinition[] = [
         accent: "success",
         labelKey: "use_cases_result_label",
         titleKey: "use_case_local_answer",
-      },
-    ],
-  },
-  {
-    id: "monorepo",
-    icon: Boxes,
-    tabKey: "use_case_monorepo_tab",
-    titleKey: "use_case_monorepo_title",
-    descriptionKey: "use_case_monorepo_description",
-    steps: [
-      {
-        icon: MessageSquareQuote,
-        id: "question",
-        labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_monorepo_question",
-      },
-      {
-        accent: "primary",
-        icon: FolderGit2,
-        id: "retrieval",
-        labelKey: "use_cases_retrieval_step_label",
-        titleKey: "use_case_monorepo_retrieval",
-      },
-      {
-        accent: "success",
-        icon: FileCheck2,
-        id: "result",
-        labelKey: "use_cases_result_label",
-        titleKey: "use_case_monorepo_result",
-      },
-    ],
-  },
-  {
-    id: "ocr",
-    icon: FileInput,
-    tabKey: "use_case_ocr_tab",
-    titleKey: "use_case_ocr_title",
-    descriptionKey: "use_case_ocr_description",
-    evidence: { targetStepId: "retrieval", titleKey: "use_case_ocr_evidence" },
-    steps: [
-      {
-        icon: FileInput,
-        id: "scan",
-        labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_ocr_scan",
-      },
-      {
-        icon: Search,
-        id: "retrieval",
-        accent: "primary",
-        labelKey: "use_cases_retrieval_step_label",
-        titleKey: "use_case_ocr_retrieval",
-      },
-      {
-        icon: FileCheck2,
-        id: "result",
-        accent: "success",
-        labelKey: "use_cases_result_label",
-        titleKey: "use_case_ocr_result",
       },
     ],
   },
@@ -505,7 +444,7 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
               value={useCase.id}
             >
               <Card className="flex h-[55rem] w-full min-w-0 flex-col overflow-hidden bg-card/90 md:h-[49rem] lg:h-full">
-                <CardHeader className="h-48 shrink-0 gap-4 border-b border-border md:grid md:h-[7.5rem] md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:h-[5.5rem] lg:py-4">
+                <CardHeader className="min-h-48 shrink-0 gap-4 border-b border-border md:grid md:min-h-[7.5rem] md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:min-h-[5.5rem] lg:py-4">
                   <div className="flex min-w-0 flex-col gap-2">
                     <CardTitle className="max-w-2xl text-lg leading-tight">
                       {t(useCase.titleKey)}
