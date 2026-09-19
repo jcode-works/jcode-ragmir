@@ -15,11 +15,7 @@ const rssGateBytes =
 
 const scenarios = {
   version: measureCli(["--version"]),
-  routePrompt: measureCli([
-    "route-prompt",
-    "--json",
-    "find indexed architecture evidence",
-  ]),
+
 }
 
 const gates = Object.fromEntries(

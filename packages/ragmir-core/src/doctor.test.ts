@@ -92,7 +92,6 @@ describe("doctor", () => {
       expect.objectContaining({
         operationalReady: true,
         indexPolicyCurrent: true,
-        privacyCompliant: true,
         retrievalQualityVerified: false,
       }),
     )

@@ -6,7 +6,6 @@ edit JSON only for a real need.
 ```json
 {
   "sources": ["docs/**/*.md", "src", "!docs/archive/**"],
-  "privacyProfile": "private",
   "retrievalProfile": "balanced",
   "embeddingProvider": "local-hash"
 }
@@ -17,7 +16,6 @@ edit JSON only for a real need.
 | Field | Default | Why change it |
 | --- | --- | --- |
 | `sources` | `[]` | Add project paths, globs, and `!` exclusions. |
-| `privacyProfile` | `private` | Use `strict` for the strongest local floor. |
 | `retrievalProfile` | `balanced` | Use `fast`, `quality`, or `custom` for different search budgets. |
 | `embeddingProvider` | `local-hash` | Set `transformers` only after an explicit preload. |
 | `embeddingModel` | `intfloat/multilingual-e5-small` | Select the local Transformers embedding model. Rebuild after changing it. |
@@ -38,28 +36,9 @@ edit JSON only for a real need.
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
 
 Configuration arrays and strings have hard size ceilings. Sources are capped at 10,000 entries,
-custom extensions at 128, redaction patterns at 64, and external commands at 128 arguments.
+custom extensions at 128, and external commands at 128 arguments.
 `mcpMaxOutputBytes` cannot exceed 1 MiB. Invalid environment overrides fail configuration loading
 with the variable name instead of silently reverting to a different value.
-
-### Stable team source configuration
-
-Keep a shared source contract stable across workstations. Prefer canonical directories and globs,
-such as `../design-system/docs/**/*.md`, over a script that expands files found on one machine. A
-missing sibling repository should produce an explicit local coverage difference, not configuration
-churn.
-
-The active `.ragmir/config.json` stays local and ignored. A project can version a reviewed template,
-copy it locally during setup, and keep machine-specific paths outside that template. Git-backed
-teams use `rgr team sync` for the normal loop: fetch the current branch upstream, apply only a safe
-fast-forward, then ingest locally. `--no-pull` keeps branch updates manual, and `--check` previews
-without changing the worktree or index.
-
-When Git is current but two results still differ, use the advanced `rgr team snapshot` and
-`rgr team compare` commands to inspect source-contract, version, embedding, chunking, retrieval,
-privacy, and per-file drift. The lower-level `corpusFingerprint` remains a quick equality check.
-Use `sourceFingerprintMode: "strict"` when synchronization can preserve file metadata while
-replacing content.
 
 ### Workload admission
 
@@ -137,22 +116,12 @@ pass `rgr ingest --incremental-failure-policy remove-stale`, only when serving s
 less acceptable than temporarily serving no evidence for that file. Actual source deletion always
 removes its rows.
 
-## Privacy profiles
-
-- `private` defaults remote model loading to disabled and keeps built-in redaction enabled; remote
-  Transformers loading still requires an explicit opt-in.
-- `strict` also bounds MCP output and disables every external extractor.
-- `trusted` and `custom` are for operators who explicitly accept different local controls.
-
-`privacyProfile` is a safety floor, separate from retrieval quality.
-
-Custom redaction patterns are compiled only after syntax, length, and catastrophic-backtracking
-checks. Unsafe expressions are rejected while loading configuration and are never applied to source
-text.
-
 ## Semantic retrieval
 
+Install the optional runtime first:
+
 ```bash
+pnpm add -D @huggingface/transformers
 rgr setup --semantic
 rgr ingest --rebuild
 ```
@@ -178,8 +147,7 @@ rgr ocr setup --language eng+fra
 PDF OCR is optional and page-aware. Ragmir calls it only for blank extracted pages. Custom
 `pdfOcrCommand`, `imageOcrCommand`, and `legacyWordCommand` values must be JSON argument arrays;
 they run without a shell and must print text to stdout. They still execute with the operator's
-filesystem and process authority. Their per-invocation timeout is capped at 900,000 ms, and strict
-privacy disables them even when a command remains present in the configuration file.
+filesystem and process authority. Their per-invocation timeout is capped at 900,000 ms.
 
 `rgr ocr setup` writes the batched PDF contract. It replaces `{pages}` with up to 16 ordered page
 numbers and expects JSON containing `subprocesses` plus an ordered `pages` array of `{ page, text }`
@@ -198,11 +166,11 @@ RAGMIR_TOP_K=5 rgr search "migration"
 RAGMIR_MCP_MAX_OUTPUT_BYTES=16384 rgr serve-mcp
 ```
 
-Environment overrides cover selected runtime settings such as models, retrieval limits, access logs,
+Environment overrides cover selected runtime settings such as models, retrieval limits,
 and extractor commands. Run `rgr status --json` to inspect the effective result.
 
 `rgr security-audit` reports permission state plus Git-ignore and tracked-file state for the config,
-raw documents, index storage, source list, access log, and local model directory. Read-only status,
+raw documents, index storage, source list, and local model directory. Read-only status,
 doctor, search, and audit operations do not create an absent index or change an existing shared
 directory mode.
 
@@ -222,3 +190,11 @@ of being partially indexed. Ingestion also caps a parse window at 50 MB and 8,19
 one file at 65,536 chunks and 256 MiB of vectors, the CLI file batch at 128, parser concurrency at
 8, and embedding batches at 128. Each file is committed separately, so restart repeats at most one
 bounded commit.
+
+## Source fidelity and migration
+
+Ragmir stores parsed source text without masking. The consuming application controls where passages
+go. For confidential work, control its model endpoint, access, transport, and logs as well as the
+index. See [local, self-hosted, and cloud integration](./agent-integration.md). Keep credentials
+excluded at source selection. Retired redaction,
+privacy-profile, and access-log fields require `rgr upgrade`; see [migration](./migration.md).

@@ -11,18 +11,7 @@ const cliPath = path.join(packageRoot, "dist", "cli.js")
 const demoSourceRoot = path.join(packageRoot, "examples", "sovereign-rag-demo")
 const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-mcp-smoke-"))
 const demoRoot = path.join(tempRoot, "sovereign-rag-demo")
-const requiredTools = [
-  "ragmir_status",
-  "ragmir_route_prompt",
-  "ragmir_search",
-  "ragmir_ask",
-  "ragmir_research",
-  "ragmir_expand",
-  "ragmir_audit",
-  "ragmir_evaluate",
-  "ragmir_usage_report",
-  "ragmir_security_audit",
-]
+const requiredTools = ["ragmir_status", "ragmir_search", "ragmir_expand", "ragmir_audit"]
 const requiredResources = ["ragmir://context", "ragmir://sources"]
 
 const client = new Client({ name: "ragmir-mcp-smoke", version: "0.0.0" })
@@ -39,7 +28,6 @@ transport.stderr?.on("data", (chunk) => {
 
 try {
   await cp(demoSourceRoot, demoRoot, { recursive: true })
-  await rm(path.join(demoRoot, ".ragmir", "access.log"), { force: true })
   await rm(path.join(demoRoot, ".ragmir", "storage"), { recursive: true, force: true })
   const ingestReport = runCliJson(["--project-root", demoRoot, "ingest", "--json"])
   if (ingestReport.errors.length > 0) {
@@ -109,15 +97,6 @@ try {
     status.ingestionLimits?.maxCorpusBytes !== null
   ) {
     throw new Error(`MCP status reported unexpected ingestion limits: ${JSON.stringify(status)}`)
-  }
-
-  const routeDecision = await callJsonTool(client, "ragmir_route_prompt", {
-    prompt: "Audit this local repository release readiness from cited evidence.",
-  })
-  if (routeDecision.shouldUseRagmir !== true || routeDecision.tool !== "ragmir_research") {
-    throw new Error(
-      `MCP prompt router returned an unexpected decision: ${JSON.stringify(routeDecision)}`,
-    )
   }
 
   const searchResults = await callJsonTool(client, "ragmir_search", {
@@ -214,51 +193,9 @@ try {
     )
   }
 
-  const answer = await callJsonTool(client, "ragmir_ask", {
-    query: "What evidence supports offline operation?",
-    topK: 2,
-    compact: true,
-  })
-  if (!Array.isArray(answer.sources) || answer.sources.length < 1) {
-    throw new Error("MCP ask returned no cited sources.")
-  }
-  if (!("snippet" in answer.sources[0]) || "text" in answer.sources[0]) {
-    throw new Error("MCP compact ask did not return snippet-only sources.")
-  }
-
-  const research = await callJsonTool(client, "ragmir_research", {
-    query: "offline retrieval approval",
-    topK: 2,
-    compact: true,
-  })
-  if (!Array.isArray(research.evidence) || research.evidence.length < 1) {
-    throw new Error("MCP research returned no cited evidence.")
-  }
-  if (!("snippet" in research.evidence[0]) || "text" in research.evidence[0]) {
-    throw new Error("MCP compact research did not return snippet-only evidence.")
-  }
-
-  const evaluation = await callJsonTool(client, "ragmir_evaluate", {
-    goldenPath: "golden-queries.json",
-    failUnder: 1,
-  })
-  if (evaluation.total !== 4 || evaluation.recall !== 1 || evaluation.passed !== true) {
-    throw new Error(`MCP evaluate returned an unexpected report: ${JSON.stringify(evaluation)}`)
-  }
-
-  const usage = await callJsonTool(client, "ragmir_usage_report", { days: 7 })
-  if (usage.totalEvents < 1 || typeof usage.eventsByAction !== "object") {
-    throw new Error(`MCP usage report returned an unexpected report: ${JSON.stringify(usage)}`)
-  }
-  if (typeof usage.averageResultCountByAction?.search !== "number") {
-    throw new Error(`MCP usage report omitted per-action averages: ${JSON.stringify(usage)}`)
-  }
-  if (usage.mcpOutput?.responses < 1 || usage.mcpOutput.returnedBytes < 1) {
-    throw new Error(`MCP usage report omitted output metrics: ${JSON.stringify(usage)}`)
-  }
-  if (JSON.stringify(usage).includes(demoRoot)) {
-    throw new Error("MCP usage report should not expose local project paths.")
-  }
+  const audit = await callJsonTool(client, "ragmir_audit", {})
+  if (audit.missingFromIndex.length !== 0) throw new Error("MCP audit found unindexed sources")
+  if (toolNames.length !== requiredTools.length) throw new Error("Unexpected MCP tool surface")
 
   console.log(
     JSON.stringify(
@@ -270,10 +207,6 @@ try {
         chunksIndexed: status.chunksIndexed,
         searchResults: searchResults.length,
         expandedPassages: expanded.passages.length,
-        askSources: answer.sources.length,
-        researchEvidence: research.evidence.length,
-        evaluationRecall: evaluation.recall,
-        usageEvents: usage.totalEvents,
       },
       null,
       2,

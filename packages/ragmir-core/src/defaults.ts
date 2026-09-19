@@ -10,7 +10,6 @@ export const DEFAULT_SKILL_TARGET_DIR = `${RAGMIR_DIR}/skills`
 export const INDEX_MANIFEST_FILENAME = "index-manifest.json"
 
 export const RAGMIR_PROJECT_ROOT_ENV = "RAGMIR_PROJECT_ROOT"
-export const RAGMIR_PORTABLE_READ_ONLY_ENV = "RAGMIR_PORTABLE_READ_ONLY"
 export const VECTOR_DISTANCE_METRIC = "l2"
 
 export const MAX_CONFIGURED_FILE_BYTES = 50_000_000
@@ -31,8 +30,6 @@ export const MAX_EXTERNAL_COMMAND_ARGUMENTS = 128
 export const MAX_EXTERNAL_COMMAND_TIMEOUT_MS = 900_000
 export const MAX_INCLUDE_EXTENSIONS = 128
 export const MAX_MCP_OUTPUT_BYTES = 1_048_576
-export const MAX_REDACTION_PATTERNS = 64
-export const MAX_REDACTION_PATTERN_CHARACTERS = 2_048
 export const MAX_CHUNK_SIZE = 1_000_000
 export const MAX_WORKLOAD_CONCURRENCY = 16
 export const MAX_WORKLOAD_QUEUE = 1_000
@@ -54,14 +51,11 @@ export const LEGACY_PRIVATE_GITIGNORE_ENTRY = `${LEGACY_PRIVATE_DIR}/`
 export const LEGACY_PRIVATE_GITIGNORE_FALLBACK_ENTRY = `${LEGACY_PRIVATE_DIR}/**`
 
 export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
-  privacyProfile: "private",
   retrievalProfile: "balanced",
-  acceptedRisks: [],
   rawDir: RAGMIR_RAW_DIR,
   storageDir: `${RAGMIR_DIR}/storage`,
   sourcesFile: `${RAGMIR_DIR}/sources.txt`,
   sources: [],
-  accessLogPath: `${RAGMIR_DIR}/access.log`,
   embeddingModelPath: `${RAGMIR_DIR}/models`,
   tableName: "chunks",
   embeddingProvider: "local-hash",
@@ -69,12 +63,6 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   embeddingModelRevision: DEFAULT_EMBEDDING_MODEL_REVISION,
   embeddingModelDigest: null,
   transformersAllowRemoteModels: false,
-  redaction: {
-    enabled: true,
-    builtIn: true,
-    patterns: [],
-  },
-  accessLog: true,
   mcpMaxTopK: 10,
   mcpMaxOutputBytes: 32_768,
   topK: 8,
@@ -106,5 +94,4 @@ export const LEGACY_DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   rawDir: LEGACY_PRIVATE_DIR,
   storageDir: `${LEGACY_KB_DIR}/storage`,
   sourcesFile: `${LEGACY_KB_DIR}/sources.txt`,
-  accessLogPath: `${LEGACY_KB_DIR}/access.log`,
 }

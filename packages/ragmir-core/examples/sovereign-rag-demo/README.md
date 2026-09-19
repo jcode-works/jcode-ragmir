@@ -1,8 +1,14 @@
-# Confidential local RAG demo
+# Local retrieval demo for agentic RAG
 
 A complete fictional workspace for learning how agents and scripts retrieve cited project evidence
-with Ragmir. It covers multiple formats, privacy checks, unsupported files, golden queries, and
-agent access while keeping corpus and index local with offline `local-hash` retrieval.
+with Ragmir. It covers multiple formats, local security checks, unsupported files, golden queries,
+and agent access with offline `local-hash` retrieval. Ragmir supplies citations; the consuming
+agent chooses searches, expands evidence, and generates with its own model.
+
+The corpus is fictional. Local retrieval keeps the files and index on the machine running Ragmir;
+connecting an agent or chat can send excerpts elsewhere. A local model can keep them on-device, a
+self-hosted model can process them on your server or private cloud, and a cloud provider receives
+what the consuming app sends. Review that complete path before using confidential documents.
 
 ## Scenario
 
@@ -17,6 +23,8 @@ agent access while keeping corpus and index local with offline `local-hash` retr
 
 ## Run the workflow
 
+From a checkout of the Ragmir repository, start at its root:
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
@@ -29,8 +37,7 @@ chmod 700 raw
 node ../../dist/cli.js security-audit
 node ../../dist/cli.js ingest --rebuild
 node ../../dist/cli.js search "offline retrieval approval"
-node ../../dist/cli.js ask "What evidence supports offline operation?"
-node ../../dist/cli.js research "sovereign deployment evidence" --compact
+node ../../dist/cli.js search "sovereign deployment evidence" --compact
 node ../../dist/cli.js evaluate --golden golden-queries.json --fail-under 1
 node ../../dist/cli.js audit --unsupported
 node ../../dist/cli.js status
@@ -38,14 +45,13 @@ node ../../dist/cli.js status
 
 `init` is idempotent. The security audit intentionally warns that `.ragmir/` is not fully ignored
 because this public fixture commits its configuration and source list. Generated storage, models,
-reports, audio, logs, and salts remain ignored. Private projects should ignore the complete
+reports remain ignored. Private projects should ignore the complete
 `.ragmir/` directory.
 
 Expected results:
 
-- search and ask identify source paths and chunks;
-- `ask` returns evidence, not a generated answer;
-- `research` combines bounded queries and source diagnostics;
+- search identifies source paths and chunks;
+- agents can expand selected citations and refine queries;
 - every golden query finds its expected source;
 - the audit explains why HEIC was skipped and suggests local OCR;
 - status confirms the active provider and local index.
@@ -55,14 +61,17 @@ Useful queries include `dataset residency`, `incident containment evidence`,
 
 ## Connect an agent
 
-In a real project, `rgr setup` writes an ignored MCP helper. A compatible agent can then follow:
+In a real project, `rgr setup` writes an ignored MCP helper. Connect it to a compatible agent and
+choose the model independently. The agent can search, expand citations, and refine its query before
+writing a response. For example:
 
 ```text
 Use Ragmir to search for "offline retrieval approval" and write a cited report under
 .ragmir/reports/demo-sovereign-rag.md. Mention unsupported or stale files reported by the audit.
 ```
 
-Keep retrieved reports under ignored local state.
+Keep retrieved reports under ignored local state. The [agent integration guide](../../../../docs/agent-integration.md)
+shows the MCP connection and an example chat flow with a local Ollama model.
 
 ## Compare semantic retrieval
 
@@ -72,7 +81,7 @@ The committed configuration uses offline lexical/hash retrieval:
 { "embeddingProvider": "local-hash" }
 ```
 
-For a deliberate semantic comparison, prepare a Transformers.js model locally, set
+For a deliberate semantic comparison, install `@huggingface/transformers`, prepare a model locally, set
 `embeddingProvider`, `embeddingModel`, `embeddingModelRevision`, `embeddingModelPath`, and
 `transformersAllowRemoteModels: false`, then rebuild and rerun evaluation. Keep remote loading off.
 A lower semantic score is a tuning signal, never a reason to weaken a quality gate.

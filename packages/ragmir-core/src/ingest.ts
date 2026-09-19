@@ -1,5 +1,4 @@
 import type { Connection } from "@lancedb/lancedb"
-import { recordAccess } from "./access-log.js"
 import { summarizeChunkStats } from "./chunk-stats.js"
 import { chunkDocument, chunkSearchText } from "./chunking.js"
 import { loadConfig } from "./config.js"
@@ -44,7 +43,6 @@ import {
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
 import { summarizeIndexedCorpus } from "./quality-report.js"
-import { redactDocument, totalRedactions } from "./redaction.js"
 import { securityAuditWithConfig } from "./security.js"
 import type { StorageMaintenanceReport } from "./storage-maintenance.js"
 import { maintainStorageTable } from "./storage-maintenance.js"
@@ -294,11 +292,10 @@ async function ingestUnlocked(
           state,
           parsed.file.relativePath,
           parsed.error
-            ? { state: "error", redactions: 0, error: parsed.error }
+            ? { state: "error", error: parsed.error }
             : {
                 state: "parsed",
                 chunkCount: parsed.chunks.length,
-                redactions: parsed.redactions,
                 error: null,
               },
         )
@@ -429,12 +426,6 @@ async function ingestUnlocked(
     await persistIngestionProgress(state, config, options, true)
 
     const emptyTextFiles = emptyTextRecords(state).map((file) => file.relativePath)
-    const redactions = state.files.reduce((sum, file) => sum + file.redactions, 0)
-    await recordAccess(config, {
-      action: "ingest",
-      resultCount: manifest.chunkCount,
-      redactions,
-    })
 
     return {
       runId: state.runId,
@@ -458,7 +449,6 @@ async function ingestUnlocked(
       sensitiveFiles: countSkippedByReason(inventory.skippedFiles, "sensitive-name"),
       emptyTextFiles,
       unsupportedExtensions: summarizeUnsupportedExtensions(inventory.skippedFiles),
-      redactions,
       ocr,
       vectorIndexWarning: maintenance.adaptiveIndices?.warning ?? null,
       lexicalIndexWarning,
@@ -556,7 +546,6 @@ async function reconcileCommittedFiles(
 interface ParsedSourceFile {
   file: SourceFile
   chunks: TextChunk[]
-  redactions: number
   ocr: PdfOcrMetrics | null
   error: string | null
 }
@@ -572,24 +561,20 @@ async function parseSourceFile(
     const parse = () => parseFile(file, { ...config, ...(signal ? { signal } : {}) })
     const parsed = metrics ? await metrics.measureAsync("parsing", parse) : await parse()
     throwIfAborted(signal)
-    const redacted = metrics
-      ? metrics.measure("redaction", () => redactDocument(parsed, config))
-      : redactDocument(parsed, config)
     const chunks = metrics
       ? metrics.measure("chunking", () =>
-          chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap, {
+          chunkDocument(parsed, config.chunkSize, config.chunkOverlap, {
             maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
             ...(signal ? { signal } : {}),
           }),
         )
-      : chunkDocument(redacted.document, config.chunkSize, config.chunkOverlap, {
+      : chunkDocument(parsed, config.chunkSize, config.chunkOverlap, {
           maxChunks: MAX_INGEST_CHUNKS_PER_FILE,
           ...(signal ? { signal } : {}),
         })
     return {
       file,
       chunks,
-      redactions: totalRedactions(redacted.counts),
       ocr: parsed.ocr ?? null,
       error: null,
     }
@@ -599,7 +584,6 @@ async function parseSourceFile(
     return {
       file,
       chunks: [],
-      redactions: 0,
       ocr: null,
       error: error instanceof Error ? error.message : String(error),
     }

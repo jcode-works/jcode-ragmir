@@ -1,16 +1,11 @@
-import { TTS_LANGUAGES } from "@jcode.labs/ragmir-tts"
 import { describe, expect, it } from "vitest"
 import {
-  audioAllowRemoteModels,
-  audioEngine,
-  audioLanguage,
   parseAgentInstallMode,
   parseAgentInstallScope,
   parseIncrementalFailurePolicy,
   parseNumber,
   parsePositiveInt,
   parseRecallThreshold,
-  SUPPORTED_AUDIO_LANGUAGES,
 } from "./cli-options.js"
 
 describe("parsePositiveInt", () => {
@@ -70,72 +65,6 @@ describe("parseIncrementalFailurePolicy", () => {
     expect(() => parseIncrementalFailurePolicy("drop-everything")).toThrow(
       "preserve-last-good or remove-stale",
     )
-  })
-})
-
-describe("audioAllowRemoteModels", () => {
-  it("forces remote models off when offline", () => {
-    expect(audioAllowRemoteModels({ offline: true, allowRemoteModels: true })).toBe(false)
-  })
-
-  it("enables remote models on explicit opt-in", () => {
-    expect(audioAllowRemoteModels({ allowRemoteModels: true })).toBe(true)
-  })
-
-  it("returns undefined by default to defer to the TTS package default", () => {
-    expect(audioAllowRemoteModels({})).toBeUndefined()
-  })
-})
-
-describe("audioLanguage", () => {
-  it("matches the optional TTS package language contract", () => {
-    expect(SUPPORTED_AUDIO_LANGUAGES).toEqual(TTS_LANGUAGES)
-  })
-
-  it("returns undefined when no language is provided", () => {
-    expect(audioLanguage({})).toBeUndefined()
-  })
-
-  it("accepts a supported language", () => {
-    expect(audioLanguage({ lang: "fr" })).toBe("fr")
-    expect(audioLanguage({ lang: "en" })).toBe("en")
-    expect(audioLanguage({ lang: "es" })).toBe("es")
-    expect(audioLanguage({ lang: "ja" })).toBe("ja")
-    expect(audioLanguage({ lang: "th" })).toBe("th")
-    expect(audioLanguage({ lang: "zh" })).toBe("zh")
-  })
-
-  it("rejects an unsupported language with the list of valid options", () => {
-    expect(() => audioLanguage({ lang: "de" })).toThrow("en, es, fr, ja, th, zh")
-  })
-})
-
-describe("audioEngine", () => {
-  it("forces the transformers engine when offline", () => {
-    expect(audioEngine({ offline: true })).toBe("transformers")
-    expect(audioEngine({ offline: true, engine: "edge" })).toBe("transformers")
-  })
-
-  it("defaults to transformers when no engine is given", () => {
-    expect(audioEngine({})).toBe("transformers")
-  })
-
-  it("accepts explicit engine choices", () => {
-    expect(audioEngine({ engine: "edge" })).toBe("edge")
-    expect(audioEngine({ engine: "auto" })).toBe("auto")
-    expect(audioEngine({ engine: "transformers" })).toBe("transformers")
-  })
-
-  it("guards MP3 output without an explicit engine (confidentiality check)", () => {
-    expect(() => audioEngine({ out: "summary.mp3" })).toThrow("MP3 output uses online Edge TTS")
-  })
-
-  it("allows MP3 output when edge engine is explicit", () => {
-    expect(audioEngine({ out: "summary.mp3", engine: "edge" })).toBe("edge")
-  })
-
-  it("rejects an invalid engine value", () => {
-    expect(() => audioEngine({ engine: "piper" })).toThrow("auto, edge, or transformers")
   })
 })
 

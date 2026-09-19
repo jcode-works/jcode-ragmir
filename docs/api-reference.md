@@ -1,581 +1,153 @@
-# TypeScript API reference
+# TypeScript API
 
-Ragmir publishes three ESM packages for Node.js 22 or later. Releases are gated on Linux x64 and
-macOS ARM64 with Node.js 22:
+Install `@jcode.labs/ragmir` in a Node.js 22.12+ application. It publishes ESM and TypeScript declarations.
+Import from the package root. Model synthesis belongs to your application or agent.
 
-| Package | Recommended entry point |
-| --- | --- |
-| `@jcode.labs/ragmir` | Index and retrieve cited project evidence. |
-| `@jcode.labs/ragmir-chat` | Generate a cited answer from passages with a local GGUF model. |
-| `@jcode.labs/ragmir-tts` | Render reviewed text as local WAV or explicit online MP3 audio. |
-
-Use the CLI or MCP server when an agent or automation only needs to retrieve evidence. Use these
-APIs when a Node.js process owns the workflow. All paths resolve from `cwd` or the current working
-directory, and generated state stays under the project's ignored `.ragmir/` directory. With the
-default `local-hash` provider, Core indexes and retrieves private project files locally and
-offline. Only passages a caller explicitly hands to an external consumer cross that boundary.
-
-Choose the smallest interface that owns the work:
-
-| Need | Use |
-| --- | --- |
-| One operation in a short script | Top-level functions such as `ingest`, `search`, and `research` |
-| Repeated work in one Node.js process | One `RagmirClient` per project root, closed during shutdown |
-| Git-backed team refresh | `syncTeamKnowledge()` for fetch, safe fast-forward, and incremental ingest |
-| Agent or automation retrieval | The stdio MCP server, compact by default |
-| Frozen handoff to another host | `exportPortableKnowledgeBase()` and its read-only folder |
-
-`doctor()` includes a `runtime` block with the active Node, V8, N-API, platform, architecture,
-Ragmir, LanceDB, Arrow, Transformers.js, ONNX Runtime, and Sharp versions. This records resolved
-package metadata without importing or initializing the optional semantic runtimes.
-
-## Core: cited retrieval
-
-```bash
-npm install @jcode.labs/ragmir
-```
+## Persistent client
 
 ```ts
-import { ingest, search, type SearchOptions } from "@jcode.labs/ragmir"
+import { createRagmirClient } from "@jcode.labs/ragmir"
 
-const cwd = process.cwd()
-await ingest({ cwd })
-
-const options: SearchOptions = { cwd, topK: 5, explain: true }
-const results = await search("Which decision changed the rollout?", options)
-
-for (const result of results) {
-  console.log(result.citation, result.text)
-}
-```
-
-Search results include `relativePath`, `citation`, `chunkIndex`, exact indexed text, verified source
-line ranges when available, PDF page ranges, structural context, and optional score explanations.
-Citation strings also encode PPTX slides, XLSX sheet and cell ranges, and EPUB spine positions.
-`charStart` and `charEnd` always address the redacted indexed text, not the original source bytes.
-When parsing or redaction invalidates a source-line mapping, `lineStart` and `lineEnd` are `null`
-instead of presenting an unverifiable line claim.
-
-With `explain: true`, `score` includes the vector and lexical ranks, their reciprocal-rank-fusion
-contributions, matched terms, backend scores, FTS or complete-fallback activation and reason,
-fallback scan batches, candidate materialization, query-variant count, indexed/unindexed rows,
-coverage, document-cap and ranked-backfill state, queue wait as `workloadQueueMs`, and
-`rankingPolicyFingerprint`. The fingerprint identifies the provider, retrieval profile, document
-cap, fusion parameters, and abstention threshold used by the result. Equal scores are ordered by
-stable source and chunk keys, so identical indexes return the same order regardless of backend row
-order. Search returns an empty array when every candidate fails the active provider's evidence
-threshold.
-
-### Persistent client for Node.js workers
-
-Use one client per project root when a stateful Node.js process performs repeated retrieval. The
-client reuses one local LanceDB connection plus one immutable manifest/table snapshot, refreshes the
-snapshot only after atomic manifest replacement, and closes each retired table after its last active
-reader finishes.
-
-The client and one-shot API share bounded process-local queues per project root for search,
-embedding, and ingestion. Saturation raises retryable `RagmirError` code `OVERLOADED`; queue expiry
-raises `TIMEOUT`. Caller abort signals remove queued work before it starts. `close()` stops new
-admission and waits for already accepted queued and active operations before closing LanceDB.
-
-```ts
-import { createRagmirClient, isRagmirError } from "@jcode.labs/ragmir"
-
-const controller = new AbortController()
 const ragmir = await createRagmirClient({ cwd: process.cwd() })
-
 try {
-  await ragmir.ingest({ signal: controller.signal, timeoutMs: 120_000 })
+  await ragmir.ingest({ collectMetrics: true })
   const results = await ragmir.search("release approval", {
-    topK: 5,
-    signal: controller.signal,
-    timeoutMs: 10_000,
+    topK: 3,
+    maxChunksPerDocument: 1,
+    includePaths: ["docs"],
+    explain: true,
+    signal: AbortSignal.timeout(10_000),
   })
-  console.log(results.map(({ citation }) => citation))
-} catch (error) {
-  if (isRagmirError(error)) {
-    console.error(error.code, error.retryable)
-  } else {
-    throw error
+  if (results[0]) {
+    const citation = await ragmir.expandCitation(results[0].citation, {
+      contextRadius: 1,
+      expectedEvidenceId: results[0].evidence?.id,
+    })
+    console.log(citation)
   }
+  console.log(await ragmir.status())
+  console.log(await ragmir.sources())
 } finally {
   await ragmir.close()
 }
 ```
 
-`RagmirClient` exposes `ingest`, `search`, `ask`, `research`, `expandCitation`, `status`, `sources`,
-and an idempotent `close`. Every data operation accepts `signal` and `timeoutMs` through its options.
-`close()` takes no options, rejects new work, waits for active operations, flushes the bounded
-metadata-only access-log writer, closes the shared connection, and releases the client's embedding
-model ownership. The final owner retires the matching Transformers pipeline only after active
-inference leases finish.
-Index writes targeting the same storage directory are serialized across local OS processes. The
-private lock records its PID, run ID, owner token, start time, and heartbeat; readers do not acquire
-it. A dead local owner is recovered automatically, while bounded contention returns the retryable
-`INDEX_BUSY` error.
-Cancellation is cooperative between filesystem, parsing, embedding, storage, retrieval, and
-diagnostic phases.
+Use one client per project root in each long-running process. The client reuses a connection and
+an immutable read snapshot, detects generation replacement, drains accepted operations at shutdown,
+and releases storage and model resources. Always close it, including when an operation fails.
 
-`status()` reads compact manifest health, including the local `corpusFingerprint`, without opening
-the vector table. The fingerprint identifies sorted indexed relative paths and source bytes while
-excluding absolute roots, timestamps, and index layout. Compare it only when both status reports are
-ready with no missing or stale files. The value is `null` before a successful ingestion and for
-manifests written by versions that predate corpus fingerprints. `sources({ offset, limit })` streams
-only the requested page from the manifest file snapshot; `limit` defaults to 50 and is capped at
-100. Totals remain complete, and `page.nextOffset` is `null` on the final page.
-
-`RagmirError.code` is one of `ABORTED`, `CLIENT_CLOSED`, `INDEX_BUSY`, `INTERNAL`,
-`INVALID_ARGUMENT`, `OVERLOADED`, or `TIMEOUT`. `retryable` is true for cancellation, timeout,
-overload, and busy-index errors. `isRagmirError(error)` narrows
-unknown failures, while `normalizeRagmirError(error)` preserves Ragmir errors and converts other
-failures into an `INTERNAL` `RagmirError` with the original cause.
-
-### Team synchronization, diagnostics, and upgrades
-
-`syncTeamKnowledge({ cwd })` is the high-level Git-backed team path. It fetches the current branch
-upstream, applies only a safe fast-forward, refreshes the local index incrementally, and returns a
-typed Git plus index report. Set `autoPull: false` to inspect upstream without changing the branch,
-`fetch: false` for an explicitly offline run, or `check: true` to avoid worktree and index changes.
-Dirty, ahead, diverged, detached, and no-upstream histories are reported without rewriting them.
-Expected fetch or ingestion failures preserve the last valid local index when one exists.
-
-`createTeamSnapshot({ cwd, label })` returns the same privacy-bounded snapshot as the CLI.
-`writeTeamSnapshot`, `readTeamSnapshot`, and `compareTeamSnapshots` support typed automation around
-the schema-validated advanced exchange. A comparison returns exact configuration differences,
-local-only, peer-only, and changed paths plus recommended actions. It never includes source text or
-chooses an authoritative copy.
-
-`inspectUpgrade(cwd)` reports whether an index is current, missing, incompatible, or needs repair.
-Its `ready` field covers upgrade and retrieval continuity; `privacyCompliant` and `advisories`
-surface independent local security follow-ups without turning a compatible index into a repair.
-`upgradeProject({ cwd })` refreshes managed helpers and safely ingests or rebuilds before returning
-the final doctor report. Call it after updating the package and before accepting retrieval on the
-new runtime. Rebuild activation never deletes the previous validated generation first. A host that
-needs uninterrupted retrieval can keep its already loaded runtime serving, then restart or cut over
-after the upgrade returns `status: "current"` and `ready: true`.
-
-The lock is local-machine coordination, not a distributed lock. Do not share one writable index
-directory across hosts or a network filesystem; build one local index per machine instead.
-
-This API targets stateful Node.js processes with a local filesystem. It is not an edge or stateless
-serverless API, and Ragmir does not provide an HTTP listener. A network-facing application owns
-authentication, authorization, rate limits, and transport security.
-
-### Portable knowledge-base folders
-
-`exportPortableKnowledgeBase(options?)` creates a new frozen folder from the active validated
-index. `cwd` selects the source base, `outputDir` selects a destination, and `name` sets its display
-name. Without `outputDir`, the export uses a timestamped path under `.ragmir/exports/`.
-The operation takes the existing local writer lock, copies only active retrieval state, includes a
-required Transformers model, writes read-only launchers and MCP adapters, inventories managed files
-with SHA-256, verifies the copied table, and activates the destination. It refuses an existing
-destination unless `replaceExisting` is `true`, as well as an incomplete or stale index, unresolved
-security warning, and configured external extractor command.
-
-Replacement accepts only an existing Ragmir portable directory. It preserves that directory as a
-timestamped sibling, activates the new verified folder at the stable path, and attempts to restore
-the previous directory if activation fails. `ExportPortableKnowledgeBaseResult.previousOutputDir`
-returns the preserved path, or `null` for a first export. The library never deletes that backup.
+## One-shot operations
 
 ```ts
-import {
-  exportPortableKnowledgeBase,
-  verifyPortableKnowledgeBase,
-} from "@jcode.labs/ragmir"
+import { compactSearchResults, ingest, search, expandCitation } from "@jcode.labs/ragmir"
 
-const exported = await exportPortableKnowledgeBase({
-  cwd: process.cwd(),
-  outputDir: "../operations-knowledge",
-  name: "Operations knowledge",
-  replaceExisting: true,
-})
-
-const verification = await verifyPortableKnowledgeBase(exported.outputDir)
-if (!verification.valid) throw new Error(verification.errors.join("\n"))
+await ingest({ cwd: "/path/to/project" })
+const results = await search("release approval", { cwd: "/path/to/project", topK: 3 })
+console.log(compactSearchResults(results))
+if (results[0]) {
+  console.log(await expandCitation(results[0].citation, { cwd: "/path/to/project" }))
+}
 ```
 
-`verifyPortableKnowledgeBase(root)` validates the schema, every managed file size and SHA-256,
-effective frozen configuration, index compatibility, active table readability, corpus fingerprint,
-and row count. A platform or architecture change produces a warning so the destination can prove
-retrieval before relying on the bundle. Verification never treats the knowledge base as authority
-to perform an external action.
+`SearchOptions` includes `topK`, `maxChunksPerDocument`, `contextRadius`, `includePaths`,
+`excludePaths`, `contextPaths`, `explain`, and `vectorSearchMode: "exact"` for ANN comparisons.
+Use `CompactSearchResult` for bounded snippets or `SearchResult` for text and neighboring context.
+Score explanations describe retrieval signals, not calibrated confidence in a claim.
 
-### Project and source setup
+Queries preserve their full constraints up to 20,000 UTF-16 code units. Whitespace is normalized;
+oversized input throws `INVALID_ARGUMENT` instead of silently discarding its beginning.
+With `explain: true`, `retrievalQuery`, `queryNormalized`, and `originalQueryLength` show this
+preparation. Exact compound identifiers such as `ERR_INVOICE_409` or `invoices.validateDraft`
+take precedence over less specific candidates. A non-empty result is still not proof that every
+requested condition is documented; expand the evidence and check exceptions and missing facts.
 
-| Export | Purpose |
-| --- | --- |
-| `initProject(cwd?)` | Create local configuration and ignore rules. |
-| `setupProject(options?)` | Initialize sources, agent helpers, and optional semantic retrieval. |
-| `loadConfig(start?)` | Resolve and validate effective configuration from the nearest base. |
-| `knowledgeBaseIdentity(start?)` | Identify the nearest base relative to the outer workspace. |
-| `discoverKnowledgeBases(start?)` | List root and nested bases and mark the active one. |
-| `getKnowledgeBaseContext(cwd?, options?)` | Return bounded identity, readiness, freshness, and capabilities. |
-| `getKnowledgeBaseSourceCatalog(cwd?, options?)` | Return paged manifest source coverage with complete totals. |
-| `listSourceEntries(cwd?)` | Read configured source and exclusion entries. |
-| `addSourceEntries(options)` | Add source paths or exclusions without duplicating entries. |
-| `exportPortableKnowledgeBase(options?)` | Export a frozen relocatable index, skills, launcher, adapters, and integrity manifest. |
-| `portableKnowledgeBaseManifestSchema` | Validate an exported portable manifest at a consumer boundary. |
-| `verifyPortableKnowledgeBase(root)` | Verify managed files, configuration, index compatibility, and table readability. |
+Search results include `evidence`: a content ID, source checksum, index generation, indexing time,
+and knowledge-base ID when available. Pass `evidence.id` as `expectedEvidenceId` to
+`expandCitation` to reject changed indexed content with `EVIDENCE_CHANGED`. The ID stays stable
+when unchanged evidence is rebuilt and changes when its source checksum or chunk identity changes.
+It identifies indexed evidence, not the current file on disk; use `audit` or `doctor --deep` to
+check source freshness. Compact results retain this identity.
 
-### Index and retrieve
+For XLSX tables, full results attach the header as a separate `context` passage with its own cell
+citation, including at `contextRadius: 0`. Expansion also includes it; compact search requires
+expansion to read this context. Detection uses the first row containing at least two populated
+text cells after a blank row or sheet boundary. Headers larger than one chunk are not propagated.
+Check complex or multi-level tables in `preview`; Ragmir does not infer their semantics.
 
-| Export | Purpose |
-| --- | --- |
-| `createRagmirClient(options?)` | Reuse one connection and immutable index snapshot in a long-running Node.js process. |
-| `ingest(options?)` | Incrementally parse, redact, chunk, embed, and store selected files. |
-| `getIngestionProgress(config)` | Read durable progress for the latest ingestion run. |
-| `audit(cwd?, options?)` | Run a deep O(corpus) comparison of files on disk with the current index. |
-| `previewChunks(options?)` | Return redacted chunks and distributions without writing an index. |
-| `search(query, options?)` | Return ranked cited passages. |
-| `ask(query, options?)` | Return cited retrieval context without calling an LLM. |
-| `research(query, options?)` | Run bounded, rank-aware multi-query retrieval and report evidence gaps. |
-| `expandCitation(citation, options?)` | Read one exact chunk and a bounded neighbor window. |
-| `compactSearchResults(results, maxLength?)` | Reduce retrieved passages for a limited context window. |
-| `compactResearchReport(report)` | Replace full research evidence text with compact snippets. |
-| `evaluateGoldenQueries(options)` | Score Recall@1/3/5/10, Precision@5, MRR@10, graded nDCG@10, exact citations, and abstention against a local golden-query file. |
+`charStart` and `charEnd` address the parsed indexed text. For source-preserving text, passages map
+to the original character range and real lines. Extracted binary documents use native page, slide,
+sheet/cell, or EPUB coordinates. They are not byte offsets into a binary file.
 
-One evaluation pins a single configuration, connection, manifest generation, table handle, and
-embedding model. Cases run with bounded concurrency, preserve file order in the report, and release
-all scoped resources when evaluation finishes. The report records the configured
-`maxChunksPerDocument` beside the ranking-policy fingerprint so reference results are reproducible.
-
-`SearchOptions` accepts `cwd`, `topK`, `maxChunksPerDocument`, `contextRadius`, `includePaths`,
-`excludePaths`, `contextPaths`, `explain`, `vectorSearchMode`, `signal`, and `timeoutMs`. Set
-`vectorSearchMode: "exact"` to bypass ANN for diagnostic comparison; the default `"adaptive"`
-uses the compatible strategy recorded in the manifest. `topK` and `maxChunksPerDocument` are
-limited to 100. The document cap defaults to one, applies after scoring, and is preceded by internal
-over-retrieval. Ranked backfill preserves the requested result count when too few distinct
-documents are available. `contextRadius` is clamped to three chunks and attaches neighbors after
-primary-result diversification. `IngestOptions` also accepts `rebuild`, a
-positive `batchSize` that defaults to 25 files and is capped at 128, `incrementalFailurePolicy`, and
-an optional `onProgress` callback. Set `collectMetrics: true` to include privacy-safe phase,
-throughput, cache-state, RSS, OCR subprocess, fallback, error, timeout, and bound-activation metrics
-in `IngestResult.metrics`. Subscribing to the exported `INGESTION_DIAGNOSTICS_CHANNEL` emits the
-same bounded summary even when the result field is not requested. Diagnostics contain no project
-root, source path, source text, or raw query. Without collection or a subscriber, timers and RSS
-sampling remain disabled. The default `preserve-last-good` policy keeps prior rows searchable and marks
-them stale when a changed file fails; `remove-stale` deletes them. Its durable progress contains the
-run ID, resume flag, last activity, chunk count, stale count, and per-stage file counts.
-Atomic sidecar replacement flushes file contents before rename and synchronizes the storage
-directory where supported. The activation manifest keeps one validated previous generation for
-recovery. Retrieval may use that generation after canonical sidecar loss or corruption, but doctor
-reports a recovery warning and readiness remains false until `ingest --rebuild` repairs it.
-Parsing windows are independently bounded by source bytes and estimated chunks. Embeddings are
-bounded by batch size and vector bytes, while each file remains the atomic durable commit unit.
-`DoctorOptions.deep` enables live O(corpus) inventory and security probes; default doctor and status
-paths consume persisted manifest health. `KnowledgeBaseSourceCatalogOptions` accepts zero-based
-`offset`, a `limit` from 1 to 100, `signal`, and `timeoutMs`.
-
-`IngestOptions`, `ResearchOptions`, `ExpandCitationOptions`, `EvaluationOptions`, and
-`AccessLogUsageOptions` accept `signal` and `timeoutMs`. Diagnostic functions that take a separate
-`options` argument use the same `OperationOptions` contract. When explanation is enabled, each
-result includes reciprocal-rank fusion contributions, one-based vector and lexical ranks, vector
-distance, lexical backend and coverage diagnostics, and matched query terms.
-`ExpandCitationOptions.contextRadius` is
-clamped to three chunks.
-
-`ResearchOptions` also accepts `fullAudit`, `codeTopK`, `codeScanMaxFiles`,
-`codeScanMaxBytes`, and `codeScanConcurrency`. The defaults are a manifest-only health snapshot,
-20 code results, 1,000 files, 32 MiB, and four concurrent reads. Limits are capped at 100 results,
-10,000 files, 256 MiB, and 16 reads. A full source inventory is opt-in with `fullAudit: true`.
-`ResearchReport.budgets` records configured and consumed budgets; `audit.mode` distinguishes
-`manifest` from `full`. Evidence exposes a weighted cross-query RRF `researchScore` and `bestRank`.
-The original query has a protected weight so language-aware expansions can add evidence without
-removing direct-search results from the same candidate depth. After fusion, research reapplies
-`maxChunksPerDocument` with ranked backfill; the report records the cap and whether backfill was
-needed.
-
-Golden evaluation files are limited to 16 MiB and 1,000 cases. Each query is limited to 20,000
-characters, with at most 100 expected paths or citations of 500 characters each.
-`AccessLogUsageOptions.days` accepts an integer from 1 to 3650.
-
-Structural context comes from Markdown headings or structured-data paths. It can improve candidate
-selection without changing the exact text, offsets, or citations returned to the caller.
-
-### Operations, diagnostics, and privacy
+## Indexing and diagnostics
 
 | Export | Purpose |
 | --- | --- |
-| `doctor(cwd?, options?)` | Report setup, source, index, and agent-integration readiness. |
-| `securityAudit(cwd?, options?)` | Report local privacy, redaction, private-path Git/permission state, extractor authority, and MCP posture. |
-| `ingestionLimits(config)` | Read active parser safety limits. |
-| `accessLogUsageReport(options?)` | Summarize metadata-only local access logs. |
-| `accessLogWriterMetrics(config)` | Read pending, in-flight, written, and dropped access-log event counts. |
-| `flushAccessLog(config)` | Flush the bounded asynchronous access-log writer and return its metrics. |
-| `optimizeStorage(options?)` | Inspect or force fragment compaction, old-version pruning, and complete FTS, adaptive-vector, and scalar-index coverage under the local writer lock. |
-| `collectGenerationGarbage(options?)` | Inspect generation roles or reclaim expired, unleased tables under the local writer lock. |
-| `destroyIndex(cwd?)` | Remove generated index data without deleting source files. |
-| `redactText(input, config)` | Apply configured redaction before custom processing; unsafe custom expressions are rejected before matching. |
-| `routePrompt(prompt)` | Recommend deterministically whether a prompt needs retrieval. |
-| `getIndexFreshnessWarning(config)` | Return a stale-index warning or `null`. |
-| `getLexicalScanWarning(config, chunkCount)` | Return a lexical-scan capacity warning or `null`. |
-| `INDEX_SCHEMA_VERSION` | Current persisted index schema version. |
-| `VERSION` | Installed Ragmir Core package version. |
+| `initProject(cwd?)`, `setupProject(options?)` | Initialize config and optional agent helpers. |
+| `loadConfig(cwd?)` | Resolve the nearest project config with validated limits. |
+| `ingest(options?)` | Incrementally parse and index selected files; `rebuild` stages a replacement. |
+| `previewChunks(options?)` | Inspect parsed chunks without writing the index. |
+| `audit(cwd?, options?)` | Compare live supported sources with indexed files. |
+| `doctor(cwd?, options?)` | Read cached health; use `deep: true` for live inventory and diagnostics. |
+| `getKnowledgeBaseContext(cwd?, options?)` | Read base identity, readiness, and coverage. |
+| `getKnowledgeBaseSourceCatalog(cwd?, options?)` | Read bounded source lists and complete totals. |
+| `discoverKnowledgeBases(...)` | Discover root and nested project bases. |
+| `securityAudit(cwd?, options?)` | Inspect permissions, Git exclusions, providers, and extractor authority. |
+| `inspectUpgrade(cwd?)`, `upgradeProject(options?)` | Inspect compatibility or migrate and rebuild safely. |
+| `evaluateGoldenQueries(options)` | Measure retrieval against an explicit golden-query file. |
+| `destroyIndex(cwd?)` | Explicitly remove managed local index storage. |
 
-### Optional embeddings and PDF OCR
+The options and result types are exported, including `Config`, `IngestOptions`, `IngestResult`,
+`SearchOptions`, `SearchResult`, `EvidenceVersion`, `ExpandedCitation`, `AuditReport`, `DoctorReport`, and
+`UpgradeInspection` / `UpgradeResult`. See the published declarations for the complete surface.
 
-| Export | Purpose |
-| --- | --- |
-| `enableSemanticEmbeddings(cwd?, artifact?)` | Enable Transformers embeddings and optionally persist a verified revision and artifact digest. |
-| `pullEmbeddingModel(config)` | Download the configured model explicitly and return its resolved revision, local path, and canonical artifact digest. |
-| `clearTransformersCache()` | Retire process-local Transformers pipelines without interrupting active inference. |
-| `disposeTransformersCache()` | Retire all cached pipelines and wait for their active leases and disposal. |
-| `disposeTransformersModel(config)` | Retire one exact model identity and wait for safe disposal. |
-| `inspectPdfOcr(cwd?)` | Detect configured local OCR tools and readiness. |
-| `configurePdfOcr(options?)` | Write a safe page-aware PDF OCR command. |
-| `extractPdfPage(options)` | Run the low-level local PDF page extractor. |
-| `extractPdfPages(options)` | Run one bounded local OCR batch and return ordered page text plus process diagnostics. |
+Ingestion commits bounded progress and resumes compatible interrupted runs. The default
+`incrementalFailurePolicy: "preserve-last-good"` reports failed changed files as stale while keeping
+their previous rows. `remove-stale` is an explicit alternative. Source deletion removes its rows.
+Rebuild activation validates counts, checksums, and duplicate IDs before replacing the manifest.
 
-Semantic embeddings and OCR are opt-in boundaries. Core never calls a cloud OCR service, and a
-model download must be explicitly enabled before local inference can use it. The default
-`local-hash` path does not resolve Transformers.js, ONNX Runtime, or Sharp. Bundled embedding
-profiles use immutable model commits; the resolved artifact digest participates in persisted index
-and quality compatibility. PDF parsing exposes content-free `PdfOcrMetrics`; generated OCR setup
-batches pages and caches each result privately by content and runtime identity.
+`collectMetrics: true` adds local phase timings, throughput, bounded failure counters, and OCR cache
+metrics. The `ragmir:ingestion` diagnostics channel publishes the same metadata when subscribed;
+it excludes paths, source text, and queries. No telemetry is transmitted.
 
-### MCP, skills, and command helpers
+## Cancellation and concurrency
 
-| Export | Purpose |
-| --- | --- |
-| `createMcpServer(cwd?, options?)` | Construct the read-focused MCP server without selecting a transport. |
-| `connectMcpServer(transport, cwd?)` | Connect a caller-owned MCP transport and return a closeable server handle. |
-| `serveMcp(cwd?)` | Start the local stdio MCP server. |
-| `RAGMIR_SETUP_PROMPT` | Canonical bounded prompt for repository-aware agent setup. |
-| `installAgentSkills(options?)` | Install the canonical skill kit for selected native agents. |
-| `installSkill(options?)` | Install one bundled skill with ownership checks. |
-| `inspectAgentIntegration(cwd?)` | Verify runner and native skill discovery. |
-| `parseAgentTargets(value)` | Validate and normalize agent target input. |
-| `SUPPORTED_AGENT_TARGETS` | Supported native helper targets. |
-| `bundledSkillPath(skillName?)` | Resolve a bundled skill path inside the installed package. |
-| `detectPackageManager(cwd?)` | Detect the target project's package manager. |
-| `rgrCommand(cwd, args)` | Prefer the generated runner, then build a package-manager command. |
-| `kbCommand(cwd, args)` | Compatibility alias for older integrations. |
-| `ragmirCommand(cwd, args)` | Compatibility alias for older integrations. |
+Operations accepting `OperationOptions` support `signal` and `timeoutMs`. The library returns
+values or throws errors; it does not write to stdout/stderr. Use `isRagmirError(error)` to inspect
+structured codes such as `TIMEOUT`, `OVERLOADED`, `INDEX_BUSY`, `INDEX_UNAVAILABLE`, and `CLIENT_CLOSED`.
 
-New integrations should use `rgrCommand` and the `rgr` CLI name. MCP search, ask, and research
-start with at most three compact document citations by default; research may add up to three code
-matches. Expand one selected citation with
-`ragmir_expand`, or pass `compact: false` and an explicit `topK` only when the full retrieval payload
-is required. This MCP default does not change CLI or TypeScript results; CLI callers opt in with
-`--compact` and library callers can use `compactSearchResults` or `compactResearchReport`.
-Search, ask, research, expansion, audit, and evaluation accept `maxBytes`; every tool and resource
-JSON response is bounded by the configured `mcpMaxOutputBytes` and an absolute 1 MiB ceiling. When a
-response does not fit, the server selects a typed summary with exact scalar values, previews, and
-omission counters rather than recursively shortening arbitrary strings. A
-successful search keeps its best citation at the minimum 1 KiB budget. Retrieval depth, source
-pages, audit previews, and returned evaluation case details are capped before their response report
-is constructed; aggregate audit and evaluation metrics still cover the complete requested work.
-Metrics are returned under
-`_meta["ragmir/output"]` and summarized by the metadata-only usage report.
+Per-project process-local queues bound search, embeddings, and ingestion. A private writer lock
+serializes index writers across local OS processes. Readers keep generation leases through their
+operation; neither lock nor leases provide distributed coordination across machines.
 
-Each MCP server resolves configuration once per request, lazily reuses one `RagmirClient` per
-effective configuration, closes and refreshes it after configuration changes, and closes it with the
-server. Its protocol instructions teach clients to read `ragmir://context` once, use compact
-retrieval, expand one citation, and keep evidence separate from action authority. All tools
-advertise non-destructive behavior. Search, ask, research, and evaluation
-conservatively advertise open-world behavior because
-explicitly enabled Transformers models may download public weights. The pure prompt router,
-security audit, and usage report also advertise read-only, idempotent behavior. Other tools do not
-because they can initialize ignored local state or append metadata-only access logs. MCP cancellation
-signals propagate into Core retrieval, audit, evaluation, security, usage, and resource operations.
-Native filesystem and LanceDB calls that do not expose `AbortSignal` are checked immediately before
-and after the call, so cancellation waits only for that in-flight native operation to return.
-`ragmir_evaluate` requires an existing
-project-relative golden file and rejects absolute paths, traversal, and symlinks outside the root.
-Its result includes one gate per declared quality threshold, grouped category and locale metrics,
-the model revision, golden fingerprint, index fingerprint, complete aggregate metrics, and whether
-a compatible report was stored for `doctor`. Library callers can set
-`EvaluationOptions.caseDetailLimit` to return only a bounded case preview; `omittedCases` reports
-the remaining evaluated cases.
-Strict mode returns that project-relative path, replaces evaluation errors with a generic message,
-and masks configured model, storage, source, and access-log paths in diagnostic responses.
+## Semantic embeddings and OCR
 
-Set `CreateMcpServerOptions.portableReadOnly` to `true` for a frozen portable index. This omits
-`ragmir_evaluate` from the registered tools and from `ragmir://context`, preventing the MCP surface
-from persisting a quality report. `rgr portable export` enables this mode in its generated launcher.
+`local-hash` requires no model runtime. Install optional `@huggingface/transformers` before selecting
+`transformers`. `pullEmbeddingModel(config)` explicitly preloads the configured model;
+`enableSemanticEmbeddings(cwd?)` persists the semantic configuration. Provider, model revision,
+artifact digest, extraction, and chunking changes require a compatible rebuild.
 
-### Core type exports
+`inspectPdfOcr`, `configurePdfOcr`, `extractPdfPage`, and `extractPdfPages` expose the local OCR
+onboarding and extraction workflow. PDF OCR runs only for blank extracted pages. External commands
+use argument arrays without a shell, bounded output, timeouts, and the operator's permissions.
+See [configuration](./configuration.md) for command contracts and caching.
 
-The package exports the named types used by every public function signature, including the options
-types that callers commonly compose explicitly.
+`disposeTransformersModel` and `disposeTransformersCache` support explicit runtime cleanup.
+Client ownership normally manages this lifecycle; active inference leases finish before disposal.
 
-| Area | Exported types |
-| --- | --- |
-| Configuration | `Config`, `PrivacyProfile`, `RetrievalProfile` |
-| Ingestion | `IngestOptions`, `IngestResult`, `IngestionMetrics`, `IngestionPhaseDurations`, `IngestionThroughputMetrics`, `IngestionEmbeddingModelState`, `IngestionDiagnosticsEvent`, `INGESTION_DIAGNOSTICS_CHANNEL`, `IncrementalFailurePolicy`, `IngestionProgress`, `IngestionFileStage`, `IngestionRunMode`, `IngestionRunStatus`, `AuditReport`, `ChunkStats`, `IngestionLimitsReport`, `IndexManifest`, `IndexHealthSnapshot`, `IndexMaintenanceSnapshot`, `IndexManifestFile`, `IndexManifestStaleFile`, `VectorIndexManifest`, `VectorIndexParameters`, `VectorIndexStrategy`, `ParsedPage` |
-| Preview | `PreviewChunksOptions`, `PreviewReport`, `PreviewFile`, `PreviewChunk` |
-| Retrieval | `SearchOptions`, `SearchResult`, `SearchContextChunk`, `SearchScoreExplanation`, `AskResult`, `CompactSearchResult`, `ExpandCitationOptions`, `ExpandedCitation` |
-| Research, audit, and evaluation | `ResearchOptions`, `ResearchReport`, `ResearchEvidence`, `CodeEvidence`, `SourceDiagnostics`, `SourceDuplicateCandidate`, `SourcePathCandidate`, `AuditOptions`, `AuditReport`, `EvaluationOptions`, `EvaluationResult`, `EvaluationCaseResult`, `GoldenQuery` |
-| Bases and sources | `KnowledgeBaseIdentity`, `KnowledgeBaseInfo`, `KnowledgeBaseInventory`, `KnowledgeBaseContextReport`, `KnowledgeBaseSourceCatalog`, `KnowledgeBaseSourceCatalogOptions`, `AddSourceEntriesOptions`, `AddSourceEntriesResult`, `SourceEntriesResult` |
-| Operations | `RagmirClientOptions`, `OperationOptions`, `DoctorOptions`, `DoctorReport`, `RuntimeInfo`, `RuntimePackageVersion`, `SecurityAuditOptions`, `OptimizeStorageOptions`, `StorageMaintenanceAction`, `StorageMaintenanceReason`, `StorageMaintenanceReport`, `AdaptiveIndexAction`, `AdaptiveIndexMaintenanceReport`, `ScalarIndexStatus`, `CollectGenerationGarbageOptions`, `GenerationGarbageCollectionReport`, `GenerationInventoryItem`, `GenerationRole`, `RagmirErrorCode`, `SecurityAuditReport`, `DestroyIndexResult`, `AccessLogAction`, `AccessLogUsageOptions`, `AccessLogUsageReport`, `AccessLogWriterMetrics`, `McpOutputTool`, `McpOutputUsageReport`, `RedactionCount` |
-| Embeddings and OCR | `EnableSemanticEmbeddingsResult`, `PullEmbeddingModelResult`, `ConfigurePdfOcrOptions`, `ConfigurePdfOcrResult`, `ExtractPdfPageOptions`, `ExtractPdfPagesOptions`, `ExtractPdfPagesResult`, `PdfOcrMetrics`, `OcrExecutableStatus`, `PdfOcrEngine`, `PdfOcrEngineSelection`, `PdfOcrStatus` |
-| Agent integration | `AgentHelperFile`, `AgentInstallMode`, `AgentInstallScope`, `AgentIntegrationReport`, `AgentSkillInstallation`, `AgentTarget`, `InstallAgentSkillsOptions`, `InstallAgentSkillsResult`, `InstallSkillOptions`, `InstallSkillResult`, `RagmirRunnerMode` |
-| Portable knowledge bases | `ExportPortableKnowledgeBaseOptions`, `ExportPortableKnowledgeBaseResult`, `PortableKnowledgeBaseManifest`, `PortableKnowledgeBaseVerification` |
-| Team synchronization and diagnostics | `SyncTeamKnowledgeOptions`, `TeamSyncReport`, `TeamSyncStatus`, `TeamSyncGitReport`, `TeamSyncGitState`, `TeamSyncIndexReport`, `CreateTeamSnapshotOptions`, `TeamSnapshot`, `TeamSnapshotFile`, `TeamComparison`, `TeamComparisonStatus`, `TeamConfigurationDifference`, `TeamChangedFile` |
-| Upgrades | `UpgradeInspection`, `UpgradeOptions`, `UpgradeResult`, `UpgradeStatus` |
-| Setup and commands | `SetupOptions`, `SetupResult`, `SetupSemanticResult`, `PackageManager`, `RagmirCommand`, `PromptRouteDecision`, `PromptRouteTool` |
+## MCP host
 
-`TeamSnapshot.ready` describes operational index readiness. `TeamComparison.securityAdvisories`
-reports local and peer privacy-warning counts separately; advisory-only differences do not prevent
-`status: "synchronized"`. `compareTeamSnapshots` accepts existing v2.19 snapshots and derives their
-operational state from the stored corpus and health fields without changing the snapshot schema.
+`createMcpServer(cwd?)` returns a server handle. `connectMcpServer(transport, cwd?)` connects it to an
+SDK transport and returns the handle for shutdown. `serveMcp(cwd?)` runs the stdio transport.
+Close the server when the host stops; it closes its lazy client too.
 
-## Chat: cited local generation
+The server exposes four tools: `ragmir_status`, `ragmir_search`, `ragmir_expand`, `ragmir_audit`,
+and two resources: `ragmir://context`, `ragmir://sources`. Search defaults to three compact results.
+Search, expansion, and audit accept `maxBytes`, capped by configuration and the 1 MiB server limit.
+`ragmir_expand` accepts `expectedEvidenceId` from a previous `ragmir_search` result for the same
+checked expansion used by the TypeScript API.
+`_meta["ragmir/output"]` reports compaction and truncation. Typed summaries preserve identifiers
+and required scalar values when a complete payload does not fit.
 
-```bash
-npm install @jcode.labs/ragmir-chat
-```
-
-Chat does not discover or index files. Pass it passages returned by Core, or use `rgr chat` to run
-retrieval and generation together.
-
-```ts
-import {
-  generateChatAnswer,
-  setupChatModel,
-  type ChatSource,
-} from "@jcode.labs/ragmir-chat"
-
-await setupChatModel({ profile: "lite" })
-
-const sources: ChatSource[] = [
-  {
-    relativePath: "docs/rollout.md",
-    chunkIndex: 0,
-    text: "The rollout moved from Friday to Monday after the review.",
-  },
-]
-
-const result = await generateChatAnswer({
-  question: "What changed in the rollout?",
-  profile: "lite",
-  sources,
-})
-
-console.log(result.answer, result.citationStatus)
-```
-
-`profile` accepts `lite` (Qwen2.5 0.5B, ~0.49 GB, thinking off), `fast` (default Gemma 4 E2B,
-~3.35 GB), or `quality` (Gemma 4 E4B, ~5.15 GB). Setup, doctor, and generation should use the same
-profile.
-
-### Recommended Chat exports
-
-| Export | Purpose |
-| --- | --- |
-| `setupChatModel(options?)` | Download and verify one selected model profile explicitly. |
-| `generateChatAnswer(options)` | Generate from supplied evidence and validate citation markers. |
-| `doctor(options?)` | Inspect runtime, backend, model, manifest, size, and optional hash validity. |
-| `modelCacheExists(cwd?, profile?, modelPath?)` | Check the expected local model file and size. |
-| `CHAT_MODEL_PROFILES` | Read the immutable profile definitions. |
-| `DEFAULT_CHAT_PROFILE` | Read the default profile name. |
-
-Normal generation rejects remote model resolution. When no usable source is supplied,
-`generateChatAnswer` returns an insufficient-context result without loading a model. Raw model
-thought is never returned or persisted.
-
-### Advanced Chat exports
-
-These exports support custom local runtimes, standalone line-delimited JSON servers, model
-preparation tools, and citation validation. Most applications should use the recommended exports
-above.
-
-| Area | Runtime exports |
-| --- | --- |
-| Prompt and citations | `buildChatMessages`, `formatSources`, `validateAnswerCitations` |
-| Profiles and paths | `chatModelDefinition`, `chatModelProfile`, `resolveChatModelPaths`, `inspectChatModel` |
-| Model preparation | `setupChatModelFiles`, `verifyChatModelFile`, `sha256File` |
-| Runtime | `NodeLlamaChatRuntime`, `createChatRuntime`, `isNodeLlamaAvailable`, `inspectNodeLlamaRuntime` |
-| JSON server | `serveChat`, `parseChatServerRequest` |
-| Profile constants | `CHAT_MODEL_MANIFEST_FILE`, `NODE_LLAMA_RUNTIME_VERSION`, `DEFAULT_CHAT_MODEL`, `DEFAULT_CHAT_MODEL_PATH`, `DEFAULT_CHAT_ALLOW_REMOTE_MODELS`, `DEFAULT_CHAT_SETUP_ALLOW_REMOTE_MODELS` |
-| Generation constants | `CHAT_CONTEXT_SIZE`, `LITE_CHAT_CONTEXT_SIZE`, `MAX_CHAT_GENERATION_TOKENS`, `MAX_CHAT_HISTORY_MESSAGES`, `CHAT_THOUGHT_TOKEN_BUDGETS`, `DEFAULT_CHAT_CONTEXT_CHAR_LIMIT`, `DEFAULT_CHAT_MAX_NEW_TOKENS`, `DEFAULT_CHAT_DTYPE`, `DEFAULT_CHAT_THINKING` |
-
-### Chat type exports
-
-| Area | Exported types |
-| --- | --- |
-| Messages and evidence | `ChatRole`, `ChatMessage`, `ChatHistoryMessage`, `ChatSource`, `ChatCitationStatus`, `CitationValidationResult` |
-| Profiles | `ChatModelProfile`, `ChatModelFamily`, `ChatModelProfileDefinition`, `ChatModelManifest`, `ChatModelInspection`, `ChatModelPaths`, `ModelFileResolver` |
-| Generation | `ChatThinkingMode`, `ChatStopReason`, `ChatGenerationEvent`, `GenerateChatAnswerOptions`, `GenerateChatAnswerResult` |
-| Runtime | `ChatComputeBackend`, `ChatRuntime`, `ChatRuntimeDependencies`, `ChatRuntimeGenerationOptions`, `ChatRuntimeGenerationResult`, `ChatRuntimeInspection`, `CreateChatRuntimeOptions` |
-| Setup and doctor | `SetupChatModelOptions`, `SetupChatModelResult`, `DoctorOptions`, `DoctorReport` |
-| JSON server | `GenerateChatServerRequest`, `CancelChatServerRequest`, `ShutdownChatServerRequest`, `ChatServerRequest`, `ChatServerEvent`, `ServeChatOptions` |
-
-## TTS: reviewed text to audio
-
-```bash
-npm install @jcode.labs/ragmir-tts
-```
-
-```ts
-import { doctor, renderSpeech } from "@jcode.labs/ragmir-tts"
-
-const runtime = await doctor()
-console.log(runtime.transformersAvailable)
-const controller = new AbortController()
-
-await renderSpeech({
-  cwd: process.cwd(),
-  text: "Non-sensitive model preload text.",
-  outputPath: "/tmp/ragmir-tts-preload.wav",
-  engine: "transformers",
-  language: "en",
-  allowRemoteModels: true,
-})
-
-const result = await renderSpeech({
-  cwd: process.cwd(),
-  textFile: ".ragmir/reports/release-brief.md",
-  outputPath: ".ragmir/audio/release-brief.wav",
-  engine: "transformers",
-  language: "en",
-  allowRemoteModels: false,
-  signal: controller.signal,
-})
-
-console.log(result.outputPath, result.samplingRate)
-```
-
-TTS renders text supplied by the caller. It does not retrieve evidence or write a summary. The
-first call explicitly preloads the local model from non-sensitive text. Later calls can keep
-`allowRemoteModels: false` for confidential content. The Edge path is explicit and sends narration
-text to the external service.
-
-The local Transformers.js path supports `language: "en"`, `"fr"`, and `"es"`, each with its own
-automatically selected MMS model. Edge additionally supports `"ja"`, `"th"`, and `"zh"`. French is
-the default when no language is provided.
-
-`RenderSpeechOptions.signal` stops before subsequent render or write phases. The Edge CLI is also
-terminated when cancelled and defaults to a 120-second bound; override it with `edgeTimeoutMs` when
-the host needs a shorter deadline.
-
-### TTS runtime exports
-
-| Export | Purpose |
-| --- | --- |
-| `renderSpeech(options)` | Render text or a text file and return output metadata. |
-| `doctor()` | Report engines, languages, dependencies, and defaults. |
-| `isTtsLanguage(value)` | Narrow an external string to a supported language. |
-| `mmsModelForLanguage(language)` | Resolve the offline MMS model for a supported language. |
-| `edgeVoiceForLanguage(language)` | Resolve the default Edge voice for a supported language. |
-| `modelCacheExists(cwd?)` | Check whether the default offline model cache exists. |
-| `TTS_LANGUAGES` | Languages supported across all engines. |
-| `OFFLINE_TTS_LANGUAGES` | Languages supported by the local Transformers.js path. |
-| `DEFAULT_TTS_ENGINE`, `DEFAULT_TTS_LANGUAGE` | Default render choices. |
-| `DEFAULT_TTS_MODEL`, `DEFAULT_TTS_MODEL_PATH` | Default offline model and cache path. |
-| `DEFAULT_TTS_ALLOW_REMOTE_MODELS` | Default remote model-loading policy. |
-| `DEFAULT_AUDIO_DIR` | Default generated-audio directory. |
-| `DEFAULT_EDGE_VOICE`, `DEFAULT_EDGE_RATE`, `DEFAULT_EDGE_TTS_TIMEOUT_MS` | Default explicit Edge settings. |
-
-The package exports `RenderSpeechOptions`, `RenderSpeechResult`, `DoctorReport`, `TtsEngine`,
-`TtsLanguage`, `OfflineTtsLanguage`, `OutputFormat`, `TextToAudioOptions`,
-`TextToAudioOutputLike`, `TextToAudioSynthesizer`, `EdgeTtsRenderer`, and `EdgeTtsRenderOptions`.
-The injected synthesizer and Edge renderer types are intended for tests and custom runtimes that
-preserve the same local-data boundary.
-
-## Package and runtime guarantees
-
-- All three packages publish ESM JavaScript and TypeScript declarations from one package root.
-- Core remains model-agnostic. Chat and TTS are optional add-ons, not MCP requirements.
-- A `cwd` option always resolves project state from the caller, never from the installed package.
-- Remote downloads and external speech are explicit operations, never silent fallbacks.
+A custom network-facing host owns authentication, authorization, transport security, and rate
+limits. Ragmir has no built-in HTTP listener. The [integration guide](./agent-integration.md)
+shows how to pass retrieved evidence to a local model without adding a chat runtime to Ragmir.

@@ -13,18 +13,7 @@ import type {
 
 const SOURCE_CATALOG_LIMIT = 50
 const MAX_SOURCE_CATALOG_LIMIT = 100
-const RAGMIR_MCP_TOOLS = [
-  "ragmir_status",
-  "ragmir_route_prompt",
-  "ragmir_search",
-  "ragmir_ask",
-  "ragmir_research",
-  "ragmir_expand",
-  "ragmir_audit",
-  "ragmir_evaluate",
-  "ragmir_usage_report",
-  "ragmir_security_audit",
-]
+const RAGMIR_MCP_TOOLS = ["ragmir_status", "ragmir_search", "ragmir_expand", "ragmir_audit"]
 const RAGMIR_MCP_RESOURCES = ["ragmir://context", "ragmir://sources"]
 
 export async function getKnowledgeBaseContext(
@@ -49,8 +38,7 @@ export async function getKnowledgeBaseContextWithConfig(
 
   return {
     knowledgeBaseId: identity?.id ?? null,
-    projectRoot: config.privacyProfile === "strict" ? "." : config.projectRoot,
-    privacyProfile: config.privacyProfile,
+    projectRoot: config.projectRoot,
     retrievalProfile: config.retrievalProfile,
     embeddingProvider: config.embeddingProvider,
     corpusFingerprint: report.corpusFingerprint,

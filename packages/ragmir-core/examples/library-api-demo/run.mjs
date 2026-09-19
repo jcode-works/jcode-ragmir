@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Local library smoke for @jcode.labs/ragmir.
 //
-// This exercises the public TypeScript API (ingest -> search -> ask -> audit) the
+// This exercises the public TypeScript API (ingest -> search -> expand -> status) the
 // exact way an external consumer would `import` it, but Node self-referencing
 // resolves "@jcode.labs/ragmir" to THIS repo's local build (packages/ragmir-core/dist),
 // never the npm-published version. That is the point of the demo: while developing
@@ -34,7 +34,7 @@ async function main() {
     const ingested = await ragmir.ingest({ rebuild: true, timeoutMs: 30_000 })
     console.log(
       `indexed ${ingested.indexedFiles}/${ingested.supportedFiles} supported files, ` +
-        `${ingested.chunks} chunks, ${ingested.redactions} redactions`,
+        `${ingested.chunks} chunks`,
     )
 
     heading('search "offline retrieval approval"')
@@ -45,10 +45,10 @@ async function main() {
       )
     }
 
-    heading('ask "What evidence supports offline operation?"')
-    const answer = await ragmir.ask("What evidence supports offline operation?", { topK: 3 })
-    console.log(`${answer.sources.length} cited sources`)
-    console.log(answer.answer)
+    if (passages[0]) {
+      heading("expand one citation")
+      console.log(await ragmir.expandCitation(passages[0].citation))
+    }
 
     heading("status")
     const status = await ragmir.status()

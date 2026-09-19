@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 
 describe("sanitizeRetrievalQuery", () => {
-  it("passes through concise retrieval queries", () => {
+  it("should preserve concise retrieval queries", () => {
     const result = sanitizeRetrievalQuery("token rotation policy")
 
     expect(result.query).toBe("token rotation policy")
@@ -10,53 +10,51 @@ describe("sanitizeRetrievalQuery", () => {
     expect(result.method).toBe("passthrough")
   })
 
-  it("extracts the final user question from a long prompt", () => {
+  it("should preserve constraints before the final question in a long request", () => {
     const prompt = [
-      "System: You are an agent. Follow all repository rules. ".repeat(20),
-      "The context above is not the retrieval query.",
-      "What document proves offline text-to-speech is required?",
+      "AUTH_REDIRECT_ORIGIN_X17 applies to src/auth/redirect.ts in version 2.3.1.",
+      "The administrator may register an origin, but only the tenant owner can approve it. ".repeat(
+        4,
+      ),
+      "Quelle règle dois-je appliquer ?",
     ].join("\n")
 
     const result = sanitizeRetrievalQuery(prompt)
 
-    expect(result.query).toBe("What document proves offline text-to-speech is required?")
+    expect(result.query).toBe(prompt.replaceAll("\n", " ").replace(/\s+/gu, " "))
     expect(result.changed).toBe(true)
-    expect(result.method).toBe("question")
+    expect(result.method).toBe("normalized")
   })
 
-  it("falls back to labeled query tails before truncating", () => {
-    const prompt = `${"developer instructions ".repeat(40)}\nquery: release workflow approval checksums`
+  it("should preserve earlier requirements when the request contains a query label", () => {
+    const prompt = `${"Require signed release evidence. ".repeat(20)}\nquery: approval checksums`
 
     const result = sanitizeRetrievalQuery(prompt)
 
-    expect(result.query).toBe("release workflow approval checksums")
-    expect(result.method).toBe("labeled-tail")
+    expect(result.query).toContain("Require signed release evidence.")
+    expect(result.query).toContain("query: approval checksums")
   })
 
-  it("should extract the final useful sentence when a long prompt has no question", () => {
-    const prompt = `${"Background context without retrieval value. ".repeat(20)}The final release evidence is in the signed deployment checklist.`
+  it("should preserve constraints at both ends of a request at the size limit", () => {
+    const prompt = `START_RULE ${"x".repeat(19_980)} END_RULE`
 
     expect(sanitizeRetrievalQuery(prompt)).toMatchObject({
-      query: "The final release evidence is in the signed deployment checklist",
-      method: "tail-sentence",
-      changed: true,
+      query: prompt,
+      method: "passthrough",
+      changed: false,
     })
   })
 
-  it("should keep a bounded tail when no sentence or label is usable", () => {
-    const prompt = `label: no ${"x".repeat(400)}`
-
-    const result = sanitizeRetrievalQuery(prompt)
-
-    expect(result.method).toBe("tail")
-    expect(result.query).toHaveLength(200)
-    expect(result.query).toBe("x".repeat(200))
+  it("should reject oversized requests instead of silently dropping constraints", () => {
+    expect(() => sanitizeRetrievalQuery("x".repeat(20_001))).toThrow(
+      "Split the request into focused searches.",
+    )
   })
 
   it("should remove lone surrogates and compact Unicode whitespace", () => {
     expect(sanitizeRetrievalQuery("  politique\ud800\n\tde confidentialité  ")).toMatchObject({
       query: "politique de confidentialité",
-      method: "passthrough",
+      method: "normalized",
       changed: true,
     })
   })

@@ -1,13 +1,11 @@
 import {
-  Bot,
   Boxes,
-  Clapperboard,
   Code2,
   FileText,
-  FolderSync,
-  ListChecks,
   type LucideIcon,
+  MessageSquare,
   RotateCcw,
+  ScanText,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "../lib/utils"
@@ -43,11 +41,9 @@ const COPYABLE_TERMINAL_LINE_KINDS = new Set<TerminalLineKind>(["shell", "codex"
 
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
   word: FileText,
-  openclaw: Bot,
+  local: MessageSquare,
   monorepo: Boxes,
-  drive: FolderSync,
-  youtube: Clapperboard,
-  visa: ListChecks,
+  ocr: ScanText,
 }
 
 export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {

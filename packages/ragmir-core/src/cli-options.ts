@@ -1,28 +1,6 @@
 import type { AgentInstallMode, AgentInstallScope } from "./skill.js"
 import type { IncrementalFailurePolicy } from "./types.js"
 
-/**
- * Pure option-parsing and validation helpers for the Ragmir CLI. Kept separate
- * from `cli.ts` (which wires Commander and side effects) so they can be unit
- * tested without spawning a process or importing commander.
- *
- * Each helper either returns the validated value or throws an Error with a
- * user-facing message; the CLI surfaces the message in red on stderr.
- */
-
-export type AudioEngine = "auto" | "edge" | "transformers"
-
-export const SUPPORTED_AUDIO_LANGUAGES = ["en", "es", "fr", "ja", "th", "zh"] as const
-export type AudioLanguage = (typeof SUPPORTED_AUDIO_LANGUAGES)[number]
-
-export interface AudioOptions {
-  out?: string
-  engine?: string
-  lang?: string
-  offline?: boolean
-  allowRemoteModels?: boolean
-}
-
 /** Parse and validate a positive integer CLI argument. */
 export function parsePositiveInt(value: string): number {
   const parsed = Number(value)
@@ -68,64 +46,6 @@ export function parseIncrementalFailurePolicy(value: string): IncrementalFailure
     return value
   }
   throw new Error("Expected preserve-last-good or remove-stale.")
-}
-
-/**
- * Resolve the `allowRemoteModels` flag from audio options. Offline mode forces
- * remote model loading off; an explicit opt-in enables it; otherwise undefined
- * lets the TTS package apply its own offline-by-default behaviour.
- */
-export function audioAllowRemoteModels(options: AudioOptions): boolean | undefined {
-  if (options.offline) {
-    return false
-  }
-  if (options.allowRemoteModels) {
-    return true
-  }
-  return undefined
-}
-
-/**
- * Resolve the spoken language from `--lang`. Throws on an unsupported value so
- * the operator is told which languages are available.
- */
-export function audioLanguage(options: AudioOptions): AudioLanguage | undefined {
-  if (options.lang === undefined) {
-    return undefined
-  }
-  if (isSupportedAudioLanguage(options.lang)) {
-    return options.lang
-  }
-  throw new Error(`Expected --lang to be one of: ${SUPPORTED_AUDIO_LANGUAGES.join(", ")}.`)
-}
-
-function isSupportedAudioLanguage(value: string): value is AudioLanguage {
-  return SUPPORTED_AUDIO_LANGUAGES.some((language) => language === value)
-}
-
-/**
- * Resolve the TTS engine from audio options. Offline always forces the local
- * Transformers.js renderer. An MP3 output without an explicit `--engine edge`
- * is rejected as a confidentiality guard: MP3 requires the online Edge TTS
- * service, so the operator must opt in knowingly rather than leak narration
- * text by accident.
- */
-export function audioEngine(options: AudioOptions): AudioEngine {
-  if (options.offline) {
-    return "transformers"
-  }
-  if (options.engine === undefined) {
-    if (options.out?.toLowerCase().endsWith(".mp3")) {
-      throw new Error(
-        "MP3 output uses online Edge TTS. Re-run with `--engine edge` only when sending narration text to Edge TTS is acceptable.",
-      )
-    }
-    return "transformers"
-  }
-  if (options.engine === "auto" || options.engine === "edge" || options.engine === "transformers") {
-    return options.engine
-  }
-  throw new Error("Expected --engine to be auto, edge, or transformers.")
 }
 
 /** Parse and validate the `--scope` agent-install argument. */

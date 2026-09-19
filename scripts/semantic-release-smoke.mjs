@@ -89,6 +89,12 @@ for (const expectedHeading of [
 assert.match(generatedNotes, /Documentation/u)
 assert.match(generatedNotes, /Landing/u)
 assert.doesNotMatch(generatedNotes, /legacy release highlight/u)
+assert.doesNotMatch(
+  generatedNotes,
+  /Optional local packages|Signed release artifacts|ragmir-chat|ragmir-tts/u,
+)
+assert.match(generatedNotes, /Requires Node\.js 22\.12/u)
+assert.match(generatedNotes, /docs\/migration\.md/u)
 assert.match(
   generatedNotes,
   /link advanced behavior to focused guides without losing the complete public context/u,

@@ -1,19 +1,14 @@
 import {
-  accessLogUsageReport,
-  accessLogWriterMetrics,
   audit,
   connectMcpServer,
-  compareTeamSnapshots,
   createMcpServer,
   createRagmirClient,
-  createTeamSnapshot,
   doctor,
   disposeTransformersCache,
   disposeTransformersModel,
   enableSemanticEmbeddings,
   evaluateGoldenQueries,
-  exportPortableKnowledgeBase,
-  flushAccessLog,
+  expandCitation,
   getKnowledgeBaseContext,
   getKnowledgeBaseSourceCatalog,
   ingest,
@@ -21,23 +16,12 @@ import {
   inspectUpgrade,
   isRagmirError,
   pullEmbeddingModel,
-  portableKnowledgeBaseManifestSchema,
-  redactText,
-  research,
   search,
   securityAudit,
-  syncTeamKnowledge,
-  type CreateMcpServerOptions,
-  type ExportPortableKnowledgeBaseResult,
-  type PortableKnowledgeBaseManifest,
-  type PortableKnowledgeBaseVerification,
-  type TeamSnapshot,
-  type TeamSyncReport,
   upgradeProject,
-  verifyPortableKnowledgeBase,
   type Config,
-  type AccessLogWriterMetrics,
   type EnableSemanticEmbeddingsResult,
+  type EvidenceVersion,
   type IngestionDiagnosticsEvent,
   type IngestionMetrics,
   type IngestOptions,
@@ -45,16 +29,8 @@ import {
   type PullEmbeddingModelResult,
   type RagmirClient,
   type RagmirErrorCode,
-  type RedactionCount,
-  type ResearchOptions,
   type SearchOptions,
 } from "@jcode.labs/ragmir"
-import {
-  generateChatAnswer,
-  type ChatSource,
-  type GenerateChatAnswerOptions,
-} from "@jcode.labs/ragmir-chat"
-import { renderSpeech, type RenderSpeechOptions } from "@jcode.labs/ragmir-tts"
 
 const cwd = process.cwd()
 const ingestOptions = { cwd, rebuild: false, collectMetrics: true } satisfies IngestOptions
@@ -63,46 +39,22 @@ const ingestionDiagnostic: IngestionDiagnosticsEvent | undefined = undefined
 void ingestionDiagnosticsChannel
 void ingestionDiagnostic
 const searchOptions = { cwd, topK: 5, explain: true } satisfies SearchOptions
-const researchOptions = {
-  cwd,
-  topK: 5,
-  timeoutMs: 10_000,
-  codeTopK: 10,
-  codeScanMaxFiles: 500,
-  codeScanMaxBytes: 8 * 1024 * 1024,
-  codeScanConcurrency: 4,
-} satisfies ResearchOptions
 const operationOptions = {
   signal: AbortSignal.timeout(5_000),
   timeoutMs: 10_000,
 } satisfies OperationOptions
-const source = {
-  relativePath: "docs/decision.md",
-  chunkIndex: 0,
-  text: "The review moved the rollout to Monday.",
-} satisfies ChatSource
-const chatOptions = {
-  cwd,
-  question: "What changed?",
-  sources: [source],
-  profile: "lite",
-} satisfies GenerateChatAnswerOptions
-const speechOptions = {
-  cwd,
-  text: "The rollout moved to Monday.",
-  outputPath: ".ragmir/audio/brief.wav",
-  language: "en",
-  engine: "transformers",
-  allowRemoteModels: false,
-  signal: operationOptions.signal,
-  edgeTimeoutMs: 30_000,
-} satisfies RenderSpeechOptions
 
 void ingest(ingestOptions).then((result) => {
   const metrics: IngestionMetrics | undefined = result.metrics
   void metrics
 })
 void search("What changed?", searchOptions).then((results) => {
+  const evidence: EvidenceVersion | undefined = results[0]?.evidence
+  const retrievalQuery: string | undefined = results[0]?.score?.retrievalQuery
+  if (results[0] && evidence) {
+    void expandCitation(results[0].citation, { cwd, expectedEvidenceId: evidence.id })
+  }
+  void retrievalQuery
   const rankingPolicyFingerprint: string | undefined =
     results[0]?.score?.rankingPolicyFingerprint
   const lexicalFallbackReason:
@@ -117,10 +69,6 @@ void search("What changed?", searchOptions).then((results) => {
   const workloadQueueMs: number | undefined = results[0]?.score?.workloadQueueMs
   void workloadQueueMs
 })
-void research("What changed?", researchOptions).then((report) => {
-  const firstResearchScore: number | undefined = report.evidence[0]?.researchScore
-  void firstResearchScore
-})
 void createRagmirClient({ cwd }).then(async (client: RagmirClient) => {
   await client.search("What changed?", operationOptions)
   await client.status(operationOptions)
@@ -133,55 +81,30 @@ void securityAudit(cwd, operationOptions)
 void getKnowledgeBaseContext(cwd, operationOptions)
 void getKnowledgeBaseSourceCatalog(cwd, operationOptions)
 void evaluateGoldenQueries({ cwd, goldenPath: "golden-queries.json", ...operationOptions })
-void accessLogUsageReport({ cwd, ...operationOptions })
-void createTeamSnapshot({ cwd, label: "local" }).then((snapshot: TeamSnapshot) =>
-  compareTeamSnapshots(snapshot, snapshot),
-)
-void syncTeamKnowledge({ cwd, check: true }).then((report: TeamSyncReport) => report.synchronized)
 void inspectUpgrade(cwd)
 void upgradeProject({ cwd })
-void exportPortableKnowledgeBase({
-  cwd,
-  name: "Operations knowledge",
-  replaceExisting: true,
-  ...operationOptions,
-}).then((result: ExportPortableKnowledgeBaseResult) => ({
-  outputDir: result.outputDir,
-  previousOutputDir: result.previousOutputDir,
-}))
-void verifyPortableKnowledgeBase(cwd).then(
-  (result: PortableKnowledgeBaseVerification) => result.valid,
-)
-declare const portableManifest: PortableKnowledgeBaseManifest
-void portableKnowledgeBaseManifestSchema.parse(portableManifest)
-const portableMcpOptions = { portableReadOnly: true } satisfies CreateMcpServerOptions
-void createMcpServer(cwd, portableMcpOptions)
 type McpTransport = Parameters<typeof connectMcpServer>[0]
 declare const transport: McpTransport
 void connectMcpServer(transport, cwd)
 void isRagmirError(new Error("example"))
-void generateChatAnswer(chatOptions)
-void renderSpeech(speechOptions)
 
 declare const config: Config
-const accessLogMetrics: AccessLogWriterMetrics = accessLogWriterMetrics(config)
 const disposedModels: Promise<void> = disposeTransformersCache()
 const disposedModel: Promise<void> = disposeTransformersModel(config)
-const flushedAccessLog: Promise<AccessLogWriterMetrics> = flushAccessLog(config)
 const semanticResult: Promise<EnableSemanticEmbeddingsResult> = enableSemanticEmbeddings(cwd)
 const pullResult: Promise<PullEmbeddingModelResult> = pullEmbeddingModel(config)
-const redactions: RedactionCount[] = redactText("example", config).counts
 const errorCode: RagmirErrorCode = "TIMEOUT"
 const indexErrorCode: RagmirErrorCode = "INDEX_UNAVAILABLE"
 const overloadedErrorCode: RagmirErrorCode = "OVERLOADED"
+const changedEvidenceErrorCode: RagmirErrorCode = "EVIDENCE_CHANGED"
 
 void semanticResult
-void accessLogMetrics
 void disposedModels
 void disposedModel
-void flushedAccessLog
 void pullResult
-void redactions
 void errorCode
 void indexErrorCode
 void overloadedErrorCode
+void changedEvidenceErrorCode
+
+void createMcpServer(cwd)

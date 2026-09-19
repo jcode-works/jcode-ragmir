@@ -1,11 +1,4 @@
-import type {
-  CompactSearchResult,
-  ExpandedCitation,
-  McpOutputTool,
-  ResearchEvidence,
-  ResearchReport,
-  SearchResult,
-} from "./types.js"
+import type { CompactSearchResult, ExpandedCitation, McpOutputTool, SearchResult } from "./types.js"
 
 export const MIN_MCP_OUTPUT_BYTES = 1_024
 
@@ -35,42 +28,10 @@ export interface BudgetedMcpResult {
 
 export interface McpCitationPreview {
   citation: string
+  evidence?: { id: string }
 }
 
 export type McpSearchPayload = Array<SearchResult | CompactSearchResult | McpCitationPreview>
-
-export interface McpAskPayload {
-  answer: string
-  sources: McpSearchPayload
-  staleWarning: string | null
-}
-
-interface CompactResearchEvidence extends Omit<ResearchEvidence, "text"> {
-  snippet: string
-}
-
-interface McpResearchDetailedPayload extends Omit<ResearchReport, "evidence"> {
-  evidence: Array<ResearchEvidence | CompactResearchEvidence>
-}
-
-export interface McpResearchSummaryPayload {
-  queryIncluded: false
-  ready: boolean
-  audit: ResearchReport["audit"]
-  evidence: McpCitationPreview[]
-  budgets: ResearchReport["budgets"]
-  omitted: {
-    generatedQueries: number
-    securityWarnings: number
-    sourceDiagnostics: number
-    evidence: number
-    codeEvidence: number
-    gaps: number
-    nextSteps: number
-  }
-}
-
-export type McpResearchPayload = McpResearchDetailedPayload | McpResearchSummaryPayload
 
 export interface McpExpandedPassagePreview {
   chunkIndex: number
@@ -190,105 +151,6 @@ export function fitSearchPayload(
   return { value: [], omittedItems: value.length, truncated: value.length > 0 }
 }
 
-export function fitAskPayload(
-  value: McpAskPayload,
-  maxBytes: number,
-): ReducedPayload<McpAskPayload> {
-  if (jsonBytes(value) <= maxBytes) {
-    return { value, omittedItems: 0, truncated: false }
-  }
-
-  for (let length = value.sources.length - 1; length >= 1; length -= 1) {
-    const candidate = { ...value, sources: value.sources.slice(0, length) }
-    if (jsonBytes(candidate) <= maxBytes) {
-      return {
-        value: candidate,
-        omittedItems: value.sources.length - candidate.sources.length,
-        truncated: true,
-      }
-    }
-  }
-
-  const minimal: McpAskPayload = {
-    answer: "Use the cited source and expand it when more context is needed.",
-    sources: value.sources[0] ? [toCitationPreview(value.sources[0])] : [],
-    staleWarning: null,
-  }
-  if (jsonBytes(minimal) > maxBytes) {
-    minimal.sources = []
-  }
-  return {
-    value: minimal,
-    omittedItems: Math.max(0, value.sources.length - minimal.sources.length),
-    truncated: true,
-  }
-}
-
-export function fitResearchPayload(
-  value: McpResearchPayload,
-  maxBytes: number,
-): ReducedPayload<McpResearchPayload> {
-  if (jsonBytes(value) <= maxBytes) {
-    return { value, omittedItems: 0, truncated: false }
-  }
-
-  if (isResearchSummary(value)) {
-    const withoutEvidence: McpResearchSummaryPayload = {
-      ...value,
-      evidence: [],
-      omitted: {
-        ...value.omitted,
-        evidence: value.omitted.evidence + value.evidence.length,
-      },
-    }
-    return {
-      value: withoutEvidence,
-      omittedItems: value.evidence.length,
-      truncated: true,
-    }
-  }
-
-  const candidate = cloneResearchPayload(value)
-  let omittedItems = 0
-  while (jsonBytes(candidate) > maxBytes && removeResearchDetail(candidate)) {
-    omittedItems += 1
-  }
-  if (jsonBytes(candidate) <= maxBytes) {
-    return { value: candidate, omittedItems, truncated: true }
-  }
-
-  const firstEvidence = value.evidence[0]
-  const minimal: McpResearchSummaryPayload = {
-    queryIncluded: false,
-    ready: candidate.ready,
-    audit: candidate.audit,
-    evidence: firstEvidence ? [toCitationPreview(firstEvidence)] : [],
-    budgets: candidate.budgets,
-    omitted: {
-      generatedQueries: value.generatedQueries.length,
-      securityWarnings: value.securityWarnings.length,
-      sourceDiagnostics:
-        value.sourceDiagnostics.duplicateCandidates.length +
-        value.sourceDiagnostics.archiveCandidates.length +
-        value.sourceDiagnostics.mirrorCandidates.length,
-      evidence: Math.max(0, value.evidence.length - (firstEvidence ? 1 : 0)),
-      codeEvidence: value.codeEvidence.length,
-      gaps: value.gaps.length,
-      nextSteps: value.nextSteps.length,
-    },
-  }
-  if (jsonBytes(minimal) > maxBytes) {
-    minimal.evidence = []
-    minimal.omitted.evidence = value.evidence.length
-  }
-  return {
-    value: minimal,
-    omittedItems:
-      omittedItems + Object.values(minimal.omitted).reduce((total, count) => total + count, 0),
-    truncated: true,
-  }
-}
-
 export function fitExpandedCitation(
   value: McpExpandedCitationPayload,
   maxBytes: number,
@@ -375,46 +237,6 @@ export function fitExpandedCitation(
   }
 }
 
-function cloneResearchPayload(value: McpResearchDetailedPayload): McpResearchDetailedPayload {
-  return {
-    ...value,
-    generatedQueries: [...value.generatedQueries],
-    securityWarnings: [...value.securityWarnings],
-    sourceDiagnostics: {
-      duplicateCandidates: [...value.sourceDiagnostics.duplicateCandidates],
-      archiveCandidates: [...value.sourceDiagnostics.archiveCandidates],
-      mirrorCandidates: [...value.sourceDiagnostics.mirrorCandidates],
-    },
-    evidence: [...value.evidence],
-    codeEvidence: [...value.codeEvidence],
-    gaps: [...value.gaps],
-    nextSteps: [...value.nextSteps],
-  }
-}
-
-function removeResearchDetail(value: McpResearchDetailedPayload): boolean {
-  const arrays = [
-    value.sourceDiagnostics.duplicateCandidates,
-    value.sourceDiagnostics.archiveCandidates,
-    value.sourceDiagnostics.mirrorCandidates,
-    value.codeEvidence,
-    value.evidence,
-    value.generatedQueries,
-    value.securityWarnings,
-    value.gaps,
-    value.nextSteps,
-  ]
-  const largest = arrays.reduce<unknown[] | null>(
-    (current, items) => (items.length > (current?.length ?? 0) ? items : current),
-    null,
-  )
-  if (!largest || largest.length === 0) {
-    return false
-  }
-  largest.pop()
-  return true
-}
-
 function fitExpandedTarget(
   value: McpExpandedCitationSummary,
   target: McpExpandedPassagePreview,
@@ -489,12 +311,14 @@ function expandedPassagePreview(
   }
 }
 
-function toCitationPreview(value: { citation: string }): McpCitationPreview {
-  return { citation: value.citation }
-}
-
-function isResearchSummary(value: McpResearchPayload): value is McpResearchSummaryPayload {
-  return "queryIncluded" in value
+function toCitationPreview(value: {
+  citation: string
+  evidence?: { id: string }
+}): McpCitationPreview {
+  return {
+    citation: value.citation,
+    ...(value.evidence === undefined ? {} : { evidence: { id: value.evidence.id } }),
+  }
 }
 
 function jsonBytes(value: unknown): number {
