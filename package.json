@@ -29,7 +29,7 @@
     "local-first",
     "knowledge-base"
   ],
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@11.26.0",
   "scripts": {
     "api:check": "tsc -p tests/public-api-consumer/tsconfig.json",
     "bootstrap": "mise install && pnpm install",
@@ -67,7 +67,7 @@
     "package:check": "pnpm --filter @jcode.labs/ragmir package:check",
     "public:smoke": "node scripts/public-surface-smoke.mjs && pnpm license:check",
     "release:artifacts": "node scripts/release-artifacts.mjs",
-    "release:semantic:smoke": "node scripts/semantic-release-smoke.mjs",
+    "release:semantic:smoke": "node scripts/semantic-release-smoke.mjs && node scripts/publish-readme-smoke.mjs",
     "smoke": "pnpm public:smoke && node scripts/smoke.mjs && pnpm --filter @jcode.labs/ragmir mcp:smoke",
     "test": "pnpm --filter @jcode.labs/ragmir-landing test && pnpm --filter @jcode.labs/ragmir test",
     "test:coverage": "pnpm --filter @jcode.labs/ragmir-landing test:coverage && pnpm --filter @jcode.labs/ragmir test:coverage",
