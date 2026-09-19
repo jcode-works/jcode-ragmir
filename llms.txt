@@ -7,7 +7,7 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
 
 ## Core facts
 
-- Install `@jcode.labs/ragmir`; use the `rgr` executable. Node.js 22 or later is required.
+- Install `@jcode.labs/ragmir`; use the `rgr` executable. Node.js 22.12 or later is required.
 - Set up with `rgr setup --no-ingest`, add selected source directories with `rgr sources add`,
   then run `rgr ingest` and `rgr search "query" --compact`.
 - Default local-hash retrieval needs no model, API key, or network. It is lexical/hash retrieval.
@@ -22,6 +22,9 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
 - MCP exposes `ragmir_status`, `ragmir_search`, `ragmir_expand`, and `ragmir_audit`, plus bounded
   `ragmir://context` and `ragmir://sources` resources. Search starts with three compact citations.
 - Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.
+- Present two workflows: development with Claude Code or Codex using cited requirements to change
+  code, and a confidential local or self-hosted chat using internal evidence to support a decision.
+  Local and self-hosted are model deployment choices within the confidential workflow.
 - Use one `createRagmirClient()` per project root in a long-running process and close it at shutdown.
   Top-level functions serve one-shot scripts. Ragmir opens no HTTP port.
 - Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
