@@ -5,18 +5,37 @@ cited evidence. Your agent decides what to search, expands the useful passages, 
 more evidence is needed, then reasons, answers, or acts with its chosen model. Ragmir provides the
 CLI, TypeScript API, and MCP tools for that loop; it does not run an autonomous agent or a chatbot.
 
-## Two workflows
+## Four workflows
 
-**Develop with Claude Code or Codex.** Give the agent a task such as implementing account recovery
-from a Word specification and an authentication ADR. It searches the requirements, expands the
-relevant passages, searches again for exceptions, then updates code and tests. The source evidence
-travels through the agent's normal model connection. This is the usual agentic RAG workflow.
+### Build a feature with Claude Code or Codex
 
-**Make a decision with a confidential chat.** Ask whether internal architecture rules require
-attachments in PostgreSQL or object storage. A local or self-hosted chat retrieves the supporting
-passages with Ragmir and sends them to a model on your machine or your own inference server. The
-answer cites the rule so you can verify the decision. The client and model both stay within the
-environment you control; self-hosted inference still involves sending excerpts to your server.
+Give the agent a task such as implementing account recovery from a Word specification and an
+authentication ADR. It searches the requirements, expands the relevant passages, searches again
+for exceptions, then updates code and tests with cited evidence.
+
+### Diagnose an incident with Claude Code or Codex
+
+Ask the agent to investigate a checkout timeout from the runbook, incident report, and retry
+implementation. It retrieves the documented response rule, expands it, checks the related source,
+then prepares a small repair and regression test supported by citations.
+
+### Plan an API migration with Claude Code or Codex
+
+Ask the agent to prepare an API v2 migration from the migration plan, versioning ADR, and current
+call sites. It retrieves compatibility and rollback rules before it identifies affected callers and
+updates the code and migration tests.
+
+### Make a confidential architecture decision with a local or self-hosted chat
+
+Ask whether internal architecture rules require attachments in PostgreSQL or object storage. A local
+or self-hosted chat retrieves the supporting passages with Ragmir and sends them to a model on your
+machine or your own inference server. The answer cites the rule so you can verify the decision.
+The client and model both stay within the environment you control; self-hosted inference still
+involves sending excerpts to your server.
+
+The first three workflows use the developer agent's normal model connection. Source evidence travels
+through that connection, so they are not confidential merely because Ragmir indexes locally. Ragmir
+provides retrieval; planning, chat history, generation, and actions remain in the consuming app.
 
 ## Choose where inference runs
 

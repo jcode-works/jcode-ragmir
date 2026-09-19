@@ -3,8 +3,10 @@ import {
   ArrowLeft,
   ArrowRight,
   Bot,
+  Bug,
   FileCheck2,
   FileInput,
+  GitBranch,
   type LucideIcon,
   MessageSquareQuote,
   Search,
@@ -15,7 +17,7 @@ import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
-type UseCaseId = "spec" | "local"
+type UseCaseId = "feature" | "incident" | "migration" | "local"
 
 interface UseCaseDefinition {
   id: UseCaseId
@@ -68,35 +70,101 @@ const DESKTOP_CANVAS_HORIZONTAL_PADDING_REM = 3
 
 export const USE_CASES: readonly UseCaseDefinition[] = [
   {
-    id: "spec",
+    id: "feature",
     icon: FileCheck2,
-    tabKey: "use_case_spec_tab",
-    titleKey: "use_case_spec_title",
-    descriptionKey: "use_case_spec_description",
+    tabKey: "use_case_feature_tab",
+    titleKey: "use_case_feature_title",
+    descriptionKey: "use_case_feature_description",
     evidence: {
       targetStepId: "retrieval",
-      titleKey: "use_case_spec_evidence",
+      titleKey: "use_case_feature_evidence",
     },
     steps: [
       {
         icon: MessageSquareQuote,
         id: "request",
         labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_spec_request",
+        titleKey: "use_case_feature_request",
       },
       {
         accent: "primary",
         icon: ServerCog,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
-        titleKey: "use_case_spec_retrieval",
+        titleKey: "use_case_feature_retrieval",
       },
       {
         accent: "success",
         icon: FileCheck2,
         id: "result",
         labelKey: "use_cases_result_label",
-        titleKey: "use_case_spec_result",
+        titleKey: "use_case_feature_result",
+      },
+    ],
+  },
+  {
+    id: "incident",
+    icon: Bug,
+    tabKey: "use_case_incident_tab",
+    titleKey: "use_case_incident_title",
+    descriptionKey: "use_case_incident_description",
+    evidence: {
+      targetStepId: "retrieval",
+      titleKey: "use_case_incident_evidence",
+    },
+    steps: [
+      {
+        icon: MessageSquareQuote,
+        id: "request",
+        labelKey: "use_cases_trigger_label",
+        titleKey: "use_case_incident_request",
+      },
+      {
+        accent: "primary",
+        icon: ServerCog,
+        id: "retrieval",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_incident_retrieval",
+      },
+      {
+        accent: "success",
+        icon: FileCheck2,
+        id: "result",
+        labelKey: "use_cases_result_label",
+        titleKey: "use_case_incident_result",
+      },
+    ],
+  },
+  {
+    id: "migration",
+    icon: GitBranch,
+    tabKey: "use_case_migration_tab",
+    titleKey: "use_case_migration_title",
+    descriptionKey: "use_case_migration_description",
+    evidence: {
+      targetStepId: "retrieval",
+      titleKey: "use_case_migration_evidence",
+    },
+    steps: [
+      {
+        icon: MessageSquareQuote,
+        id: "request",
+        labelKey: "use_cases_trigger_label",
+        titleKey: "use_case_migration_request",
+      },
+      {
+        accent: "primary",
+        icon: ServerCog,
+        id: "retrieval",
+        labelKey: "use_cases_retrieval_step_label",
+        titleKey: "use_case_migration_retrieval",
+      },
+      {
+        accent: "success",
+        icon: FileCheck2,
+        id: "result",
+        labelKey: "use_cases_result_label",
+        titleKey: "use_case_migration_result",
       },
     ],
   },
@@ -386,7 +454,7 @@ function MobileWorkflow({
 
 export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.JSX.Element {
   const t = (key: string): string => translations[key] ?? key
-  const [activeId, setActiveId] = useState<UseCaseId>(USE_CASES[0]?.id ?? "spec")
+  const [activeId, setActiveId] = useState<UseCaseId>(USE_CASES[0]?.id ?? "feature")
   const activeIndex = USE_CASES.findIndex((useCase) => useCase.id === activeId)
 
   const handleTabsWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
