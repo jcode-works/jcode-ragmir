@@ -76,6 +76,18 @@ const coreMcpSource = readFileSync(
   fileURLToPath(new URL("../../ragmir-core/src/mcp.ts", import.meta.url)),
   "utf8",
 )
+const rootReadmeSource = readFileSync(
+  fileURLToPath(new URL("../../../README.md", import.meta.url)),
+  "utf8",
+)
+const coreReadmeSource = readFileSync(
+  fileURLToPath(new URL("../../ragmir-core/README.md", import.meta.url)),
+  "utf8",
+)
+const agentIntegrationSource = readFileSync(
+  fileURLToPath(new URL("../../../docs/agent-integration.md", import.meta.url)),
+  "utf8",
+)
 const localizedWebPageId = /"@id": `\$\{pageUrl\}#webpage`/
 
 function collectUiSourceFiles(directory: string): string[] {
@@ -224,11 +236,19 @@ describe("landing public contract", () => {
     expect(referencedKeys.every((key) => key in en && key in fr)).toBe(true)
   })
 
-  it("should distinguish agentic development from confidential chat workflows", () => {
-    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual(["word", "local"])
-    expect(USE_CASES.map((useCase) => useCase.id)).toEqual(["spec", "local"])
-    expect(findHeroDemoScenario("word").terminalTitle).toContain("Claude Code / Codex")
-    expect(findHeroDemoScenario("word").lines.some((line) => line.kind === "codex")).toBe(true)
+  it("should distinguish three agentic workflows from one confidential chat workflow", () => {
+    const agenticScenarioIds = ["feature", "incident", "migration"]
+
+    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual([
+      ...agenticScenarioIds,
+      "local",
+    ])
+    expect(USE_CASES.map((useCase) => useCase.id)).toEqual([...agenticScenarioIds, "local"])
+    for (const scenarioId of agenticScenarioIds) {
+      const scenario = findHeroDemoScenario(scenarioId)
+      expect(scenario.terminalTitle).toContain("Claude Code / Codex")
+      expect(scenario.lines.some((line) => line.kind === "codex")).toBe(true)
+    }
     expect(findHeroDemoScenario("local").lines.some((line) => line.kind === "codex")).toBe(false)
     expect(en.demo_chat_model_options).toContain("self-hosted")
     expect(fr.demo_chat_model_options).toContain("auto-hébergé")
@@ -277,6 +297,27 @@ describe("landing public contract", () => {
     expect(
       Math.max(...HERO_DEMO_SCENARIOS.map((scenario) => scenario.lines.length)),
     ).toBeLessThanOrEqual(14)
+  })
+
+  it("should keep four workflows in public documentation and retired surfaces out of the landing", () => {
+    for (const source of [rootReadmeSource, coreReadmeSource]) {
+      expect(source).toContain("## Four workflow examples")
+    }
+    expect(agentIntegrationSource).toContain("## Four workflows")
+
+    const liveLandingSources = [
+      homePageSource,
+      heroSource,
+      llmsSource,
+      aiSource,
+      JSON.stringify(en),
+      JSON.stringify(fr),
+    ]
+    for (const source of liveLandingSources) {
+      expect(source).not.toMatch(
+        /\b(?:Ragmir Chat|rgr chat|Ragmir TTS|rgr audio|rgr ask|rgr research|team sync|privacy profiles)\b/iu,
+      )
+    }
   })
 
   it("should fall back to the default hero scenario for an unknown id", () => {

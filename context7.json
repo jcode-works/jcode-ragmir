@@ -20,7 +20,7 @@
     "Ragmir is licensed AGPL-3.0-only from v3.0.0, with separate commercial licensing. Earlier releases keep their published license.",
     "Use the canonical setup prompt in docs/quick-start.md. Inspect existing sources and respect already authorized changes.",
     "Ragmir supplies local evidence for agentic RAG. The consuming agent owns query planning, synthesis, tool use, and actions.",
-    "Show two distinct workflows: ordinary agentic development with Claude Code or Codex, and confidential questions with a local or self-hosted chat and model. Keep model destination and evidence flow explicit.",
+    "Show four workflows: build a feature, diagnose an incident, and plan a migration with Claude Code or Codex; make a confidential architecture decision with a local or self-hosted chat and model. Keep model destination and evidence flow explicit.",
     "The only executable is rgr. MCP exposes ragmir_status, ragmir_search, ragmir_expand, and ragmir_audit plus ragmir://context and ragmir://sources.",
     "Search returns three compact citations by default over MCP. Expand selected citations and refine queries in the host agent.",
     "Local-hash needs no model or API key. Semantic retrieval explicitly installs the optional @huggingface/transformers peer and preloads a pinned local model.",

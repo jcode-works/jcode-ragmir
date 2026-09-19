@@ -73,7 +73,9 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 </details>
 <!-- ragmir-setup-prompt:end -->
 
-## Develop with Claude Code or Codex
+## Four workflow examples
+
+### Build a feature with Claude Code or Codex
 
 Ask your coding agent: "Implement account recovery from the specification and authentication ADR.
 Use Ragmir to find the rules, check exceptions, then update the code and tests. Cite your sources."
@@ -90,14 +92,25 @@ flowchart LR
 The four MCP tools are `ragmir_status`, `ragmir_search`, `ragmir_expand`, and `ragmir_audit`.
 MCP search returns at most three compact citations by default. The agent expands the most useful
 passage, searches again when evidence is missing, and uses the cited context to answer or act.
-Ragmir supplies retrieval; planning, chat history, generation, and actions remain in the consuming
-app. Scripts can use the same retrieval API without a language model.
 
-Run `rgr serve-mcp` with the project's working directory, or use the helpers created by setup.
-The retrieved passages become part of the agent's context. With a cloud-backed agent, those
-passages go to its model provider; a local index does not make that conversation local.
+### Diagnose and fix an incident with Claude Code or Codex
 
-## Use a confidential local or self-hosted chat
+Ask your coding agent: "Investigate the checkout timeout. Use Ragmir to retrieve the runbook,
+incident report, and retry implementation before changing the code. Add the regression test and
+cite the evidence that supports the fix."
+
+The agent can search operational guidance first, expand the cited rule, then inspect the relevant
+source path before proposing a small repair.
+
+### Plan an API migration with Claude Code or Codex
+
+Ask your coding agent: "Prepare the API v2 migration. Use Ragmir to retrieve compatibility,
+rollback, and versioning rules before changing callers and migration tests. Cite the plan and ADR."
+
+The agent uses the migration plan and architecture decision to identify constraints before changing
+call sites. Ragmir provides evidence, while the agent owns the migration plan and code changes.
+
+### Make a confidential architecture decision with a local or self-hosted chat
 
 Ask your chat: "According to our internal architecture notes, should attachments go in PostgreSQL
 or object storage? Show the passages supporting the decision."
@@ -107,9 +120,11 @@ Use a local chat with a downloaded Ollama model and remote calls disabled, or ho
 model on infrastructure you operate. Local mode can keep the whole exchange on the machine;
 self-hosted mode sends the selected excerpts to your server.
 
-[Agent integration](./docs/agent-integration.md) covers both workflows, including the MCP setup
-and a small chat client with local and self-hosted model options. Ragmir does not bundle that chat
-or a generation model.
+The first three workflows use the coding agent's normal model connection. With a cloud-backed
+agent, selected passages go to its model provider. A local index does not make that conversation
+local. [Agent integration](./docs/agent-integration.md) covers all four workflows, including MCP
+setup and a small local or self-hosted chat client. Ragmir does not bundle that chat or a generation
+model. Scripts can use the same retrieval API without a language model.
 
 ## TypeScript
 
@@ -204,7 +219,7 @@ authorization, and rate limits. Local index writer locks coordinate processes on
 - [CLI reference](./docs/cli-reference.md)
 - [TypeScript API](./docs/api-reference.md)
 - [Configuration and formats](./docs/configuration.md)
-- [Agentic and confidential chat workflows](./docs/agent-integration.md)
+- [Four agentic RAG workflows](./docs/agent-integration.md)
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Synthetic examples](./packages/ragmir-core/examples/sovereign-rag-demo/README.md)
