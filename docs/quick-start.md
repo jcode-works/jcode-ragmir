@@ -18,10 +18,14 @@ source text. Your chat or agent decides where passages go: a local model, your o
 cloud provider. See the [integration guide](./agent-integration.md) for setup examples and the
 confidentiality boundary of each mode.
 
-Choose the workflow for your task:
+Choose one of four workflow examples:
 
-- **Claude Code or Codex:** "Implement account recovery from the specification and ADR. Use
-  Ragmir to retrieve the rules and exceptions, then update code and tests with cited sources."
+- **Build a feature with Claude Code or Codex:** "Implement account recovery from the specification
+  and ADR. Use Ragmir to retrieve rules and exceptions, then update code and tests with citations."
+- **Diagnose an incident with Claude Code or Codex:** "Investigate the checkout timeout from the
+  runbook, incident report, and retry code. Cite the evidence before fixing it and adding a test."
+- **Plan a migration with Claude Code or Codex:** "Prepare the API v2 migration from its plan and
+  versioning ADR. Find compatibility and rollback rules before changing callers and tests."
 - **Confidential chat, local or self-hosted:** "According to our internal architecture notes,
   should attachments go in PostgreSQL or object storage? Cite the passages supporting the choice."
   Connect the chat to Ragmir and to a model on your machine or infrastructure you operate.

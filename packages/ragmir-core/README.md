@@ -23,15 +23,21 @@ Semantic embeddings are optional: install `@huggingface/transformers`, then run
 `npx rgr setup --semantic` to preload the embedding model. Scanned PDFs need a supported local OCR
 engine; inspect `npx rgr ocr doctor`, then configure it with `npx rgr ocr setup`.
 
-## Choose your workflow
+## Four workflow examples
 
-- **Develop with Claude Code or Codex.** Ask your agent to implement account recovery from the
-  project's specification and ADR. It searches with Ragmir, opens cited passages, checks exceptions,
-  then changes the code and tests. Connect it with the generated MCP helper or retrieval skill.
-- **Use a confidential local or self-hosted chat.** Ask whether internal architecture rules call
-  for attachments in PostgreSQL or object storage. The chat retrieves cited evidence with Ragmir
-  and sends it to a downloaded model running in Ollama with remote calls disabled,
-  or to a model on your own server. It returns a sourced answer for your decision.
+1. **Build a feature with Claude Code or Codex.** Ask the agent to implement account recovery from
+   the project's specification and ADR. It searches with Ragmir, opens cited passages, checks
+   exceptions, then changes the code and tests.
+2. **Diagnose an incident with Claude Code or Codex.** Ask the agent to investigate a checkout
+   timeout from the runbook, incident report, and retry implementation before it changes code and
+   adds a regression test.
+3. **Plan an API migration with Claude Code or Codex.** Ask the agent to retrieve compatibility,
+   rollback, and versioning rules from the migration plan and ADR before it updates callers and
+   migration tests.
+4. **Make a confidential architecture decision.** Ask a local or self-hosted chat whether internal
+   architecture rules call for attachments in PostgreSQL or object storage. The chat retrieves cited
+   evidence with Ragmir and sends it to a downloaded Ollama model with remote calls disabled, or to
+   a model on your own server.
 
 The index stays on the machine running Ragmir. Retrieved text is not masked. With an entirely
 local consumer it can stay on that machine; with your own server or private-cloud model it travels
@@ -39,7 +45,7 @@ to your infrastructure; with a cloud provider the consuming app sends it to that
 Confidentiality depends on the full setup, including access controls, tools, and logs. Ragmir has
 no telemetry or hosted storage, but local indexing does not make every connected chat private.
 
-See the [agentic and confidential chat workflows](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
+See the [four agentic RAG workflows](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
 and [TypeScript API](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md).
 
 <!-- ragmir-setup-prompt:start -->
@@ -83,7 +89,7 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 
 [Full documentation](https://github.com/jcode-works/jcode-ragmir#readme),
 [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md),
-[agentic and confidential chat workflows](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md),
+[four agentic RAG workflows](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md),
 and [migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md).
 
 Open source under AGPL-3.0-only with a separate commercial licensing option from JCode Works.

@@ -64,10 +64,11 @@ and omits the production sitemap.
 
 - Lead with agentic RAG for developers: cited project evidence through a TypeScript library, CLI,
   and MCP. The consuming agent chooses searches, expands citations, refines queries, and generates.
-- Show two distinct workflows in the hero and examples: ordinary development with Claude Code or
-  Codex, and confidential questions with a local or self-hosted chat and model. Keep the first
-  example agentic, with source refinement and code changes, and the second focused on a cited
-  decision with an explicit model destination. Do not turn both examples into an Ollama demo.
+- Show four distinct workflows in the hero and examples: feature delivery, incident diagnosis, and
+  migration planning with Claude Code or Codex, plus a confidential decision with a local or
+  self-hosted chat and model. Keep each development example agentic, with source refinement and a
+  concrete code outcome. Keep the confidential example focused on a cited decision with an explicit
+  model destination. Do not turn the development examples into Ollama demos.
 - Explain how existing chat and agent applications use that evidence with local models,
   self-hosted models (including private cloud), or cloud providers.
 - Distinguish local indexing from end-to-end confidentiality. Retrieved text is not masked; the
