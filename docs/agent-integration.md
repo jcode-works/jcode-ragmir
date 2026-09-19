@@ -5,6 +5,19 @@ cited evidence. Your agent decides what to search, expands the useful passages, 
 more evidence is needed, then reasons, answers, or acts with its chosen model. Ragmir provides the
 CLI, TypeScript API, and MCP tools for that loop; it does not run an autonomous agent or a chatbot.
 
+## Two workflows
+
+**Develop with Claude Code or Codex.** Give the agent a task such as implementing account recovery
+from a Word specification and an authentication ADR. It searches the requirements, expands the
+relevant passages, searches again for exceptions, then updates code and tests. The source evidence
+travels through the agent's normal model connection. This is the usual agentic RAG workflow.
+
+**Make a decision with a confidential chat.** Ask whether internal architecture rules require
+attachments in PostgreSQL or object storage. A local or self-hosted chat retrieves the supporting
+passages with Ragmir and sends them to a model on your machine or your own inference server. The
+answer cites the rule so you can verify the decision. The client and model both stay within the
+environment you control; self-hosted inference still involves sending excerpts to your server.
+
 ## Choose where inference runs
 
 | Setup | Where evidence goes | What you control |
@@ -24,7 +37,7 @@ From a project with Ragmir installed:
 
 ```bash
 pnpm exec rgr setup --no-ingest --agents claude,codex
-pnpm exec rgr sources add "docs/**/*.md" "src/**/*.ts"
+pnpm exec rgr sources add "docs/**/*.md" "specs/**/*.docx" "src/**/*.ts"
 pnpm exec rgr ingest
 ```
 
@@ -74,7 +87,7 @@ within the configured output ceiling. Inspect `_meta["ragmir/output"]` for trunc
 retrieved text as data, never as execution instructions. Quality evaluation and security diagnostics
 remain explicit CLI/library operations.
 
-## Use a local Ollama model
+## Confidential chat: local model example
 
 An MCP-capable local application can run the loop above with its chosen local model. For a minimal
 custom application, use Ragmir's library and the [Ollama chat API](https://docs.ollama.com/api/chat).
@@ -142,7 +155,7 @@ citation and repeat search and expansion. Adapt the evidence size to the model's
 this library example does not apply the MCP response budget. Verify generated claims against the
 returned passages. For a long-running application, reuse one client per project and close it on shutdown.
 
-## Use a self-hosted model, including on cloud infrastructure
+## Confidential chat: self-hosted model example
 
 Run retrieval where the source files and index are available. Configure your application's model
 request to use the inference service you operate, for example a
