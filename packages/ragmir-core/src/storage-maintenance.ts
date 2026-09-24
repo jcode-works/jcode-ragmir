@@ -171,28 +171,49 @@ export async function maintainOpenStorageTable(
   const completedActions: StorageMaintenanceAction[] = []
   let optimizeStats: OptimizeStats | null = null
   let optimized = false
+  const optimizeOptions = {
+    cleanupOlderThan: new Date(Date.now() - OLD_VERSION_RETENTION_MS),
+    deleteUnverified: false,
+  }
 
   if (plannedActions.includes("compact-fragments")) {
     try {
-      optimizeStats = await table.optimize({
-        cleanupOlderThan: new Date(Date.now() - OLD_VERSION_RETENTION_MS),
-        deleteUnverified: false,
-      })
+      optimizeStats = await table.optimize(optimizeOptions)
       optimized = true
       completedActions.push("compact-fragments", "prune-old-versions")
     } catch (error) {
-      warnings.push(
-        `LanceDB compaction failed (${errorDetail(error)}). The validated index remains readable; retry \`rgr storage optimize\` later.`,
-      )
+      if (before.fullTextIndex.present && isPositionalFtsCompactionError(error)) {
+        try {
+          // Positional FTS postings can trigger a Lance list-offset decoder bug during compaction.
+          await replaceFullTextIndex(table, false)
+          if (!plannedActions.includes("refresh-full-text-index")) {
+            plannedActions.push("refresh-full-text-index")
+          }
+          const coverage = await fullTextIndexCoverage(table, before.totalRows)
+          if (!coverage.complete) {
+            throw new Error(
+              `Position-free FTS rebuild left ${coverage.unindexedRows} unindexed row(s).`,
+            )
+          }
+          optimizeStats = await table.optimize(optimizeOptions)
+          optimized = true
+          completedActions.push("compact-fragments", "prune-old-versions")
+        } catch (retryError) {
+          warnings.push(
+            `LanceDB compaction failed (${errorDetail(error)}); position-free retry failed (${errorDetail(retryError)}).`,
+          )
+        }
+      } else {
+        warnings.push(
+          `LanceDB compaction failed (${errorDetail(error)}). The validated index remains readable; retry \`rgr storage optimize\` later.`,
+        )
+      }
     }
   }
 
   if (plannedActions.includes("refresh-full-text-index")) {
     try {
-      await table.createIndex("searchText", {
-        config: lancedb.Index.fts({ asciiFolding: true, lowercase: true, withPosition: true }),
-        replace: true,
-      })
+      await replaceFullTextIndex(table, true)
       const coverage = await fullTextIndexCoverage(table, before.totalRows)
       if (!coverage.complete) {
         warnings.push(`Full-text index refresh left ${coverage.unindexedRows} unindexed row(s).`)
@@ -274,6 +295,22 @@ async function inspectTableHealth(table: Table): Promise<TableHealth> {
     },
     fullTextIndex: await fullTextIndexCoverage(table, stats.numRows),
   }
+}
+
+async function replaceFullTextIndex(table: Table, withPosition: boolean): Promise<void> {
+  await table.createIndex("searchText", {
+    config: lancedb.Index.fts({ asciiFolding: true, lowercase: true, withPosition }),
+    replace: true,
+  })
+}
+
+function isPositionalFtsCompactionError(error: unknown): boolean {
+  const detail = errorDetail(error)
+  return (
+    detail.includes("Max offset of") &&
+    detail.includes("exceeds length of values") &&
+    detail.includes("logical/list.rs")
+  )
 }
 
 async function fullTextIndexCoverage(

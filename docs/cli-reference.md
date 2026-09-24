@@ -191,6 +191,10 @@ rgr storage optimize --dry-run --json
 rgr storage optimize --json
 ```
 
+If LanceDB hits its positional FTS list-offset decoder error during compaction, maintenance
+rebuilds the FTS index without positions, retries compaction, then restores the positional index.
+The row count and cited search remain available. Other compaction errors still return a warning.
+
 The dry run acquires the local writer lock for a consistent report but creates no LanceDB version.
 The JSON report includes table version, pending mutation count, fragment health, FTS/vector/scalar
 coverage, index strategy, reasons, planned actions, completed actions, and any retryable operator
