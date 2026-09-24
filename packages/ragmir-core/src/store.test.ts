@@ -309,6 +309,52 @@ describe("store", () => {
     await expect(fullTextEvidence(table)).resolves.toEqual([".ragmir/raw/stable.md:1-1"])
   })
 
+  it("should recover a positional FTS offset error during compaction", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-position-recovery-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const stablePath = ".ragmir/raw/stable.md"
+    await writeRows(
+      [
+        {
+          ...sampleRow(stablePath, 0, [0.1, 0.2], config),
+          searchText: "Evidence\nmaintenance baseline",
+          text: "maintenance baseline",
+        },
+      ],
+      config,
+    )
+    const table = await openRowsTable(config)
+    expect(table).not.toBeNull()
+    if (!table) {
+      return
+    }
+    const optimize = vi
+      .spyOn(table, "optimize")
+      .mockRejectedValueOnce(
+        new Error(
+          "Max offset of 42 exceeds length of values 12, lance-encoding-7.0.0/src/encodings/logical/list.rs:211",
+        ),
+      )
+
+    const report = await maintainOpenStorageTable(table, config.tableName, config, { force: true })
+
+    expect(optimize).toHaveBeenCalledTimes(2)
+    expect(report.status).toBe("completed")
+    expect(report.warning).toBeNull()
+    expect(report.plannedActions).toEqual([
+      "compact-fragments",
+      "prune-old-versions",
+      "refresh-full-text-index",
+    ])
+    expect(report.completedActions).toEqual(report.plannedActions)
+    expect(report.fullTextIndex).toEqual(
+      expect.objectContaining({ present: true, complete: true, indexedRows: 1, unindexedRows: 0 }),
+    )
+    await expect(table.countRows()).resolves.toBe(1)
+    await expect(fullTextEvidence(table)).resolves.toEqual([`${stablePath}:1-1`])
+  })
+
   it("should replace all rows for a source in one table version when content shrinks", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-merge-"))
     tempDirs.push(root)

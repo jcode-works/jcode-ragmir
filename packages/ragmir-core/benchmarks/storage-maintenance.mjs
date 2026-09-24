@@ -48,6 +48,7 @@ try {
 
   const maintenance = await maintainOpenStorageTable(table, config.tableName, config, {
     additionalMutations: MUTATION_BATCHES,
+    force: true,
   })
   const healthAfter = await table.stats()
   const versionAfter = await table.version()
