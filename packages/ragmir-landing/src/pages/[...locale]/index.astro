@@ -2,6 +2,7 @@
 import { CommandCopyToast } from "../../components/command-copy-toast"
 import { LibrarySection } from "../../components/library-section"
 import { LandingNavbar } from "../../components/landing-navbar"
+import { RagmirBackground } from "../../components/ragmir-background"
 import Agents from "../../components/sections/agents.astro"
 import ClosingCta from "../../components/sections/closing-cta.astro"
 import Faq from "../../components/sections/faq.astro"
@@ -158,7 +159,12 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
 
     <LibrarySection client:visible translations={translations} />
 
-    <Agents translations={translations} />
+    <div class="relative isolate overflow-hidden">
+      <div aria-hidden="true" class="absolute inset-0">
+        <RagmirBackground client:visible behindContent={false} height="100%" />
+      </div>
+      <Agents translations={translations} />
+    </div>
 
     <Features translations={translations} />
 
