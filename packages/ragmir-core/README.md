@@ -1,14 +1,25 @@
 # @jcode.labs/ragmir
 
-**The retrieval layer for agentic RAG, built for developers.**
+**Give your agent project evidence it can cite and check.**
 
-Ragmir gives your agent cited evidence from code, specifications, and project documents through a
-TypeScript library, the `rgr` CLI, or MCP. Your agent searches, expands useful citations, refines
-its questions, and reasons or generates with the model you choose.
+Ragmir is an open-source retrieval layer for developer agents and applications. It indexes the
+files you choose, then returns precise passages through a TypeScript library, the `rgr` CLI, or a
+local MCP server. Your agent decides what to search, expands citations when it needs more context,
+and generates or acts with the model you choose. Ragmir does not bundle a chat model or host your
+documents.
 
-Index Markdown, code, PDF, Office files, and more, with local OCR for scanned PDF pages. Hybrid
-retrieval returns passages with real line, page, slide, sheet/cell, or EPUB coordinates. Incremental
-indexing and validated rebuilds keep the local index usable as sources change.
+- **Ground work in your own sources:** search code, specifications, runbooks, and documents from
+  the same local index.
+- **Check the evidence:** citations point to source lines or native page, slide, sheet/cell, and
+  EPUB coordinates. Expansion can detect when indexed evidence has changed.
+- **Start small:** the default `local-hash` path works offline without downloading a model.
+  Semantic embeddings are an explicit option.
+- **Keep the index usable:** incremental ingestion, resumable progress, and validated rebuilds
+  preserve the last good index when a replacement fails.
+
+## Install and search
+
+Requires Node.js 22.12 or later. Use your project's package manager; this is the npm path:
 
 ```bash
 npm install -D @jcode.labs/ragmir
@@ -18,10 +29,44 @@ npx rgr ingest
 npx rgr search "authentication contract" --compact
 ```
 
-Requires Node.js 22.12+. The default `local-hash` retrieval works offline without a model download.
-Semantic embeddings are optional: install `@huggingface/transformers`, then run
-`npx rgr setup --semantic` to preload the embedding model. Scanned PDFs need a supported local OCR
-engine; inspect `npx rgr ocr doctor`, then configure it with `npx rgr ocr setup`.
+`rgr setup` creates ignored local state under `.ragmir/` and installs the selected agent helpers.
+The [quick start](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md) also
+covers pnpm and guided setup.
+
+## TypeScript API
+
+Use one client per project root in a long-running process and close it during shutdown:
+
+```ts
+import { createRagmirClient } from "@jcode.labs/ragmir"
+
+const ragmir = await createRagmirClient({ cwd: process.cwd() })
+try {
+  const passages = await ragmir.search("authentication contract", { topK: 3 })
+  for (const passage of passages) {
+    console.log(passage.citation, passage.text)
+  }
+  if (passages[0]) {
+    console.log(await ragmir.expandCitation(passages[0].citation, {
+      expectedEvidenceId: passages[0].evidence?.id,
+    }))
+  }
+} finally {
+  await ragmir.close()
+}
+```
+
+The library also exports top-level `ingest`, `search`, and `expandCitation` functions for one-shot
+scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md).
+
+## MCP for developer agents
+
+`rgr setup --agents claude,codex` prepares a local MCP helper and a retrieval skill for the agents
+you select. The server exposes four bounded tools: `ragmir_status`, `ragmir_search`,
+`ragmir_expand`, and `ragmir_audit`. An agent can search compact results, open an exact cited
+passage, and search again when the evidence is incomplete. The consuming agent owns reasoning,
+generation, and actions. See [agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
+for connection steps and local or self-hosted model examples.
 
 ## Four workflow examples
 
@@ -39,14 +84,18 @@ engine; inspect `npx rgr ocr doctor`, then configure it with `npx rgr ocr setup`
    evidence with Ragmir and sends it to a downloaded Ollama model with remote calls disabled, or to
    a model on your own server.
 
-The index stays on the machine running Ragmir. Retrieved text is not masked. With an entirely
-local consumer it can stay on that machine; with your own server or private-cloud model it travels
-to your infrastructure; with a cloud provider the consuming app sends it to that provider.
-Confidentiality depends on the full setup, including access controls, tools, and logs. Ragmir has
-no telemetry or hosted storage, but local indexing does not make every connected chat private.
+## Retrieval options and documents
 
-See the [four agentic RAG workflows](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
-and [TypeScript API](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md).
+The default `local-hash` provider combines lexical evidence and deterministic local vectors. For
+semantic embeddings, install `@huggingface/transformers`, then run `npx rgr setup --semantic` to
+download and enable the selected embedding model. Index Markdown, code, JSON, CSV, HTML, PDF,
+DOCX, XLSX, PPTX, OpenDocument, EPUB, and RTF. Scanned PDF pages require a supported local OCR
+engine: inspect `npx rgr ocr doctor`, then configure it with `npx rgr ocr setup`.
+
+The index stays on the machine running Ragmir, but retrieved text is not masked. With an entirely
+local consumer it can stay there; a self-hosted or cloud consumer receives the selected passages.
+Confidentiality depends on the full setup, including access controls, transport, tools, and logs.
+Ragmir has no telemetry or hosted storage.
 
 <!-- ragmir-setup-prompt:start -->
 <details>
@@ -87,10 +136,15 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 </details>
 <!-- ragmir-setup-prompt:end -->
 
-[Full documentation](https://github.com/jcode-works/jcode-ragmir#readme),
-[API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md),
-[four agentic RAG workflows](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md),
-and [migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md).
+## Project and licensing
 
-Open source under AGPL-3.0-only with a separate commercial licensing option from JCode Works.
-See [LICENSE](./LICENSE) and [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md).
+Read the [full documentation](https://github.com/jcode-works/jcode-ragmir#readme),
+[CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md),
+[migration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md), and
+[troubleshooting guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md).
+Issues and contributions are welcome through
+[GitHub](https://github.com/jcode-works/jcode-ragmir) and
+[CONTRIBUTING](https://github.com/jcode-works/jcode-ragmir/blob/main/CONTRIBUTING.md).
+
+Ragmir is open source under [AGPL-3.0-only](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
+JCode Works also offers a [commercial license](https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md).
