@@ -168,6 +168,9 @@ successful ingestion. Run `rgr doctor --deep` when current filesystem coverage, 
 ignore behavior, executable probes, or compatible quality evidence must be verified live. Deep
 doctor and `rgr audit` label their O(corpus) cost in text and JSON output. A missing or invalid
 manifest always yields `ready=false`, including legacy tables that predate manifest activation.
+`readiness.lexicalIndexCurrent` is `false` for an index built before path and identifier keyword
+terms. Search keeps using that index; the next `rgr ingest` or `rgr upgrade` stages and validates
+a rebuild before activating it.
 
 `rgr ingest --rebuild` writes batches into an isolated LanceDB generation. The existing index stays
 active until the new table and manifest pass row-count, checksum, and duplicate-ID validation. The
@@ -175,11 +178,13 @@ final atomic manifest replacement activates the generation. Re-run the command a
 to resume the staged generation. Older generated tables remain available for searches that already
 opened them; `rgr destroy-index` removes all generated index storage.
 
-Ragmir checks LanceDB maintenance after every completed ingestion. It refreshes an absent or
-incomplete `searchText_idx` before activation. To avoid unnecessary native rewrites and preserve a
-newly validated index, automatic compaction starts only at 100,000 chunks, then after 20 mutation
-batches or when at least eight fragments are 25% small fragments. Optional maintenance failures
-return a warning while the validated table remains readable. It keeps exhaustive vector search below
+Ragmir checks LanceDB maintenance after every completed ingestion, before validating and
+activating the table. It refreshes an absent or incomplete `searchText_idx`. Each committed file
+adds a small LanceDB fragment, so maintenance compacts any table with at least 64 fragments when at
+least 25% of them are small. Compacting per-file fragments made search two to three times faster on
+repositories of 2,407 and 21,546 chunks. From 100,000 chunks, compaction also runs after 20 mutation batches or when at
+least eight fragments are 25% small fragments. Optional maintenance failures return a warning while
+the validated table remains readable. It keeps exhaustive vector search below
 100,000 rows,
 maintains IVF-PQ at and above that crossover, and creates a `relativePath` BTree from 10,000 rows.
 M uses 32 probes with refinement 10. L searches every partition with refinement 100 because lower

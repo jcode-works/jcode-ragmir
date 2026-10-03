@@ -280,6 +280,44 @@ describe("store", () => {
     await expect(fullTextEvidence(table)).resolves.toEqual([".ragmir/raw/source-0.md:1-1"])
   })
 
+  it("should compact dozens of per-file fragments below the 100,000-row threshold", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-fragment-compaction-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    await writeRows(
+      [
+        {
+          ...sampleRow(".ragmir/raw/source-0.md", 0, [0.1, 0.2], config),
+          searchText: "Evidence\nmaintenance baseline",
+          text: "maintenance baseline",
+        },
+      ],
+      config,
+    )
+    const table = await openRowsTable(config)
+    expect(table).not.toBeNull()
+    if (!table) {
+      return
+    }
+    for (let fileIndex = 1; fileIndex < 80; fileIndex += 1) {
+      await table.add([sampleRow(`.ragmir/raw/source-${fileIndex}.md`, 0, [0.1, 0.2], config)])
+    }
+    const fragmentsBefore = (await table.stats()).fragmentStats
+
+    const report = await maintainOpenStorageTable(table, config.tableName, config, {
+      additionalMutations: 80,
+    })
+
+    expect(fragmentsBefore.numFragments).toBeGreaterThanOrEqual(64)
+    expect(report.reasons).toContain("fragmentation-threshold")
+    expect(report.completedActions).toContain("compact-fragments")
+    expect((await table.stats()).fragmentStats.numFragments).toBeLessThan(
+      fragmentsBefore.numFragments,
+    )
+    await expect(table.countRows()).resolves.toBe(80)
+    await expect(fullTextEvidence(table)).resolves.toEqual([".ragmir/raw/source-0.md:1-1"])
+  }, 30_000)
+
   it("should keep the active table readable when optional compaction fails", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-maintenance-failure-"))
     tempDirs.push(root)

@@ -18,6 +18,10 @@ const MAINTENANCE_STATE_SCHEMA_VERSION = 1
 const MUTATION_COMPACTION_THRESHOLD = 20
 const MINIMUM_AUTOMATIC_COMPACTION_ROWS = 100_000
 const MINIMUM_FRAGMENT_COUNT = 8
+// Per-file commits leave one small fragment per indexed file. A few hundred of them made full-text
+// and exhaustive vector reads two to three times slower on ordinary repositories, so compaction no
+// longer waits for the 100,000-row threshold once fragmentation reaches this size.
+const AUTOMATIC_COMPACTION_FRAGMENT_COUNT = 64
 const SMALL_FRAGMENT_RATIO_THRESHOLD = 0.25
 const OLD_VERSION_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000
 
@@ -363,14 +367,23 @@ function maintenanceReasons(
   if (automaticCompactionEligible && mutationsSinceOptimization >= MUTATION_COMPACTION_THRESHOLD) {
     reasons.push("mutation-threshold")
   }
-  if (
-    automaticCompactionEligible &&
-    health.fragments.total >= MINIMUM_FRAGMENT_COUNT &&
-    health.fragments.smallRatio >= SMALL_FRAGMENT_RATIO_THRESHOLD
-  ) {
+  if (fragmentationRequiresCompaction(health, automaticCompactionEligible)) {
     reasons.push("fragmentation-threshold")
   }
   return reasons
+}
+
+function fragmentationRequiresCompaction(
+  health: TableHealth,
+  automaticCompactionEligible: boolean,
+): boolean {
+  if (health.fragments.smallRatio < SMALL_FRAGMENT_RATIO_THRESHOLD) {
+    return false
+  }
+  return (
+    health.fragments.total >= AUTOMATIC_COMPACTION_FRAGMENT_COUNT ||
+    (automaticCompactionEligible && health.fragments.total >= MINIMUM_FRAGMENT_COUNT)
+  )
 }
 
 function maintenanceActions(
@@ -382,10 +395,8 @@ function maintenanceActions(
   const automaticCompactionEligible = health.totalRows >= MINIMUM_AUTOMATIC_COMPACTION_ROWS
   const compact =
     forced ||
-    (automaticCompactionEligible &&
-      (mutationsSinceOptimization >= MUTATION_COMPACTION_THRESHOLD ||
-        (health.fragments.total >= MINIMUM_FRAGMENT_COUNT &&
-          health.fragments.smallRatio >= SMALL_FRAGMENT_RATIO_THRESHOLD)))
+    fragmentationRequiresCompaction(health, automaticCompactionEligible) ||
+    (automaticCompactionEligible && mutationsSinceOptimization >= MUTATION_COMPACTION_THRESHOLD)
   if (compact) {
     actions.push("compact-fragments", "prune-old-versions")
   }

@@ -112,4 +112,46 @@ describe("selectDiverseRows", () => {
     expect(ranked.rows[0]).toBe(shorterLater)
     expect(exact.rows[0]).toBe(shorterLater)
   })
+
+  it("should match eager filtering while testing relevance only until the result is full", () => {
+    const rows = Array.from({ length: 60 }, (_, index) =>
+      rankedRow(`doc-${index % 12}.md`, Math.floor(index / 12), 1 - index / 100),
+    )
+    const duplicate = rows[20]
+    const original = rows[3]
+    if (duplicate && original) {
+      duplicate.row.text = original.row.text
+    }
+    const isRelevant = (row: FixtureRow): boolean =>
+      row.chunkIndex % 2 === 0 || row.relativePath === "doc-5.md"
+    for (const [topK, maxChunksPerDocument] of [
+      [3, 1],
+      [8, 2],
+      [40, 1],
+      [60, 3],
+    ] as const) {
+      const options = {
+        topK,
+        maxChunksPerDocument,
+        isExactPathMatch: (row: FixtureRow) => row.relativePath === "doc-7.md",
+      }
+      const eager = selectDiverseRows(
+        rows.filter(({ row }) => isRelevant(row)),
+        options,
+      )
+      let checks = 0
+      const lazy = selectDiverseRows(rows, {
+        ...options,
+        isRelevant: (row) => {
+          checks += 1
+          return isRelevant(row)
+        },
+      })
+
+      expect(lazy).toEqual(eager)
+      if (topK === 3) {
+        expect(checks).toBeLessThan(rows.length / 2)
+      }
+    }
+  })
 })

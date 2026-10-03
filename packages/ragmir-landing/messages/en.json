@@ -74,7 +74,7 @@
   "features_core_title": "Project retrieval",
   "features_core_text": "Turn selected files into cited context for agents, scripts, and TypeScript applications.",
   "features_core_item_1": "Index changes incrementally and resume interrupted work.",
-  "features_core_item_2": "Search code, specs, and Office rows with cited headers.",
+  "features_core_item_2": "Find code by file path and identifier, plus specs and Office rows with cited headers.",
   "features_core_item_3": "Expand a cited passage and verify its indexed version.",
   "features_core_item_4": "Use the same local index through CLI, MCP, or TypeScript.",
   "agents_eyebrow": "Build your agentic RAG workflow",

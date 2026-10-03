@@ -10,7 +10,8 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
 - Install `@jcode.labs/ragmir`; use the `rgr` executable. Node.js 22.12 or later is required.
 - Set up with `rgr setup --no-ingest`, add selected source directories with `rgr sources add`,
   then run `rgr ingest` and `rgr search "query" --compact`.
-- Default local-hash retrieval needs no model, API key, or network. It is lexical/hash retrieval.
+- Default local-hash retrieval needs no model, API key, or network. It ranks BM25 keyword evidence
+  first, including source paths and camelCase identifier parts, and uses hashed vectors for ties.
 - Semantic retrieval requires the optional `@huggingface/transformers` peer and a local model.
   Use `rgr setup --semantic` to configure and preload one. Default installs exclude that runtime.
 - Text, Markdown, structured files, PDF, Office, EPUB, and configured local extractors are supported.
@@ -31,7 +32,8 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
 - Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
   target one explicitly. Data resolves from the caller's project, never the installation directory.
 - Ingestion is bounded and resumable. Rebuilds stage a replacement and activate it atomically only
-  after validation, preserving the last valid index on failure.
+  after validation, preserving the last valid index on failure. An index built before the keyword
+  terms stays searchable until the next `rgr ingest` or `rgr upgrade` rebuilds it.
 - After updating, run `rgr upgrade --check`, then `rgr upgrade` when needed. Retired configuration
   keys are explicitly migrated with a private backup; old masking-policy indexes need rebuilding.
 - `rgr preview`, `rgr evaluate`, `rgr doctor --deep`, `rgr audit`, and `rgr storage optimize` support

@@ -130,6 +130,7 @@ export interface IndexManifest {
   embeddingModelRevision?: string
   embeddingModelDigest?: string | null
   indexPolicyFingerprint?: string
+  lexicalPolicyVersion?: number
   vectorDimension?: number
   vectorDistanceMetric?: string
   vectorIndex?: VectorIndexManifest
@@ -951,6 +952,7 @@ export interface DoctorReport {
     operationalReady: boolean
     coverageComplete: boolean
     indexPolicyCurrent: boolean
+    lexicalIndexCurrent: boolean
     retrievalQualityVerified: boolean
   }
   nextSteps: string[]

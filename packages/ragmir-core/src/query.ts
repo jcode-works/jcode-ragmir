@@ -27,7 +27,8 @@ import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 import type { RankedRow } from "./ranking.js"
 import {
-  candidatePassesAbstention,
+  abstentionFilter,
+  fusionCandidateDepth,
   queryEvidence,
   rankHybridRows,
   rankingPolicyFingerprint,
@@ -82,19 +83,14 @@ interface SearchRow {
   _score?: number
 }
 
-const VECTOR_CANDIDATE_POLICY: Record<RetrievalProfile, { minimum: number; multiplier: number }> = {
-  fast: { minimum: 40, multiplier: 3 },
-  balanced: { minimum: 80, multiplier: 4 },
-  quality: { minimum: 200, multiplier: 8 },
-  custom: { minimum: 80, multiplier: 4 },
+// Margin over the fusion bound from fusionCandidateDepth. Deeper pools returned the same rankings on
+// real code and document corpora while multiplying native reads and JavaScript work per query.
+const CANDIDATE_DEPTH_MARGIN: Record<RetrievalProfile, number> = {
+  fast: 1,
+  balanced: 1.25,
+  quality: 1.5,
+  custom: 1.25,
 }
-const LEXICAL_CANDIDATE_POLICY: Record<RetrievalProfile, { minimum: number; multiplier: number }> =
-  {
-    fast: { minimum: 100, multiplier: 10 },
-    balanced: { minimum: 250, multiplier: 20 },
-    quality: { minimum: 500, multiplier: 40 },
-    custom: { minimum: 250, multiplier: 20 },
-  }
 const MAX_CONTEXT_RADIUS = 3
 const DIVERSITY_CANDIDATE_MULTIPLIER = 4
 const MAX_VECTOR_CANDIDATES = 1_000
@@ -273,17 +269,15 @@ async function searchWithinGeneration(
   )
   const isExactPathMatch = (row: SearchRow): boolean =>
     lexicalCandidates.exactPathMatches.has(rowKey(row))
-  const relevantRows = rankedRows
-    .filter(
-      (ranked) =>
-        isExactPathMatch(ranked.row) ||
-        candidatePassesAbstention(evidence, ranked.row, rankingPolicy),
-    )
-    .sort((left, right) => Number(isExactPathMatch(right.row)) - Number(isExactPathMatch(left.row)))
-  const diversity = selectDiverseRows(relevantRows, {
+  const passesAbstention = abstentionFilter(evidence, rankingPolicy)
+  const orderedRows = rankedRows.sort(
+    (left, right) => Number(isExactPathMatch(right.row)) - Number(isExactPathMatch(left.row)),
+  )
+  const diversity = selectDiverseRows(orderedRows, {
     topK,
     maxChunksPerDocument,
     isExactPathMatch,
+    isRelevant: (row) => isExactPathMatch(row) || passesAbstention(row),
   })
   const rows = diversity.rows
   const contextByRow = await contextChunksByRow(table, rows, contextRadius, retrievalPredicate)
@@ -347,17 +341,22 @@ async function searchWithinGeneration(
   return results
 }
 
-export function vectorCandidateLimit(topK: number, profile: RetrievalProfile = "balanced"): number {
-  const policy = VECTOR_CANDIDATE_POLICY[profile]
-  return Math.min(MAX_VECTOR_CANDIDATES, Math.max(policy.minimum, topK * policy.multiplier))
+export function vectorCandidateLimit(
+  candidateDemand: number,
+  profile: RetrievalProfile = "balanced",
+): number {
+  return Math.min(MAX_VECTOR_CANDIDATES, candidateDepth(candidateDemand, profile))
 }
 
 export function lexicalCandidateLimit(
-  topK: number,
+  candidateDemand: number,
   profile: RetrievalProfile = "balanced",
 ): number {
-  const policy = LEXICAL_CANDIDATE_POLICY[profile]
-  return Math.min(MAX_LEXICAL_CANDIDATES, Math.max(policy.minimum, topK * policy.multiplier))
+  return Math.min(MAX_LEXICAL_CANDIDATES, candidateDepth(candidateDemand, profile))
+}
+
+function candidateDepth(candidateDemand: number, profile: RetrievalProfile): number {
+  return Math.ceil(fusionCandidateDepth(candidateDemand) * CANDIDATE_DEPTH_MARGIN[profile])
 }
 
 export async function expandCitation(

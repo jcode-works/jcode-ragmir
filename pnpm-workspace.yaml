@@ -4,6 +4,18 @@ packages:
 
 strictDepBuilds: true
 
+audit:
+  # No patched release exists for these advisories. Re-check them on every dependency update and
+  # remove each entry as soon as a fixed version is available.
+  ignore:
+    # http-cache-semantics <=4.2.0: build-time dependency of the private static landing through
+    # Astro. No shared HTTP cache serves responses from it.
+    - GHSA-ch52-4w7c-c8xp
+    # braces <=3.0.3: deeply nested patterns can exhaust the stack. Only semantic-release tooling and
+    # fast-glob reach it, and fast-glob only receives project-owned source patterns from Ragmir
+    # configuration, never MCP input or indexed content.
+    - GHSA-vfj7-8cjw-p6xm
+
 overrides:
   "adm-zip@<0.6.1": ^0.6.1
   yaml: ^2.9.1
