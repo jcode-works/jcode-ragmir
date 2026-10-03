@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -36,19 +35,10 @@ for (const packageName of optionalCorePackages) {
 if (checkOnly) {
   console.log("Semantic release verify check passed.")
 } else if (process.env.GITHUB_ACTIONS === "true") {
-  if (!process.env.NODE_AUTH_TOKEN) {
-    throw new Error("NODE_AUTH_TOKEN is required before semantic-release can create a tag")
-  }
-  run("npm", ["whoami", "--registry=https://registry.npmjs.org"])
-}
-
-function run(command, args) {
-  const result = spawnSync(command, args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    stdio: "inherit",
-  })
-  if (result.status !== 0) {
-    throw new Error(`Command failed: ${command} ${args.join(" ")}`)
+  // Trusted publishing needs the job's OIDC request credentials before a tag is created.
+  if (!process.env.ACTIONS_ID_TOKEN_REQUEST_URL || !process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
+    throw new Error(
+      "npm trusted publishing requires the release job's id-token: write permission before semantic-release can create a tag",
+    )
   }
 }
