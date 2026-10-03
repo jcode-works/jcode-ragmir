@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { chunkDocument, chunkSearchText } from "./chunking.js"
+import { chunkDocument, chunkLexicalText, chunkSearchText } from "./chunking.js"
+import { identifierParts } from "./text.js"
 import type { ParsedDocument } from "./types.js"
 
 describe("chunkDocument", () => {
@@ -293,3 +294,36 @@ function abortAfterChecks(checksBeforeAbort: number): AbortSignal {
     },
   })
 }
+
+describe("chunkLexicalText", () => {
+  it("should index path and identifier parts without changing the embedded text", () => {
+    const chunk = {
+      relativePath: "back/src/main/java/auth/LoginAttemptService.java",
+      contextPath: "",
+      text: "void assertNotLocked(String key); parseHTTPResponse(raw); init_role",
+    }
+
+    const lexical = chunkLexicalText(chunk)
+
+    expect(chunkSearchText(chunk)).toBe(chunk.text)
+    expect(lexical.startsWith(chunk.text)).toBe(true)
+    expect(lexical).toContain(
+      "back/src/main/java/auth/LoginAttemptService.java login attempt service",
+    )
+    expect(lexical).toContain("assert not locked")
+    expect(lexical).toContain("parse http response")
+  })
+
+  it("should split camel, acronym, and digit boundaries but leave plain words alone", () => {
+    expect(identifierParts("parseHTTPResponse HTTPServer sha256 ES2022 plain snake_case")).toEqual([
+      "parse",
+      "http",
+      "response",
+      "server",
+      "sha",
+      "256",
+      "es",
+      "2022",
+    ])
+  })
+})

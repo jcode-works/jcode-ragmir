@@ -63,18 +63,26 @@ before changing production configuration.
 
 | Profile | Quality intent | Latency intent | Default `topK` | Fallback batch size | Vector candidates | FTS candidates | Document cap | Context radius |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `fast` | Narrow, diverse evidence | Lowest work budget | 5 | 2,000 | max(40, 3 x `demand`) | max(100, 10 x `demand`) | configured, default 1 | 0 |
-| `balanced` | General-purpose evidence | Default work budget | 8 | 5,000 | max(80, 4 x `demand`) | max(250, 20 x `demand`) | configured, default 1 | 0 |
-| `quality` | Broader multi-section evidence | Highest work budget | 12 | 10,000 | max(200, 8 x `demand`) | min(4,000, max(500, 40 x `demand`)) | configured, default 1 | 1 |
-| `custom` | Golden-set validated | Operator-defined | configured | configured | max(80, 4 x `demand`) | max(250, 20 x `demand`) | configured, default 1 | 0 |
+| `fast` | Narrow, diverse evidence | Lowest work budget | 5 | 2,000 | `depth` | `depth` | configured, default 1 | 0 |
+| `balanced` | General-purpose evidence | Default work budget | 8 | 5,000 | 1.25 x `depth` | 1.25 x `depth` | configured, default 1 | 0 |
+| `quality` | Broader multi-section evidence | Highest work budget | 12 | 10,000 | 1.5 x `depth` | 1.5 x `depth` | configured, default 1 | 1 |
+| `custom` | Golden-set validated | Operator-defined | configured | configured | 1.25 x `depth` | 1.25 x `depth` | configured, default 1 | 0 |
 
 `demand` is `topK * ceil(4 / maxChunksPerDocument)`, with a minimum multiplier of one. This internal
 over-retrieval gives the diversity pass enough lower-ranked documents before final truncation.
-Vector candidates are capped at 1,000. The FTS pool is profile-aware and capped at 4,000,
-independently from the complete-scan batch size. Structural context and body text feed the primary
-local index. Exact file paths use a bounded scalar variant. Controlled exact-phrase, identifier,
-and fuzzy rare-term queries expand only a primary pool that cannot fill the demand, preserving
-established ranks.
+`depth` is `60 + 2 x demand`, rounded up after the profile margin. With reciprocal-rank fusion at
+`k = 60`, a passage outside that depth in every candidate list cannot outrank the `demand`-th fused
+passage, so deeper pools only add reads. For example, `topK = 10` with the default document cap
+retrieves 210 vector and 210 FTS candidates in the `quality` profile. Vector candidates are capped
+at 1,000 and FTS candidates at 4,000, independently from the complete-scan batch size. Exact file
+paths use a bounded scalar variant. Controlled exact-phrase, identifier, and fuzzy rare-term queries
+expand only a primary pool that cannot fill the demand, preserving established ranks.
+
+The full-text index covers each passage's structural context, cited header text, and body, plus its
+relative source path and the parts of camelCase, PascalCase, acronym, and letter-digit identifiers.
+A question about "login attempts" can therefore reach `LoginAttemptService.java`, while embeddings
+keep using the passage text without these keyword terms. The LanceDB analyzer lowercases, folds
+accents, applies English stemming, and removes English stop words.
 
 After scoring and abstention, the deterministic diversity pass keeps at most
 `maxChunksPerDocument` primary passages per relative path while preserving rank order. It then
@@ -85,10 +93,14 @@ adds more work and corpus-dependent ordering, and the current golden benchmark d
 advantage over the simple cap default. It can be evaluated later as an explicit opt-in strategy
 without changing this predictable default.
 
-Hybrid ranking uses deterministic reciprocal-rank fusion with `k = 60` and equal vector and lexical
-weights. Stable source and chunk keys break score ties before ranks are assigned. The active
-provider, profile, document cap, and ranking parameters form a policy fingerprint stored in quality
-reports and exposed by score explanations.
+Hybrid ranking uses deterministic reciprocal-rank fusion with `k = 60`. Transformers vectors and
+full-text results have equal weights. The `local-hash` vector is a hashed lexical signal without
+inverse document frequency, so it receives a weight of 0.01: BM25 evidence leads, and hashed
+vectors only break ties or append passages that the full-text index did not return. On three code
+and documentation corpora, this raised local-hash nDCG@10 by 1% to 35% compared with equal weights.
+Stable source and chunk keys break score ties before ranks are assigned. The active provider,
+profile, document cap, and ranking parameters form a policy fingerprint stored in quality reports
+and exposed by score explanations.
 
 Abstention is provider-aware. `local-hash` requires lexical evidence and gives query identifiers
 precedence over coincidental section numbers. Transformers results require lexical evidence or a

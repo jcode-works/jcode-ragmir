@@ -110,7 +110,7 @@ function upgradeStatus(report: DoctorReport, manifestFound: boolean): UpgradeSta
   if (!manifestFound) {
     return "index-required"
   }
-  if (!report.readiness.indexPolicyCurrent) {
+  if (!report.readiness.indexPolicyCurrent || !report.readiness.lexicalIndexCurrent) {
     return "rebuild-required"
   }
   if (!report.readiness.operationalReady) {
@@ -129,7 +129,9 @@ function upgradeReason(report: DoctorReport, status: UpgradeStatus): string | nu
   if (status === "rebuild-required") {
     return (
       report.indexFreshness.warning ??
-      "The active index policy differs from this Ragmir runtime and requires a staged rebuild."
+      (report.readiness.lexicalIndexCurrent
+        ? "The active index policy differs from this Ragmir runtime and requires a staged rebuild."
+        : "The active index predates path and identifier keyword terms. Search keeps working while upgrade stages the rebuild.")
     )
   }
   return report.nextSteps[0] ?? "The active index needs repair before retrieval is ready."

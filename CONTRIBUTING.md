@@ -70,6 +70,8 @@ Core uses TypeScript 7, while the landing uses TypeScript 6 within `@astrojs/che
 Node types track the pinned Node 22 runtime. Revisit these constraints against current upstream
 metadata before upgrading. Transformers 4.3 is an optional peer and needs the declared
 `onnxruntime-common` package extension; default installs must still pass `pnpm offline:smoke`.
+`pnpm-workspace.yaml` lists the audit advisories that have no patched release, with the reason each
+one is unreachable from untrusted input. Remove an entry as soon as a fix ships.
 
 ## Pull Requests
 

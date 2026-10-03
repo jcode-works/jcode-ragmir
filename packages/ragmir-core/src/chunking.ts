@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { markdownFenceSpans, structuralSpans } from "./document-structure.js"
 import { throwIfAborted } from "./operation.js"
+import { identifierParts } from "./text.js"
 import type { ParsedDocument, ParsedPage, ParsedRegion, TextChunk } from "./types.js"
 
 const PARAGRAPH_BREAK_MIN_RATIO = 0.45
@@ -154,6 +155,23 @@ export function chunkSearchText(
   chunk: Pick<TextChunk, "contextPath" | "text" | "headerText">,
 ): string {
   return [chunk.contextPath, chunk.headerText, chunk.text].filter(Boolean).join("\n")
+}
+
+/**
+ * Text indexed for keyword retrieval: the embedded text plus source path terms and identifier
+ * parts, so a question about "login attempts" can reach `LoginAttemptService.java`. Embeddings keep
+ * using {@link chunkSearchText}.
+ */
+export function chunkLexicalText(
+  chunk: Pick<TextChunk, "contextPath" | "text" | "headerText" | "relativePath">,
+): string {
+  return [
+    chunkSearchText(chunk),
+    [chunk.relativePath, ...identifierParts(chunk.relativePath)].join(" "),
+    identifierParts(chunk.text).join(" "),
+  ]
+    .filter(Boolean)
+    .join("\n")
 }
 
 function pageRangeForSpan(
