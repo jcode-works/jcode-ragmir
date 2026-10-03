@@ -36,7 +36,6 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
 
       - name: Set up pnpm
         run: |
@@ -49,11 +48,12 @@ jobs:
       - name: Validate release gate
         run: pnpm validate
 
+      # npm trusted publishing: pnpm exchanges this job's OIDC identity for a short-lived publish
+      # token, so no long-lived npm token is stored in GitHub.
       - name: Semantic release
         run: pnpm exec semantic-release
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Upload release verification artifacts
         uses: actions/upload-artifact@v7
