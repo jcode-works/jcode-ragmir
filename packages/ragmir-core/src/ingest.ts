@@ -1,6 +1,6 @@
 import type { Connection } from "@lancedb/lancedb"
 import { summarizeChunkStats } from "./chunk-stats.js"
-import { chunkDocument, chunkSearchText } from "./chunking.js"
+import { chunkDocument, chunkLexicalText, chunkSearchText } from "./chunking.js"
 import { loadConfig } from "./config.js"
 import {
   MAX_INGEST_CHUNK_WINDOW,
@@ -18,7 +18,12 @@ import {
 } from "./files.js"
 import { collectGenerationGarbageUnlocked } from "./generation-retention.js"
 import { INDEX_SCHEMA_VERSION } from "./index-diagnostics.js"
-import { indexPolicyFingerprint } from "./index-policy.js"
+import {
+  indexPolicyFingerprint,
+  ingestionPolicyFingerprint,
+  LEXICAL_POLICY_VERSION,
+  lexicalPolicyCurrent,
+} from "./index-policy.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
 import {
   activeIngestionMetrics,
@@ -166,7 +171,8 @@ async function ingestUnlocked(
   try {
     throwIfAborted(signal)
     const requestedBatchSize = ingestFileBatchSize(options.batchSize)
-    const policyFingerprint = indexPolicyFingerprint(config)
+    const searchPolicyFingerprint = indexPolicyFingerprint(config)
+    const policyFingerprint = ingestionPolicyFingerprint(config)
     const existingManifest = await readIndexManifest(config)
     const storedState = await readIngestionState(config)
     const storedEmptyFiles = await readEmptyTextFiles(config)
@@ -183,13 +189,15 @@ async function ingestUnlocked(
     const manifestCompatible =
       !options.rebuild &&
       existingManifest?.schemaVersion === INDEX_SCHEMA_VERSION &&
-      existingManifest.indexPolicyFingerprint === policyFingerprint &&
+      existingManifest.indexPolicyFingerprint === searchPolicyFingerprint &&
+      lexicalPolicyCurrent(existingManifest) &&
       existingManifest.indexedFiles !== undefined
     const policyRebuild =
       !options.rebuild &&
       existingManifest !== null &&
       (existingManifest.schemaVersion !== INDEX_SCHEMA_VERSION ||
-        existingManifest.indexPolicyFingerprint !== policyFingerprint)
+        existingManifest.indexPolicyFingerprint !== searchPolicyFingerprint ||
+        !lexicalPolicyCurrent(existingManifest))
     const canReuse = manifestCompatible && existingTable !== null
     const previousIndexedFiles = canReuse ? (existingManifest.indexedFiles ?? []) : []
     const previousEmptyFiles = canReuse ? storedEmptyFiles : []
@@ -622,7 +630,7 @@ async function vectorRowsForChunks(
       }
       rows.push({
         ...chunk,
-        searchText: chunkSearchText(chunk),
+        searchText: chunkLexicalText(chunk),
         vector,
         embeddingProvider: config.embeddingProvider,
         embeddingModel: config.embeddingModel,
@@ -697,7 +705,8 @@ async function manifestForState(
     embeddingModel: config.embeddingModel,
     embeddingModelRevision: config.embeddingModelRevision,
     embeddingModelDigest: config.embeddingModelDigest,
-    indexPolicyFingerprint: state.policyFingerprint,
+    indexPolicyFingerprint: indexPolicyFingerprint(config),
+    lexicalPolicyVersion: LEXICAL_POLICY_VERSION,
     ...(firstRow ? { vectorDimension: firstRow.vector.length } : {}),
     vectorDistanceMetric: VECTOR_DISTANCE_METRIC,
     chunkSize: config.chunkSize,

@@ -117,7 +117,8 @@ function canAutoIngest(report: DoctorReport): boolean {
     (report.chunksIndexed === 0 ||
       report.missingFromIndex > 0 ||
       report.staleInIndex > 0 ||
-      !report.readiness.indexPolicyCurrent)
+      !report.readiness.indexPolicyCurrent ||
+      !report.readiness.lexicalIndexCurrent)
   )
 }
 
