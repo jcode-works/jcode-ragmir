@@ -74,7 +74,7 @@
   "features_core_title": "Recherche dans le projet",
   "features_core_text": "Transformez vos fichiers en contexte sourcé pour vos agents, scripts et applications TypeScript.",
   "features_core_item_1": "Indexez les changements et reprenez une ingestion interrompue.",
-  "features_core_item_2": "Recherchez dans le code, les specs et les lignes Office avec leurs en-têtes cités.",
+  "features_core_item_2": "Retrouvez le code par chemin et identifiant, ainsi que les specs et lignes Office avec leurs en-têtes cités.",
   "features_core_item_3": "Ouvrez un passage cité et vérifiez sa version indexée.",
   "features_core_item_4": "Utilisez le même index local via la CLI, MCP ou TypeScript.",
   "agents_eyebrow": "Construisez votre workflow RAG agentique",
