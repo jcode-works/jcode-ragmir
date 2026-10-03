@@ -3,6 +3,17 @@
 This is a breaking surface change. Ragmir now concentrates on local indexing, search, exact
 citations, OCR, and integration with developer agents.
 
+## Code-aware keyword index
+
+This release adds relative source paths and identifier parts to the full-text index, lets BM25 lead
+the default `local-hash` fusion, and shrinks candidate pools to the fusion bound. Existing indexes
+stay searchable after the package update: `rgr doctor` reports
+`readiness.lexicalIndexCurrent: false`, and the next `rgr ingest` or `rgr upgrade` stages a full
+rebuild with the new keyword terms, then activates it only after validation. Embedded text is
+unchanged, but the rebuild still recomputes vectors; plan for a normal ingestion time with a
+semantic model. Rerun `rgr evaluate`: the ranking policy fingerprint changed, so previous quality
+reports no longer verify the active policy.
+
 ## Upgrade an existing project
 
 Use Node.js 22.12 or later, update `@jcode.labs/ragmir` with your package manager, then run:
