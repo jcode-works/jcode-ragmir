@@ -22,6 +22,12 @@ The workflow runs `pnpm validate`, then semantic-release derives the next versio
 Conventional Commits. It prepares and publishes `@jcode.labs/ragmir` with npm provenance.
 The landing is private and is not published to npm.
 
+Publishing uses npm trusted publishing: `pnpm publish` exchanges the release job's GitHub OIDC
+identity for a short-lived token, so the repository stores no npm token. The npm package settings
+must list one trusted publisher with these values: organization `jcode-works`, repository
+`jcode-ragmir`, workflow `npm-publish.yml`, and environment `npm-publish`. Renaming the workflow,
+the environment, or the repository requires updating that entry on npmjs.com first.
+
 The repository intentionally contains no cloud-vendor landing configuration and the npm workflow
 does not deploy the site. The external deployment must build with the released version in
 `PUBLIC_RAGMIR_VERSION`. Production must use `PUBLIC_RAGMIR_LANDING_URL=https://ragmir.com`; staging

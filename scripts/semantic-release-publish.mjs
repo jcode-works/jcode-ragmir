@@ -23,9 +23,7 @@ for (const directory of packageDirs) {
 if (checkOnly) {
   console.log(`Semantic release publish check passed for ${version}`)
 } else {
-  if (!process.env.NODE_AUTH_TOKEN) {
-    throw new Error("NODE_AUTH_TOKEN is required for npm publish")
-  }
+  // pnpm authenticates through npm trusted publishing with the workflow's OIDC identity.
   for (const directory of packageDirs) {
     run("pnpm", [
       "--dir",
