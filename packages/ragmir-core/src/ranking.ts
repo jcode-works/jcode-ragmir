@@ -27,7 +27,7 @@ export interface RankedRow<Row extends RankingRow = RankingRow> {
 }
 
 export interface RankingPolicy {
-  version: 5
+  version: 6
   embeddingProvider: EmbeddingProvider
   retrievalProfile: RetrievalProfile
   maxChunksPerDocument: number
@@ -44,7 +44,11 @@ export interface QueryEvidence {
 }
 
 const RRF_K = 60
-const RRF_VECTOR_WEIGHT = 1
+const RRF_SEMANTIC_VECTOR_WEIGHT = 1
+// The local-hash vector is another lexical signal without inverse document frequency. At full RRF
+// weight it lifted common-word matches above BM25 evidence on code and document corpora, so it only
+// breaks ties and backfills rows that the full-text index did not return.
+const RRF_LOCAL_HASH_VECTOR_WEIGHT = 0.01
 const RRF_LEXICAL_WEIGHT = 1
 const MIN_LEXICAL_PREFIX_LENGTH = 4
 const MIN_FUZZY_TOKEN_LENGTH = 7
@@ -69,12 +73,15 @@ export function rankingPolicyFor(
   maxChunksPerDocument: number,
 ): RankingPolicy {
   return {
-    version: 5,
+    version: 6,
     embeddingProvider,
     retrievalProfile,
     maxChunksPerDocument,
     rrfK: RRF_K,
-    vectorWeight: RRF_VECTOR_WEIGHT,
+    vectorWeight:
+      embeddingProvider === "local-hash"
+        ? RRF_LOCAL_HASH_VECTOR_WEIGHT
+        : RRF_SEMANTIC_VECTOR_WEIGHT,
     lexicalWeight: RRF_LEXICAL_WEIGHT,
     maximumVectorDistance:
       embeddingProvider === "transformers" ? TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE : null,
