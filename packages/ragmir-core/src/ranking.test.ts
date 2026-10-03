@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { candidatePassesAbstention, rankHybridRows, rankingPolicyFor } from "./ranking.js"
+import {
+  abstentionFilter,
+  candidatePassesAbstention,
+  fusionCandidateDepth,
+  queryEvidence,
+  rankHybridRows,
+  rankingPolicyFor,
+  tokensAreLexicallyRelated,
+} from "./ranking.js"
+import { tokenize } from "./text.js"
 
 interface FixtureRow {
   relativePath: string
@@ -96,6 +105,44 @@ describe("hybrid ranking", () => {
       candidatePassesAbstention("Quelle est la couleur des manchots ?", document, policy),
     ).toBe(false)
     expect(candidatePassesAbstention("Who can approve a refund?", document, policy)).toBe(true)
+  })
+
+  it("should compile the same abstention decision as the per-token relation", () => {
+    const policy = rankingPolicyFor("local-hash", "balanced", 1)
+    const queries = [
+      "approval workflow",
+      "Quelle règle de remboursement ?",
+      "configuration loader",
+      "authentication",
+      "who can approve a refund",
+    ]
+    const texts = [
+      "The approver signs every refund.",
+      "Configuring loaders requires a manifest.",
+      "authentification des utilisateurs",
+      "remboursements validés par le responsable",
+      "Unrelated penguin colors.",
+      "authentications are logged",
+    ]
+    for (const query of queries) {
+      const evidence = queryEvidence(query)
+      const compiled = abstentionFilter(evidence, policy)
+      for (const text of texts) {
+        const expected = evidence.tokens.some((queryToken) =>
+          tokenize(text).some((textToken) => tokensAreLexicallyRelated(queryToken, textToken)),
+        )
+        expect(compiled({ relativePath: "a.md", chunkIndex: 0, searchText: text })).toBe(expected)
+      }
+    }
+  })
+
+  it("should size fusion candidates so an unseen row cannot outrank the demanded rows", () => {
+    for (const demand of [1, 4, 40, 400]) {
+      const depth = fusionCandidateDepth(demand)
+      const unseenBest = 2 / (60 + depth + 1)
+      const demandedWorst = 1 / (60 + demand)
+      expect(unseenBest).toBeLessThan(demandedWorst)
+    }
   })
 })
 

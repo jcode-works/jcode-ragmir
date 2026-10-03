@@ -143,17 +143,18 @@ describe("search", () => {
     }
   })
 
-  it("should keep candidate pools bounded independently for small result sets", () => {
-    expect(vectorCandidateLimit(1)).toBe(80)
-    expect(vectorCandidateLimit(5)).toBe(80)
-    expect(vectorCandidateLimit(25)).toBe(100)
-    expect(vectorCandidateLimit(1, "fast")).toBe(40)
-    expect(vectorCandidateLimit(1, "quality")).toBe(200)
+  it("should size candidate pools from the fusion bound with a profile margin", () => {
+    expect(vectorCandidateLimit(1)).toBe(78)
+    expect(vectorCandidateLimit(5)).toBe(88)
+    expect(vectorCandidateLimit(25)).toBe(138)
+    expect(vectorCandidateLimit(1, "fast")).toBe(62)
+    expect(vectorCandidateLimit(1, "quality")).toBe(93)
     expect(vectorCandidateLimit(100_000, "quality")).toBe(1_000)
-    expect(lexicalCandidateLimit(5)).toBe(250)
-    expect(lexicalCandidateLimit(5, "fast")).toBe(100)
-    expect(lexicalCandidateLimit(5, "quality")).toBe(500)
-    expect(lexicalCandidateLimit(100, "quality")).toBe(4_000)
+    expect(lexicalCandidateLimit(5)).toBe(88)
+    expect(lexicalCandidateLimit(5, "fast")).toBe(70)
+    expect(lexicalCandidateLimit(5, "quality")).toBe(105)
+    expect(lexicalCandidateLimit(100, "quality")).toBe(390)
+    expect(lexicalCandidateLimit(100_000, "quality")).toBe(4_000)
   })
 
   it("should retrieve evidence from an exact source path identifier", async () => {
@@ -662,8 +663,10 @@ describe("search", () => {
       explain: true,
     })
     expect(result?.relativePath).toBe(".ragmir/raw/z-last.md")
-    expect(result?.score?.lexicalCandidateLimit).toBe(100)
-    expect(result?.score?.lexicalCandidatesMaterialized).toBeLessThanOrEqual(100)
+    expect(result?.score?.lexicalCandidateLimit).toBe(lexicalCandidateLimit(4, "fast"))
+    expect(result?.score?.lexicalCandidatesMaterialized).toBeLessThanOrEqual(
+      lexicalCandidateLimit(4, "fast"),
+    )
     expect(result?.score?.lexicalScanBatches).toBe(2 * Math.ceil(indexed.chunks / 19))
     expect(result?.score?.lexicalCoverage).toBe(1)
   }, 20_000)

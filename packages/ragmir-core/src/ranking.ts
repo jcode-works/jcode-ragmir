@@ -46,6 +46,7 @@ export interface QueryEvidence {
 const RRF_K = 60
 const RRF_VECTOR_WEIGHT = 1
 const RRF_LEXICAL_WEIGHT = 1
+const MIN_LEXICAL_PREFIX_LENGTH = 4
 const MIN_FUZZY_TOKEN_LENGTH = 7
 const MIN_TRIGRAM_DICE_SIMILARITY = 0.5
 const TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE = 1.1
@@ -84,6 +85,15 @@ export function rankingPolicyFingerprint(policy: RankingPolicy): string {
   return createHash("sha256").update(JSON.stringify(policy)).digest("hex")
 }
 
+/**
+ * Per-list depth at which reciprocal-rank fusion cannot lift a row that is absent from every
+ * candidate list above the demand-th fused row: such a row scores at most
+ * 2 / (RRF_K + depth + 1), while at least demand rows score 1 / (RRF_K + demand) or more.
+ */
+export function fusionCandidateDepth(demand: number): number {
+  return RRF_K + 2 * demand
+}
+
 export function queryEvidence(query: string): QueryEvidence {
   const tokens = tokenize(query).filter((token) => !LOW_INFORMATION_WORDS.has(token))
   const compoundAnchors = [...query.matchAll(IDENTIFIER_PATTERN)]
@@ -112,7 +122,17 @@ export function rankHybridRows<Row extends RankingRow>(
 ): Array<RankedRow<Row>> {
   const queryTokens = tokenize(query)
   const evidence = queryEvidence(query)
-  const rows = mergeRows(vectorRows, textRows)
+  const keys = new Map<Row, string>()
+  const keyOf = (row: Row): string => {
+    let key = keys.get(row)
+    if (key === undefined) {
+      key = rowKey(row)
+      keys.set(row, key)
+    }
+    return key
+  }
+  const compareKeys = (left: Row, right: Row): number => keyOf(left).localeCompare(keyOf(right))
+  const rows = mergeRows(vectorRows, textRows, keyOf, compareKeys)
   const exactAnchorMatches = new Map<string, number>()
   if (evidence.anchors.length > 0) {
     const requestedAnchors = new Set(evidence.anchors)
@@ -121,22 +141,26 @@ export function rankHybridRows<Row extends RankingRow>(
       for (const match of normalizeAnchor(row.searchText).matchAll(IDENTIFIER_PATTERN)) {
         if (requestedAnchors.has(match[0])) matches.add(match[0])
       }
-      exactAnchorMatches.set(rowKey(row), matches.size)
+      exactAnchorMatches.set(keyOf(row), matches.size)
     }
   }
-  const vectorRanked = [...vectorRows]
+  const vectorRanked = vectorRows
     .filter((row) => Number.isFinite(rowDistance(row)))
-    .sort(compareVectorRows)
+    .sort((left, right) => rowDistance(left) - rowDistance(right) || compareKeys(left, right))
   const vectorRanks = new Map<string, number>()
   vectorRanked.forEach((row, index) => {
-    vectorRanks.set(rowKey(row), index)
+    vectorRanks.set(keyOf(row), index)
   })
 
   const ftsRows = textRows.filter((row) => typeof row._score === "number")
   const lexicalRanked: Array<[string, number]> =
     ftsRows.length > 0
-      ? [...ftsRows].sort(compareLexicalRows).map((row) => [rowKey(row), row._score ?? 0])
-      : [...bm25Scores(queryTokens, rows).entries()]
+      ? ftsRows
+          .sort(
+            (left, right) => (right._score ?? 0) - (left._score ?? 0) || compareKeys(left, right),
+          )
+          .map((row) => [keyOf(row), row._score ?? 0])
+      : [...bm25Scores(queryTokens, rows, keyOf).entries()]
           .filter(([, score]) => score > 0)
           .sort(compareScoredKeys)
   const lexicalRanks = new Map<string, number>()
@@ -147,7 +171,7 @@ export function rankHybridRows<Row extends RankingRow>(
 
   return rows
     .map((row) => {
-      const key = rowKey(row)
+      const key = keyOf(row)
       const vectorRank = vectorRanks.get(key)
       const lexicalRank = lexicalRanks.get(key)
       const vectorScore =
@@ -167,8 +191,11 @@ export function rankHybridRows<Row extends RankingRow>(
     .filter((ranked) => ranked.combinedScore > 0)
     .sort(
       (left, right) =>
-        (exactAnchorMatches.get(rowKey(right.row)) ?? 0) -
-          (exactAnchorMatches.get(rowKey(left.row)) ?? 0) || compareRankedRows(left, right),
+        (exactAnchorMatches.get(keyOf(right.row)) ?? 0) -
+          (exactAnchorMatches.get(keyOf(left.row)) ?? 0) ||
+        right.combinedScore - left.combinedScore ||
+        rowDistance(left.row) - rowDistance(right.row) ||
+        compareKeys(left.row, right.row),
     )
 }
 
@@ -179,14 +206,25 @@ export function candidatePassesAbstention(
 ): boolean {
   const evidence =
     typeof evidenceOrQuery === "string" ? queryEvidence(evidenceOrQuery) : evidenceOrQuery
-  const lexicalSupport = hasLexicalEvidence(evidence, row.searchText)
+  return abstentionFilter(evidence, policy)(row)
+}
+
+/**
+ * Compile the abstention rule once per query. Candidates are then checked lazily in ranked order,
+ * so the query tokens, prefixes, and trigrams are not rebuilt for every candidate.
+ */
+export function abstentionFilter(
+  evidence: QueryEvidence,
+  policy: RankingPolicy,
+): (row: RankingRow) => boolean {
+  const hasLexicalEvidence = lexicalEvidenceMatcher(evidence)
   if (policy.embeddingProvider === "local-hash" || evidence.anchors.length > 0) {
-    return lexicalSupport
+    return (row) => hasLexicalEvidence(row.searchText)
   }
-  return (
-    lexicalSupport ||
-    (policy.maximumVectorDistance !== null && rowDistance(row) <= policy.maximumVectorDistance)
-  )
+  const maximumVectorDistance = policy.maximumVectorDistance
+  return (row) =>
+    (maximumVectorDistance !== null && rowDistance(row) <= maximumVectorDistance) ||
+    hasLexicalEvidence(row.searchText)
 }
 
 export function tokensAreLexicallyRelated(queryToken: string, textToken: string): boolean {
@@ -194,9 +232,9 @@ export function tokensAreLexicallyRelated(queryToken: string, textToken: string)
     return true
   }
   if (
-    queryToken.length >= 4 &&
-    textToken.length >= 4 &&
-    sharedPrefixLength(queryToken, textToken) >= 4
+    queryToken.length >= MIN_LEXICAL_PREFIX_LENGTH &&
+    textToken.length >= MIN_LEXICAL_PREFIX_LENGTH &&
+    sharedPrefixLength(queryToken, textToken) >= MIN_LEXICAL_PREFIX_LENGTH
   ) {
     return true
   }
@@ -212,19 +250,57 @@ export function tokensAreLexicallyRelated(queryToken: string, textToken: string)
   return trigramDiceSimilarity(queryToken, textToken) >= MIN_TRIGRAM_DICE_SIMILARITY
 }
 
-function hasLexicalEvidence(evidence: QueryEvidence, text: string): boolean {
+function lexicalEvidenceMatcher(evidence: QueryEvidence): (text: string) => boolean {
   if (evidence.anchors.length > 0) {
-    for (const match of normalizeAnchor(text).matchAll(IDENTIFIER_PATTERN)) {
-      if (evidence.anchors.some((anchor) => identifiersAreRelated(anchor, match[0]))) return true
-    }
     const standaloneAnchors = evidence.anchors.filter((anchor) => !/[-_./]/u.test(anchor))
-    const textTokens = standaloneAnchors.length > 0 ? tokenize(text) : []
-    return standaloneAnchors.some((anchor) => textTokens.includes(anchor))
+    return (text) => {
+      for (const match of normalizeAnchor(text).matchAll(IDENTIFIER_PATTERN)) {
+        if (evidence.anchors.some((anchor) => identifiersAreRelated(anchor, match[0]))) return true
+      }
+      if (standaloneAnchors.length === 0) return false
+      const textTokens = tokenize(text)
+      return standaloneAnchors.some((anchor) => textTokens.includes(anchor))
+    }
   }
-  const textTokens = tokenize(text)
-  return evidence.tokens.some((queryToken) =>
-    textTokens.some((textToken) => tokensAreLexicallyRelated(queryToken, textToken)),
+  const queryTokens = new Set(evidence.tokens)
+  if (queryTokens.size === 0) {
+    return () => false
+  }
+  const prefixes = new Set(
+    [...queryTokens]
+      .filter((token) => token.length >= MIN_LEXICAL_PREFIX_LENGTH)
+      .map((token) => token.slice(0, MIN_LEXICAL_PREFIX_LENGTH)),
   )
+  const fuzzyTokens = [...queryTokens]
+    .filter(isFuzzyComparable)
+    .map((token) => ({ token, trigrams: tokenTrigrams(token) }))
+  // Same relation as tokensAreLexicallyRelated, evaluated against precomputed query features.
+  return (text) => {
+    for (const textToken of tokenize(text)) {
+      if (queryTokens.has(textToken)) return true
+      if (
+        textToken.length >= MIN_LEXICAL_PREFIX_LENGTH &&
+        prefixes.has(textToken.slice(0, MIN_LEXICAL_PREFIX_LENGTH))
+      ) {
+        return true
+      }
+      if (fuzzyTokens.length === 0 || !isFuzzyComparable(textToken)) continue
+      const textTrigrams = tokenTrigrams(textToken)
+      for (const { token, trigrams } of fuzzyTokens) {
+        if (
+          Math.abs(token.length - textToken.length) <= 1 &&
+          trigramSetDiceSimilarity(trigrams, textTrigrams) >= MIN_TRIGRAM_DICE_SIMILARITY
+        ) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+}
+
+function isFuzzyComparable(token: string): boolean {
+  return token.length >= MIN_FUZZY_TOKEN_LENGTH && /^[a-z0-9_-]+$/u.test(token)
 }
 
 function identifiersAreRelated(queryAnchor: string, textAnchor: string): boolean {
@@ -283,22 +359,28 @@ function isSingleEditApart(left: string, right: string): boolean {
   return true
 }
 
-function mergeRows<Row extends RankingRow>(vectorRows: Row[], textRows: Row[]): Row[] {
+function mergeRows<Row extends RankingRow>(
+  vectorRows: Row[],
+  textRows: Row[],
+  keyOf: (row: Row) => string,
+  compareKeys: (left: Row, right: Row) => number,
+): Row[] {
   const rows = new Map<string, Row>()
-  for (const row of [...textRows].sort(compareRowKeys)) {
-    rows.set(rowKey(row), row)
+  for (const row of [...textRows].sort(compareKeys)) {
+    rows.set(keyOf(row), row)
   }
-  for (const row of [...vectorRows].sort(compareRowKeys)) {
-    const existing = rows.get(rowKey(row))
+  for (const row of [...vectorRows].sort(compareKeys)) {
+    const key = keyOf(row)
+    const existing = rows.get(key)
     if (!existing) {
-      rows.set(rowKey(row), row)
+      rows.set(key, row)
       continue
     }
     const merged = { ...existing, ...row }
     if (existing._score !== undefined) {
       merged._score = existing._score
     }
-    rows.set(rowKey(row), merged)
+    rows.set(key, merged)
   }
   return [...rows.values()]
 }
@@ -306,6 +388,7 @@ function mergeRows<Row extends RankingRow>(vectorRows: Row[], textRows: Row[]): 
 function bm25Scores<Row extends RankingRow>(
   queryTokens: string[],
   rows: Row[],
+  keyOf: (row: Row) => string,
 ): Map<string, number> {
   const scores = new Map<string, number>()
   if (queryTokens.length === 0 || rows.length === 0) {
@@ -322,37 +405,14 @@ function bm25Scores<Row extends RankingRow>(
   for (const { row, document } of documents) {
     const score = lexicalDocumentScore(document, statistics, uniqueQueryTokens)
     if (score > 0) {
-      scores.set(rowKey(row), score)
+      scores.set(keyOf(row), score)
     }
   }
   return scores
 }
 
-function compareVectorRows(left: RankingRow, right: RankingRow): number {
-  return rowDistance(left) - rowDistance(right) || compareRowKeys(left, right)
-}
-
-function compareLexicalRows(left: RankingRow, right: RankingRow): number {
-  return (right._score ?? 0) - (left._score ?? 0) || compareRowKeys(left, right)
-}
-
 function compareScoredKeys(left: [string, number], right: [string, number]): number {
   return right[1] - left[1] || left[0].localeCompare(right[0])
-}
-
-function compareRankedRows<Row extends RankingRow>(
-  left: RankedRow<Row>,
-  right: RankedRow<Row>,
-): number {
-  return (
-    right.combinedScore - left.combinedScore ||
-    rowDistance(left.row) - rowDistance(right.row) ||
-    compareRowKeys(left.row, right.row)
-  )
-}
-
-function compareRowKeys(left: RankingRow, right: RankingRow): number {
-  return rowKey(left).localeCompare(rowKey(right))
 }
 
 function rowDistance(row: RankingRow): number {
@@ -373,15 +433,17 @@ function normalizeAnchor(value: string): string {
 }
 
 function trigramDiceSimilarity(left: string, right: string): number {
-  const leftTrigrams = tokenTrigrams(left)
-  const rightTrigrams = tokenTrigrams(right)
+  return trigramSetDiceSimilarity(tokenTrigrams(left), tokenTrigrams(right))
+}
+
+function trigramSetDiceSimilarity(left: Set<string>, right: Set<string>): number {
   let shared = 0
-  for (const trigram of leftTrigrams) {
-    if (rightTrigrams.has(trigram)) {
+  for (const trigram of left) {
+    if (right.has(trigram)) {
       shared += 1
     }
   }
-  return (2 * shared) / (leftTrigrams.size + rightTrigrams.size)
+  return (2 * shared) / (left.size + right.size)
 }
 
 function tokenTrigrams(token: string): Set<string> {

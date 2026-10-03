@@ -10,6 +10,11 @@ export interface DocumentDiversityOptions<Row extends DiversifiableRow> {
   topK: number
   maxChunksPerDocument: number
   isExactPathMatch?: (row: Row) => boolean
+  /**
+   * Relevance gate evaluated lazily in ranked order. Rows that fail it are excluded exactly as if
+   * the input had been filtered first, but most candidates below the selected rows are never tested.
+   */
+  isRelevant?: (row: Row) => boolean
 }
 
 export interface DocumentDiversityResult<Row extends DiversifiableRow> {
@@ -21,7 +26,7 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
   rows: Array<RankedRow<Row>>,
   options: DocumentDiversityOptions<Row>,
 ): DocumentDiversityResult<Row> {
-  const uniqueRows = deduplicateText(rows, options.isExactPathMatch)
+  const uniqueRowAt = uniqueRelevantRows(rows, options.isRelevant, options.isExactPathMatch)
   const selected: Array<RankedRow<Row>> = []
   const selectedKeys = new Set<string>()
   const perDocument = new Map<string, number>()
@@ -51,7 +56,7 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
     return true
   }
 
-  for (const row of uniqueRows) {
+  for (let index = 0, row = uniqueRowAt(index); row; index += 1, row = uniqueRowAt(index)) {
     appendRow(row, true, false)
     if (selected.length >= options.topK) {
       return { rows: selected, backfillActivated: false }
@@ -59,7 +64,7 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
   }
 
   let backfillActivated = false
-  for (const row of uniqueRows) {
+  for (let index = 0, row = uniqueRowAt(index); row; index += 1, row = uniqueRowAt(index)) {
     if (appendRow(row, false, false)) {
       backfillActivated = true
     }
@@ -68,7 +73,7 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
     }
   }
 
-  for (const row of uniqueRows) {
+  for (let index = 0, row = uniqueRowAt(index); row; index += 1, row = uniqueRowAt(index)) {
     if (appendRow(row, false, true)) {
       backfillActivated = true
     }
@@ -80,37 +85,75 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
   return { rows: selected, backfillActivated }
 }
 
-function deduplicateText<Row extends DiversifiableRow>(
+/**
+ * Lazily yield relevant rows with duplicate texts collapsed. Each text keeps the position of its
+ * first relevant row and the representative an eager pass would choose: an exact path match, then
+ * the most canonical path, with earlier rows winning ties.
+ */
+function uniqueRelevantRows<Row extends DiversifiableRow>(
   rows: Array<RankedRow<Row>>,
+  isRelevant: ((row: Row) => boolean) | undefined,
   isExactPathMatch: ((row: Row) => boolean) | undefined,
-): Array<RankedRow<Row>> {
-  const uniqueRows: Array<RankedRow<Row>> = []
-  const textIndexes = new Map<string, number>()
-
-  for (const row of rows) {
-    const textKey = row.row.text.replace(/\s+/gu, " ").trim().toLowerCase()
-    const existingIndex = textIndexes.get(textKey)
-    if (existingIndex === undefined) {
-      textIndexes.set(textKey, uniqueRows.length)
-      uniqueRows.push(row)
-      continue
+): (index: number) => RankedRow<Row> | undefined {
+  const textKeys = rows.map((ranked) => ranked.row.text.replace(/\s+/gu, " ").trim().toLowerCase())
+  const rowsByText = new Map<string, number[]>()
+  textKeys.forEach((textKey, index) => {
+    const group = rowsByText.get(textKey)
+    if (group) {
+      group.push(index)
+    } else {
+      rowsByText.set(textKey, [index])
     }
-    const existing = uniqueRows[existingIndex]
-    if (!existing) {
-      continue
+  })
+  const relevance: Array<boolean | undefined> = []
+  const relevant = (index: number): boolean => {
+    const known = relevance[index]
+    if (known !== undefined) {
+      return known
     }
-    const existingIsExact = isExactPathMatch?.(existing.row) ?? false
-    const candidateIsExact = isExactPathMatch?.(row.row) ?? false
-    if (
-      candidateIsExact !== existingIsExact
-        ? candidateIsExact
-        : preferCanonicalPath(row.row.relativePath, existing.row.relativePath)
-    ) {
-      uniqueRows[existingIndex] = row
-    }
+    const ranked = rows[index]
+    const result = ranked !== undefined && (isRelevant?.(ranked.row) ?? true)
+    relevance[index] = result
+    return result
   }
-
-  return uniqueRows
+  const isExact = (row: Row): boolean => isExactPathMatch?.(row) ?? false
+  const representative = (group: number[], firstIndex: number): RankedRow<Row> | undefined => {
+    let chosen = rows[firstIndex]
+    for (const index of group) {
+      const candidate = rows[index]
+      if (index <= firstIndex || !candidate || !chosen || !relevant(index)) {
+        continue
+      }
+      const candidateIsExact = isExact(candidate.row)
+      if (
+        candidateIsExact !== isExact(chosen.row)
+          ? candidateIsExact
+          : preferCanonicalPath(candidate.row.relativePath, chosen.row.relativePath)
+      ) {
+        chosen = candidate
+      }
+    }
+    return chosen
+  }
+  const consumedTexts = new Set<string>()
+  const uniqueRows: Array<RankedRow<Row>> = []
+  let cursor = 0
+  return (index) => {
+    while (uniqueRows.length <= index && cursor < rows.length) {
+      const rowIndex = cursor
+      cursor += 1
+      const textKey = textKeys[rowIndex]
+      if (textKey === undefined || consumedTexts.has(textKey) || !relevant(rowIndex)) {
+        continue
+      }
+      consumedTexts.add(textKey)
+      const chosen = representative(rowsByText.get(textKey) ?? [rowIndex], rowIndex)
+      if (chosen) {
+        uniqueRows.push(chosen)
+      }
+    }
+    return uniqueRows[index]
+  }
 }
 
 function overlapsDocumentSpan(left: DiversifiableRow, right: DiversifiableRow): boolean {
