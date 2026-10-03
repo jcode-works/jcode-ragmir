@@ -1,21 +1,28 @@
 # @jcode.labs/ragmir
 
-**Give your agent project evidence it can cite and check.**
+[![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir?color=0b7285)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-2f9e44)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
+[![Node.js 22.12+](https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 
-Ragmir is an open-source retrieval layer for developer agents and applications. It indexes the
-files you choose, then returns precise passages through a TypeScript library, the `rgr` CLI, or a
-local MCP server. Your agent decides what to search, expands citations when it needs more context,
-and generates or acts with the model you choose. Ragmir does not bundle a chat model or host your
-documents.
+**Cited project context for coding agents. Local, fast, and offline by default.**
 
-- **Ground work in your own sources:** search code, specifications, runbooks, and documents from
-  the same local index.
-- **Check the evidence:** citations point to source lines or native page, slide, sheet/cell, and
-  EPUB coordinates. Expansion can detect when indexed evidence has changed.
-- **Start small:** the default `local-hash` path works offline without downloading a model.
+Ragmir indexes the code, specifications, and office documents you choose, then returns precise
+passages with checkable citations through a TypeScript library, the `rgr` CLI, or a local MCP
+server. Claude Code, Codex, or your own application decides what to search and generates with the
+model you choose. Ragmir does not bundle a chat model or host your documents.
+
+- **Code and documents in one index:** hybrid BM25 and vector search that understands file paths
+  and camelCase identifiers.
+- **Fast on real repositories:** 25 ms median search on a 21,546-chunk monorepo, 14 times faster
+  than the previous release, with up to 35% better nDCG@10 on code and documentation
+  ([benchmarks](https://github.com/jcode-works/jcode-ragmir#benchmarks)).
+- **Evidence you can verify:** citations point to source lines or native page, slide, sheet/cell,
+  and EPUB coordinates. Expansion can detect when indexed evidence has changed.
+- **Private by default:** the `local-hash` provider works offline without downloading a model.
   Semantic embeddings are an explicit option.
-- **Keep the index usable:** incremental ingestion, resumable progress, and validated rebuilds
-  preserve the last good index when a replacement fails.
+- **Safe to keep running:** incremental, resumable ingestion and validated rebuilds. Search keeps
+  working while an upgrade rebuilds the index.
 
 ## Install and search
 
@@ -86,8 +93,8 @@ for connection steps and local or self-hosted model examples.
 
 ## Retrieval options and documents
 
-The default `local-hash` provider combines lexical evidence and deterministic local vectors. For
-semantic embeddings, install `@huggingface/transformers`, then run `npx rgr setup --semantic` to
+The default `local-hash` provider ranks BM25 keyword evidence first and uses deterministic local
+vectors to break ties. For semantic embeddings, install `@huggingface/transformers`, then run `npx rgr setup --semantic` to
 download and enable the selected embedding model. Index Markdown, code, JSON, CSV, HTML, PDF,
 DOCX, XLSX, PPTX, OpenDocument, EPUB, and RTF. Scanned PDF pages require a supported local OCR
 engine: inspect `npx rgr ocr doctor`, then configure it with `npx rgr ocr setup`.

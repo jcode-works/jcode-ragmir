@@ -4,6 +4,7 @@ import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
 import { getLexicalScanWarning, indexFreshnessWarning } from "./index-diagnostics.js"
+import { lexicalPolicyCurrent } from "./index-policy.js"
 import { auditWithConfig } from "./ingest.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { RGR_RUNNER_FILENAME, rgrCommand } from "./package-manager.js"
@@ -89,6 +90,7 @@ export async function doctorWithConfig(
     oversizedFiles === 0
   const operationalReady = initialized && manifest !== null && chunksIndexed > 0 && coverageComplete
   const indexPolicyCurrent = manifest !== null && freshnessWarning === null
+  const lexicalIndexCurrent = manifest === null || lexicalPolicyCurrent(manifest)
   const retrievalQualityVerified = deep
     ? await isCompatibleQualityReport(manifest?.qualityReport, manifest, config)
     : false
@@ -114,6 +116,7 @@ export async function doctorWithConfig(
     agentRunnerReady: agentIntegration.runnerReady,
     nativeAgentCount: agentIntegration.nativeAgents.length,
     freshnessWarning,
+    lexicalIndexCurrent,
     lexicalScanWarning,
     run: (args) => command.display + (args.length > 0 ? ` ${args.join(" ")}` : ""),
   })
@@ -157,6 +160,7 @@ export async function doctorWithConfig(
       operationalReady,
       coverageComplete,
       indexPolicyCurrent,
+      lexicalIndexCurrent,
       retrievalQualityVerified,
     },
     nextSteps,
@@ -183,6 +187,7 @@ interface NextActionInput {
   agentRunnerReady: boolean
   nativeAgentCount: number
   freshnessWarning: string | null
+  lexicalIndexCurrent: boolean
   lexicalScanWarning: string | null
   run: (args: string[]) => string
 }
@@ -229,6 +234,12 @@ function nextActions(input: NextActionInput): string[] {
   if (input.freshnessWarning) {
     steps.push(
       `${input.freshnessWarning} Run \`${input.run(["ingest", "--rebuild"])}\` to align the index with the active configuration.`,
+    )
+  }
+
+  if (!input.freshnessWarning && !input.lexicalIndexCurrent) {
+    steps.push(
+      `The index predates path and identifier keyword terms. Search keeps using it; run \`${input.run(["ingest"])}\` to stage a rebuild that improves code and file-name recall.`,
     )
   }
 

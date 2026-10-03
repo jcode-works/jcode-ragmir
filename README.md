@@ -1,22 +1,34 @@
 # Ragmir
 
-**The retrieval layer for agentic RAG, built for developers.**
+[![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir?color=0b7285)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![CI](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-2f9e44)](./LICENSE)
+[![Node.js 22.12+](https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 
-Give your agent cited evidence from project code, specifications, and documents. Ragmir indexes the
-files you choose and retrieves precise passages through a TypeScript library, the `rgr` CLI, or
-MCP. Your agent decides what to search, expands useful citations, refines its questions, and
-generates an answer or implements a change with the model you choose.
+**Cited project context for coding agents. Local, fast, and offline by default.**
 
-- **Useful context:** code, documentation, PDFs, Office files, and scanned PDFs with local OCR.
-- **Traceable evidence:** native citations, separately cited XLSX headers, and checked expansion
-  that detects changed indexed evidence.
-- **Reliable indexing:** incremental updates, resumable ingestion, and validated atomic rebuilds.
-- **A small default:** offline `local-hash` retrieval, with semantic embeddings installed separately.
+Ragmir turns your code, specifications, and office documents into a local search index. Claude
+Code, Codex, or your own application queries it through MCP, the `rgr` CLI, or a TypeScript API,
+and every passage comes back with a citation the agent can open and check. Your agent plans,
+reasons, and writes with the model you choose; Ragmir finds the evidence.
+
+- **Code and documents in one index.** Hybrid BM25 and vector search understands file paths and
+  camelCase identifiers, so a question about login throttling reaches `LoginAttemptService.java`
+  as well as the security runbook.
+- **Fast on real repositories.** Median search time is 25 ms on a 21,546-chunk Java and TypeScript
+  monorepo with Office files, 14 times faster than the previous release on the same machine.
+- **Evidence you can verify.** Citations point to source lines, PDF pages, slides, sheet cells, or
+  EPUB sections, and expansion detects when the indexed passage has changed.
+- **Private by default.** No account, telemetry, or hosted storage. The default `local-hash`
+  provider runs offline without a model download; local semantic embeddings are one command away.
+- **Safe to keep running.** Incremental, resumable ingestion and validated atomic rebuilds. Search
+  keeps working while an upgrade rebuilds the index.
 
 Open source under [AGPL-3.0-only](./LICENSE). JCode Works also offers a
 [commercial license](./COMMERCIAL-LICENSE.md).
 
-## First use
+## Quick start
 
 Requires Node.js 22.12 or later. Use your project's package manager; here is the pnpm path:
 
@@ -72,6 +84,28 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 
 </details>
 <!-- ragmir-setup-prompt:end -->
+
+## Benchmarks
+
+Ragmir 6.1 against 6.0.1 on the same machine, with the same configuration and a fresh index built
+by each release. Quality counts a hit when the expected file appears in the first ten results. Latency is the
+median of warm sequential searches in one process; the last column runs eight searches at a time.
+
+| Corpus | Embeddings | nDCG@10 | Recall@10 | Median search | 8 concurrent |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Java/TypeScript monorepo with Office files: 1,745 files, 21,546 chunks, 104 real developer questions | multilingual-e5-small | 0.613 → **0.621** | 84% → **84%** | 354 → **25 ms** | 1,719 → **108 ms** |
+| Same monorepo | local-hash | 0.430 → **0.456** | 62% → **72%** | 349 → **19 ms** | 1,729 → **95 ms** |
+| French and English product documentation: 268 files, 18,758 chunks, 60 questions | mxbai-embed-xsmall | 0.591 → **0.611** | 79% → **82%** | 246 → **21 ms** | 981 → **108 ms** |
+| Same documentation | local-hash | 0.471 → **0.569** | 61% → **68%** | 239 → **16 ms** | 906 → **77 ms** |
+| Ragmir's own code and docs: 249 files, 2,407 chunks, 60 questions | local-hash | 0.462 → **0.625** | 63% → **84%** | 202 → **15 ms** | 829 → **55 ms** |
+
+Measured on October 3, 2026 on an Apple M3 Max with Node.js 26, LanceDB 0.30, and the `quality`
+profile used by these projects. The two private corpora are described rather than published. Three
+changes account for the difference: candidate pools sized from the fusion bound instead of
+fixed multipliers, automatic compaction of per-file storage fragments, and keyword terms for source
+paths and identifiers, with BM25 leading the `local-hash` fusion. Run the
+[benchmarks](./packages/ragmir-core/benchmarks/README.md) and `rgr evaluate` on your own corpus
+before relying on any number.
 
 ## Four workflow examples
 
@@ -153,8 +187,9 @@ and `expandCitation` are available for one-shot scripts. See the [API reference]
 
 ## Semantic retrieval and OCR
 
-The default `local-hash` provider combines lexical evidence and deterministic local vectors. It
-needs no model download and is not a semantic embedding model. For semantic retrieval:
+The default `local-hash` provider ranks BM25 keyword evidence first and uses deterministic local
+vectors only to break ties and recover passages the full-text index missed. It needs no model
+download and is not a semantic embedding model. For semantic retrieval:
 
 ```bash
 pnpm add -D @huggingface/transformers

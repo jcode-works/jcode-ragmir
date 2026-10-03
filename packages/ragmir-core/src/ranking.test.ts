@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { candidatePassesAbstention, rankHybridRows, rankingPolicyFor } from "./ranking.js"
+import {
+  abstentionFilter,
+  candidatePassesAbstention,
+  fusionCandidateDepth,
+  queryEvidence,
+  rankHybridRows,
+  rankingPolicyFor,
+  tokensAreLexicallyRelated,
+} from "./ranking.js"
+import { tokenize } from "./text.js"
 
 interface FixtureRow {
   relativePath: string
@@ -14,7 +23,7 @@ describe("hybrid ranking", () => {
     const alpha = row("alpha.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const beta = row("beta.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const policy = rankingPolicyFor("local-hash", "balanced", 1)
-    expect(policy.version).toBe(5)
+    expect(policy.version).toBe(6)
 
     const forward = rankHybridRows("policy evidence", [beta, alpha], [alpha, beta], policy)
     const reversed = rankHybridRows("policy evidence", [alpha, beta], [beta, alpha], policy)
@@ -96,6 +105,72 @@ describe("hybrid ranking", () => {
       candidatePassesAbstention("Quelle est la couleur des manchots ?", document, policy),
     ).toBe(false)
     expect(candidatePassesAbstention("Who can approve a refund?", document, policy)).toBe(true)
+  })
+
+  it("should let BM25 evidence lead when the local-hash vector disagrees", () => {
+    const lexicalLeader = row("lexical.md", "Refund approval owner.", { distance: 0.3, score: 9 })
+    const vectorLeader = row("vector.md", "Refund approval.", { distance: 0.1, score: 8 })
+    const filler = row("filler.md", "Refund.", { distance: 0.2 })
+    const vectorRows = [vectorLeader, filler, lexicalLeader]
+    const lexicalRows = [lexicalLeader, vectorLeader]
+
+    const hashed = rankHybridRows(
+      "refund approval owner",
+      vectorRows,
+      lexicalRows,
+      rankingPolicyFor("local-hash", "balanced", 1),
+    )
+    const semantic = rankHybridRows(
+      "refund approval owner",
+      vectorRows,
+      lexicalRows,
+      rankingPolicyFor("transformers", "balanced", 1),
+    )
+
+    expect(hashed.map(({ row: value }) => value.relativePath)).toEqual([
+      "lexical.md",
+      "vector.md",
+      "filler.md",
+    ])
+    expect(semantic[0]?.row.relativePath).toBe("vector.md")
+  })
+
+  it("should compile the same abstention decision as the per-token relation", () => {
+    const policy = rankingPolicyFor("local-hash", "balanced", 1)
+    const queries = [
+      "approval workflow",
+      "Quelle règle de remboursement ?",
+      "configuration loader",
+      "authentication",
+      "who can approve a refund",
+    ]
+    const texts = [
+      "The approver signs every refund.",
+      "Configuring loaders requires a manifest.",
+      "authentification des utilisateurs",
+      "remboursements validés par le responsable",
+      "Unrelated penguin colors.",
+      "authentications are logged",
+    ]
+    for (const query of queries) {
+      const evidence = queryEvidence(query)
+      const compiled = abstentionFilter(evidence, policy)
+      for (const text of texts) {
+        const expected = evidence.tokens.some((queryToken) =>
+          tokenize(text).some((textToken) => tokensAreLexicallyRelated(queryToken, textToken)),
+        )
+        expect(compiled({ relativePath: "a.md", chunkIndex: 0, searchText: text })).toBe(expected)
+      }
+    }
+  })
+
+  it("should size fusion candidates so an unseen row cannot outrank the demanded rows", () => {
+    for (const demand of [1, 4, 40, 400]) {
+      const depth = fusionCandidateDepth(demand)
+      const unseenBest = 2 / (60 + depth + 1)
+      const demandedWorst = 1 / (60 + demand)
+      expect(unseenBest).toBeLessThan(demandedWorst)
+    }
   })
 })
 

@@ -75,11 +75,11 @@
     "bench:developer-evidence": "pnpm --filter @jcode.labs/ragmir bench:developer-evidence"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.14",
-    "@commitlint/cli": "^21.2.2",
-    "@commitlint/config-conventional": "^21.2.2",
+    "@biomejs/biome": "^2.5.15",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
     "@semantic-release/exec": "^7.1.0",
-    "@vitest/coverage-v8": "5.0.1",
+    "@vitest/coverage-v8": "5.0.3",
     "semantic-release": "^25.0.9",
     "yaml": "^2.9.1"
   }

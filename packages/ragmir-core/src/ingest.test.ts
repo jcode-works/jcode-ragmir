@@ -1,11 +1,12 @@
 import { subscribe, unsubscribe } from "node:diagnostics_channel"
-import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { loadConfig } from "./config.js"
+import { doctor } from "./doctor.js"
 import * as embeddingsModule from "./embeddings.js"
-import { indexPolicyFingerprint } from "./index-policy.js"
+import { indexPolicyFingerprint, LEXICAL_POLICY_VERSION } from "./index-policy.js"
 import { audit, ingest } from "./ingest.js"
 import { INGESTION_DIAGNOSTICS_CHANNEL } from "./ingestion-metrics.js"
 import { getIngestionProgress, readIngestionState, writeIngestionState } from "./ingestion-state.js"
@@ -449,6 +450,41 @@ describe("ingest", () => {
       pendingFiles: 0,
       errorFiles: 0,
     })
+  })
+
+  it("should keep searching an index built before keyword terms until the next ingest rebuilds it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-lexical-policy-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "LoginAttemptService.md"),
+      "Failed sign-in attempts lock the account for fifteen minutes.\n",
+    )
+    await ingest({ cwd: root })
+    const config = await loadConfig(root)
+    const manifestPath = path.join(config.storageDir, "index-manifest.json")
+    const { lexicalPolicyVersion: _current, ...legacyManifest } = JSON.parse(
+      await readFile(manifestPath, "utf8"),
+    ) as Record<string, unknown>
+    await writeFile(manifestPath, JSON.stringify(legacyManifest))
+
+    await expect(search("account lock", { cwd: root, topK: 1 })).resolves.toHaveLength(1)
+    const before = await doctor(root)
+    expect(before.ready).toBe(true)
+    expect(before.readiness.lexicalIndexCurrent).toBe(false)
+    expect(before.nextSteps.join("\n")).toMatch(/path and identifier keyword terms/u)
+
+    const rebuilt = await ingest({ cwd: root })
+    const rows = await readRows(config)
+
+    expect(rebuilt.policyRebuild).toBe(true)
+    expect((await readIndexManifest(config))?.lexicalPolicyVersion).toBe(LEXICAL_POLICY_VERSION)
+    expect((await doctor(root)).readiness.lexicalIndexCurrent).toBe(true)
+    expect(rows[0]?.searchText).toMatch(/login attempt service/u)
+    await expect(search("login attempt", { cwd: root, topK: 1 })).resolves.toEqual([
+      expect.objectContaining({ relativePath: ".ragmir/raw/LoginAttemptService.md" }),
+    ])
   })
 
   it("should reject an ingest file batch above the safe maximum", async () => {

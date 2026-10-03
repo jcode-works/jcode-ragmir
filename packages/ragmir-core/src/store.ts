@@ -515,6 +515,9 @@ function isIndexManifest(
       value.embeddingModelDigest === null ||
       typeof value.embeddingModelDigest === "string") &&
     (!("indexPolicyFingerprint" in value) || typeof value.indexPolicyFingerprint === "string") &&
+    (!("lexicalPolicyVersion" in value) ||
+      (typeof value.lexicalPolicyVersion === "number" &&
+        Number.isSafeInteger(value.lexicalPolicyVersion))) &&
     (!("vectorDimension" in value) || typeof value.vectorDimension === "number") &&
     (!("vectorDistanceMetric" in value) || typeof value.vectorDistanceMetric === "string") &&
     (!("vectorIndex" in value) || isVectorIndexManifest(value.vectorIndex)) &&
