@@ -148,6 +148,10 @@ mutable and therefore unverified.
 Transformers pipelines are shared per exact model identity and disposed when the final
 `RagmirClient` owner closes. Cache retirement waits for active inference leases, so a model switch
 or shutdown does not dispose a session still serving a request.
+Repeated single-query embeddings use a project-scoped, in-memory LRU cache tied to that model
+identity, capped at 128 entries and 65,536 vector values. The cache retains hashed query keys and
+vectors, never search results; each search still reads the current index generation. Every semantic
+model call respects `embeddingBatchSize`, including callers that supply a larger input array.
 
 ## Local extractors
 
