@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { RagmirClient } from "./client.js"
 import {
   clearTransformersCache,
   disposeTransformersCache,
@@ -105,6 +106,208 @@ describe("local hash embeddings", () => {
 })
 
 describe("embedding model adapters", () => {
+  it("reuses a single-query embedding without caching document vectors or sharing mutable arrays", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [0.25, 0.75]),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const config = transformerConfig()
+
+    const first = await embedText("same evidence", config)
+    first[0] = 99
+    expect(await embedText("same evidence", config)).toEqual([0.25, 0.75])
+    await embedTexts(["same evidence"], config)
+    await embedTexts(["same evidence"], config)
+
+    expect(extractor).toHaveBeenCalledTimes(3)
+  })
+
+  it("isolates query vectors by project root and exact model identity", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [1, 0]),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const config = transformerConfig()
+    await embedText("same evidence", config)
+    await embedText("same evidence", { ...config, projectRoot: "/tmp/another-project" })
+    await embedText("same evidence", { ...config, embeddingModelRevision: "new-revision" })
+    await embedText("same evidence", {
+      ...config,
+      embeddingModelDigest: `sha256:${"a".repeat(64)}`,
+    })
+
+    expect(extractor).toHaveBeenCalledTimes(4)
+    expect(transformersMock.pipeline).toHaveBeenCalledTimes(3)
+  })
+
+  it("evicts the least recently used query when the entry limit is reached", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [1, 0]),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const config = transformerConfig()
+    for (let index = 0; index < 128; index += 1) await embedText(`query ${index}`, config)
+    await embedText("query 0", config)
+    await embedText("query 128", config)
+    await embedText("query 0", config)
+    expect(extractor).toHaveBeenCalledTimes(129)
+
+    await embedText("query 1", config)
+    expect(extractor).toHaveBeenCalledTimes(130)
+  })
+
+  it("bounds cached vector values independently from the entry count", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => Array.from({ length: 40_000 }, () => 1)),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const config = transformerConfig()
+    await embedText("first", config)
+    await embedText("second", config)
+    await embedText("second", config)
+    expect(extractor).toHaveBeenCalledTimes(2)
+
+    await embedText("first", config)
+    expect(extractor).toHaveBeenCalledTimes(3)
+  })
+
+  it("does not cache a vector larger than the total cache budget", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => Array.from({ length: 65_537 }, () => 1)),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const config = transformerConfig()
+    await embedText("oversized", config)
+    await embedText("oversized", config)
+
+    expect(extractor).toHaveBeenCalledTimes(2)
+  })
+
+  it("retries failed inference and drops query vectors when the model is disposed", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [1, 0]),
+    }))
+    extractor.mockRejectedValueOnce(new Error("inference failed"))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const config = transformerConfig()
+
+    await expect(embedText("same evidence", config)).rejects.toThrow("inference failed")
+    await expect(embedText("same evidence", config)).resolves.toEqual([1, 0])
+    await embedText("same evidence", config)
+    expect(extractor).toHaveBeenCalledTimes(2)
+    await disposeTransformersCache()
+    await embedText("same evidence", config)
+    expect(extractor).toHaveBeenCalledTimes(3)
+  })
+
+  it("rejects an aborted cached query without running inference", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [1, 0]),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const config = transformerConfig()
+    await embedText("same evidence", config)
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(embedText("same evidence", config, controller.signal)).rejects.toMatchObject({
+      code: "ABORTED",
+    })
+    expect(extractor).toHaveBeenCalledTimes(1)
+  })
+
+  it("refreshes search evidence after ingestion while reusing the query vector", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [1, 0]),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const modelConfig = await transformerArtifactConfig()
+    const root = path.dirname(modelConfig.embeddingModelPath)
+    const config = testConfig(root, {
+      embeddingProvider: "transformers",
+      embeddingModel: modelConfig.embeddingModel,
+      embeddingModelRevision: modelConfig.embeddingModelRevision,
+      embeddingModelPath: modelConfig.embeddingModelPath,
+    })
+    await mkdir(config.rawDir, { recursive: true })
+    const sourcePath = path.join(config.rawDir, "decision.md")
+    await writeFile(sourcePath, "Production approval requires the original evidence.\n")
+    const reader = await RagmirClient.createWithConfig(config)
+    let writer: RagmirClient | undefined
+    try {
+      await reader.ingest()
+      const first = await reader.search("production approval")
+      const warm = await reader.search("production approval")
+      expect(warm).toEqual(first)
+
+      await writeFile(sourcePath, "Production approval now requires signed refreshed evidence.\n")
+      writer = await RagmirClient.createWithConfig(config)
+      await writer.ingest({ rebuild: true })
+      await writer.close()
+      const inferenceCalls = extractor.mock.calls.length
+      const refreshed = await reader.search("production approval")
+
+      expect(refreshed[0]?.text).toContain("signed refreshed evidence")
+      expect(refreshed[0]?.evidence.id).not.toBe(first[0]?.evidence.id)
+      expect(extractor).toHaveBeenCalledTimes(inferenceCalls)
+    } finally {
+      await writer?.close()
+      await reader.close()
+    }
+  })
+
+  it("bounds every semantic model call and preserves input order across batches", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map((text) => [Number(text.match(/\d+$/u)?.[0]), 0]),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const config = transformerConfig({ embeddingBatchSize: 2 })
+
+    expect(await embedTexts(["row 0", "row 1", "row 2", "row 3", "row 4"], config)).toEqual([
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [3, 0],
+      [4, 0],
+    ])
+    expect(extractor.mock.calls.map(([texts]) => texts.length)).toEqual([2, 2, 1])
+  })
+
+  it("enforces the hard batch ceiling even for a directly supplied config", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [1, 0]),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+
+    await embedTexts(
+      Array.from({ length: 129 }, () => "evidence"),
+      transformerConfig({ embeddingBatchSize: 1_000 }),
+    )
+    expect(extractor.mock.calls.map(([texts]) => texts.length)).toEqual([128, 1])
+  })
+
+  it("stops between semantic batches and releases the model after cancellation", async () => {
+    const controller = new AbortController()
+    const dispose = vi.fn(async () => undefined)
+    const extractor = vi.fn(async (texts: string[]) => {
+      controller.abort()
+      return { tolist: () => texts.map(() => [1, 0]) }
+    })
+    transformersMock.pipeline.mockResolvedValue(Object.assign(extractor, { dispose }))
+
+    await expect(
+      embedTexts(
+        ["first", "second", "third"],
+        transformerConfig({ embeddingBatchSize: 2 }),
+        "document",
+        controller.signal,
+      ),
+    ).rejects.toMatchObject({ code: "ABORTED" })
+    expect(extractor).toHaveBeenCalledTimes(1)
+    await disposeTransformersCache()
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
   it("adds the asymmetric E5 retrieval prefixes", () => {
     const model = "intfloat/multilingual-e5-small"
 
