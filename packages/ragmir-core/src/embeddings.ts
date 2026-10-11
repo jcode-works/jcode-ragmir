@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { createReadStream } from "node:fs"
 import { mkdir, readdir, stat } from "node:fs/promises"
 import path from "node:path"
+import { MAX_EMBEDDING_BATCH_SIZE } from "./defaults.js"
 import { throwIfAborted } from "./operation.js"
 import { tokenize } from "./text.js"
 import type { Config, IngestionEmbeddingModelState } from "./types.js"
@@ -19,6 +20,8 @@ const MAX_LOCAL_HASH_FEATURE_CACHE_ENTRIES = 16_384
  * pipeline is disposed as soon as its final lease is released.
  */
 const MAX_TRANSFORMERS_PIPELINES = 1
+const MAX_QUERY_EMBEDDING_CACHE_ENTRIES = 128
+const MAX_QUERY_EMBEDDING_CACHE_VALUES = 65_536
 const transformersPipelines = new Map<string, TransformersPipelineEntry>()
 const transformersModelOwners = new Map<string, number>()
 
@@ -38,11 +41,18 @@ interface TransformersPipelineEntry {
   retired: boolean
   idleWaiters: Array<() => void>
   disposal: Promise<void> | undefined
+  queryEmbeddings: QueryEmbeddingCache
 }
 
 interface TransformersPipelineLease {
   extractor: TransformersExtractor
+  queryEmbeddings: QueryEmbeddingCache
   release(): Promise<void>
+}
+
+interface QueryEmbeddingCache {
+  vectors: Map<string, number[]>
+  values: number
 }
 
 interface LocalHashFeatureLocation {
@@ -77,7 +87,7 @@ export async function embedTexts(
       return texts.map((text) => localHashEmbedding(text, featureCache))
     }
 
-    const embeddings = await embedWithTransformers(texts, config, inputType)
+    const embeddings = await embedWithTransformers(texts, config, inputType, signal)
     throwIfAborted(signal)
     return embeddings
   })
@@ -151,23 +161,72 @@ async function embedWithTransformers(
   texts: string[],
   config: Config,
   inputType: EmbeddingInputType,
+  signal?: AbortSignal,
 ): Promise<number[][]> {
   const lease = await acquireTransformersPipeline(config)
   try {
-    const preparedTexts = texts.map((text) =>
-      prepareEmbeddingText(text, config.embeddingModel, inputType),
-    )
-    const output = await lease.extractor(preparedTexts, { pooling: "mean", normalize: true })
-    const rows = tensorToEmbeddingRows(output)
-
-    if (rows.length !== texts.length) {
-      throw new Error(`Expected ${texts.length} embeddings, received ${rows.length}.`)
+    throwIfAborted(signal)
+    // Cache only single-query vectors. Search still reads and ranks the current index snapshot.
+    const cacheKey =
+      inputType === "query" && texts.length === 1
+        ? createHash("sha256")
+            .update(JSON.stringify([config.projectRoot, texts[0]]))
+            .digest("hex")
+        : null
+    if (cacheKey !== null) {
+      const cached = cachedQueryEmbedding(lease.queryEmbeddings, cacheKey)
+      if (cached) return [cached]
     }
 
-    return rows
+    const embeddings: number[][] = []
+    const batchSize = Math.max(1, Math.min(config.embeddingBatchSize, MAX_EMBEDDING_BATCH_SIZE))
+    for (let offset = 0; offset < texts.length; offset += batchSize) {
+      throwIfAborted(signal)
+      const preparedTexts = texts
+        .slice(offset, offset + batchSize)
+        .map((text) => prepareEmbeddingText(text, config.embeddingModel, inputType))
+      const output = await lease.extractor(preparedTexts, { pooling: "mean", normalize: true })
+      throwIfAborted(signal)
+      const rows = tensorToEmbeddingRows(output)
+      if (rows.length !== preparedTexts.length) {
+        throw new Error(`Expected ${preparedTexts.length} embeddings, received ${rows.length}.`)
+      }
+      embeddings.push(...rows)
+    }
+    const queryEmbedding = embeddings[0]
+    if (cacheKey !== null && queryEmbedding) {
+      cacheQueryEmbedding(lease.queryEmbeddings, cacheKey, queryEmbedding)
+    }
+    return embeddings
   } finally {
     await lease.release()
   }
+}
+
+function cachedQueryEmbedding(cache: QueryEmbeddingCache, key: string): number[] | undefined {
+  const vector = cache.vectors.get(key)
+  if (!vector) return undefined
+  cache.vectors.delete(key)
+  cache.vectors.set(key, vector)
+  return [...vector]
+}
+
+function cacheQueryEmbedding(cache: QueryEmbeddingCache, key: string, vector: number[]): void {
+  if (vector.length > MAX_QUERY_EMBEDDING_CACHE_VALUES) return
+  const previous = cache.vectors.get(key)
+  cache.values -= previous?.length ?? 0
+  cache.vectors.delete(key)
+  while (
+    cache.vectors.size >= MAX_QUERY_EMBEDDING_CACHE_ENTRIES ||
+    cache.values + vector.length > MAX_QUERY_EMBEDDING_CACHE_VALUES
+  ) {
+    const oldest = cache.vectors.entries().next().value
+    if (!oldest) break
+    cache.vectors.delete(oldest[0])
+    cache.values -= oldest[1].length
+  }
+  cache.vectors.set(key, [...vector])
+  cache.values += vector.length
 }
 
 export function prepareEmbeddingText(
@@ -198,6 +257,7 @@ async function acquireTransformersPipeline(config: Config): Promise<Transformers
       retired: false,
       idleWaiters: [],
       disposal: undefined,
+      queryEmbeddings: { vectors: new Map(), values: 0 },
     }
     transformersPipelines.set(key, entry)
     void entry.creation.catch(() => {
@@ -214,6 +274,7 @@ async function acquireTransformersPipeline(config: Config): Promise<Transformers
     let released = false
     return {
       extractor,
+      queryEmbeddings: entry.queryEmbeddings,
       async release() {
         if (released) {
           return

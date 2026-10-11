@@ -8,9 +8,6 @@ audit:
   # No patched release exists for these advisories. Re-check them on every dependency update and
   # remove each entry as soon as a fixed version is available.
   ignore:
-    # http-cache-semantics <=4.2.0: build-time dependency of the private static landing through
-    # Astro. No shared HTTP cache serves responses from it.
-    - GHSA-ch52-4w7c-c8xp
     # braces <=3.0.3: deeply nested patterns can exhaust the stack. Only semantic-release tooling and
     # fast-glob reach it, and fast-glob only receives project-owned source patterns from Ragmir
     # configuration, never MCP input or indexed content.
@@ -18,6 +15,9 @@ audit:
 
 overrides:
   "adm-zip@<0.6.1": ^0.6.1
+  # Mammoth only imports argparse from its unused CLI. Version 2 retains the legacy CLI aliases
+  # and removes the vulnerable sprintf-js dependency from the workspace toolchain.
+  "mammoth>argparse": 2.0.1
   yaml: ^2.9.1
 
 packageExtensions:
