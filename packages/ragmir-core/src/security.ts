@@ -565,8 +565,11 @@ function isPathIgnoredByEntries(relativePath: string, lines: Set<string>): boole
   const segments = relativePath.split("/")
   for (let index = 1; index <= segments.length; index += 1) {
     const prefix = segments.slice(0, index).join("/")
-    if (lines.has(prefix) || lines.has(`${prefix}/`) || lines.has(`${prefix}/**`)) {
-      return true
+    // Only the root .gitignore is read, so a root-anchored entry such as `/files/` matches too.
+    for (const entry of [prefix, `/${prefix}`]) {
+      if (lines.has(entry) || lines.has(`${entry}/`) || lines.has(`${entry}/**`)) {
+        return true
+      }
     }
   }
   return false

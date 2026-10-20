@@ -95,17 +95,17 @@
   },
   "dependencies": {
     "@lancedb/lancedb": "^0.30.0",
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "commander": "^15.0.0",
     "fast-glob": "^3.3.3",
     "fflate": "^0.8.3",
     "html-to-text": "^10.0.1",
     "mammoth": "^1.13.0",
     "picocolors": "^1.1.1",
-    "read-excel-file": "^9.3.10",
-    "unpdf": "^1.8.1",
+    "read-excel-file": "^9.3.12",
+    "unpdf": "^1.9.1",
     "yaml": "^2.9.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "@huggingface/transformers": "^4.3.0"
@@ -116,12 +116,12 @@
     }
   },
   "devDependencies": {
-    "@huggingface/transformers": "^4.3.0",
+    "@huggingface/transformers": "^4.3.1",
     "@types/html-to-text": "^9.0.4",
     "@types/node": "^22.20.5",
     "apache-arrow": "^18.1.0",
     "publint": "^0.3.25",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   }
 }

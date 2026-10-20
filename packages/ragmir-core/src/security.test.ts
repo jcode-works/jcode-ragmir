@@ -98,6 +98,22 @@ describe("securityAudit", () => {
     expect(report.warnings).not.toContain("private/ is not ignored by Git.")
   })
 
+  it("accepts root-anchored gitignore entries without probing Git", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-anchored-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    await mkdir(path.join(root, "files"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "config.json"), JSON.stringify({ rawDir: "files" }))
+    await writeFile(path.join(root, ".gitignore"), "/.ragmir/\n/files/\n", "utf8")
+
+    const report = await securityAudit(root, { deep: false })
+
+    expect(report.gitignore.ragmirIgnored).toBe(true)
+    expect(report.storage.gitIgnored).toBe(true)
+    expect(report.warnings).not.toContain(".ragmir/ is not ignored by Git.")
+    expect(report.warnings).not.toContain("The configured rawDir is not ignored by Git.")
+  })
+
   it("detects whether the storage directory is git-ignored", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-security-"))
     tempDirs.push(root)
