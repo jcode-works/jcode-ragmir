@@ -67,7 +67,7 @@ importers:
         specifier: ^9.3.12
         version: 9.3.12
       unpdf:
-        specifier: ^1.9.1
+        specifier: ^1.8.1
         version: 1.9.1
       yaml:
         specifier: ^2.9.1
