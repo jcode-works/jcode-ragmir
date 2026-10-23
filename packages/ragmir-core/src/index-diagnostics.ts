@@ -100,11 +100,39 @@ export function indexFreshnessWarning(
   return null
 }
 
-/** Describe the extra fallback work when a complete lexical scan needs multiple batches. */
-export function getLexicalScanWarning(config: Config, chunkCount: number): string | null {
-  if (chunkCount <= config.hybridTextScanLimit) {
+/**
+ * Describe the extra fallback work when a complete lexical scan needs multiple batches. A complete
+ * full-text index makes the fallback unreachable, so it produces no warning.
+ */
+export function getLexicalScanWarning(
+  config: Config,
+  chunkCount: number,
+  fullTextIndexComplete = false,
+): string | null {
+  if (fullTextIndexComplete || chunkCount <= config.hybridTextScanLimit) {
     return null
   }
   const batches = Math.ceil(chunkCount / config.hybridTextScanLimit)
   return `Lexical fallback will scan all ${chunkCount} chunks in ${batches} batches of at most ${config.hybridTextScanLimit} when full-text search is unavailable. Run \`rgr storage optimize\` or rebuild the index to restore the faster full-text path.`
+}
+
+/**
+ * Readiness from the persisted manifest alone: indexed chunks, a complete last health snapshot, and
+ * a compatible index. Security advisories are reported separately and never change readiness.
+ */
+export function manifestReady(
+  manifest: IndexManifest | null,
+  freshnessWarning: string | null,
+): boolean {
+  const health = manifest?.health
+  return (
+    manifest !== null &&
+    health !== undefined &&
+    manifest.chunkCount > 0 &&
+    health.missingFromIndex === 0 &&
+    health.staleInIndex === 0 &&
+    health.emptyTextFiles === 0 &&
+    health.oversizedFiles === 0 &&
+    freshnessWarning === null
+  )
 }
