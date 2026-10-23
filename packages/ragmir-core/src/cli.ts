@@ -667,6 +667,9 @@ program
       },
       command: Command,
     ) => {
+      if (query.trim() === "") {
+        throw new Error("Search query must not be empty.")
+      }
       const cwd = projectRoot(command)
       const results = await search(query, withSearchOptions(cwd, options))
       const outputResults = options.compact ? compactSearchResults(results) : results
@@ -679,8 +682,17 @@ program
       }
 
       if (results.length === 0) {
-        const repairCommand = await rgrCommand(cwd, ["doctor", "--fix"])
-        console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`))
+        const manifest = await readIndexManifestHeader(await loadConfig(cwd))
+        if ((manifest?.chunkCount ?? 0) > 0) {
+          console.error(
+            pc.yellow(
+              "No passage matched. Rephrase the query or widen the path and context filters.",
+            ),
+          )
+        } else {
+          const repairCommand = await rgrCommand(cwd, ["doctor", "--fix"])
+          console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`))
+        }
         process.exitCode = 1
         return
       }
