@@ -485,6 +485,19 @@ describe("MCP protocol contract", () => {
       truncated: false,
     })
   })
+  it("should serve the source catalog under the largest output budget", async () => {
+    const root = await createProject("ragmir-mcp-large-budget-", {
+      mcpMaxOutputBytes: 1_048_576,
+    })
+    const { client } = await connectTestClient(root)
+
+    const sources = await client.readResource({ uri: "ragmir://sources" })
+    const sourceContent = sources.contents[0]
+
+    expect(
+      sourceContent && "text" in sourceContent ? JSON.parse(sourceContent.text) : null,
+    ).toMatchObject({ page: { limit: 100 } })
+  })
 })
 
 describe("searchOptions", () => {

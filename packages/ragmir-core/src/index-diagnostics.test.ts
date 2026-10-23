@@ -6,11 +6,12 @@ import {
   getIndexFreshnessWarning,
   getLexicalScanWarning,
   INDEX_SCHEMA_VERSION,
+  manifestReady,
 } from "./index-diagnostics.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { writeIndexManifest } from "./store.js"
 import { testConfig } from "./test-support/config.js"
-import type { IndexManifest } from "./types.js"
+import type { IndexHealthSnapshot, IndexManifest } from "./types.js"
 import { vectorModelFingerprint } from "./vector-index.js"
 
 const tempDirs: string[] = []
@@ -183,4 +184,53 @@ describe("getLexicalScanWarning", () => {
     expect(warning).toContain("2 batches")
     expect(warning).toContain("scan all")
   })
+
+  it("returns null when the full-text index covers every row", () => {
+    const config = testConfig({ hybridTextScanLimit: 10_000 })
+    expect(getLexicalScanWarning(config, 26_391, true)).toBeNull()
+  })
 })
+
+describe("manifestReady", () => {
+  it("keeps a complete compatible index ready despite security advisories", () => {
+    const manifest = baseManifest({
+      chunkCount: 3,
+      health: healthSnapshot({ securityWarnings: ["External extractors are configured."] }),
+    })
+    expect(manifestReady(manifest, null)).toBe(true)
+  })
+
+  it("is not ready without a health snapshot, with drift, or with a freshness warning", () => {
+    expect(manifestReady(null, null)).toBe(false)
+    expect(manifestReady(baseManifest({ chunkCount: 3 }), null)).toBe(false)
+    const drifted = baseManifest({ chunkCount: 3, health: healthSnapshot({ staleInIndex: 1 }) })
+    expect(manifestReady(drifted, null)).toBe(false)
+    const healthy = baseManifest({ chunkCount: 3, health: healthSnapshot() })
+    expect(manifestReady(healthy, "Run `rgr upgrade`.")).toBe(false)
+  })
+})
+
+function healthSnapshot(overrides: Partial<IndexHealthSnapshot> = {}): IndexHealthSnapshot {
+  return {
+    schemaVersion: 1,
+    checkedAt: "2026-01-01T00:00:00.000Z",
+    discoveredFiles: 1,
+    supportedFiles: 1,
+    supportedBytes: 10,
+    largestFileBytes: 10,
+    skippedFiles: 0,
+    unsupportedFiles: 0,
+    oversizedFiles: 0,
+    sensitiveFiles: 0,
+    emptyTextFiles: 0,
+    missingFromIndex: 0,
+    staleInIndex: 0,
+    previews: { missingFromIndex: [], staleInIndex: [], emptyTextFiles: [] },
+    previewOmitted: { missingFromIndex: 0, staleInIndex: 0, emptyTextFiles: 0 },
+    skippedByReason: {},
+    sourceDiagnostics: { duplicateCandidates: [], archiveCandidates: [], mirrorCandidates: [] },
+    securityCheckedAt: "2026-01-01T00:00:00.000Z",
+    securityWarnings: [],
+    ...overrides,
+  }
+}

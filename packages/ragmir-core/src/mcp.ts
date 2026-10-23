@@ -5,6 +5,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { z } from "zod"
 import { RagmirClient } from "./client.js"
 import { findProjectConfig, loadConfig } from "./config.js"
+import { MAX_SOURCE_CATALOG_LIMIT } from "./context-resources.js"
 import { MAX_SEARCH_TOP_K, RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { auditWithConfig } from "./ingest.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
@@ -231,7 +232,10 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       const budget = mcpOutputBudget(config.mcpMaxOutputBytes)
       const client = await clientLifecycle.getClient(config)
       const sources = await abortableMcpOperation(
-        client.sources({ signal, limit: mcpPreviewLimit(budget) }),
+        client.sources({
+          signal,
+          limit: Math.min(mcpPreviewLimit(budget), MAX_SOURCE_CATALOG_LIMIT),
+        }),
         signal,
       )
       return jsonResource(uri, sources, budget, "ragmir://sources", compactSourcesOutput(sources))

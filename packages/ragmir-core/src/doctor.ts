@@ -76,7 +76,14 @@ export async function doctorWithConfig(
   const staleInIndex = auditReport?.staleInIndex.length ?? health?.staleInIndex ?? 0
   const securityWarnings = securityReport?.warnings ?? health?.securityWarnings ?? []
   const freshnessWarning = indexFreshnessWarning(config, manifest)
-  const lexicalScanWarning = chunksIndexed > 0 ? getLexicalScanWarning(config, chunksIndexed) : null
+  const lexicalScanWarning =
+    chunksIndexed > 0
+      ? getLexicalScanWarning(
+          config,
+          chunksIndexed,
+          manifest?.maintenance?.fullTextIndex.complete === true,
+        )
+      : null
   const indexFreshness = {
     manifestFound: manifest !== null,
     warning: freshnessWarning,

@@ -18,7 +18,7 @@ import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
 import { collectGenerationGarbage } from "./generation-retention.js"
-import { indexFreshnessWarning } from "./index-diagnostics.js"
+import { indexFreshnessWarning, manifestReady } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
 import { initProject } from "./init.js"
@@ -667,6 +667,9 @@ program
       },
       command: Command,
     ) => {
+      if (query.trim() === "") {
+        throw new Error("Search query must not be empty.")
+      }
       const cwd = projectRoot(command)
       const results = await search(query, withSearchOptions(cwd, options))
       const outputResults = options.compact ? compactSearchResults(results) : results
@@ -679,8 +682,17 @@ program
       }
 
       if (results.length === 0) {
-        const repairCommand = await rgrCommand(cwd, ["doctor", "--fix"])
-        console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`))
+        const manifest = await readIndexManifestHeader(await loadConfig(cwd))
+        if ((manifest?.chunkCount ?? 0) > 0) {
+          console.error(
+            pc.yellow(
+              "No passage matched. Rephrase the query or widen the path and context filters.",
+            ),
+          )
+        } else {
+          const repairCommand = await rgrCommand(cwd, ["doctor", "--fix"])
+          console.error(pc.yellow(`No results. Add documents or run \`${repairCommand.display}\`.`))
+        }
         process.exitCode = 1
         return
       }
@@ -937,16 +949,7 @@ program
     const manifest = await readIndexManifestHeader(config)
     const health = manifest?.health
     const freshnessWarning = indexFreshnessWarning(config, manifest)
-    const ready =
-      manifest !== null &&
-      health !== undefined &&
-      manifest.chunkCount > 0 &&
-      health.missingFromIndex === 0 &&
-      health.staleInIndex === 0 &&
-      health.emptyTextFiles === 0 &&
-      health.oversizedFiles === 0 &&
-      health.securityWarnings.length === 0 &&
-      freshnessWarning === null
+    const ready = manifestReady(manifest, freshnessWarning)
     const ingestion = await getIngestionProgress(config)
     const status = {
       knowledgeBaseId: identity?.id ?? null,
