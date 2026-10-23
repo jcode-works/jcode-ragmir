@@ -167,6 +167,41 @@ describe("ingestion state", () => {
     await expect(readIngestionState(config)).resolves.toEqual(state)
   })
 
+  it("should keep a reused file readable after only its modification time changed", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-state-touched-"))
+    tempDirs.push(root)
+    const config = testConfig(root)
+    const file = sourceFile(root)
+    const state = createIngestionRunState({
+      mode: "incremental",
+      tableName: config.tableName,
+      previousTableName: null,
+      policyFingerprint: "test-policy",
+      batchSize: 25,
+      files: [{ ...file, mtimeMs: 2 }],
+      reusablePaths: new Set([file.relativePath]),
+      reusableChunkCounts: new Map([[file.relativePath, 1]]),
+      previousFiles: new Map([
+        [
+          file.relativePath,
+          {
+            relativePath: file.relativePath,
+            checksum: file.checksum,
+            chunkCount: 1,
+            bytes: file.bytes,
+            mtimeMs: file.mtimeMs,
+          },
+        ],
+      ]),
+    })
+
+    await writeIngestionState(state, config)
+
+    const stored = await readIngestionState(config)
+    expect(stored).toEqual(state)
+    expect(stored?.files[0]).toMatchObject({ state: "indexed", reused: true, lastGoodMtimeMs: 2 })
+  })
+
   it("should persist one file update as a bounded journal delta", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-state-journal-"))
     tempDirs.push(root)

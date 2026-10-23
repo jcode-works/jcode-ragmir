@@ -126,7 +126,9 @@ export function createIngestionRunState(
     files: options.files.map((file) => {
       const reused = options.reusablePaths.has(file.relativePath)
       const previous = options.previousFiles?.get(file.relativePath)
-      const lastGoodChecksum = previous?.checksum ?? (reused ? file.checksum : null)
+      // A reused file has the indexed checksum, so its current metadata is the last good version
+      // even when a checkout or touch changed only its modification time.
+      const lastGoodChecksum = reused ? file.checksum : (previous?.checksum ?? null)
       const lastGoodChunkCount =
         previous?.chunkCount ?? options.reusableChunkCounts.get(file.relativePath) ?? 0
       return {
@@ -139,8 +141,8 @@ export function createIngestionRunState(
         chunkCount: lastGoodChunkCount,
         lastGoodChecksum,
         lastGoodChunkCount,
-        lastGoodBytes: previous?.bytes ?? (reused ? file.bytes : null),
-        lastGoodMtimeMs: previous?.mtimeMs ?? (reused ? file.mtimeMs : null),
+        lastGoodBytes: reused ? file.bytes : (previous?.bytes ?? null),
+        lastGoodMtimeMs: reused ? file.mtimeMs : (previous?.mtimeMs ?? null),
         staleLastKnownGood: lastGoodChecksum !== null && lastGoodChecksum !== file.checksum,
         error: null,
         reused,

@@ -153,7 +153,8 @@ Repairing the source replaces those rows once; deleting the source removes them.
 `--incremental-failure-policy preserve-last-good`. Select `remove-stale` explicitly when a failed
 changed file must have no searchable rows.
 
-`rgr status --json` reads only compact manifest and durable progress metadata. It exposes readiness,
+`rgr status --json` reads only compact manifest and durable progress metadata. It exposes readiness
+(security advisories are reported by `rgr security-audit` and do not change it),
 `corpusFingerprint`, manifest freshness, persisted source-health and maintenance counts, plus the run
 ID, mode, status, resume flag, last activity, batch size, chunk count, and file counts for `pending`,
 `parsed`, `embedded`, `indexed`, and `error` states. The fingerprint is a deterministic SHA-256 over
