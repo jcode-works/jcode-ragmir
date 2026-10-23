@@ -18,7 +18,7 @@ import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
 import { collectGenerationGarbage } from "./generation-retention.js"
-import { indexFreshnessWarning } from "./index-diagnostics.js"
+import { indexFreshnessWarning, manifestReady } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
 import { initProject } from "./init.js"
@@ -937,16 +937,7 @@ program
     const manifest = await readIndexManifestHeader(config)
     const health = manifest?.health
     const freshnessWarning = indexFreshnessWarning(config, manifest)
-    const ready =
-      manifest !== null &&
-      health !== undefined &&
-      manifest.chunkCount > 0 &&
-      health.missingFromIndex === 0 &&
-      health.staleInIndex === 0 &&
-      health.emptyTextFiles === 0 &&
-      health.oversizedFiles === 0 &&
-      health.securityWarnings.length === 0 &&
-      freshnessWarning === null
+    const ready = manifestReady(manifest, freshnessWarning)
     const ingestion = await getIngestionProgress(config)
     const status = {
       knowledgeBaseId: identity?.id ?? null,
