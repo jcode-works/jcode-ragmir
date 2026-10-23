@@ -12,7 +12,7 @@ import type {
 } from "./types.js"
 
 const SOURCE_CATALOG_LIMIT = 50
-const MAX_SOURCE_CATALOG_LIMIT = 100
+export const MAX_SOURCE_CATALOG_LIMIT = 100
 const RAGMIR_MCP_TOOLS = ["ragmir_status", "ragmir_search", "ragmir_expand", "ragmir_audit"]
 const RAGMIR_MCP_RESOURCES = ["ragmir://context", "ragmir://sources"]
 
