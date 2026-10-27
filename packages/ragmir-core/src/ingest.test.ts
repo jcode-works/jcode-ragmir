@@ -7,7 +7,7 @@ import { loadConfig } from "./config.js"
 import { doctor } from "./doctor.js"
 import * as embeddingsModule from "./embeddings.js"
 import { indexPolicyFingerprint, LEXICAL_POLICY_VERSION } from "./index-policy.js"
-import { audit, ingest } from "./ingest.js"
+import { audit, capDataFileChunks, ingest } from "./ingest.js"
 import { INGESTION_DIAGNOSTICS_CHANNEL } from "./ingestion-metrics.js"
 import { getIngestionProgress, readIngestionState, writeIngestionState } from "./ingestion-state.js"
 import { initProject } from "./init.js"
@@ -769,6 +769,55 @@ describe("ingest", () => {
     const report = await audit(root)
     expect(report.totalChunks).toBe(1)
     expect(toArray).not.toHaveBeenCalled()
+  })
+
+  it("samples large structured data files down to the configured chunk cap", () => {
+    const chunks = Array.from({ length: 100 }, (_, index) => index)
+
+    expect(capDataFileChunks(chunks, ".JSONL", 10)).toEqual([0, 1, 2, 3, 4, 14, 33, 52, 71, 90])
+    expect(capDataFileChunks(chunks, ".md", 10)).toBe(chunks)
+    expect(capDataFileChunks(chunks, ".csv", null)).toBe(chunks)
+    expect(capDataFileChunks(chunks.slice(0, 8), ".csv", 10)).toHaveLength(8)
+  })
+
+  it("caps data exports at ingest and reports source rules and index concentration", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-data-cap-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    const records = Array.from({ length: 40 }, (_, index) =>
+      JSON.stringify({
+        id: index,
+        event: "export",
+        detail: `Record ${index} of the nightly export.`,
+      }),
+    )
+    await writeFile(path.join(root, ".ragmir", "raw", "export.jsonl"), `${records.join("\n")}\n`)
+    const paragraphs = Array.from(
+      { length: 12 },
+      (_, index) => `Section ${index} explains how the release checklist handles step ${index}.`,
+    )
+    await writeFile(path.join(root, ".ragmir", "raw", "guide.md"), `${paragraphs.join("\n\n")}\n`)
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ chunkSize: 200, chunkOverlap: 20, maxChunksPerDataFile: 4 }),
+    )
+
+    await ingest({ cwd: root })
+
+    const rows = await readRows(await loadConfig(root))
+    const chunksOf = (relativePath: string): number =>
+      rows.filter((row) => row.relativePath === relativePath).length
+    expect(chunksOf(".ragmir/raw/export.jsonl")).toBe(4)
+    expect(chunksOf(".ragmir/raw/guide.md")).toBeGreaterThan(4)
+
+    const report = await audit(root)
+    expect(report.sourceRules).toMatchObject({ excludedCopies: [], portabilityWarnings: [] })
+    expect(report.concentration).toMatchObject({
+      totalChunks: report.totalChunks,
+      warning: null,
+    })
+    expect(report.concentration?.topFiles[0]?.relativePath).toBe(".ragmir/raw/guide.md")
   })
 
   it("rebuilds every file when the content policy changes", async () => {

@@ -3,6 +3,38 @@
 This is a breaking surface change. Ragmir now concentrates on local indexing, search, exact
 citations, OCR, and integration with developer agents.
 
+## Canonical paths, live freshness, and calibrated evidence (6.2)
+
+Existing indexes stay searchable after the update; nothing needs deleting.
+
+- **Canonical paths.** Ragmir now stores and cites paths with forward slashes and in Unicode NFC on
+  every platform. Files whose names were stored decomposed (common for accented names copied from
+  archives, sync clients, or older Mac volumes) and every file of a Windows index are re-indexed
+  once by the next `rgr ingest`, which only re-embeds those files. Until then, path filters and
+  citations match both forms. `rgr doctor` counts the remaining `noncanonicalPaths`.
+- **Exclusions that work.** An exclusion typed in composed form now also excludes a decomposed file,
+  and case-variant names on case-insensitive volumes. Run `rgr audit` after the update: files that
+  your rules meant to exclude may leave the index on the next ingest, and `sourceRules` lists rules
+  that still match nothing.
+- **Default exclusions.** Tool state (`.claude`, `.codex`, ...), dependency caches, lockfiles, and
+  minified bundles are skipped unless a source names them. Set `defaultExcludes: false` to keep the
+  previous selection.
+- **Freshness.** `rgr doctor`, `ragmir_status`, and `ragmir://context` compare files by size and
+  modification time instead of repeating the ingest-time snapshot (`cost` becomes `O(files)`), so
+  `coverageComplete` and `ready` turn false when sources changed since the last ingest.
+- **Ranking policy version 7.** Model-calibrated abstention, IDF-weighted keyword evidence,
+  `weakEvidence`, path priors, code-definition boosts, translation collapsing, and crowding-aware
+  candidates change rankings. Rerun `rgr evaluate`: stored quality reports no longer verify the
+  active policy. Set `pathPriors: false` or `collapseLocaleVariants: false` to compare.
+- **MCP output.** `ragmir_status` no longer returns ingestion limits and extractor commands
+  (`rgr limits` keeps them); it adds `knowledgeBase`, `coverage`, `scopes`, and `workspace`.
+  `ragmir_audit` returns a summary unless `detail: true`. Repeated passages in one MCP session come
+  back as `seen` stubs; set `mcpSeenResults: "include"` to keep the previous behavior. Unknown
+  arguments are reported instead of rejected.
+- **Runner.** `rgr setup` and `rgr install-skill` regenerate `.ragmir/run.cjs`, which now finds the
+  project's package without a version-specific path. Rerun one of them in projects whose runner
+  still names a removed install.
+
 ## Code-aware keyword index
 
 This release adds relative source paths and identifier parts to the full-text index, lets BM25 lead

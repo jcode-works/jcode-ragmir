@@ -50,6 +50,37 @@ describe("search", () => {
     expect(result?.score?.queryNormalized).toBe(false)
   })
 
+  it("should flag results whose cited file changed or disappeared since indexing", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-status-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(
+      path.join(raw, "refunds.md"),
+      "# Refunds\n\nRefund requests close in 14 days.\n",
+    )
+    await writeFile(path.join(raw, "returns.md"), "# Returns\n\nReturn labels expire in 14 days.\n")
+    await ingest({ cwd: root })
+
+    const current = await search("refund requests days", { cwd: root, topK: 2 })
+    expect(current.every((result) => result.sourceStatus === undefined)).toBe(true)
+
+    await writeFile(
+      path.join(raw, "refunds.md"),
+      "# Refunds\n\nRefund requests close in 30 days.\n",
+    )
+    await rm(path.join(raw, "returns.md"))
+    const changed = await search("refund requests days", { cwd: root, topK: 2 })
+
+    expect(
+      Object.fromEntries(changed.map((result) => [result.relativePath, result.sourceStatus])),
+    ).toEqual({
+      ".ragmir/raw/refunds.md": "modified",
+      ".ragmir/raw/returns.md": "missing",
+    })
+  })
+
   it("should reject an old evidence version after the source changes at the same coordinates", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evidence-version-"))
     tempDirs.push(root)

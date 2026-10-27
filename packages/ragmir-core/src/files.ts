@@ -4,6 +4,7 @@ import { createReadStream, existsSync } from "node:fs"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import fg from "fast-glob"
+import picomatch from "picomatch"
 import { DEFAULT_CONFIG, LEGACY_KB_DIR, LEGACY_PRIVATE_DIR, RAGMIR_DIR } from "./defaults.js"
 import { activeIngestionMetrics } from "./ingestion-metrics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
@@ -15,6 +16,15 @@ import {
   sourceFingerprintRecord,
   writeSourceFingerprintCache,
 } from "./source-fingerprint-cache.js"
+import {
+  canonicalRelativePath,
+  canonicalSourcePath,
+  compareCodePoints,
+  isCaseInsensitiveFileSystem,
+  resolveExistingPath,
+  sourcePathKey,
+  unicodeGlobVariants,
+} from "./source-paths.js"
 import type {
   Config,
   OperationOptions,
@@ -22,6 +32,7 @@ import type {
   SkippedSourceReason,
   SourceFile,
   SourceInventory,
+  SourceRuleDiagnostics,
 } from "./types.js"
 
 const GENERATED_SOURCE_READMES = new Set([
@@ -104,12 +115,91 @@ export const DEFAULT_FAST_GLOB_IGNORES = [
   `**/${LEGACY_KB_DIR}/**`,
   `**/${RAGMIR_DIR}/**`,
 ]
+/**
+ * Tool state, dependency caches, lockfiles, and generated bundles that drown out project knowledge.
+ * They are skipped unless `defaultExcludes` is false or a source entry names the directory itself.
+ */
+export const DEFAULT_EXCLUDED_DIRECTORIES = [
+  ".agents",
+  ".angular",
+  ".cache",
+  ".claude",
+  ".cline",
+  ".codex",
+  ".cursor",
+  ".dart_tool",
+  ".expo",
+  ".gitnexus",
+  ".gradle",
+  ".idea",
+  ".kimi",
+  ".mypy_cache",
+  ".next",
+  ".nuxt",
+  ".nyc_output",
+  ".opencode",
+  ".parcel-cache",
+  ".pnpm-store",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".svelte-kit",
+  ".terraform",
+  ".tox",
+  ".turbo",
+  ".venv",
+  ".windsurf",
+  ".yarn",
+  "__pycache__",
+  "bower_components",
+  "coverage",
+  "DerivedData",
+  "Pods",
+] as const
+export const DEFAULT_EXCLUDED_FILES = [
+  "*.map",
+  "*.min.css",
+  "*.min.js",
+  "*.min.mjs",
+  "bun.lock",
+  "bun.lockb",
+  "Cargo.lock",
+  "composer.lock",
+  "deno.lock",
+  "flake.lock",
+  "Gemfile.lock",
+  "go.sum",
+  "gradle.lockfile",
+  "mix.lock",
+  "npm-shrinkwrap.json",
+  "package-lock.json",
+  "packages.lock.json",
+  "Pipfile.lock",
+  "pnpm-lock.yaml",
+  "Podfile.lock",
+  "poetry.lock",
+  "pubspec.lock",
+  "uv.lock",
+  "yarn.lock",
+] as const
 const GLOB_PATTERN_CHARS = /[*?[{]/u
 
+interface SourceRoot {
+  /** On-disk spelling, which can differ from the configured entry by Unicode form or case. */
+  path: string
+  relativePath: string
+}
+
 interface SourceInputs {
-  roots: string[]
+  roots: SourceRoot[]
   patterns: string[]
   ignorePatterns: string[]
+  unresolvedRoots: string[]
+}
+
+interface SourceDiscovery {
+  candidates: SourceCandidate[]
+  skippedFiles: SkippedSourceFile[]
+  discoveredFiles: number
 }
 
 type SourceEntryStats = Pick<Stats, "size" | "mtimeMs" | "ctimeMs" | "dev" | "ino" | "mode">
@@ -224,144 +314,11 @@ export async function inventorySourceFiles(
 ): Promise<SourceInventory> {
   const signal = operationSignal(options)
   throwIfAborted(signal)
-  const inputs = await sourceInputs(config, signal)
-  throwIfAborted(signal)
-  const excludedPaths = new Set(
-    inputs.ignorePatterns.length === 0
-      ? []
-      : await fg(inputs.ignorePatterns, {
-          cwd: config.projectRoot,
-          absolute: true,
-          onlyFiles: true,
-          dot: true,
-          followSymbolicLinks: false,
-          unique: true,
-        }),
+  const discovery = await discoverSourceCandidates(config, signal)
+  const candidates = new Map(
+    discovery.candidates.map((candidate) => [candidate.absolutePath, candidate]),
   )
   throwIfAborted(signal)
-  const candidates = new Map<string, SourceCandidate>()
-  const skippedFiles = new Map<string, SkippedSourceFile>()
-  const discoveredPaths = new Set<string>()
-  const allowedExtensions = supportedExtensions(config)
-
-  const recordSourceCandidate = (
-    absolutePath: string,
-    info: SourceEntryStats,
-    source: string,
-  ): void => {
-    throwIfAborted(signal)
-    if (excludedPaths.has(absolutePath)) {
-      return
-    }
-    const relativePath = path.relative(config.projectRoot, absolutePath)
-    if (GENERATED_SOURCE_READMES.has(relativePath)) {
-      return
-    }
-    discoveredPaths.add(absolutePath)
-
-    const extension = path.extname(absolutePath).toLowerCase()
-    const skipped = skippedSourceFile(absolutePath, relativePath, source, extension, info.size)
-
-    if (skipped) {
-      skippedFiles.set(absolutePath, skipped)
-      return
-    }
-
-    if (!isSupportedSourceFile(absolutePath, extension, allowedExtensions)) {
-      const normalizedExtension = extension || NO_EXTENSION
-      skippedFiles.set(absolutePath, {
-        relativePath,
-        source,
-        extension: normalizedExtension,
-        bytes: info.size,
-        reason: "unsupported-extension",
-        recommendation: skippedRecommendation("unsupported-extension", normalizedExtension),
-      })
-      return
-    }
-
-    if (info.size > config.maxFileBytes) {
-      const normalizedExtension = extension || NO_EXTENSION
-      skippedFiles.set(absolutePath, {
-        relativePath,
-        source,
-        extension: normalizedExtension,
-        bytes: info.size,
-        reason: "oversized",
-        recommendation: skippedRecommendation("oversized", normalizedExtension),
-      })
-      return
-    }
-
-    if (!candidates.has(absolutePath)) {
-      candidates.set(absolutePath, { absolutePath, info, source, relativePath, extension })
-    }
-  }
-
-  for (const root of inputs.roots) {
-    throwIfAborted(signal)
-    if (!existsSync(root)) {
-      continue
-    }
-
-    const rootInfo = await stat(root)
-    throwIfAborted(signal)
-    const entries: SourceGlobEntry[] = rootInfo.isDirectory()
-      ? ((await fg("**/*", {
-          cwd: root,
-          absolute: true,
-          onlyFiles: true,
-          dot: true,
-          followSymbolicLinks: false,
-          ignore: [
-            ...DEFAULT_FAST_GLOB_IGNORES,
-            ...ignorePatternsForRoot(root, config.projectRoot, inputs.ignorePatterns),
-          ],
-          objectMode: true,
-          stats: true,
-          unique: true,
-        })) as SourceGlobEntry[])
-      : [{ path: root, stats: sourceEntryStats(rootInfo) }]
-    throwIfAborted(signal)
-
-    for (const entry of entries) {
-      throwIfAborted(signal)
-      const absolutePath = path.isAbsolute(entry.path) ? entry.path : path.resolve(root, entry.path)
-      const info = entry.stats ?? sourceEntryStats(await stat(absolutePath))
-      const relativePath = path.relative(config.projectRoot, absolutePath)
-      const source = rootInfo.isDirectory()
-        ? path.relative(root, absolutePath) || path.basename(absolutePath)
-        : relativePath || path.basename(absolutePath)
-      recordSourceCandidate(absolutePath, info, source)
-    }
-  }
-
-  if (inputs.patterns.length > 0) {
-    throwIfAborted(signal)
-    const entries = (await fg(inputs.patterns, {
-      cwd: config.projectRoot,
-      absolute: true,
-      onlyFiles: true,
-      dot: true,
-      followSymbolicLinks: false,
-      ignore: [...DEFAULT_FAST_GLOB_IGNORES, ...inputs.ignorePatterns],
-      objectMode: true,
-      stats: true,
-      unique: true,
-    })) as SourceGlobEntry[]
-    throwIfAborted(signal)
-
-    for (const entry of entries) {
-      throwIfAborted(signal)
-      const absolutePath = path.isAbsolute(entry.path)
-        ? entry.path
-        : path.resolve(config.projectRoot, entry.path)
-      const info = entry.stats ?? sourceEntryStats(await stat(absolutePath))
-      const relativePath = path.relative(config.projectRoot, absolutePath)
-      recordSourceCandidate(absolutePath, info, relativePath || path.basename(absolutePath))
-    }
-  }
-
   const cachedFingerprints =
     config.sourceFingerprintMode === "strict"
       ? new Map<string, SourceFingerprintRecord>()
@@ -419,7 +376,7 @@ export async function inventorySourceFiles(
   if (options.writeFingerprintCache !== false) {
     await writeSourceFingerprintCache(
       [...nextFingerprints.values()].sort((left, right) =>
-        left.absolutePath.localeCompare(right.absolutePath),
+        compareCodePoints(left.absolutePath, right.absolutePath),
       ),
       config,
     )
@@ -427,17 +384,352 @@ export async function inventorySourceFiles(
 
   throwIfAborted(signal)
   return {
-    discoveredFiles: discoveredPaths.size,
+    discoveredFiles: discovery.discoveredFiles,
     supportedFiles: [...files.values()].sort((a, b) =>
-      a.relativePath.localeCompare(b.relativePath),
+      compareCodePoints(a.relativePath, b.relativePath),
     ),
-    skippedFiles: [...skippedFiles.values()].sort((a, b) =>
-      a.relativePath.localeCompare(b.relativePath),
-    ),
+    skippedFiles: discovery.skippedFiles,
     contentBytesRead,
     hashedFiles,
     reusedFingerprints,
   }
+}
+
+export interface DiscoveredSourceFile {
+  absolutePath: string
+  relativePath: string
+  bytes: number
+  mtimeMs: number
+  identity: SourceFileIdentity
+}
+
+export interface SourceDiscoveryResult {
+  files: DiscoveredSourceFile[]
+  skippedFiles: SkippedSourceFile[]
+  discoveredFiles: number
+}
+
+/**
+ * Discover indexable source files with their size and modification time, without reading content.
+ * Freshness checks compare this O(files) view with the index manifest.
+ */
+export async function discoverSourceFiles(
+  config: Config,
+  options: OperationOptions = {},
+): Promise<SourceDiscoveryResult> {
+  const signal = operationSignal(options)
+  const discovery = await discoverSourceCandidates(config, signal)
+  return {
+    files: discovery.candidates
+      .map((candidate) => ({
+        absolutePath: candidate.absolutePath,
+        relativePath: candidate.relativePath,
+        bytes: candidate.info.size,
+        mtimeMs: candidate.info.mtimeMs,
+        identity: sourceFileIdentity(candidate.absolutePath, candidate.info),
+      }))
+      .sort((left, right) => compareCodePoints(left.relativePath, right.relativePath)),
+    skippedFiles: discovery.skippedFiles,
+    discoveredFiles: discovery.discoveredFiles,
+  }
+}
+
+/** Explain source rules that silently select nothing or leave excluded content reachable. */
+export async function sourceRuleDiagnostics(
+  config: Config,
+  supportedFiles: readonly SourceFile[],
+  options: OperationOptions = {},
+): Promise<SourceRuleDiagnostics> {
+  const signal = operationSignal(options)
+  const inputs = await sourceInputs(config, signal)
+  const caseInsensitive = isCaseInsensitiveFileSystem(config.projectRoot)
+  const supportedPaths = supportedFiles.map((file) => file.relativePath)
+  const unmatchedPatterns = inputs.patterns.filter((pattern) => {
+    const matches = picomatch(pattern, { dot: true, nocase: caseInsensitive })
+    return !supportedPaths.some((relativePath) => matches(relativePath))
+  })
+  const indexedByChecksum = new Map<string, string>()
+  for (const file of supportedFiles) {
+    if (!indexedByChecksum.has(file.checksum)) {
+      indexedByChecksum.set(file.checksum, file.relativePath)
+    }
+  }
+  const unmatchedExclusions: string[] = []
+  const excludedCopies: SourceRuleDiagnostics["excludedCopies"] = []
+  for (const pattern of inputs.ignorePatterns) {
+    throwIfAborted(signal)
+    if (GLOB_PATTERN_CHARS.test(pattern)) {
+      continue
+    }
+    const resolved = resolveExistingPath(path.resolve(config.projectRoot, pattern), caseInsensitive)
+    if (resolved === null) {
+      unmatchedExclusions.push(pattern)
+      continue
+    }
+    const info = await stat(resolved)
+    if (!info.isFile() || info.size > config.maxFileBytes) {
+      continue
+    }
+    const { checksum } = await checksumFile(resolved, signal)
+    const indexedCopy = indexedByChecksum.get(checksum)
+    if (indexedCopy !== undefined) {
+      excludedCopies.push({ excluded: pattern, indexedCopy })
+    }
+  }
+  const portabilityWarnings = config.sources.flatMap((entry) => {
+    const value = entry.trim().replace(/^!/u, "").trim()
+    if (!value || value.startsWith("#")) {
+      return []
+    }
+    if (value.includes("\\")) {
+      return [
+        `Source entry "${entry}" uses backslashes; write forward slashes so the config works on macOS, Linux, and Windows.`,
+      ]
+    }
+    if (path.isAbsolute(value)) {
+      return [
+        `Source entry "${entry}" is absolute; a project-relative path keeps the config portable across machines.`,
+      ]
+    }
+    return []
+  })
+  return {
+    unmatchedSources: inputs.unresolvedRoots,
+    unmatchedPatterns,
+    unmatchedExclusions,
+    excludedCopies,
+    portabilityWarnings,
+  }
+}
+
+async function discoverSourceCandidates(
+  config: Config,
+  signal: AbortSignal | undefined,
+): Promise<SourceDiscovery> {
+  const inputs = await sourceInputs(config, signal)
+  throwIfAborted(signal)
+  const caseInsensitive = isCaseInsensitiveFileSystem(config.projectRoot)
+  const isExcluded = sourceExclusionMatcher(inputs.ignorePatterns, caseInsensitive)
+  const candidates = new Map<string, SourceCandidate>()
+  const skippedFiles = new Map<string, SkippedSourceFile>()
+  const discoveredPaths = new Set<string>()
+  const allowedExtensions = supportedExtensions(config)
+
+  const recordSourceCandidate = (
+    absolutePath: string,
+    info: SourceEntryStats,
+    source: string,
+  ): void => {
+    throwIfAborted(signal)
+    const relativePath = canonicalRelativePath(config.projectRoot, absolutePath)
+    if (isExcluded(relativePath) || GENERATED_SOURCE_READMES.has(relativePath)) {
+      return
+    }
+    const key = sourcePathKey(relativePath, caseInsensitive)
+    const existing = candidates.get(key)
+    if (existing) {
+      if (existing.absolutePath !== absolutePath) {
+        // Linux and Windows can hold two names that differ only by Unicode form; both would cite
+        // the same canonical path, so the second one is reported instead of silently shadowed.
+        skippedFiles.set(absolutePath, {
+          relativePath,
+          source: canonicalSourcePath(source),
+          extension: path.extname(absolutePath).toLowerCase() || NO_EXTENSION,
+          bytes: info.size,
+          reason: "path-collision",
+          recommendation: skippedRecommendation("path-collision", ""),
+        })
+      }
+      return
+    }
+    discoveredPaths.add(key)
+
+    const extension = path.extname(absolutePath).toLowerCase()
+    const canonicalSource = canonicalSourcePath(source)
+    const skipped = skippedSourceFile(
+      absolutePath,
+      relativePath,
+      canonicalSource,
+      extension,
+      info.size,
+    )
+
+    if (skipped) {
+      skippedFiles.set(key, skipped)
+      return
+    }
+
+    if (!isSupportedSourceFile(absolutePath, extension, allowedExtensions)) {
+      const normalizedExtension = extension || NO_EXTENSION
+      skippedFiles.set(key, {
+        relativePath,
+        source: canonicalSource,
+        extension: normalizedExtension,
+        bytes: info.size,
+        reason: "unsupported-extension",
+        recommendation: skippedRecommendation("unsupported-extension", normalizedExtension),
+      })
+      return
+    }
+
+    if (info.size > config.maxFileBytes) {
+      const normalizedExtension = extension || NO_EXTENSION
+      skippedFiles.set(key, {
+        relativePath,
+        source: canonicalSource,
+        extension: normalizedExtension,
+        bytes: info.size,
+        reason: "oversized",
+        recommendation: skippedRecommendation("oversized", normalizedExtension),
+      })
+      return
+    }
+
+    candidates.set(key, {
+      absolutePath,
+      info,
+      source: canonicalSource,
+      relativePath,
+      extension,
+    })
+  }
+
+  for (const root of inputs.roots) {
+    throwIfAborted(signal)
+    const rootInfo = await stat(root.path)
+    throwIfAborted(signal)
+    const entries: SourceGlobEntry[] = rootInfo.isDirectory()
+      ? ((await fg("**/*", {
+          cwd: root.path,
+          absolute: true,
+          onlyFiles: true,
+          dot: true,
+          followSymbolicLinks: false,
+          caseSensitiveMatch: !caseInsensitive,
+          ignore: [
+            ...DEFAULT_FAST_GLOB_IGNORES,
+            ...defaultExcludeGlobs(config, [root.relativePath]),
+            ...unicodeGlobVariants(ignorePatternsForRoot(root.relativePath, inputs.ignorePatterns)),
+          ],
+          objectMode: true,
+          stats: true,
+          unique: true,
+        })) as SourceGlobEntry[])
+      : [{ path: root.path, stats: sourceEntryStats(rootInfo) }]
+    throwIfAborted(signal)
+
+    for (const entry of entries) {
+      throwIfAborted(signal)
+      const absolutePath = path.resolve(root.path, entry.path)
+      const info = entry.stats ?? sourceEntryStats(await stat(absolutePath))
+      const source = rootInfo.isDirectory()
+        ? path.relative(root.path, absolutePath) || path.basename(absolutePath)
+        : root.relativePath || path.basename(absolutePath)
+      recordSourceCandidate(absolutePath, info, source)
+    }
+  }
+
+  for (const patterns of patternGroupsByDefaultExcludes(config, inputs.patterns)) {
+    throwIfAborted(signal)
+    const entries = (await fg(unicodeGlobVariants(patterns), {
+      cwd: config.projectRoot,
+      absolute: true,
+      onlyFiles: true,
+      dot: true,
+      followSymbolicLinks: false,
+      caseSensitiveMatch: !caseInsensitive,
+      ignore: [
+        ...DEFAULT_FAST_GLOB_IGNORES,
+        ...defaultExcludeGlobs(config, patterns),
+        ...unicodeGlobVariants(inputs.ignorePatterns),
+      ],
+      objectMode: true,
+      stats: true,
+      unique: true,
+    })) as SourceGlobEntry[]
+    throwIfAborted(signal)
+
+    for (const entry of entries) {
+      throwIfAborted(signal)
+      const absolutePath = path.resolve(config.projectRoot, entry.path)
+      const info = entry.stats ?? sourceEntryStats(await stat(absolutePath))
+      const relativePath = canonicalRelativePath(config.projectRoot, absolutePath)
+      recordSourceCandidate(absolutePath, info, relativePath || path.basename(absolutePath))
+    }
+  }
+
+  return {
+    candidates: [...candidates.values()],
+    skippedFiles: [...skippedFiles.values()].sort((a, b) =>
+      compareCodePoints(a.relativePath, b.relativePath),
+    ),
+    discoveredFiles: discoveredPaths.size,
+  }
+}
+
+/**
+ * Match exclusion rules against canonical project-relative paths, independent of the on-disk
+ * Unicode form, and with the volume's case rules. A rule that names a directory excludes its files,
+ * as fast-glob ignore patterns do.
+ */
+function sourceExclusionMatcher(
+  patterns: readonly string[],
+  caseInsensitive: boolean,
+): (relativePath: string) => boolean {
+  if (patterns.length === 0) {
+    return () => false
+  }
+  const matches = picomatch([...patterns], { dot: true, nocase: caseInsensitive })
+  return (relativePath) => {
+    if (matches(relativePath)) {
+      return true
+    }
+    for (
+      let index = relativePath.lastIndexOf("/");
+      index > 0;
+      index = relativePath.lastIndexOf("/", index - 1)
+    ) {
+      if (matches(relativePath.slice(0, index))) {
+        return true
+      }
+    }
+    return false
+  }
+}
+
+/** Built-in exclusions, minus the ones a source entry targets explicitly. */
+function defaultExcludeGlobs(config: Config, sourceEntries: readonly string[]): string[] {
+  if (!config.defaultExcludes) {
+    return []
+  }
+  const named = new Set(sourceEntries.flatMap((entry) => literalSegments(entry)))
+  return [
+    ...DEFAULT_EXCLUDED_DIRECTORIES.filter((directory) => !named.has(directory)).map(
+      (directory) => `**/${directory}/**`,
+    ),
+    ...DEFAULT_EXCLUDED_FILES.filter((file) => !named.has(file)).map((file) => `**/${file}`),
+  ]
+}
+
+/** Split include patterns so that one naming `.claude/` does not re-enable it for every pattern. */
+function patternGroupsByDefaultExcludes(config: Config, patterns: readonly string[]): string[][] {
+  const groups = new Map<string, string[]>()
+  for (const pattern of patterns) {
+    const key = defaultExcludeGlobs(config, [pattern]).join("\0")
+    const group = groups.get(key)
+    if (group) {
+      group.push(pattern)
+    } else {
+      groups.set(key, [pattern])
+    }
+  }
+  return [...groups.values()]
+}
+
+function literalSegments(entry: string): string[] {
+  return entry
+    .split("/")
+    .filter((segment) => segment.length > 0 && !GLOB_PATTERN_CHARS.test(segment))
 }
 
 async function checksumFile(
@@ -533,10 +825,9 @@ function sameSourceFileIdentity(left: SourceFileIdentity, right: SourceFileIdent
   )
 }
 
-function ignorePatternsForRoot(root: string, projectRoot: string, patterns: string[]): string[] {
-  const relativeRoot = path.relative(projectRoot, root).replaceAll(path.sep, "/")
+function ignorePatternsForRoot(relativeRoot: string, patterns: readonly string[]): string[] {
   if (!relativeRoot) {
-    return patterns
+    return [...patterns]
   }
   const prefix = `${relativeRoot}/`
   return patterns.flatMap((pattern) => {
@@ -567,7 +858,8 @@ async function sourceInputs(
   signal: AbortSignal | undefined,
 ): Promise<SourceInputs> {
   throwIfAborted(signal)
-  const roots = [config.rawDir]
+  const caseInsensitive = isCaseInsensitiveFileSystem(config.projectRoot)
+  const requestedRoots = [config.rawDir]
   const patterns: string[] = []
   const ignorePatterns: string[] = []
 
@@ -584,7 +876,9 @@ async function sourceInputs(
       patterns.push(sourcePattern(config.projectRoot, trimmed))
       return
     }
-    roots.push(path.isAbsolute(trimmed) ? trimmed : path.resolve(config.projectRoot, trimmed))
+    requestedRoots.push(
+      path.isAbsolute(trimmed) ? trimmed : path.resolve(config.projectRoot, trimmed),
+    )
   }
 
   // Inline `sources` from config.json are the primary mechanism; the legacy
@@ -608,15 +902,31 @@ async function sourceInputs(
     }
   }
 
+  const roots: SourceRoot[] = []
+  const unresolvedRoots: string[] = []
+  for (const requested of requestedRoots) {
+    // Linux and Windows compare names byte for byte, so a configured NFC folder name must still
+    // reach an NFD folder copied from macOS or an archive.
+    const resolved = resolveExistingPath(requested, caseInsensitive)
+    if (resolved === null) {
+      if (requested !== config.rawDir) {
+        unresolvedRoots.push(canonicalRelativePath(config.projectRoot, requested))
+      }
+      continue
+    }
+    roots.push({
+      path: resolved,
+      relativePath: canonicalRelativePath(config.projectRoot, resolved),
+    })
+  }
+
   throwIfAborted(signal)
-  return { roots, patterns, ignorePatterns }
+  return { roots, patterns, ignorePatterns, unresolvedRoots }
 }
 
 function sourcePattern(projectRoot: string, input: string): string {
-  if (path.isAbsolute(input)) {
-    return path.relative(projectRoot, input).replaceAll(path.sep, "/")
-  }
-  return input.replaceAll(path.sep, "/")
+  const pattern = path.isAbsolute(input) ? path.relative(projectRoot, input) : input
+  return canonicalSourcePath(pattern).replace(/^(?:\.\/)+/u, "")
 }
 
 export function isSensitiveFilePath(absolutePath: string): boolean {
@@ -661,6 +971,9 @@ function skippedSourceFile(
 }
 
 function skippedRecommendation(reason: SkippedSourceReason, extension: string): string {
+  if (reason === "path-collision") {
+    return "Rename one of the files: their names differ only by Unicode normalization, so they would share one citation path."
+  }
   if (reason === "sensitive-name") {
     return "Review manually; secret-like files are skipped to avoid indexing credentials or private keys."
   }

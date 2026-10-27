@@ -32,9 +32,12 @@
     "Use rgr upgrade --check after updating, then rgr upgrade. Retired keys are explicitly migrated with a private backup; changed policies require a staged rebuild.",
     "Keep local PDF OCR: configured executables process blank pages only, with bounded batches and private content-addressed caching. No cloud OCR.",
     "Use source-line citations only for text. PDF, Office, and EPUB use their native page, slide, sheet/cell, or spine coordinates.",
-    "Normal status and doctor inspect compact manifests; doctor --deep and audit perform live corpus diagnostics. Missing manifests are never ready.",
+    "status and doctor compare files with the index by size and modification time on every run; doctor --deep and audit compare checksums. Missing manifests are never ready, and changed sources make coverage incomplete until the next ingest.",
     "Retain evaluate, preview, ranking explanation, source filters, optional metrics, storage maintenance, and per-project bounded workload queues.",
     "Share reviewed sources through existing Git or file-sharing workflows, then run rgr ingest on each workstation.",
-    "Connect an MCP-capable chat or use the library example in docs/agent-integration.md with local Ollama, a self-hosted model endpoint, or a compatible cloud API. The host runs the agent loop and generation."
+    "Connect an MCP-capable chat or use the library example in docs/agent-integration.md with local Ollama, a self-hosted model endpoint, or a compatible cloud API. The host runs the agent loop and generation.",
+    "Register the MCP server per project. Its instructions name the base; unrelated workspaces get a scope notice, or a refusal with mcpAllowedRoots. rgr doctor warns about user-scope and unapproved registrations.",
+    "MCP search accepts up to five related queries in one budget and returns passages already seen in the session as short stubs. Results carry sourceStatus when a cited file changed and weakEvidence when support is thin.",
+    "Paths are cited with forward slashes and in Unicode NFC on Linux, macOS, and Windows; exclusions match decomposed and case-variant names. A committed ragmir.config.json holds shared settings and .ragmir/config.json overrides it locally."
   ]
 }

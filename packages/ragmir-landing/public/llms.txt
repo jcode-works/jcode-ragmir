@@ -7,7 +7,8 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
 
 ## Core facts
 
-- Install `@jcode.labs/ragmir`; use the `rgr` executable. Node.js 22 or later is required.
+- Install `@jcode.labs/ragmir`; use the `rgr` executable. Node.js 22.12 or later is required.
+  Linux, macOS, and Windows are tested on every release.
 - Set up with `rgr setup --no-ingest`, add selected source directories with `rgr sources add`,
   then run `rgr ingest` and `rgr search "query" --compact`.
 - Default local-hash retrieval needs no model, API key, or network. It is lexical/hash retrieval.
@@ -15,12 +16,22 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
   Use `rgr setup --semantic` to configure and preload one. Default installs exclude that runtime.
 - Text, Markdown, structured files, PDF, Office, EPUB, and configured local extractors are supported.
   `rgr audit --unsupported` reports gaps. Do not claim universal binary support.
+- Paths are stored and cited with forward slashes and in Unicode NFC on every platform, so
+  exclusions also match accented names stored decomposed. `rgr audit` reports source rules that
+  match nothing and excluded files whose copy is still indexed.
 - Local PDF OCR runs only on blank pages. `rgr ocr doctor` checks prerequisites and `rgr ocr setup`
-  configures the engine. Page caches and bounded batches avoid repeated work.
+  configures the engine; `--images` and `--legacy-word` add photo OCR and `.doc` extraction.
+  Page caches and bounded batches avoid repeated work.
 - Citations use source lines only when valid; transformed formats use pages, slides, cells, or
   EPUB spine coordinates. Indexed content is not masked or paraphrased.
 - MCP exposes `ragmir_status`, `ragmir_search`, `ragmir_expand`, and `ragmir_audit`, plus bounded
-  `ragmir://context` and `ragmir://sources` resources. Search starts with three compact citations.
+  `ragmir://context` and `ragmir://sources` resources. Search starts with three compact citations,
+  accepts up to five related queries in one budget, and returns passages already seen in the
+  session as short stubs. Instructions name the base; unrelated workspaces get a scope notice, or
+  a refusal with `mcpAllowedRoots`. Register Ragmir per project, not for every project.
+- Results carry `sourceStatus` when the cited file changed after indexing and `weakEvidence` when
+  support is thin. `rgr doctor` checks freshness on every run; `rgr hooks install` refreshes the
+  index after Git operations.
 - Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.
 - Show four workflow examples: build a feature, diagnose an incident, and plan a migration with
   Claude Code or Codex; make a confidential architecture decision with a local or self-hosted chat.

@@ -11,6 +11,11 @@ export interface DocumentDiversityOptions<Row extends DiversifiableRow> {
   maxChunksPerDocument: number
   isExactPathMatch?: (row: Row) => boolean
   /**
+   * Document identity for the per-document cap; translations of one file can share a key so they
+   * take one slot instead of crowding the results with the same content in other languages.
+   */
+  documentKeyOf?: (row: Row) => string
+  /**
    * Relevance gate evaluated lazily in ranked order. Rows that fail it are excluded exactly as if
    * the input had been filtered first, but most candidates below the selected rows are never tested.
    */
@@ -27,6 +32,7 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
   options: DocumentDiversityOptions<Row>,
 ): DocumentDiversityResult<Row> {
   const uniqueRowAt = uniqueRelevantRows(rows, options.isRelevant, options.isExactPathMatch)
+  const documentKeyOf = options.documentKeyOf ?? ((row: Row) => row.relativePath)
   const selected: Array<RankedRow<Row>> = []
   const selectedKeys = new Set<string>()
   const perDocument = new Map<string, number>()
@@ -46,13 +52,14 @@ export function selectDiverseRows<Row extends DiversifiableRow>(
     ) {
       return false
     }
-    const documentCount = perDocument.get(row.row.relativePath) ?? 0
+    const documentKey = documentKeyOf(row.row)
+    const documentCount = perDocument.get(documentKey) ?? 0
     if (enforceDocumentCap && documentCount >= options.maxChunksPerDocument) {
       return false
     }
     selected.push(row)
     selectedKeys.add(key)
-    perDocument.set(row.row.relativePath, documentCount + 1)
+    perDocument.set(documentKey, documentCount + 1)
     return true
   }
 

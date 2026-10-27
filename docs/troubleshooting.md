@@ -20,6 +20,33 @@ Run `rgr setup`. It creates `.ragmir/config.json`, local ignore rules, and optio
 
 Check `sources` with `rgr sources list`, then run `rgr ingest`. Use `rgr audit` to compare supported files with the index. Use `rgr ingest --rebuild` after changing embedding provider, model, or chunking.
 
+## An excluded file still appears in results
+
+Run `rgr audit --json` and read `sourceRules`. `unmatchedExclusions` lists exact `!path` rules that
+name no file; check the spelling. `excludedCopies` lists excluded files whose identical copy is
+still indexed under another path (an export folder, a backup): exclude that copy too. Versions
+before 6.2 could miss accented names stored decomposed; `rgr ingest` applies the rules again.
+
+## Agents in another project see this project's documents
+
+`rgr doctor` warns when a Ragmir MCP server is registered for every project (Claude Code user
+scope or `~/.codex/config.toml`). Remove that registration and register the server per project, or
+set `mcpAllowedRoots` in the base's config to refuse unrelated workspaces. Results already carry a
+scope notice when the workspace is unrelated.
+
+## Claude Code does not show the Ragmir tools
+
+A server declared in `.mcp.json` only starts after approval. `rgr doctor` reports `approval=pending`
+or `approval=rejected`; approve it when Claude Code asks, or add its name to
+`enabledMcpjsonServers` in `.claude/settings.local.json`.
+
+## `.ragmir` takes much more disk space than the index
+
+Run `rgr storage gc --dry-run`. `storageDiskBytes` counts old LanceDB versions and index files;
+the next ingest prunes versions once more than 100 pile up, and `rgr storage optimize` prunes them
+now. Orphans such as unused models (including chat models of retired Ragmir packages) and storage
+copies are listed; `rgr storage gc --orphans` deletes them.
+
 ## Ingestion was interrupted
 
 Run `rgr status --json`, then start `rgr ingest` again. A compatible run resumes from its last
@@ -58,6 +85,11 @@ also includes extracted chunk text, so review it before sharing. Images and lega
 need explicitly configured local extractors.
 
 ## Search is weak
+
+Results marked `weakEvidence` hold few of the question's distinctive words and have no strong
+semantic match: rephrase with the project's own terms or narrow the search with a `scope`. When one
+export or log dominates results, `rgr audit` reports index concentration; exclude it, lower it
+with `sourceWeights`, or cap it with `maxChunksPerDataFile`.
 
 First confirm source coverage with `rgr audit`. Then try a specific query, `--context-radius 1`, or a higher `--top-k`. For semantic retrieval, install optional `@huggingface/transformers`, then run `rgr models pull --enable` followed by `rgr ingest --rebuild`.
 

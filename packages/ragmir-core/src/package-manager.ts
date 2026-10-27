@@ -60,7 +60,8 @@ export async function rgrCommand(cwd: string, args: string[]): Promise<RagmirCom
 }
 
 function displayRunnerCommand(root: string, runnerPath: string, args: string[]): string {
-  const relativeRunner = path.relative(root, runnerPath) || runnerPath
+  // Forward slashes work for node on every platform and match the documented commands.
+  const relativeRunner = (path.relative(root, runnerPath) || runnerPath).split(path.sep).join("/")
   const suffix = [relativeRunner, ...args].map(formatArg).join(" ")
   return `node ${suffix}`
 }

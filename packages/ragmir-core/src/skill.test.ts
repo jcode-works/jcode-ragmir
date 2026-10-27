@@ -3,7 +3,12 @@ import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:f
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { installAgentSkills, installSkill, parseAgentTargets } from "./skill.js"
+import {
+  inspectAgentIntegration,
+  installAgentSkills,
+  installSkill,
+  parseAgentTargets,
+} from "./skill.js"
 
 const tempDirs: string[] = []
 
@@ -11,6 +16,34 @@ afterEach(async () => {
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true })
   }
+})
+
+describe("retired skills", () => {
+  it("removes Ragmir-installed retired skills and reports edited copies", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-retired-skills-"))
+    tempDirs.push(root)
+    const kit = path.join(root, ".ragmir", "skills", "ragmir-audio-summary")
+    const managed = path.join(root, ".claude", "skills", "ragmir-markdown-report")
+    const edited = path.join(root, ".claude", "skills", "ragmir-legal-dossier")
+    await mkdir(kit, { recursive: true })
+    await mkdir(managed, { recursive: true })
+    await mkdir(edited, { recursive: true })
+    await writeFile(path.join(kit, "SKILL.md"), "Run rgr audio\n")
+    await writeFile(
+      path.join(managed, ".ragmir-managed.json"),
+      JSON.stringify({ managedBy: "ragmir", skillName: "ragmir-markdown-report" }),
+    )
+    await writeFile(path.join(edited, "SKILL.md"), "My own dossier steps\n")
+
+    await installAgentSkills({ cwd: root, agents: ["claude"], homeDir: root, env: {} })
+
+    expect(existsSync(kit)).toBe(false)
+    expect(existsSync(managed)).toBe(false)
+    expect(existsSync(edited)).toBe(true)
+    expect(inspectAgentIntegration(root, root, {}).warnings).toContainEqual(
+      expect.stringContaining(".claude/skills/ragmir-legal-dossier"),
+    )
+  })
 })
 
 describe("installSkill", () => {
@@ -73,7 +106,8 @@ describe("installSkill", () => {
     expect(codexConfig).toContain(`args = [${JSON.stringify(result.runnerPath)}, "serve-mcp"]`)
     expect(codexConfig).toContain(`cwd = ${JSON.stringify(root)}`)
     expect(codexConfig).toContain("[[skills.config]]")
-    expect(codexConfig).toContain(path.join(root, ".ragmir", "skills", "ragmir"))
+    // TOML basic strings escape backslashes, as JSON does.
+    expect(codexConfig).toContain(JSON.stringify(path.join(root, ".ragmir", "skills", "ragmir")))
     expect(kimiConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(opencodeConfig.mcp.ragmir).toEqual({
       type: "local",
@@ -91,7 +125,7 @@ describe("installSkill", () => {
     expect(agentSetup).toContain(".agents/skills/")
     const runner = await readFile(result.runnerPath, "utf8")
     expect(runner).toContain("@jcode.labs/ragmir@")
-    expect(runner).toContain("dist/cli-entry.js")
+    expect(runner).toContain(JSON.stringify(path.join("dist", "cli-entry.js")).slice(1, -1))
     expect(runner).toContain("await import(pathToFileURL(cliPath).href)")
   })
 
