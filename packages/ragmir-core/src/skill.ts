@@ -1027,6 +1027,12 @@ if (commandArgs[0] === PROBE_ARG) {
     process.exitCode = 1
   })
 } else {
+  if (selected.mode === "npm-cache") {
+    // stderr keeps MCP stdio intact while telling the operator that code may be fetched.
+    console.error(
+      \`Ragmir is not installed in \${projectRoot}; running \${PACKAGE_SPEC} through npx, which may download it. Install it with the project's package manager to run offline.\`,
+    )
+  }
   const result = spawnSync(selected.command, [...selected.args, ...commandArgs], {
     cwd: projectRoot,
     stdio: "inherit",
