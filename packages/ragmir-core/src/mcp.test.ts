@@ -608,7 +608,7 @@ describe("MCP workspace scope and session", () => {
     })
 
     expect(refused.isError).toBe(true)
-    expect(textContent(refused)).toContain("only to workspaces under .")
+    expect(textContent(refused)).toContain(`only to workspaces under ${root} (mcpAllowedRoots)`)
     expect(allowed.isError).not.toBe(true)
     expect(allowed._meta?.["ragmir/workspace"]).toMatchObject({ relation: "related" })
   })
