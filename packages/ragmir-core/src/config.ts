@@ -12,6 +12,7 @@ import {
   MAX_CHUNK_SIZE,
   MAX_CHUNKS_PER_DOCUMENT,
   MAX_CONFIG_ARRAY_ITEMS,
+  MAX_CONFIG_NAME_CHARACTERS,
   MAX_CONFIG_PATH_CHARACTERS,
   MAX_CONFIG_TEXT_CHARACTERS,
   MAX_CONFIGURED_FILE_BYTES,
@@ -20,12 +21,16 @@ import {
   MAX_EXTERNAL_COMMAND_TIMEOUT_MS,
   MAX_HYBRID_TEXT_SCAN_LIMIT,
   MAX_INCLUDE_EXTENSIONS,
+  MAX_INGEST_CHUNKS_PER_FILE,
   MAX_INGEST_CONCURRENCY,
   MAX_MCP_OUTPUT_BYTES,
+  MAX_SEARCH_SCOPES,
   MAX_SEARCH_TOP_K,
+  MAX_SOURCE_WEIGHT,
   MAX_WORKLOAD_CONCURRENCY,
   MAX_WORKLOAD_QUEUE,
   MAX_WORKLOAD_QUEUE_TIMEOUT_MS,
+  SHARED_CONFIG_FILENAME,
 } from "./defaults.js"
 import { isRecord } from "./guards.js"
 import type { Config, WorkloadLimit } from "./types.js"
@@ -50,6 +55,14 @@ const incrementalFailurePolicySchema = z.enum(["preserve-last-good", "remove-sta
 const configPathSchema = z.string().min(1).max(MAX_CONFIG_PATH_CHARACTERS)
 const configTextSchema = z.string().min(1).max(MAX_CONFIG_TEXT_CHARACTERS)
 const externalCommandSchema = z.array(configTextSchema).max(MAX_EXTERNAL_COMMAND_ARGUMENTS)
+const searchScopeSchema = z
+  .object({
+    includePaths: z.array(configPathSchema).max(MAX_CONFIG_ARRAY_ITEMS).default([]),
+    excludePaths: z.array(configPathSchema).max(MAX_CONFIG_ARRAY_ITEMS).default([]),
+    description: configTextSchema.optional(),
+  })
+  .strict()
+const scopeNameSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/u)
 function workloadLimitSchema(defaults: WorkloadLimit) {
   return z
     .object({
@@ -156,6 +169,30 @@ const rawConfigSchema = z
       .positive()
       .max(MAX_EXTERNAL_COMMAND_TIMEOUT_MS)
       .default(DEFAULT_CONFIG.legacyWordTimeoutMs),
+    name: z.string().trim().min(1).max(MAX_CONFIG_NAME_CHARACTERS).nullable().default(null),
+    description: z.string().trim().min(1).max(MAX_CONFIG_TEXT_CHARACTERS).nullable().default(null),
+    defaultExcludes: z.boolean().default(DEFAULT_CONFIG.defaultExcludes),
+    pathPriors: z.boolean().default(DEFAULT_CONFIG.pathPriors),
+    sourceWeights: z
+      .record(configPathSchema, z.number().positive().max(MAX_SOURCE_WEIGHT))
+      .default(DEFAULT_CONFIG.sourceWeights),
+    scopes: z.record(scopeNameSchema, searchScopeSchema).default(DEFAULT_CONFIG.scopes),
+    collapseLocaleVariants: z.boolean().default(DEFAULT_CONFIG.collapseLocaleVariants),
+    maxChunksPerDataFile: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_INGEST_CHUNKS_PER_FILE)
+      .nullable()
+      .default(DEFAULT_CONFIG.maxChunksPerDataFile),
+    mcpAllowedRoots: z
+      .array(configPathSchema)
+      .max(MAX_CONFIG_ARRAY_ITEMS)
+      .default(DEFAULT_CONFIG.mcpAllowedRoots),
+    mcpAutoIngest: z.boolean().default(DEFAULT_CONFIG.mcpAutoIngest),
+    mcpSeenResults: z
+      .enum(["collapse", "include", "exclude"])
+      .default(DEFAULT_CONFIG.mcpSeenResults),
   })
   .strict()
 
@@ -173,9 +210,14 @@ export function retiredConfigKeys(raw: Record<string, unknown>): string[] {
   return RETIRED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key))
 }
 
-interface ProjectConfigFile {
+export interface ProjectConfigFile {
   projectRoot: string
+  /** File that CLI changes write to: the local config when present, else the shared one. */
   configPath: string
+  /** Machine-local `.ragmir/config.json` (or the legacy `.kb/config.json`), ignored by Git. */
+  localConfigPath: string
+  /** Committed `ragmir.config.json`, when the project has one. */
+  sharedConfigPath: string | null
   legacy: boolean
 }
 
@@ -187,18 +229,27 @@ export function findProjectConfig(start = process.cwd()): ProjectConfigFile {
   let current = path.resolve(start)
 
   while (true) {
-    if (existsSync(path.join(current, CONFIG_PATH))) {
+    const localConfigPath = path.join(current, CONFIG_PATH)
+    const sharedConfigPath = path.join(current, SHARED_CONFIG_FILENAME)
+    const hasLocal = existsSync(localConfigPath)
+    const hasShared = existsSync(sharedConfigPath)
+    if (hasLocal || hasShared) {
       return {
         projectRoot: current,
-        configPath: path.join(current, CONFIG_PATH),
+        configPath: hasLocal ? localConfigPath : sharedConfigPath,
+        localConfigPath,
+        sharedConfigPath: hasShared ? sharedConfigPath : null,
         legacy: false,
       }
     }
 
-    if (existsSync(path.join(current, LEGACY_CONFIG_PATH))) {
+    const legacyConfigPath = path.join(current, LEGACY_CONFIG_PATH)
+    if (existsSync(legacyConfigPath)) {
       return {
         projectRoot: current,
-        configPath: path.join(current, LEGACY_CONFIG_PATH),
+        configPath: legacyConfigPath,
+        localConfigPath: legacyConfigPath,
+        sharedConfigPath: null,
         legacy: true,
       }
     }
@@ -206,9 +257,12 @@ export function findProjectConfig(start = process.cwd()): ProjectConfigFile {
     const parent = path.dirname(current)
     if (parent === current) {
       const projectRoot = path.resolve(start)
+      const configPath = path.join(projectRoot, CONFIG_PATH)
       return {
         projectRoot,
-        configPath: path.join(projectRoot, CONFIG_PATH),
+        configPath,
+        localConfigPath: configPath,
+        sharedConfigPath: null,
         legacy: false,
       }
     }
@@ -216,15 +270,38 @@ export function findProjectConfig(start = process.cwd()): ProjectConfigFile {
   }
 }
 
+/** Whether the project has a shared or local Ragmir config file. */
+export function projectConfigExists(location: ProjectConfigFile): boolean {
+  return location.sharedConfigPath !== null || existsSync(location.localConfigPath)
+}
+
+/** Shared config keys overlaid by the machine-local config, one top-level key at a time. */
+export async function readMergedProjectConfig(
+  location: ProjectConfigFile,
+): Promise<Record<string, unknown>> {
+  const shared = location.sharedConfigPath
+    ? await readConfigObject(location.sharedConfigPath, location.projectRoot)
+    : {}
+  const local = existsSync(location.localConfigPath)
+    ? await readConfigObject(location.localConfigPath, location.projectRoot)
+    : {}
+  return { ...shared, ...local }
+}
+
+async function readConfigObject(
+  configPath: string,
+  projectRoot: string,
+): Promise<Record<string, unknown>> {
+  const raw: unknown = JSON.parse(await readFile(configPath, "utf8"))
+  if (!isRecord(raw)) {
+    throw new Error(`${path.relative(projectRoot, configPath)} must contain a JSON object.`)
+  }
+  return raw
+}
+
 export async function loadConfig(start = process.cwd()): Promise<Config> {
   const projectConfig = findProjectConfig(start)
-  const hasConfig = existsSync(projectConfig.configPath)
-  const raw: unknown = hasConfig ? JSON.parse(await readFile(projectConfig.configPath, "utf8")) : {}
-  if (!isRecord(raw)) {
-    throw new Error(
-      `${path.relative(projectConfig.projectRoot, projectConfig.configPath)} must contain a JSON object.`,
-    )
-  }
+  const raw = await readMergedProjectConfig(projectConfig)
   const retired = retiredConfigKeys(raw)
   if (retired.length > 0) {
     throw new Error(
@@ -284,6 +361,29 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     imageOcrTimeoutMs: effective.imageOcrTimeoutMs,
     legacyWordCommand: effective.legacyWordCommand,
     legacyWordTimeoutMs: effective.legacyWordTimeoutMs,
+    name: effective.name,
+    description: effective.description,
+    defaultExcludes: effective.defaultExcludes,
+    pathPriors: effective.pathPriors,
+    sourceWeights: effective.sourceWeights,
+    scopes: Object.fromEntries(
+      Object.entries(effective.scopes).map(([name, scope]) => [
+        name,
+        {
+          includePaths: scope.includePaths,
+          excludePaths: scope.excludePaths,
+          ...(scope.description === undefined ? {} : { description: scope.description }),
+        },
+      ]),
+    ),
+    collapseLocaleVariants: effective.collapseLocaleVariants,
+    maxChunksPerDataFile: effective.maxChunksPerDataFile,
+    mcpAllowedRoots: effective.mcpAllowedRoots,
+    mcpAutoIngest: effective.mcpAutoIngest,
+    mcpSeenResults: effective.mcpSeenResults,
+  }
+  if (Object.keys(config.scopes).length > MAX_SEARCH_SCOPES) {
+    throw new Error(`scopes must define at most ${MAX_SEARCH_SCOPES} named scopes.`)
   }
   if (configLoadDiagnostics.hasSubscribers) {
     configLoadDiagnostics.publish({
@@ -338,24 +438,54 @@ function configWithModelIdentityDefaults(
   }
 }
 
+/** Budgets each retrieval profile chooses for fields the config leaves unset. */
+export const RETRIEVAL_PROFILE_BUDGETS: Readonly<
+  Record<
+    Exclude<Config["retrievalProfile"], "custom">,
+    { topK: number; hybridTextScanLimit: number }
+  >
+> = {
+  fast: { topK: 5, hybridTextScanLimit: 2_000 },
+  balanced: {
+    topK: DEFAULT_CONFIG.topK,
+    hybridTextScanLimit: DEFAULT_CONFIG.hybridTextScanLimit,
+  },
+  quality: { topK: 12, hybridTextScanLimit: 10_000 },
+}
+
 function applyRetrievalProfile(config: RawConfig, raw: Record<string, unknown>): RawConfig {
-  if (config.retrievalProfile === "fast") {
-    return {
-      ...config,
-      topK: raw.topK === undefined ? 5 : config.topK,
-      hybridTextScanLimit:
-        raw.hybridTextScanLimit === undefined ? 2_000 : config.hybridTextScanLimit,
-    }
+  if (config.retrievalProfile === "custom") {
+    return config
   }
-  if (config.retrievalProfile === "quality") {
-    return {
-      ...config,
-      topK: raw.topK === undefined ? 12 : config.topK,
-      hybridTextScanLimit:
-        raw.hybridTextScanLimit === undefined ? 10_000 : config.hybridTextScanLimit,
-    }
+  const budgets = RETRIEVAL_PROFILE_BUDGETS[config.retrievalProfile]
+  return {
+    ...config,
+    topK: raw.topK === undefined ? budgets.topK : config.topK,
+    hybridTextScanLimit:
+      raw.hybridTextScanLimit === undefined
+        ? budgets.hybridTextScanLimit
+        : config.hybridTextScanLimit,
   }
-  return config
+}
+
+/**
+ * Budgets pinned in the config that differ from the selected profile. Older `rgr init` wrote every
+ * default, so a later switch to the quality profile silently kept topK 8.
+ */
+export function retrievalProfileOverrides(
+  raw: Record<string, unknown>,
+  profile: Config["retrievalProfile"],
+): Array<{ field: "topK" | "hybridTextScanLimit"; configured: number; profileValue: number }> {
+  if (profile === "custom") {
+    return []
+  }
+  const budgets = RETRIEVAL_PROFILE_BUDGETS[profile]
+  return (["topK", "hybridTextScanLimit"] as const).flatMap((field) => {
+    const configured = raw[field]
+    return typeof configured === "number" && configured !== budgets[field]
+      ? [{ field, configured, profileValue: budgets[field] }]
+      : []
+  })
 }
 
 function resolveFromRoot(projectRoot: string, input: string): string {

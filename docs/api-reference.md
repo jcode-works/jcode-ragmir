@@ -50,7 +50,9 @@ if (results[0]) {
 ```
 
 `SearchOptions` includes `topK`, `maxChunksPerDocument`, `contextRadius`, `includePaths`,
-`excludePaths`, `contextPaths`, `explain`, and `vectorSearchMode: "exact"` for ANN comparisons.
+`excludePaths`, `contextPaths`, `scope` (a named scope from the config), `explain`, and
+`vectorSearchMode: "exact"` for ANN comparisons. Path filters accept backslashes and either Unicode
+form; results always use forward slashes and NFC.
 Use `CompactSearchResult` for bounded snippets or `SearchResult` for text and neighboring context.
 Score explanations describe retrieval signals, not calibrated confidence in a claim.
 
@@ -65,8 +67,11 @@ Search results include `evidence`: a content ID, source checksum, index generati
 and knowledge-base ID when available. Pass `evidence.id` as `expectedEvidenceId` to
 `expandCitation` to reject changed indexed content with `EVIDENCE_CHANGED`. The ID stays stable
 when unchanged evidence is rebuilt and changes when its source checksum or chunk identity changes.
-It identifies indexed evidence, not the current file on disk; use `audit` or `doctor --deep` to
-check source freshness. Compact results retain this identity.
+It identifies indexed evidence, not the current file on disk. Each result whose file changed or
+disappeared since indexing also carries `sourceStatus: "modified"` or `"missing"`, from one `stat`
+per cited file; `doctor` checks the whole corpus by size and modification time, and `audit` by
+checksum. `weakEvidence: true` marks a passage with few of the question's distinctive words and
+no strong vector match. Compact results retain these fields.
 
 For XLSX tables, full results attach the header as a separate `context` passage with its own cell
 citation, including at `contextRadius: 0`. Expansion also includes it; compact search requires
@@ -86,8 +91,8 @@ sheet/cell, or EPUB coordinates. They are not byte offsets into a binary file.
 | `loadConfig(cwd?)` | Resolve the nearest project config with validated limits. |
 | `ingest(options?)` | Incrementally parse and index selected files; `rebuild` stages a replacement. |
 | `previewChunks(options?)` | Inspect parsed chunks without writing the index. |
-| `audit(cwd?, options?)` | Compare live supported sources with indexed files. |
-| `doctor(cwd?, options?)` | Read cached health; use `deep: true` for live inventory and diagnostics. |
+| `audit(cwd?, options?)` | Compare live supported sources with indexed files; report `sourceRules` and index `concentration`. |
+| `doctor(cwd?, options?)` | Compare files with the index by size and mtime (`sourceFreshness`); use `deep: true` for checksums and security diagnostics. |
 | `getKnowledgeBaseContext(cwd?, options?)` | Read base identity, readiness, and coverage. |
 | `getKnowledgeBaseSourceCatalog(cwd?, options?)` | Read bounded source lists and complete totals. |
 | `discoverKnowledgeBases(...)` | Discover root and nested project bases. |
@@ -127,7 +132,8 @@ operation; neither lock nor leases provide distributed coordination across machi
 artifact digest, extraction, and chunking changes require a compatible rebuild.
 
 `inspectPdfOcr`, `configurePdfOcr`, `extractPdfPage`, and `extractPdfPages` expose the local OCR
-onboarding and extraction workflow. PDF OCR runs only for blank extracted pages. External commands
+onboarding and extraction workflow; `rgr ocr setup --images --legacy-word` configures the built-in
+image and legacy `.doc` extractors. PDF OCR runs only for blank extracted pages. External commands
 use argument arrays without a shell, bounded output, timeouts, and the operator's permissions.
 See [configuration](./configuration.md) for command contracts and caching.
 
@@ -141,7 +147,12 @@ SDK transport and returns the handle for shutdown. `serveMcp(cwd?)` runs the std
 Close the server when the host stops; it closes its lazy client too.
 
 The server exposes four tools: `ragmir_status`, `ragmir_search`, `ragmir_expand`, `ragmir_audit`,
-and two resources: `ragmir://context`, `ragmir://sources`. Search defaults to three compact results.
+and two resources: `ragmir://context`, `ragmir://sources`. Search defaults to three compact results,
+accepts up to five `queries` sharing one budget, remembers the passages it already returned in the
+connection (`seen` stubs), and applies named `scope`s. The server instructions and tool
+descriptions name the base; the server compares the client's MCP roots (or `CLAUDE_PROJECT_DIR`, or
+the recorded launch directory) with the base and warns, or refuses with `mcpAllowedRoots`, when the
+workspace is unrelated.
 Search, expansion, and audit accept `maxBytes`, capped by configuration and the 1 MiB server limit.
 `ragmir_expand` accepts `expectedEvidenceId` from a previous `ragmir_search` result for the same
 checked expansion used by the TypeScript API.

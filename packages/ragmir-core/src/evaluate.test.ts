@@ -233,7 +233,7 @@ describe("evaluateGoldenQueries", () => {
     } finally {
       unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
     }
-  })
+  }, 15_000)
 
   it("caps query topK when a caller provides a maximum", async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-cap-"))

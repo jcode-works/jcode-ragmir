@@ -5,6 +5,8 @@ export const LEGACY_KB_DIR = ".kb"
 export const LEGACY_PRIVATE_DIR = "private"
 export const RAGMIR_RAW_DIR = `${RAGMIR_DIR}/raw`
 export const CONFIG_PATH = `${RAGMIR_DIR}/config.json`
+/** Optional project-level config meant to be committed; `.ragmir/config.json` overrides its keys. */
+export const SHARED_CONFIG_FILENAME = "ragmir.config.json"
 export const LEGACY_CONFIG_PATH = `${LEGACY_KB_DIR}/config.json`
 export const DEFAULT_SKILL_TARGET_DIR = `${RAGMIR_DIR}/skills`
 export const INDEX_MANIFEST_FILENAME = "index-manifest.json"
@@ -34,6 +36,9 @@ export const MAX_CHUNK_SIZE = 1_000_000
 export const MAX_WORKLOAD_CONCURRENCY = 16
 export const MAX_WORKLOAD_QUEUE = 1_000
 export const MAX_WORKLOAD_QUEUE_TIMEOUT_MS = 900_000
+export const MAX_CONFIG_NAME_CHARACTERS = 120
+export const MAX_SOURCE_WEIGHT = 10
+export const MAX_SEARCH_SCOPES = 64
 export const DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 export const DEFAULT_EMBEDDING_MODEL_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
 export const KNOWN_EMBEDDING_MODEL_REVISIONS: Readonly<Record<string, string>> = {
@@ -93,6 +98,17 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   imageOcrTimeoutMs: 120_000,
   legacyWordCommand: [],
   legacyWordTimeoutMs: 120_000,
+  name: null,
+  description: null,
+  defaultExcludes: true,
+  pathPriors: true,
+  sourceWeights: {},
+  scopes: {},
+  collapseLocaleVariants: true,
+  maxChunksPerDataFile: null,
+  mcpAllowedRoots: [],
+  mcpAutoIngest: false,
+  mcpSeenResults: "collapse",
 }
 
 export const LEGACY_DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {

@@ -24,6 +24,11 @@ const MINIMUM_FRAGMENT_COUNT = 8
 const AUTOMATIC_COMPACTION_FRAGMENT_COUNT = 64
 const SMALL_FRAGMENT_RATIO_THRESHOLD = 0.25
 const OLD_VERSION_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000
+// Every incremental ingest commits new table versions. Below the compaction thresholds nothing
+// pruned them, and a 44,000-row index kept 1,300 versions: 1.5 GB on disk for 115 MB of data.
+// Readers reopen the latest version after each ingest, so a short retention is safe once they pile up.
+const VERSION_PILEUP_THRESHOLD = 100
+const PILEUP_VERSION_RETENTION_MS = 60 * 60 * 1_000
 
 export type StorageMaintenanceAction =
   | "compact-fragments"
@@ -36,6 +41,7 @@ export type StorageMaintenanceReason =
   | "missing-full-text-index"
   | "mutation-threshold"
   | "unindexed-full-text-rows"
+  | "version-threshold"
 
 export interface StorageMaintenanceOptions {
   additionalMutations?: number
@@ -57,6 +63,8 @@ export interface StorageMaintenanceReport {
   forced: boolean
   totalRows: number
   tableVersion: number | null
+  /** Table versions kept on disk; old ones are pruned once they pile up. */
+  versionCount: number
   mutationsSinceOptimization: number
   fragments: {
     total: number
@@ -90,6 +98,7 @@ interface StorageMaintenanceState {
 interface TableHealth {
   totalRows: number
   tableVersion: number
+  versionCount: number
   fragments: StorageMaintenanceReport["fragments"]
   fullTextIndex: StorageMaintenanceReport["fullTextIndex"]
 }
@@ -176,7 +185,12 @@ export async function maintainOpenStorageTable(
   let optimizeStats: OptimizeStats | null = null
   let optimized = false
   const optimizeOptions = {
-    cleanupOlderThan: new Date(Date.now() - OLD_VERSION_RETENTION_MS),
+    cleanupOlderThan: new Date(
+      Date.now() -
+        (before.versionCount > VERSION_PILEUP_THRESHOLD
+          ? PILEUP_VERSION_RETENTION_MS
+          : OLD_VERSION_RETENTION_MS),
+    ),
     deleteUnverified: false,
   }
 
@@ -285,10 +299,15 @@ export async function maintainOpenStorageTable(
 }
 
 async function inspectTableHealth(table: Table): Promise<TableHealth> {
-  const [stats, tableVersion] = await Promise.all([table.stats(), table.version()])
+  const [stats, tableVersion, versions] = await Promise.all([
+    table.stats(),
+    table.version(),
+    table.listVersions().catch(() => []),
+  ])
   return {
     totalRows: stats.numRows,
     tableVersion,
+    versionCount: versions.length,
     fragments: {
       total: stats.fragmentStats.numFragments,
       small: stats.fragmentStats.numSmallFragments,
@@ -370,6 +389,9 @@ function maintenanceReasons(
   if (fragmentationRequiresCompaction(health, automaticCompactionEligible)) {
     reasons.push("fragmentation-threshold")
   }
+  if (health.versionCount > VERSION_PILEUP_THRESHOLD) {
+    reasons.push("version-threshold")
+  }
   return reasons
 }
 
@@ -395,6 +417,7 @@ function maintenanceActions(
   const automaticCompactionEligible = health.totalRows >= MINIMUM_AUTOMATIC_COMPACTION_ROWS
   const compact =
     forced ||
+    health.versionCount > VERSION_PILEUP_THRESHOLD ||
     fragmentationRequiresCompaction(health, automaticCompactionEligible) ||
     (automaticCompactionEligible && mutationsSinceOptimization >= MUTATION_COMPACTION_THRESHOLD)
   if (compact) {
@@ -428,6 +451,7 @@ function reportForHealth(input: {
     forced: input.forced,
     totalRows: input.health.totalRows,
     tableVersion: input.health.tableVersion,
+    versionCount: input.health.versionCount,
     mutationsSinceOptimization: input.mutationsSinceOptimization,
     fragments: input.health.fragments,
     fullTextIndex: input.health.fullTextIndex,
@@ -452,6 +476,7 @@ function missingTableReport(
     forced: options.force === true,
     totalRows: 0,
     tableVersion: null,
+    versionCount: 0,
     mutationsSinceOptimization: 0,
     fragments: { total: 0, small: 0, smallRatio: 0 },
     fullTextIndex: { present: false, indexedRows: 0, unindexedRows: 0, complete: false },

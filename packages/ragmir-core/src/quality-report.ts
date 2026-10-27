@@ -87,6 +87,7 @@ export async function isCompatibleQualityReport(
           config.embeddingProvider,
           config.retrievalProfile,
           config.maxChunksPerDocument,
+          config.embeddingModel,
         ),
       )
   ) {

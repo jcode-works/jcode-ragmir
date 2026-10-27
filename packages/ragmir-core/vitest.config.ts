@@ -3,6 +3,8 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   test: {
     maxWorkers: 4,
+    // MCP servers read the agent's workspace from these; tests run inside agent shells too.
+    env: { CLAUDE_PROJECT_DIR: "", RAGMIR_CLIENT_CWD: "" },
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],

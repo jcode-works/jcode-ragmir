@@ -1,15 +1,28 @@
 # Configuration
 
-Ragmir reads `.ragmir/config.json` from the current directory or an ancestor. Start with `rgr setup`;
+Ragmir reads its configuration from the current directory or an ancestor. Start with `rgr setup`;
 edit JSON only for a real need.
 
 ```json
 {
+  "name": "Payments platform",
+  "description": "Specifications, ADRs, and code of the payments platform.",
   "sources": ["docs/**/*.md", "src", "!docs/archive/**"],
   "retrievalProfile": "balanced",
   "embeddingProvider": "local-hash"
 }
 ```
+
+Two files can hold it:
+
+| File | Committed | Role |
+| --- | --- | --- |
+| `ragmir.config.json` | Yes | Team settings shared through Git: name, sources, scopes, ranking weights. |
+| `.ragmir/config.json` | No (ignored) | Machine-local settings. Its top-level keys override the shared file. |
+
+With only `ragmir.config.json`, CLI changes such as `rgr sources add` write to it and `rgr init`
+does not create a local copy. With both files, CLI changes go to `.ragmir/config.json`. A local
+`sources` array replaces the shared one as a whole, like every other key.
 
 ## Common fields
 
@@ -34,6 +47,17 @@ edit JSON only for a real need.
 | `hybridTextScanLimit` | `5000` | Set the batch size for the complete lexical scan used when FTS is unavailable; values above 10,000 are rejected. The fallback scans every matching chunk across as many batches as the corpus requires. |
 | `workloadLimits` | See below | Bound active search, embedding, and ingestion work plus their queues and queue deadlines. |
 | `includeExtensions` | `[]` | Add safe custom text extensions. |
+| `name` | Folder name | Name agents see in MCP instructions, tool descriptions, and status. |
+| `description` | `null` | One sentence on what the base answers, shown to agents. |
+| `defaultExcludes` | `true` | Skip tool state, dependency caches, lockfiles, and minified bundles (see Sources). |
+| `scopes` | `{}` | Named path filters that searches select with `scope` (see Scopes). |
+| `sourceWeights` | `{}` | Ranking multipliers by glob, for example `{ "archive/**": 0.5 }`. |
+| `pathPriors` | `true` | Built-in mild demotion of tests and snapshots (see Ranking). |
+| `collapseLocaleVariants` | `true` | Give translations of one file (`fr.json`, `en.json`, `docs/fr/...`) one result slot. |
+| `maxChunksPerDataFile` | `null` | Keep a bounded sample of large JSON, CSV, log, and spreadsheet files. Rebuild after changing it. |
+| `mcpAllowedRoots` | `[]` | Workspaces allowed to use this base over MCP. Empty warns instead of refusing. |
+| `mcpSeenResults` | `collapse` | MCP repeats: `collapse` to short stubs, `exclude`, or `include` in full. |
+| `mcpAutoIngest` | `false` | Start one background incremental ingest when MCP results cite changed files. |
 
 Configuration arrays and strings have hard size ceilings. Sources are capped at 10,000 entries,
 custom extensions at 128, and external commands at 128 arguments.
@@ -109,12 +133,27 @@ Stable source and chunk keys break score ties before ranks are assigned. The act
 profile, document cap, and ranking parameters form a policy fingerprint stored in quality reports
 and exposed by score explanations.
 
-Abstention is provider-aware. `local-hash` requires lexical evidence and gives query identifiers
-precedence over coincidental section numbers. Transformers results require lexical evidence or a
-normalized L2 distance no greater than 1.1. That distance was calibrated against the bundled
-quality corpus with `mixedbread-ai/mxbai-embed-xsmall-v1`; every other model and corpus still needs
-its own golden-query evaluation. The benchmark keeps experimental rank weights in its report and
-does not promote them automatically.
+Abstention is provider- and model-aware. With a current keyword index, Ragmir counts how many
+passages contain each query word and weighs the words by inverse document frequency, so a
+distinctive word counts more than a common one:
+
+- When no query word occurs in the corpus at all, not even as a typo that a fuzzy keyword query
+  still matches, only a strong vector match can support a passage. Nonsense and unrelated
+  questions then return nothing instead of the nearest noise. Words in scripts written without
+  spaces (Thai, Chinese, Japanese, Korean) are not measured this way.
+- `local-hash` otherwise requires lexical evidence and gives query identifiers precedence over
+  coincidental section numbers.
+- Calibrated Transformers models need a normalized L2 distance within the model's limit, or
+  passages holding at least 30% of the question's IDF-weighted words. `multilingual-e5-small`
+  packs every text into a narrow distance band and uses a limit of 0.4;
+  `mxbai-embed-xsmall-v1` uses 1.1. Other models keep the previous rule: any related query word,
+  or a distance up to 1.1.
+
+Each result whose passage holds few of the question's distinctive words and has no strong vector
+match carries `weakEvidence: true`. It is still returned; agents should verify it first. On a
+French and English golden set over a Java and TypeScript monorepo, these rules kept every
+answerable question's source, and with `mxbai-embed-xsmall-v1` they rejected 16 of 30 unrelated
+questions instead of 3. Evaluate your own corpus with `rgr evaluate`.
 
 Changing an embedding provider, model, revision, digest, or chunking field requires
 `rgr ingest --rebuild`. Revision and artifact digest participate in the index, vector-index, and
@@ -134,6 +173,89 @@ file as stale until a later ingest repairs it. Set `incrementalFailurePolicy` to
 pass `rgr ingest --incremental-failure-policy remove-stale`, only when serving stale evidence is
 less acceptable than temporarily serving no evidence for that file. Actual source deletion always
 removes its rows.
+
+## Sources
+
+`sources` lists folders, files, and globs relative to the project root. A leading `!` excludes.
+`.ragmir/raw/` is always a source.
+
+```json
+{
+  "sources": ["docs", "specs/**/*.{md,docx,pdf}", "src/**/*.ts", "!docs/archive/**"]
+}
+```
+
+Paths behave the same on macOS, Linux, and Windows:
+
+- Ragmir stores and cites every path with forward slashes and in Unicode NFC. A configured name
+  such as `Études` matches a folder that an archive, a sync client, or an older Mac volume stored
+  decomposed (NFD). Linux and Windows compare names byte for byte, so without this a rule typed on
+  a keyboard silently missed those files.
+- On case-insensitive volumes (default macOS and Windows), exclusions and includes ignore case,
+  as the operating system and Git do there.
+- Write forward slashes in shared configs. Search filters such as `--include-path docs\specs`
+  accept backslashes on every platform.
+- Two files whose names differ only by Unicode form, which Linux can hold, are reported as a
+  `path-collision` instead of one silently shadowing the other.
+
+`rgr audit` reports source rules that select nothing: missing folders, include globs that match no
+indexable file, and exact `!path` exclusions that name no file. It also flags an excluded file whose
+byte-identical copy is still indexed under another path, and absolute or backslash entries that
+break on other machines.
+
+With `defaultExcludes` (on by default), Ragmir skips agent and editor state (`.claude`, `.codex`,
+`.agents`, `.cursor`, `.windsurf`, `.cline`, `.kimi`, `.opencode`, `.gitnexus`, `.idea`),
+dependency and build caches (`.venv`, `__pycache__`, `.pnpm-store`, `.yarn`, `.gradle`,
+`.terraform`, `.dart_tool`, `Pods`, `DerivedData`, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`,
+`.cache`, `.parcel-cache`, `.angular`, `.expo`, `bower_components`, `coverage`, `.nyc_output`,
+`.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `.tox`), lockfiles, source maps, and minified
+bundles. A source entry that names one of these folders, such as `.claude/**/*.md`, still indexes
+it. Set `defaultExcludes: false` to index everything the globs match.
+
+## Scopes
+
+Scopes name path filters that agents and scripts can select instead of repeating paths:
+
+```json
+{
+  "scopes": {
+    "docs": { "includePaths": ["docs", "README.md"], "description": "Product documentation" },
+    "backend": { "includePaths": ["services/api"], "excludePaths": ["services/api/fixtures"] }
+  }
+}
+```
+
+`rgr search --scope docs`, `search(query, { scope: "docs" })`, and MCP `scope: "docs"` apply them.
+A scope combines with explicit `includePaths` (both must match) and `excludePaths`. MCP
+instructions and tool descriptions list the scope names and descriptions.
+
+## Ranking weights, translations, and large data files
+
+Ranking multiplies each candidate's fused score by:
+
+- **Path priors** (`pathPriors: true`): tests (`*.test.*`, `*.spec.*`, `__tests__/`, `test/`,
+  `tests/`, `*Test.java`, `*_test.go`, `test_*.py`, ...) by 0.85, snapshots by 0.7. Tests restate
+  the code they cover; the prior only reorders close candidates.
+- **Source weights**: each matching `sourceWeights` glob, for example
+  `{ "archive/**": 0.5, "docs/adr/**": 1.2 }` (0 < weight <= 10). A pattern equal to a prior
+  replaces it.
+- **Code definitions**: a code passage that declares a class, interface, function, or method
+  named after the question's words gains up to 20%, so "how are permissions checked" reaches the
+  class that defines `PermissionService` before tests and notes that only mention it.
+
+`collapseLocaleVariants` gives one result slot to the translations of one document:
+`messages/fr.json` and `messages/en.json`, `locales/pt-BR/common.json`, `README.fr.md`,
+`messages_fr.properties`, `values-fr/strings.xml`, or `fr.lproj/`. Bare two-letter folders only
+count as languages under a translation folder (`locales/`, `i18n/`, `messages/`, ...), so `src/id/`
+stays a normal folder.
+
+When one file fills a quarter or more of the vector candidates and the pool reaches too few
+documents, search runs a second vector pass without that file. An export or a log can then no
+longer crowd out the other documents, and nothing is dropped from the index. To shrink such files
+in the index itself, set `maxChunksPerDataFile`: Ragmir keeps the first half of the budget
+(headers, schema, first records) and evenly spaced records from the rest of each large JSON,
+JSONL, CSV, TSV, log, or spreadsheet file. `rgr audit` and `rgr doctor` warn when one file holds
+more than a fifth of the index, or three files more than half.
 
 ## Semantic retrieval
 
@@ -165,8 +287,17 @@ model call respects `embeddingBatchSize`, including callers that supply a larger
 
 ```bash
 rgr ocr doctor
-rgr ocr setup --language eng+fra
+rgr ocr setup --language eng+fra --images --legacy-word
 ```
+
+`rgr ocr doctor` reports the local engines it finds: OCRmyPDF or Tesseract with Poppler for scanned
+PDFs, Tesseract for photos and scanned images (macOS also converts HEIC, HEIF, and AVIF through
+`sips`), and textutil (macOS), antiword or catdoc (Linux), or LibreOffice (any platform) for
+legacy Word `.doc` files. On Windows, Tesseract and LibreOffice are also found in their default
+install folders when they are not on `PATH`. `rgr ocr setup` writes the scanned-PDF command;
+`--images` and `--legacy-word` add Ragmir's built-in image and `.doc` extractors, and `--no-pdf`
+leaves the PDF command unchanged. The written commands call the project runner by its relative path
+(`node .ragmir/run.cjs ...`), so a committed config works on every clone and platform.
 
 PDF OCR is optional and page-aware. Ragmir calls it only for blank extracted pages. Custom
 `pdfOcrCommand`, `imageOcrCommand`, and `legacyWordCommand` values must be JSON argument arrays;

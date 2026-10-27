@@ -45,6 +45,10 @@ jobs:
   portability:
     name: Portability (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Git Bash on Windows, so every platform runs the same commands.
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -57,18 +61,19 @@ jobs:
             os: macos-14
             platform: darwin
             architecture: arm64
+          - label: Windows x64, Node 22
+            os: windows-latest
+            platform: win32
+            architecture: x64
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install mise
-        run: |
-          curl https://mise.run | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
-
-      - name: Install pinned Node via mise
-        run: mise install
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          check-latest: true
 
       - name: Set up pnpm
         run: |
@@ -90,14 +95,20 @@ jobs:
       - name: Install dependencies without registry access
         run: pnpm install --offline --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm build
+      - name: Build Core
+        run: pnpm --filter @jcode.labs/ragmir build
 
       - name: Prove packaged local-hash offline runtime
         run: pnpm offline:smoke
 
       - name: Prove local-hash avoids semantic native runtimes
         run: pnpm bench:local-hash-runtime
+
+      - name: Prove paths, freshness, hooks, and runner on this platform
+        run: pnpm portability:smoke
+
+      - name: Run Core tests on this platform
+        run: pnpm --filter @jcode.labs/ragmir exec vitest run
 
   commitlint:
     name: Commitlint

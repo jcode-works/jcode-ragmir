@@ -19,13 +19,14 @@ rgr search "release decision"
 | --- | --- |
 | `setup [--semantic]` | Initialize `.ragmir/`, agent helpers, and optionally preload embeddings. |
 | `init` | Create basic local configuration only. |
-| `doctor [--fix]` | Check setup, index freshness, and safe repairs. |
+| `doctor [--fix] [--deep]` | Check setup, live source freshness, agent registrations, and safe repairs. |
 | `preview` | Parse and chunk selected sources without writing the index. |
 | `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY] [--metrics] [--json]` | Index configured sources through bounded windows with per-file durable progress; optionally return privacy-safe phase and throughput metrics. |
 | `search <query>` | Return ranked cited passages. |
-| `audit [--unsupported]` | Compare sources with the index and list skipped files. |
+| `audit [--unsupported]` | Compare sources with the index, list skipped files, and diagnose source rules and index concentration. |
+| `hooks install\|uninstall\|status` | Refresh the index in the background after commits, merges, checkouts, and rebases. |
 | `bases` | List root and nested monorepo bases and mark the active one. |
-| `status` | Show configuration, indexed chunk count, and the latest ingestion progress. |
+| `status` | Show the base name and scopes, configuration, live freshness, indexed chunk count, and the latest ingestion progress. |
 | `upgrade [--check]` | Inspect compatibility or safely rebuild and refresh managed helpers. |
 | `security-audit [--strict]` | Check local privacy and Git-ignore posture. |
 
@@ -39,8 +40,14 @@ rgr search "migration" --top-k 5 --context-radius 1
 rgr search "migration" --top-k 5 --max-chunks-per-document 2
 rgr search "migration" --include-path docs --exclude-path docs/archive
 rgr search "migration" --context-path "Guide > Migration" --explain
+rgr search "migration" --scope docs
 rgr search "migration" --exact-vector-search
 ```
+
+Text output marks a result whose file changed or disappeared after indexing
+(`source modified since indexing`) and a result with thin support (`weak evidence`). JSON results
+carry the same information as `sourceStatus` and `weakEvidence`. `--scope` applies a named scope
+from the config; `--include-path` accepts backslashes on every platform.
 
 `sources add` accepts paths, globs, and `!` exclusions. Search accepts `--top-k`,
 `--include-path`, `--exclude-path`, and repeatable `--context-path`. Search accepts
@@ -74,6 +81,26 @@ required facts, exceptions, and current decisions are actually present.
 `preview` uses the active extraction and chunking configuration without changing the search index.
 It can populate the local OCR cache and returns extracted chunk text. `audit` reports min, mean,
 p50, p95, and max chunk sizes plus structural-context coverage.
+
+## Freshness
+
+`rgr doctor` compares the files on disk with the index by path, size, and modification time on every
+run (`cost=O(files)`), without reading file contents. It reports files missing from the index and
+files changed or removed since indexing, and `coverageComplete` stays false until a refresh. A file
+that was only touched (same content, newer time) and was already re-fingerprinted counts as fresh.
+`rgr doctor --deep` and `rgr audit` compare checksums instead (`O(corpus)`).
+
+```bash
+rgr hooks install     # post-commit, post-merge, post-checkout, post-rewrite
+rgr hooks status
+rgr hooks uninstall
+```
+
+Each hook gets one marked block that runs `node .ragmir/run.cjs ingest` in the background from the
+knowledge base folder; existing hook content is kept, and a final `exit` stays last. Incremental
+ingestion only re-embeds changed files. `hooks install` resolves `core.hooksPath` and linked
+worktrees, and refuses a hooks folder tracked in the working tree (for example `.husky/`) unless
+`--force` is given. Hooks need Git; on Windows they run in Git's bundled shell.
 
 ## Safe upgrades
 
@@ -251,6 +278,7 @@ rgr evaluate --golden .ragmir/golden.json --fail-under 0.8
 rgr storage optimize --dry-run --json
 rgr storage generations --json
 rgr storage gc --dry-run --json
+rgr storage gc --orphans
 rgr destroy-index --yes
 ```
 
@@ -270,6 +298,19 @@ rgr destroy-index --yes
 - `limits`, `storage optimize`,
   `storage generations`, `storage gc`, and `destroy-index` expose the other local maintenance
   operations.
+- `storage gc` reports the allocated size on disk (`storageDiskBytes`, per-generation `diskBytes`),
+  which includes LanceDB's old versions and index files. It lists orphans under `.ragmir/`: models
+  other than the configured embedding model (including chat models of retired Ragmir packages),
+  copies such as `storage-test/`, and outputs of removed commands. `--orphans` deletes them;
+  without it nothing outside expired generations is touched. Ingestion also prunes table versions
+  once more than 100 pile up, so a frequently refreshed index no longer grows on disk.
+- `doctor` lists Ragmir MCP servers registered in Claude Code (`~/.claude.json`, `.mcp.json`) and
+  Codex (`~/.codex/config.toml`, `.codex/config.toml`). It warns when a server is registered for
+  every project (user scope), when Claude Code has not approved or has disabled the project server
+  from `.mcp.json`, and when retired Ragmir skills remain. `install-agent` removes the retired
+  skills that Ragmir installed and keeps edited copies.
+- Removed commands (`ask`, `research`, `chat`, `audio`) print their replacement instead of an
+  unknown-command error.
 - Add `--json` to machine-readable commands. Do not parse human-readable output in automation.
 
 ## Semantic retrieval and local OCR
@@ -279,11 +320,13 @@ pnpm add -D @huggingface/transformers
 rgr models pull --enable
 rgr ingest --rebuild
 rgr ocr doctor
-rgr ocr setup --language eng+fra
+rgr ocr setup --language eng+fra --images --legacy-word
 rgr ingest
 ```
 
 Semantic setup explicitly downloads model weights; ordinary retrieval keeps remote loading disabled.
 OCR runs only on PDF pages without extracted text, in bounded batches with a local cache.
+`--images` adds Tesseract OCR for photos and scanned images and `--legacy-word` adds local `.doc`
+extraction (textutil, antiword, catdoc, or LibreOffice).
 See [configuration](./configuration.md) for local extractor contracts and [migration](./migration.md)
 for removed commands and explicit old-config migration.

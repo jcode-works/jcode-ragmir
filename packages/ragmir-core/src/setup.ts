@@ -72,7 +72,7 @@ async function hardenRagmirOwnedPaths(cwd: string): Promise<void> {
   const ragmirDir = path.join(config.projectRoot, RAGMIR_DIR)
   const privatePaths = [
     ragmirDir,
-    findProjectConfig(config.projectRoot).configPath,
+    findProjectConfig(config.projectRoot).localConfigPath,
     config.rawDir,
     config.storageDir,
     config.sourcesFile,
