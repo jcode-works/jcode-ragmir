@@ -61,6 +61,15 @@ need explicitly configured local extractors.
 
 First confirm source coverage with `rgr audit`. Then try a specific query, `--context-radius 1`, or a higher `--top-k`. For semantic retrieval, install optional `@huggingface/transformers`, then run `rgr models pull --enable` followed by `rgr ingest --rebuild`.
 
+## Semantic ingestion fails after `rgr models pull`
+
+An error saying that Transformers.js loaded the model without its tokenizer, or the older
+`this.tokenizer is not a function`, means the local model is not an offline snapshot. Earlier pulls
+left a pinned revision in the Transformers.js cache layout, which offline loading cannot read.
+Run `rgr models pull --enable` to install a complete snapshot of the pinned revision, then
+`rgr ingest --rebuild`. The pull replaces the previous model only after the new snapshot is
+complete and its digest is accepted.
+
 ## Search stops after updating Ragmir
 
 Run `rgr upgrade --check` to see whether the active index predates the current schema or policy,

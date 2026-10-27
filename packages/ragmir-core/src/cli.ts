@@ -39,7 +39,7 @@ import { search } from "./query.js"
 import { compactSearchResults } from "./search-output.js"
 import { securityAudit } from "./security.js"
 import { enableSemanticEmbeddings } from "./semantic-config.js"
-import { setupProject } from "./setup.js"
+import { repairProject, setupProject } from "./setup.js"
 import {
   bundledSkillPath,
   installAgentSkills,
@@ -228,13 +228,16 @@ ocrCommand
 program
   .command("doctor")
   .description("Diagnose setup, index freshness, and next steps.")
-  .option("--fix", "Create missing scaffolding, install the agent kit, and rebuild stale indexes.")
+  .option(
+    "--fix",
+    "Create missing scaffolding, refresh the installed agent kit, restore private permissions, and rebuild stale indexes.",
+  )
   .option("--deep", "Run the O(corpus) source inventory and executable security probes.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { fix?: boolean; deep?: boolean; json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
     if (options.fix) {
-      const result = await setupProject({ cwd })
+      const result = await repairProject({ cwd })
       if (options.json) {
         console.log(JSON.stringify(result, null, 2))
         return

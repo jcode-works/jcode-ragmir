@@ -1,14 +1,30 @@
 import { existsSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { setupProject } from "./setup.js"
+import { repairProject, setupProject } from "./setup.js"
 
-vi.mock("@huggingface/transformers", () => ({
-  env: {},
-  pipeline: async () => async () => ({}),
-}))
+vi.mock("@huggingface/transformers", async () => {
+  const env: { cacheDir?: string; allowRemoteModels?: boolean } = {}
+  return {
+    env,
+    // A remote pipeline caches the pinned revision under <cacheDir>/<model>/<revision>/.
+    pipeline: async (_task: string, model: string, { revision }: { revision: string }) => {
+      if (env.allowRemoteModels && env.cacheDir) {
+        const snapshot = path.join(env.cacheDir, model, revision)
+        await mkdir(path.join(snapshot, "onnx"), { recursive: true })
+        await Promise.all([
+          writeFile(path.join(snapshot, "config.json"), "{}\n"),
+          writeFile(path.join(snapshot, "onnx", "model.onnx"), "test-model"),
+          writeFile(path.join(snapshot, "tokenizer.json"), "{}\n"),
+          writeFile(path.join(snapshot, "tokenizer_config.json"), "{}\n"),
+        ])
+      }
+      return async () => ({})
+    },
+  }
+})
 
 const tempDirs: string[] = []
 
@@ -63,13 +79,6 @@ describe("setupProject", () => {
   it("can preload and enable semantic embeddings during setup", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-semantic-"))
     tempDirs.push(root)
-    const modelRoot = path.join(root, ".ragmir", "models", "intfloat", "multilingual-e5-small")
-    await mkdir(path.join(modelRoot, "onnx"), { recursive: true })
-    await Promise.all([
-      writeFile(path.join(modelRoot, "config.json"), "{}\n"),
-      writeFile(path.join(modelRoot, "onnx", "model.onnx"), "test-model"),
-      writeFile(path.join(modelRoot, "tokenizer.json"), "{}\n"),
-    ])
 
     const result = await setupProject({ cwd: root, ingest: false, semantic: true })
     const config = JSON.parse(
@@ -151,4 +160,43 @@ describe("setupProject", () => {
     expect(existsSync(path.join(root, ".ragmir", "codex-mcp.toml"))).toBe(false)
     expect(existsSync(path.join(root, ".ragmir", "kimi-mcp.json"))).toBe(false)
   })
+})
+
+describe("repairProject", () => {
+  it("keeps the agent integrations a project already exposes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-repair-agents-"))
+    tempDirs.push(root)
+    await setupProject({ cwd: root, ingest: false, agents: ["claude", "codex"] })
+
+    const result = await repairProject({ cwd: root })
+
+    expect(result.agentInstallations.map((installation) => installation.agent)).toEqual([
+      "claude",
+      "codex",
+    ])
+    for (const directory of [".kimi", ".opencode", ".cline"]) {
+      expect(existsSync(path.join(root, directory))).toBe(false)
+    }
+    expect(await readFile(path.join(root, ".gitignore"), "utf8")).not.toContain(".kimi/")
+  }, 15_000)
+
+  it.skipIf(process.platform === "win32")(
+    "restores owner-only permissions on Ragmir-owned paths",
+    async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-repair-permissions-"))
+      tempDirs.push(root)
+      await setupProject({ cwd: root, ingest: false, agents: ["claude"] })
+      const modelPath = path.join(root, ".ragmir", "models")
+      await mkdir(modelPath, { recursive: true })
+      await chmod(modelPath, 0o755)
+      await chmod(path.join(root, ".ragmir"), 0o755)
+
+      const result = await repairProject({ cwd: root })
+
+      expect((await stat(modelPath)).mode & 0o077).toBe(0)
+      expect((await stat(path.join(root, ".ragmir"))).mode & 0o077).toBe(0)
+      expect(result.doctor.securityWarnings.join("\n")).not.toContain("embeddingModelPath")
+    },
+    15_000,
+  )
 })

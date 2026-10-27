@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { createReadStream } from "node:fs"
-import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { findProjectConfig, loadConfig } from "./config.js"
@@ -15,6 +15,8 @@ const OCR_COMMAND_TIMEOUT_MS = 120_000
 const OCR_PROBE_TIMEOUT_MS = 10_000
 const OCR_PROCESS_KILL_GRACE_MS = 1_000
 export const OCR_RENDER_DPI = 300
+/** Longest rendered page side in pixels: US Legal at 300 DPI, so standard paper keeps 300 DPI. */
+const MAX_OCR_RENDER_PIXELS = 4_200
 export const MAX_OCR_BATCH_PAGES = 16
 const MINIMUM_OCRMYPDF_VERSION = { major: 12, minor: 6 }
 
@@ -241,7 +243,7 @@ export async function extractPdfPages(
       engine,
       language,
       dpi: OCR_RENDER_DPI,
-      subprocesses: 2,
+      subprocesses: pages.length + 2,
       pages: pairOcrPageText(
         pages,
         await extractWithTesseract({ input, pages, language, timeoutMs, tempDir }),
@@ -319,44 +321,38 @@ async function extractWithTesseract(options: {
   timeoutMs: number
   tempDir: string
 }): Promise<string> {
-  const firstPage = options.pages[0]
-  const lastPage = options.pages.at(-1)
-  if (firstPage === undefined || lastPage === undefined) {
-    throw new Error("At least one PDF page is required for OCR.")
-  }
-  const outputPrefix = path.join(options.tempDir, "rendered-page")
-  await runProcess(
-    "pdftoppm",
-    [
-      "-f",
-      String(firstPage),
-      "-l",
-      String(lastPage),
-      "-r",
-      String(OCR_RENDER_DPI),
-      "-gray",
-      "-png",
-      options.input,
-      outputPrefix,
-    ],
-    { timeoutMs: options.timeoutMs },
-  )
-  const renderedPages = (await readdir(options.tempDir))
-    .filter((entry) => entry.startsWith("rendered-page-") && entry.endsWith(".png"))
-    .sort(naturalFilenameOrder)
-  const renderedCount = lastPage - firstPage + 1
-  if (renderedPages.length !== renderedCount) {
-    throw new Error(
-      `Poppler rendered ${renderedPages.length} pages, expected ${renderedCount} for OCR.`,
+  const longSides = await pdfPageLongSides(options)
+  const selectedPages: string[] = []
+  for (const pageNumber of options.pages) {
+    const outputPrefix = path.join(options.tempDir, `rendered-page-${pageNumber}`)
+    // Phone scanners write PDF pages whose size is in pixels, so 300 DPI rendered them at about
+    // 58 megapixels, and PNG compression alone took about 26 s per page. The pixel cap and LZW
+    // TIFF keep a 16-page batch of such scans well inside the default OCR timeout.
+    await runProcess(
+      "pdftoppm",
+      [
+        "-f",
+        String(pageNumber),
+        "-l",
+        String(pageNumber),
+        "-r",
+        String(ocrRenderDpi(longSides.get(pageNumber))),
+        "-gray",
+        "-tiff",
+        "-tiffcompression",
+        "lzw",
+        "-singlefile",
+        options.input,
+        outputPrefix,
+      ],
+      { timeoutMs: options.timeoutMs },
     )
-  }
-  const selectedPages = options.pages.map((pageNumber) => {
-    const filename = renderedPages[pageNumber - firstPage]
-    if (!filename) {
+    const renderedPage = `${outputPrefix}.tif`
+    if (!(await stat(renderedPage).catch(() => null))?.isFile()) {
       throw new Error(`Poppler did not render requested PDF page ${pageNumber}.`)
     }
-    return path.join(options.tempDir, filename)
-  })
+    selectedPages.push(renderedPage)
+  }
   const pageListPath = path.join(options.tempDir, "pages.txt")
   await writeFile(pageListPath, `${selectedPages.join("\n")}\n`, "utf8")
   const result = await runProcess("tesseract", [pageListPath, "stdout", "-l", options.language], {
@@ -364,6 +360,42 @@ async function extractWithTesseract(options: {
     timeoutMs: options.timeoutMs,
   })
   return result.stdout
+}
+
+/** 300 DPI, lowered so the longest rendered side stays within US Legal at 300 DPI. */
+export function ocrRenderDpi(longSidePoints: number | undefined): number {
+  if (longSidePoints === undefined || !(longSidePoints > 0)) {
+    return OCR_RENDER_DPI
+  }
+  return Math.max(
+    1,
+    Math.min(OCR_RENDER_DPI, Math.floor((MAX_OCR_RENDER_PIXELS * 72) / longSidePoints)),
+  )
+}
+
+/** Longest side, in points, of each requested page; empty when Poppler `pdfinfo` is unavailable. */
+async function pdfPageLongSides(options: {
+  input: string
+  pages: number[]
+  timeoutMs: number
+}): Promise<Map<number, number>> {
+  const longSides = new Map<number, number>()
+  const firstPage = options.pages[0]
+  const lastPage = options.pages.at(-1)
+  if (firstPage === undefined || lastPage === undefined) {
+    return longSides
+  }
+  const result = await runProcess(
+    "pdfinfo",
+    ["-f", String(firstPage), "-l", String(lastPage), options.input],
+    { timeoutMs: options.timeoutMs },
+  ).catch(() => null)
+  for (const match of result?.stdout.matchAll(
+    /^Page\s+(\d+)\s+size:\s+([\d.]+)\s+x\s+([\d.]+)/gmu,
+  ) ?? []) {
+    longSides.set(Number(match[1]), Math.max(Number(match[2]), Number(match[3])))
+  }
+  return longSides
 }
 
 function pairOcrPageText(pages: number[], output: string): Array<{ page: number; text: string }> {
@@ -393,12 +425,6 @@ function normalizePdfOcrPages(pages: number[]): number[] {
     throw new Error(`PDF pages must be integers between 1 and ${MAX_PDF_PAGES}.`)
   }
   return normalized
-}
-
-function naturalFilenameOrder(left: string, right: string): number {
-  const leftPage = Number(left.match(/(\d+)\.png$/u)?.[1])
-  const rightPage = Number(right.match(/(\d+)\.png$/u)?.[1])
-  return leftPage - rightPage
 }
 
 export async function pdfOcrCommandIdentity(

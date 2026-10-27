@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { findProjectRoot, loadConfig } from "./config.js"
+import { initProject } from "./init.js"
 
 const tempDirs: string[] = []
 
@@ -514,6 +515,24 @@ describe("loadConfig", () => {
         maxChunksPerDocument: 2,
         hybridTextScanLimit: 3_000,
       }),
+    )
+  })
+
+  it("should let a retrieval profile change the budgets of an initialized project", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-initialized-profile-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const configPath = path.join(root, ".ragmir", "config.json")
+    const written = JSON.parse(await readFile(configPath, "utf8")) as Record<string, unknown>
+
+    expect(written).not.toHaveProperty("topK")
+    expect(written).not.toHaveProperty("hybridTextScanLimit")
+    expect(await loadConfig(root)).toEqual(
+      expect.objectContaining({ topK: 8, hybridTextScanLimit: 5_000 }),
+    )
+    await writeFile(configPath, JSON.stringify({ ...written, retrievalProfile: "quality" }))
+    expect(await loadConfig(root)).toEqual(
+      expect.objectContaining({ topK: 12, hybridTextScanLimit: 10_000 }),
     )
   })
 

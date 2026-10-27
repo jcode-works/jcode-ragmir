@@ -1,9 +1,20 @@
 import { existsSync } from "node:fs"
 import { writeFile } from "node:fs/promises"
 import path from "node:path"
-import { CONFIG_PATH, DEFAULT_CONFIG, LEGACY_CONFIG_PATH, RAGMIR_DIR } from "./defaults.js"
+import {
+  CONFIG_PATH,
+  DEFAULT_CONFIG,
+  LEGACY_CONFIG_PATH,
+  RAGMIR_DIR,
+  RETRIEVAL_PROFILE_FIELDS,
+} from "./defaults.js"
 import { ensureRagmirGitignore } from "./gitignore.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
+
+// Writing the balanced budgets would pin them, so a later `retrievalProfile` change kept topK 8.
+const INITIAL_CONFIG = Object.fromEntries(
+  Object.entries(DEFAULT_CONFIG).filter(([key]) => !RETRIEVAL_PROFILE_FIELDS.has(key)),
+)
 
 export async function initProject(cwd = process.cwd()): Promise<string[]> {
   const root = path.resolve(cwd)
@@ -28,7 +39,7 @@ export async function initProject(cwd = process.cwd()): Promise<string[]> {
   }
   if (!hasConfig && !hasLegacyConfig) {
     await ensurePrivateDirectory(rawDir)
-    await writeFile(configPath, `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`, "utf8")
+    await writeFile(configPath, `${JSON.stringify(INITIAL_CONFIG, null, 2)}\n`, "utf8")
     await hardenPrivateFile(configPath)
     created.push(path.relative(root, configPath))
   }

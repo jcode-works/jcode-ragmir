@@ -40,7 +40,7 @@ Old redaction/privacy settings require this explicit migration. Source text is n
 | Incremental indexing | `rgr ingest` |
 | Repair setup and stale data | `rgr doctor --fix` |
 | Retrieve passages | `rgr search "query" --compact`, `ragmir_search` |
-| Expand a citation | `rgr expand "citation" --json`, `ragmir_expand` |
+| Expand a citation | `ragmir_expand`, or `rgr search "query" --json` for full passages |
 | Inspect ranking | `rgr search "query" --explain` |
 | Measure retrieval quality | `rgr evaluate --golden <file>` |
 | Inspect local file and provider safeguards | `rgr security-audit` |

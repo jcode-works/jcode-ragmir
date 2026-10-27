@@ -763,6 +763,33 @@ describe("search", () => {
     expect(results[0]?.relativePath).toBe(".ragmir/raw/policy.md")
   })
 
+  it("should match accented words through the full-text index with or without query accents", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-accent-fts-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "eyes.md"),
+      "Acuité visuelle mesurée sans correction.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "pressure.md"),
+      "Tension oculaire normale des deux côtés.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    // "tension" gives the index a match, so the in-memory BM25 fallback cannot hide a missed word.
+    for (const query of ["acuite tension", "Acuité tension"]) {
+      const results = await search(query, { cwd: root, topK: 2, explain: true })
+      const eyes = results.find((result) => result.relativePath === ".ragmir/raw/eyes.md")
+
+      expect(eyes?.score?.lexicalBackend).toBe("fts")
+      expect(eyes?.score?.lexicalRank).toBeGreaterThan(0)
+    }
+  })
+
   it("should recover a single-token transposition without matching a nearby wrong word", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-typo-"))
     tempDirs.push(root)

@@ -8,7 +8,7 @@ const CHUNKING_ADAPTER_VERSION = 4
  * Version of the keyword text derived from each chunk. Searches keep using an index built with an
  * older version, while the next ingestion stages a full rebuild before activating it.
  */
-export const LEXICAL_POLICY_VERSION = 2
+export const LEXICAL_POLICY_VERSION = 3
 const LEGACY_LEXICAL_POLICY_VERSION = 1
 
 export function indexPolicyFingerprint(config: Config): string {

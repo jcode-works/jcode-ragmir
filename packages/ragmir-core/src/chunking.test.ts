@@ -306,12 +306,26 @@ describe("chunkLexicalText", () => {
     const lexical = chunkLexicalText(chunk)
 
     expect(chunkSearchText(chunk)).toBe(chunk.text)
-    expect(lexical.startsWith(chunk.text)).toBe(true)
+    expect(lexical.startsWith(chunk.text.toLowerCase())).toBe(true)
     expect(lexical).toContain(
-      "back/src/main/java/auth/LoginAttemptService.java login attempt service",
+      "back/src/main/java/auth/loginattemptservice.java login attempt service",
     )
     expect(lexical).toContain("assert not locked")
     expect(lexical).toContain("parse http response")
+  })
+
+  it("should fold case and accents like query terms while embeddings keep the source text", () => {
+    const chunk = {
+      relativePath: "docs/Réfraction.md",
+      contextPath: "Examen > Acuité visuelle",
+      text: "Réfraction automatique et densité osseuse : Ｌ1 à ﬁn.",
+    }
+
+    expect(chunkSearchText(chunk)).toBe(`Examen > Acuité visuelle\n${chunk.text}`)
+    expect(chunkLexicalText(chunk)).toBe(
+      "examen > acuite visuelle\nrefraction automatique et densite osseuse : l1 a fin.\n" +
+        "docs/refraction.md",
+    )
   })
 
   it("should split camel, acronym, and digit boundaries but leave plain words alone", () => {
