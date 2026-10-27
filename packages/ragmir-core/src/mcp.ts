@@ -274,7 +274,8 @@ export function createMcpClientLifecycle(cwd: string): McpClientLifecycle {
 interface AutoIngestScheduler {
   /** Start a background incremental ingest unless one runs or one started recently. */
   request(config: Config): boolean
-  close(): void
+  /** Abort a running ingest and wait until it has released the index. */
+  close(): Promise<void>
 }
 
 function createAutoIngestScheduler(): AutoIngestScheduler {
@@ -299,8 +300,9 @@ function createAutoIngestScheduler(): AutoIngestScheduler {
         })
       return true
     },
-    close() {
+    async close() {
       controller.abort(new Error("The MCP server is closed."))
+      await running
     },
   }
 }
@@ -310,12 +312,11 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
   const autoIngest = createAutoIngestScheduler()
   const profile = readKnowledgeBaseProfileSync(findProjectConfig(cwd).projectRoot)
   const server = new LifecycleMcpServer(profile, async () => {
-    autoIngest.close()
+    await autoIngest.close()
     await clientLifecycle.close()
   })
   server.server.onclose = () => {
-    autoIngest.close()
-    void clientLifecycle.close().catch(() => undefined)
+    void autoIngest.close().then(() => clientLifecycle.close()).catch(() => undefined)
   }
   const workspaceScope = new WorkspaceScope(server.server)
   workspaceScope.attach()
