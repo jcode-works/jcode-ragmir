@@ -41,6 +41,12 @@ export const KNOWN_EMBEDDING_MODEL_REVISIONS: Readonly<Record<string, string>> =
   "mixedbread-ai/mxbai-embed-xsmall-v1": "e6ac24e5d6efb8782b59de1647b3ececb4ece94e",
 }
 
+/** Budgets that `retrievalProfile` chooses unless a project config sets them explicitly. */
+export const RETRIEVAL_PROFILE_FIELDS: ReadonlySet<string> = new Set([
+  "topK",
+  "hybridTextScanLimit",
+])
+
 export function defaultEmbeddingModelRevision(model: string): string {
   return KNOWN_EMBEDDING_MODEL_REVISIONS[model] ?? "main"
 }

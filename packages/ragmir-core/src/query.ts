@@ -38,7 +38,7 @@ import {
 import { selectDiverseRows } from "./retrieval-diversity.js"
 import type { IndexReadSnapshot } from "./store.js"
 import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
-import { tokenize } from "./text.js"
+import { normalizeForMatch, tokenize } from "./text.js"
 import type {
   Config,
   EvidenceVersion,
@@ -1041,7 +1041,7 @@ function lexicalQuery(
   const joined = tokens.join(" ")
   const broadQuery = new MatchQuery(joined, "searchText", { operator: Operator.Or })
   const supplemental: FullTextQuery[] = []
-  const identifierTerms = [...query.matchAll(LEXICAL_IDENTIFIER_PATTERN)]
+  const identifierTerms = [...normalizeForMatch(query).matchAll(LEXICAL_IDENTIFIER_PATTERN)]
     .map((match) => match[0])
     .filter(Boolean)
   const identifiers = [...new Set(identifierTerms)]

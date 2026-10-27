@@ -1,5 +1,7 @@
+import { chmod, stat } from "node:fs/promises"
 import path from "node:path"
-import { loadConfig } from "./config.js"
+import { findProjectConfig, loadConfig } from "./config.js"
+import { RAGMIR_DIR } from "./defaults.js"
 import { doctor } from "./doctor.js"
 import { type PullEmbeddingModelResult, pullEmbeddingModel } from "./embeddings.js"
 import { ingest } from "./ingest.js"
@@ -12,6 +14,7 @@ import {
   type AgentTarget,
   type InstallAgentSkillsOptions,
   type InstallSkillResult,
+  inspectAgentIntegration,
   installAgentSkills,
 } from "./skill.js"
 import type { DoctorReport, IngestResult } from "./types.js"
@@ -45,6 +48,42 @@ export interface SetupResult {
   doctor: DoctorReport
   nextSteps: string[]
   configurationPrompt: string
+}
+
+/**
+ * Repair a project without widening it: keep the agents it already exposes, and restore owner-only
+ * permissions on the Ragmir-owned paths under `.ragmir/` that the security audit reports as shared.
+ */
+export async function repairProject(options: Pick<SetupOptions, "cwd"> = {}): Promise<SetupResult> {
+  const cwd = path.resolve(options.cwd ?? process.cwd())
+  await hardenRagmirOwnedPaths(cwd)
+  const installedAgents = inspectAgentIntegration(cwd).projectAgents
+  return setupProject({ cwd, ...(installedAgents.length > 0 ? { agents: installedAgents } : {}) })
+}
+
+async function hardenRagmirOwnedPaths(cwd: string): Promise<void> {
+  if (process.platform === "win32") {
+    return
+  }
+  const config = await loadConfig(cwd).catch(() => null)
+  if (!config) {
+    return
+  }
+  const ragmirDir = path.join(config.projectRoot, RAGMIR_DIR)
+  const privatePaths = [
+    ragmirDir,
+    findProjectConfig(config.projectRoot).configPath,
+    config.rawDir,
+    config.storageDir,
+    config.sourcesFile,
+    config.embeddingModelPath,
+  ].filter((filePath) => filePath === ragmirDir || filePath.startsWith(`${ragmirDir}${path.sep}`))
+  for (const filePath of privatePaths) {
+    const metadata = await stat(filePath).catch(() => null)
+    if (metadata && (metadata.mode & 0o077) !== 0) {
+      await chmod(filePath, metadata.isDirectory() ? 0o700 : 0o600)
+    }
+  }
 }
 
 export async function setupProject(options: SetupOptions = {}): Promise<SetupResult> {
