@@ -27,6 +27,8 @@ export interface GitHooksOptions {
 export interface GitHooksReport {
   hooksDir: string
   workTree: string
+  /** `husky` when husky owns the hooks: Ragmir then edits its tracked `.husky/<hook>` scripts. */
+  manager: GitHooksManager
   /** The hooks directory lives inside the working tree, so its files are usually committed. */
   trackedHooksDir: boolean
   installed: GitHookName[]
@@ -41,7 +43,7 @@ export interface GitHooksReport {
  */
 export async function installGitHooks(options: GitHooksOptions = {}): Promise<GitHooksReport> {
   const location = await gitHooksLocation(options.cwd)
-  if (location.trackedHooksDir && options.force !== true) {
+  if (location.trackedHooksDir && location.manager !== "husky" && options.force !== true) {
     throw new Error(
       `Git hooks resolve to ${location.hooksDir}, inside the working tree (for example a husky directory). Add the Ragmir block to that tool's hook files, or rerun with --force to edit them.`,
     )
@@ -90,9 +92,12 @@ export async function gitHooksStatus(options: GitHooksOptions = {}): Promise<Git
   return reportFor(await gitHooksLocation(options.cwd), [])
 }
 
+export type GitHooksManager = "git" | "husky"
+
 interface GitHooksLocation {
   hooksDir: string
   workTree: string
+  manager: GitHooksManager
   trackedHooksDir: boolean
   /** Project root relative to the work tree, with forward slashes for the POSIX hook shell. */
   projectPath: string
@@ -106,7 +111,9 @@ async function gitHooksLocation(cwd = process.cwd()): Promise<GitHooksLocation> 
   )
   // Resolves core.hooksPath and linked worktrees the way Git itself does.
   const hooksPath = (await git(projectRoot, ["rev-parse", "--git-path", "hooks"])).trim()
-  const hooksDir = path.resolve(projectRoot, hooksPath)
+  const gitHooksDir = path.resolve(projectRoot, hooksPath)
+  const huskyDir = huskyScriptsDir(gitHooksDir)
+  const hooksDir = huskyDir ?? gitHooksDir
   const gitDir = path.resolve(
     projectRoot,
     (await git(projectRoot, ["rev-parse", "--git-common-dir"])).trim(),
@@ -116,9 +123,25 @@ async function gitHooksLocation(cwd = process.cwd()): Promise<GitHooksLocation> 
   return {
     hooksDir,
     workTree,
+    manager: huskyDir === null ? "git" : "husky",
     trackedHooksDir: insideWorkTree && !insideGitDir,
     projectPath: canonicalSourcePath(path.relative(workTree, projectRoot)) || ".",
   }
+}
+
+/**
+ * The folder of husky's hook scripts when husky owns the Git hooks. husky 9 points core.hooksPath at
+ * `.husky/_`, which it regenerates on every install and whose shims run `.husky/<hook>`; husky 8
+ * points it at `.husky` itself. Hooks belong in the `.husky/<hook>` scripts in both cases.
+ */
+function huskyScriptsDir(gitHooksDir: string): string | null {
+  if (path.basename(gitHooksDir) === "_" && path.basename(path.dirname(gitHooksDir)) === ".husky") {
+    return existsSync(path.join(gitHooksDir, "h")) ? path.dirname(gitHooksDir) : null
+  }
+  if (path.basename(gitHooksDir) === ".husky") {
+    return existsSync(path.join(gitHooksDir, "_", "husky.sh")) ? gitHooksDir : null
+  }
+  return null
 }
 
 function ragmirHookBlock(projectPath: string): string {
@@ -190,6 +213,7 @@ async function reportFor(
   return {
     hooksDir: location.hooksDir,
     workTree: location.workTree,
+    manager: location.manager,
     trackedHooksDir: location.trackedHooksDir,
     installed,
     missing,

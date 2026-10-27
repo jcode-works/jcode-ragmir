@@ -1,11 +1,23 @@
-# @jcode.labs/ragmir
+<p align="center">
+  <a href="https://ragmir.com">
+    <img src="https://ragmir.com/og/ragmir-og.png" width="640" alt="Ragmir: local retrieval with exact citations for coding agents">
+  </a>
+</p>
 
-[![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm)](https://www.npmjs.com/package/@jcode.labs/ragmir)
-[![CI](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-2f9e44)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
-[![Node.js 22.12+](https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+<h1 align="center">@jcode.labs/ragmir</h1>
 
-**Cited project context for coding agents. Local, fast, and offline by default.**
+<p align="center">
+  <strong>Cited project context for coding agents. Local, fast, and offline by default.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm version" src="https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm"></a>
+  <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@jcode.labs/ragmir?color=cb3837"></a>
+  <a href="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e44"></a>
+  <a href="https://nodejs.org"><img alt="Node.js 22.12+" src="https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white"></a>
+  <a href="https://github.com/jcode-works/jcode-ragmir"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jcode-works/jcode-ragmir?style=social"></a>
+</p>
 
 Ragmir indexes the code, specifications, and office documents you choose, then returns precise
 passages with checkable citations through a TypeScript library, the `rgr` CLI, or a local MCP
@@ -143,9 +155,11 @@ Read the [full documentation](https://github.com/jcode-works/jcode-ragmir#readme
 [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md),
 [migration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md), and
 [troubleshooting guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md).
-Issues and contributions are welcome through
-[GitHub](https://github.com/jcode-works/jcode-ragmir) and
-[CONTRIBUTING](https://github.com/jcode-works/jcode-ragmir/blob/main/CONTRIBUTING.md).
+Ask questions and report bugs in
+[GitHub Issues](https://github.com/jcode-works/jcode-ragmir/issues); contributions are welcome
+through [CONTRIBUTING](https://github.com/jcode-works/jcode-ragmir/blob/main/CONTRIBUTING.md). If
+Ragmir saves your agents time, [star the repository](https://github.com/jcode-works/jcode-ragmir)
+so other teams find it.
 
 Ragmir is open source under [AGPL-3.0-only](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
 JCode Works also offers a [commercial license](https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md).
