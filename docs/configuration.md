@@ -83,8 +83,10 @@ expand only a primary pool that cannot fill the demand, preserving established r
 The full-text index covers each passage's structural context, cited header text, and body, plus its
 relative source path and the parts of camelCase, PascalCase, acronym, and letter-digit identifiers.
 A question about "login attempts" can therefore reach `LoginAttemptService.java`, while embeddings
-keep using the passage text without these keyword terms. The LanceDB analyzer lowercases, folds
-accents, applies English stemming, and removes English stop words.
+keep using the passage text without these keyword terms. Ragmir folds case, accents, and other
+diacritics in this text exactly as it folds query terms, then the LanceDB analyzer applies English
+stemming and removes English stop words. Folding first keeps "Réfraction" and "refraction" on the
+same indexed term, because the analyzer stems words before it folds their accents.
 
 After scoring and abstention, the deterministic diversity pass keeps at most
 `maxChunksPerDocument` primary passages per relative path while preserving rank order. It then

@@ -473,7 +473,7 @@ describe("ingest", () => {
     const before = await doctor(root)
     expect(before.ready).toBe(true)
     expect(before.readiness.lexicalIndexCurrent).toBe(false)
-    expect(before.nextSteps.join("\n")).toMatch(/path and identifier keyword terms/u)
+    expect(before.nextSteps.join("\n")).toMatch(/current keyword terms/u)
 
     const rebuilt = await ingest({ cwd: root })
     const rows = await readRows(config)

@@ -246,7 +246,7 @@ function nextActions(input: NextActionInput): string[] {
 
   if (!input.freshnessWarning && !input.lexicalIndexCurrent) {
     steps.push(
-      `The index predates path and identifier keyword terms. Search keeps using it; run \`${input.run(["ingest"])}\` to stage a rebuild that improves code and file-name recall.`,
+      `The index predates the current keyword terms (accent-folded words, source paths, and identifier parts). Search keeps using it; run \`${input.run(["ingest"])}\` to stage a rebuild that improves keyword recall.`,
     )
   }
 

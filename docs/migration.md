@@ -14,6 +14,14 @@ unchanged, but the rebuild still recomputes vectors; plan for a normal ingestion
 semantic model. Rerun `rgr evaluate`: the ranking policy fingerprint changed, so previous quality
 reports no longer verify the active policy.
 
+## Accent-folded keyword index
+
+The full-text index now stores keyword text folded like queries, so accented and unaccented
+spellings match: "refraction" and "réfraction" both reach a passage that prints "Réfraction".
+Indexes built before this change stay searchable, `rgr doctor` reports
+`readiness.lexicalIndexCurrent: false`, and the next `rgr ingest` or `rgr upgrade` stages the same
+validated full rebuild as above.
+
 ## Upgrade an existing project
 
 Use Node.js 22.12 or later, update `@jcode.labs/ragmir` with your package manager, then run:
