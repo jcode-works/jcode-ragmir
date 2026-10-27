@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto"
-import { open as openFile, readFile, rename, rm, stat } from "node:fs/promises"
+import { open as openFile, readFile, rm, stat } from "node:fs/promises"
 import path from "node:path"
+import { renameWithRetry } from "./fs-retry.js"
 import { isRecord } from "./guards.js"
 import { MAX_EXTERNAL_TEXT_STDIO_BYTES } from "./limits.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
@@ -87,7 +88,7 @@ export async function writePdfOcrCache(
       await handle.close()
     }
     await hardenPrivateFile(temporaryPath)
-    await rename(temporaryPath, targetPath)
+    await renameWithRetry(temporaryPath, targetPath)
   } finally {
     await rm(temporaryPath, { force: true })
   }
