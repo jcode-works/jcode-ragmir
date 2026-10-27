@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { getKnowledgeBaseContext, getKnowledgeBaseSourceCatalog } from "./context-resources.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 
 const tempDirs: string[] = []
 
@@ -14,7 +15,7 @@ afterEach(async () => {
   }
 })
 
-describe("context resources", () => {
+describe("context resources", { timeout: integrationTimeout(15_000) }, () => {
   it("should stop context diagnostics when the signal is already aborted", async () => {
     const controller = new AbortController()
     controller.abort("cancelled by caller")
@@ -73,7 +74,7 @@ describe("context resources", () => {
     expect((await getKnowledgeBaseContext(secondRoot)).corpusFingerprint).not.toBe(
       first.corpusFingerprint,
     )
-  }, 15_000)
+  })
 
   it("should cap source details while preserving complete totals", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-resource-"))
@@ -104,5 +105,5 @@ describe("context resources", () => {
     expect(secondPage.indexedFiles).toHaveLength(5)
     expect(secondPage.indexedFiles[0]?.source).toBe(".ragmir/raw/source-50.md")
     expect(secondPage.page).toEqual({ offset: 50, limit: 10, nextOffset: null })
-  }, 15_000)
+  })
 })

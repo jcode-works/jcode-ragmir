@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { createReadStream } from "node:fs"
-import { open as openFile, rename, rm } from "node:fs/promises"
+import { open as openFile, rm } from "node:fs/promises"
 import path from "node:path"
+import { renameWithRetry } from "./fs-retry.js"
 import { isRecord } from "./guards.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import type { Config, SourceFingerprintMode } from "./types.js"
@@ -139,7 +140,7 @@ export async function writeSourceFingerprintCache(
       await handle.close()
     }
     await hardenPrivateFile(temporaryPath)
-    await rename(temporaryPath, targetPath)
+    await renameWithRetry(temporaryPath, targetPath)
   } finally {
     await rm(temporaryPath, { force: true })
   }

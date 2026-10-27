@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto"
-import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises"
+import { mkdir, open, readFile, rm, stat } from "node:fs/promises"
 import { hostname } from "node:os"
 import path from "node:path"
 import { RagmirError } from "./errors.js"
+import { removeTree, renameWithRetry } from "./fs-retry.js"
 import { isRecord } from "./guards.js"
 import { throwIfAborted } from "./operation.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
@@ -142,7 +143,7 @@ async function tryCreateLease(
     await writeOwner(lockPath, owner)
     return createLease(lockPath, owner, heartbeatIntervalMs)
   } catch (error) {
-    await rm(lockPath, { recursive: true, force: true })
+    await removeTree(lockPath)
     throw error
   }
 }
@@ -182,7 +183,7 @@ function createLease(
       await heartbeat.catch(() => undefined)
       const current = await readOwner(lockPath)
       if (current?.ownerToken === owner.ownerToken) {
-        await rm(lockPath, { recursive: true, force: true })
+        await removeTree(lockPath)
       }
     } finally {
       unregisterSignalCleanup()
@@ -218,7 +219,7 @@ async function recoverAbandonedWriterLock(
     ) {
       return false
     }
-    await rm(lockPath, { recursive: true, force: true })
+    await removeTree(lockPath)
     return true
   } finally {
     await removeOwnedDirectory(recoveryPath, recoveryOwner.ownerToken)
@@ -255,7 +256,7 @@ async function tryCreateRecoveryLock(recoveryPath: string): Promise<IndexWriteLo
     await writeOwner(recoveryPath, owner)
     return owner
   } catch (error) {
-    await rm(recoveryPath, { recursive: true, force: true })
+    await removeTree(recoveryPath)
     throw error
   }
 }
@@ -296,7 +297,7 @@ function ownerProcessIsAlive(owner: IndexWriteLockOwner): boolean {
 async function removeOwnedDirectory(directory: string, ownerToken?: string): Promise<void> {
   const current = await readOwner(directory)
   if (ownerToken === undefined || current?.ownerToken === ownerToken) {
-    await rm(directory, { recursive: true, force: true })
+    await removeTree(directory)
   }
 }
 
@@ -311,7 +312,7 @@ async function writeOwner(directory: string, owner: IndexWriteLockOwner): Promis
     await handle.close()
     handle = undefined
     await hardenPrivateFile(temporaryPath)
-    await rename(temporaryPath, ownerPath)
+    await renameWithRetry(temporaryPath, ownerPath)
   } finally {
     await handle?.close()
     await rm(temporaryPath, { force: true })

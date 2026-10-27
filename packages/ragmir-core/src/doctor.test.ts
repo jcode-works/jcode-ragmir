@@ -7,6 +7,7 @@ import { doctor } from "./doctor.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { installAgentSkills, installSkill } from "./skill.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 
 const tempDirs: string[] = []
 
@@ -16,7 +17,7 @@ afterEach(async () => {
   }
 })
 
-describe("doctor", () => {
+describe("doctor", { timeout: integrationTimeout(30_000) }, () => {
   it("should stop diagnostics when the signal is already aborted", async () => {
     const controller = new AbortController()
     controller.abort("cancelled by caller")
@@ -71,7 +72,7 @@ describe("doctor", () => {
     expect(withEvidence.nextSteps).toContain(
       "Run `pnpm exec rgr doctor --fix` to rebuild stale or missing index data.",
     )
-  }, 15_000)
+  })
 
   it("reports files added or edited after ingestion instead of trusting the ingest snapshot", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-freshness-"))
@@ -106,7 +107,7 @@ describe("doctor", () => {
     await ingest({ cwd: root })
     const reindexed = await doctor(root)
     expect(reindexed.sourceFreshness).toMatchObject({ missingFromIndex: 0, staleInIndex: 0 })
-  }, 30_000)
+  })
 
   it("recommends the semantic setup shortcut after the index is ready", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-"))
@@ -153,7 +154,7 @@ describe("doctor", () => {
     const integrated = await doctor(root)
     expect(integrated.agentIntegration.projectAgents).toContain("codex")
     expect(integrated.agentIntegration.ready).toBe(integrated.agentIntegration.runnerReady)
-  }, 15_000)
+  })
 
   it("does not report complete coverage when a supported file yields no text", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-empty-"))

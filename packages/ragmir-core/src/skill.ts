@@ -15,6 +15,7 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { DEFAULT_SKILL_TARGET_DIR, RAGMIR_DIR, RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
+import { removeTree } from "./fs-retry.js"
 import { ensureRagmirGitignore } from "./gitignore.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { inspectMcpRegistrations, mcpRegistrationWarnings } from "./mcp-registrations.js"
@@ -570,7 +571,7 @@ async function removeRetiredSkills(directory: string, ragmirOwned: boolean): Pro
         /[\\/]\.ragmir[\\/]skills[\\/]/u.test(await readlink(target).catch(() => ""))) ||
       (stats.isDirectory() && (await readManagedSkillMetadata(target))?.managedBy === "ragmir")
     if (managed) {
-      await rm(target, { recursive: true, force: true })
+      await removeTree(target)
       removed.push(target)
     }
   }
@@ -639,7 +640,7 @@ async function copyAgentSkills(
     const source = path.join(sourceDir, skillName)
     const target = path.join(targetDir, skillName)
     await assertManagedSkillTarget(source, target, skillName, force)
-    await rm(target, { recursive: true, force: true })
+    await removeTree(target)
     await cp(source, target, { recursive: true, force: true })
     await writeFile(
       path.join(target, MANAGED_SKILL_METADATA_FILENAME),
@@ -661,7 +662,7 @@ async function replaceWithDirectorySymlink(
     return
   }
   await assertManagedSkillTarget(source, target, skillName, force)
-  await rm(target, { recursive: true, force: true })
+  await removeTree(target)
   await symlink(source, target, process.platform === "win32" ? "junction" : "dir")
 }
 

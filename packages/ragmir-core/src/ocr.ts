@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { createReadStream, existsSync } from "node:fs"
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { findProjectConfig, loadConfig } from "./config.js"
+import { removeTree } from "./fs-retry.js"
 import { initProject } from "./init.js"
 import { MAX_EXTERNAL_TEXT_STDIO_BYTES, MAX_PDF_PAGES } from "./limits.js"
 import { rgrCommand } from "./package-manager.js"
@@ -249,7 +250,7 @@ export async function extractPdfPages(
       ),
     }
   } finally {
-    await rm(tempDir, { recursive: true, force: true })
+    await removeTree(tempDir)
   }
 }
 
@@ -886,7 +887,7 @@ export async function extractImageText(options: {
     return result.stdout
   } finally {
     if (workDir) {
-      await rm(workDir, { recursive: true, force: true })
+      await removeTree(workDir)
     }
   }
 }
@@ -922,7 +923,7 @@ export async function extractLegacyWordText(options: {
         )
         return await readFile(output, "utf8")
       } finally {
-        await rm(workDir, { recursive: true, force: true })
+        await removeTree(workDir)
       }
     }
   }
