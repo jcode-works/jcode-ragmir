@@ -78,7 +78,10 @@ passage, so deeper pools only add reads. For example, `topK = 10` with the defau
 retrieves 210 vector and 210 FTS candidates in the `quality` profile. Vector candidates are capped
 at 1,000 and FTS candidates at 4,000, independently from the complete-scan batch size. Exact file
 paths use a bounded scalar variant. Controlled exact-phrase, identifier, and fuzzy rare-term queries
-expand only a primary pool that cannot fill the demand, preserving established ranks.
+expand only a primary pool that cannot fill the demand, preserving established ranks. A query
+identifier with a digit, underscore, or dot, such as `AUTH_REDIRECT_ORIGIN_X17`, must match exactly;
+a hyphen-only word such as "T-score" or the French "est-elle" only boosts the passages that contain
+it, so natural-language questions keep their keyword matches.
 
 The full-text index covers each passage's structural context, cited header text, and body, plus its
 relative source path and the parts of camelCase, PascalCase, acronym, and letter-digit identifiers.
