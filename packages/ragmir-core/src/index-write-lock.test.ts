@@ -12,6 +12,7 @@ import { audit } from "./ingest.js"
 import { readIngestionState } from "./ingestion-state.js"
 import { initProject } from "./init.js"
 import { readIndexManifest, readRows } from "./store.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 
 const tempDirs: string[] = []
 const childProcesses = new Set<ChildProcessWithoutNullStreams>()
@@ -31,7 +32,7 @@ afterEach(async () => {
   }
 })
 
-describe("withIndexWriteLock", () => {
+describe("withIndexWriteLock", { timeout: integrationTimeout(30_000) }, () => {
   it("should let a queued caller abort without interrupting the active writer", async () => {
     const storageDir = await temporaryStorage("ragmir-lock-abort-")
     let markWriterStarted: (() => void) | undefined
@@ -215,7 +216,7 @@ describe("withIndexWriteLock", () => {
       staleInIndex: [],
       totalChunks: rows.length,
     })
-  }, 30_000)
+  })
 })
 
 interface ChildEvent {

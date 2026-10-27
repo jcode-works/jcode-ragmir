@@ -23,6 +23,7 @@ import {
   readIndexManifest,
   writeIndexManifest,
 } from "./store.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -33,7 +34,7 @@ afterEach(async () => {
   }
 })
 
-describe("evaluateGoldenQueries", () => {
+describe("evaluateGoldenQueries", { timeout: integrationTimeout(15_000) }, () => {
   it("should stop before reading a golden file when the signal is already aborted", async () => {
     const controller = new AbortController()
     controller.abort("cancelled by caller")
@@ -233,7 +234,7 @@ describe("evaluateGoldenQueries", () => {
     } finally {
       unsubscribe(INDEX_READ_DIAGNOSTICS_CHANNEL, onDiagnostic)
     }
-  }, 15_000)
+  })
 
   it("caps query topK when a caller provides a maximum", async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-cap-"))

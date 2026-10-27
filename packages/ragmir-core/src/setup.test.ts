@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { repairProject, setupProject } from "./setup.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 
 vi.mock("@huggingface/transformers", async () => {
   const env: { cacheDir?: string; allowRemoteModels?: boolean } = {}
@@ -34,7 +35,7 @@ afterEach(async () => {
   }
 })
 
-describe("setupProject", () => {
+describe("setupProject", { timeout: integrationTimeout(15_000) }, () => {
   it("initializes, installs the agent kit, and reports next steps without documents", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-"))
     tempDirs.push(root)
@@ -74,7 +75,7 @@ describe("setupProject", () => {
       "opencode",
       "cline",
     ])
-  }, 15_000)
+  })
 
   it("can preload and enable semantic embeddings during setup", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-semantic-"))
@@ -111,7 +112,7 @@ describe("setupProject", () => {
     expect(config.embeddingModelDigest).toMatch(/^sha256:[0-9a-f]{64}$/u)
     expect(config.embeddingModelPath).toBe(".ragmir/models")
     expect(config.transformersAllowRemoteModels).toBe(false)
-  }, 15_000)
+  })
 
   it("auto-ingests supported files when the privacy posture is clean", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-"))
@@ -135,7 +136,7 @@ describe("setupProject", () => {
     expect(second.nextSteps).toContain(
       "Restart or reload the selected agents so they discover the installed Ragmir skills.",
     )
-  }, 15_000)
+  })
 
   it("passes targeted MCP helper options to the generated agent kit", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-"))
@@ -162,7 +163,7 @@ describe("setupProject", () => {
   })
 })
 
-describe("repairProject", () => {
+describe("repairProject", { timeout: integrationTimeout(15_000) }, () => {
   it("keeps the agent integrations a project already exposes", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-repair-agents-"))
     tempDirs.push(root)
@@ -178,7 +179,7 @@ describe("repairProject", () => {
       expect(existsSync(path.join(root, directory))).toBe(false)
     }
     expect(await readFile(path.join(root, ".gitignore"), "utf8")).not.toContain(".kimi/")
-  }, 15_000)
+  })
 
   it.skipIf(process.platform === "win32")(
     "restores owner-only permissions on Ragmir-owned paths",
