@@ -11,6 +11,11 @@
 </p>
 
 <p align="center">
+  93% of real developer questions find the right file in the top 10 · 40 ms median search on a
+  43,874-chunk monorepo · <a href="#benchmarks">benchmarks</a>
+</p>
+
+<p align="center">
   <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm version" src="https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm"></a>
   <a href="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Linux, macOS, and Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-4c6ef5">

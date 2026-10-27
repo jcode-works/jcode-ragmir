@@ -73,6 +73,18 @@ const heroTitleLines = [
           />
         </div>
       )}
+      <p class="mt-3 max-w-xl text-xs leading-5 text-white/85">
+        <strong class="font-black text-white">{t("hero_proof_recall_value")}</strong>
+        {` ${t("hero_proof_recall_label")} · `}
+        <strong class="font-black text-white">{t("hero_proof_speed_value")}</strong>
+        {` ${t("hero_proof_speed_label")}. `}
+        <a
+          class="font-semibold text-white underline underline-offset-2 hover:text-white/80"
+          href="https://github.com/jcode-works/jcode-ragmir#benchmarks"
+        >
+          {t("hero_proof_link")}
+        </a>
+      </p>
       <div class="mt-8 grid max-w-xl grid-cols-2 gap-2">
         {heroMetrics.map((metric) => (
           <div class="rounded-xl bg-muted px-3 py-2.5">
