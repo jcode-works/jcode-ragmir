@@ -32,10 +32,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The landing's Astro needs Node 22.23.4 or later; the runner cache can hold an older 22.x.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
           node-version: 22
+          check-latest: true
 
       - name: Set up pnpm
         run: |
