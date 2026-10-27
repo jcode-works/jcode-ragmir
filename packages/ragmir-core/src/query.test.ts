@@ -16,6 +16,7 @@ import {
   vectorCandidateLimit,
 } from "./query.js"
 import { openRowsTable } from "./store.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 
 const tempDirs: string[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -26,7 +27,7 @@ afterEach(async () => {
   }
 })
 
-describe("search", () => {
+describe("search", { timeout: integrationTimeout(20_000) }, () => {
   it("should preserve long-query constraints and report the effective query", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-long-query-"))
     tempDirs.push(root)
@@ -544,7 +545,7 @@ describe("search", () => {
     })
     expect(fuzzy[0]?.text).toContain("BENCH-IDENTIFIER-14")
     expect(fuzzy[0]?.score?.lexicalQueryVariants).toBeGreaterThan(1)
-  }, 15_000)
+  })
 
   it("should let hyphenated question words boost keyword matches without filtering them", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-hyphenated-words-"))
@@ -576,7 +577,7 @@ describe("search", () => {
 
     expect(thyroid?.score?.lexicalBackend).toBe("fts")
     expect(thyroid?.score?.lexicalRank).toBeGreaterThan(0)
-  }, 15_000)
+  })
 
   it("should scan a complete lexical fallback in bounded batches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-truncated-fallback-"))
@@ -638,7 +639,7 @@ describe("search", () => {
       lexicalExactPathMatch: true,
     })
     expect(vectorCandidateLimit(1)).toBeLessThan(90)
-  }, 20_000)
+  })
 
   it.each([false, true])(
     "should retrieve a basename when text omits it and fallback is %s",
@@ -732,7 +733,7 @@ describe("search", () => {
     )
     expect(result?.score?.lexicalScanBatches).toBe(2 * Math.ceil(indexed.chunks / 19))
     expect(result?.score?.lexicalCoverage).toBe(1)
-  }, 20_000)
+  })
 
   it("should retrieve later Markdown chunks through their heading context", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-markdown-context-"))

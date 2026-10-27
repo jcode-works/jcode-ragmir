@@ -19,6 +19,7 @@ import {
   resolveMcpProjectRoot,
   searchOptions,
 } from "./mcp.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 
 const tempDirs: string[] = []
 const connections: Array<{ client: Client; server: McpServer }> = []
@@ -140,7 +141,7 @@ describe("connectMcpServer", () => {
   })
 })
 
-describe("MCP protocol contract", () => {
+describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () => {
   it("should carry evidence identity from compact search to checked expansion", async () => {
     const root = await createProject("ragmir-mcp-evidence-")
     const raw = path.join(root, ".ragmir", "raw")
@@ -467,7 +468,7 @@ describe("MCP protocol contract", () => {
     })
     const detailedAudit = await jsonToolResult(client, "ragmir_audit", { detail: true })
     expect(detailedAudit).toMatchObject({ totalChunks: 1, missingFromIndex: [] })
-  }, 15_000)
+  })
 
   it("should bound audit and resource payloads", async () => {
     const root = await createProject("ragmir-mcp-budget-", {

@@ -61,6 +61,13 @@ If the durable ingestion state is invalid or inconsistent with the current confi
 ignores it and starts a new safe run. It does not resume from untrusted table names or staged
 manifest paths.
 
+## Windows reports `EPERM`, `EBUSY`, or `ENOTEMPTY`
+
+Antivirus scanners, search indexing, and sync clients such as OneDrive briefly hold new files on
+Windows. Ragmir retries the atomic renames and directory removals they block for about two
+seconds. If the error persists, keep `.ragmir/` out of synced folders or exclude it from real-time
+scanning, then run `rgr ingest` again; the active index stays searchable meanwhile.
+
 ## The activation manifest was recovered
 
 If `rgr doctor` reports that the canonical activation manifest is missing or invalid, Ragmir uses

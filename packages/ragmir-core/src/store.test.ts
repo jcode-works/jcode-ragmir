@@ -22,6 +22,7 @@ import {
   writeRowsToTable,
 } from "./store.js"
 import { testConfig } from "./test-support/config.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 import type { IndexManifest } from "./types.js"
 
 const tempDirs: string[] = []
@@ -77,7 +78,7 @@ async function fullTextEvidence(table: NonNullable<Awaited<ReturnType<typeof ope
   })
 }
 
-describe("store", () => {
+describe("store", { timeout: integrationTimeout(30_000) }, () => {
   it("round-trips vector rows from LanceDB as plain numeric arrays", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-"))
     tempDirs.push(root)
@@ -316,7 +317,7 @@ describe("store", () => {
     )
     await expect(table.countRows()).resolves.toBe(80)
     await expect(fullTextEvidence(table)).resolves.toEqual([".ragmir/raw/source-0.md:1-1"])
-  }, 30_000)
+  })
 
   it("should keep the active table readable when optional compaction fails", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-store-maintenance-failure-"))

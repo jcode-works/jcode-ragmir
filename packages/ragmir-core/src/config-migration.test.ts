@@ -7,6 +7,7 @@ import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { expandCitation, search } from "./query.js"
 import { readIndexManifest, writeIndexManifest } from "./store.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 import { inspectUpgrade, upgradeProject } from "./upgrade.js"
 
 const roots: string[] = []
@@ -20,7 +21,7 @@ async function fixture() {
   return { root, configPath: path.join(root, ".ragmir/config.json") }
 }
 
-describe("source-preserving migration", () => {
+describe("source-preserving migration", { timeout: integrationTimeout(20_000) }, () => {
   it("should refuse silent removal when a legacy config requests masking", async () => {
     const { root, configPath } = await fixture()
     const previous = JSON.stringify({ redaction: { enabled: true }, privacyProfile: "private" })
@@ -74,7 +75,7 @@ describe("source-preserving migration", () => {
       removedKeys: [],
       backupPath: null,
     })
-  }, 20_000)
+  })
 
   it("should keep formerly blocked external operations disabled when migrating strict mode", async () => {
     const { root, configPath } = await fixture()
@@ -99,5 +100,5 @@ describe("source-preserving migration", () => {
       mcpMaxTopK: 5,
       mcpMaxOutputBytes: 16_384,
     })
-  }, 20_000)
+  })
 })

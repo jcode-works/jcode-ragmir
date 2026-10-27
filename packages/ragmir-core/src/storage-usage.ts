@@ -1,6 +1,7 @@
-import { lstat, readdir, rm } from "node:fs/promises"
+import { lstat, readdir } from "node:fs/promises"
 import path from "node:path"
 import { RAGMIR_DIR } from "./defaults.js"
+import { removeTree } from "./fs-retry.js"
 import type { Config } from "./types.js"
 
 export type StorageOrphanKind = "model" | "storage-copy" | "retired-output"
@@ -96,7 +97,7 @@ export async function findStorageOrphans(config: Config): Promise<StorageOrphan[
 export async function removeStorageOrphans(orphans: readonly StorageOrphan[]): Promise<string[]> {
   const removed: string[] = []
   for (const orphan of orphans) {
-    await rm(orphan.path, { recursive: true, force: true })
+    await removeTree(orphan.path)
     removed.push(orphan.path)
   }
   return removed

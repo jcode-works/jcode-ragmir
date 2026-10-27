@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { existsSync } from "node:fs"
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { renameWithRetry } from "./fs-retry.js"
 import { isRecord } from "./guards.js"
 
 export interface ProjectConfigLocation {
@@ -76,7 +77,7 @@ async function writeProjectConfigObject(
       flag: "wx",
       mode: 0o600,
     })
-    await rename(temporaryPath, configPath)
+    await renameWithRetry(temporaryPath, configPath)
   } finally {
     await rm(temporaryPath, { force: true })
   }

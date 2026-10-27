@@ -1,7 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks"
 import { randomUUID } from "node:crypto"
 import type { FileHandle } from "node:fs/promises"
-import { open, rename, rm } from "node:fs/promises"
+import { open, rm } from "node:fs/promises"
+import { renameWithRetry } from "./fs-retry.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 
 export type DurableWritePhase = "before-write" | "before-sync" | "before-rename" | "after-rename"
@@ -41,7 +42,7 @@ export async function writePrivateFileAtomic(
     await handle.close()
     handle = undefined
     await notifyPhase(targetPath, temporaryPath, "before-rename")
-    await rename(temporaryPath, targetPath)
+    await renameWithRetry(temporaryPath, targetPath)
     await syncDirectory(directory)
     await notifyPhase(targetPath, temporaryPath, "after-rename")
   } finally {

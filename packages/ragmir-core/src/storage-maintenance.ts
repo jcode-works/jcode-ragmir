@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto"
-import { readFile, rename, rm, writeFile } from "node:fs/promises"
+import { readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { Connection, OptimizeStats, Table } from "@lancedb/lancedb"
 import * as lancedb from "@lancedb/lancedb"
 import { loadConfig } from "./config.js"
+import { renameWithRetry } from "./fs-retry.js"
 import { isRecord } from "./guards.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
 import { operationSignal } from "./operation.js"
@@ -545,7 +546,7 @@ async function writeMaintenanceState(
   try {
     await writeFile(temporary, JSON.stringify(state, null, 2), "utf8")
     await hardenPrivateFile(temporary)
-    await rename(temporary, target)
+    await renameWithRetry(temporary, target)
   } finally {
     await rm(temporary, { force: true })
   }

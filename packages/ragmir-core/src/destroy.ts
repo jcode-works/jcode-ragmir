@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs"
-import { realpath, rm } from "node:fs/promises"
+import { realpath } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { loadConfig } from "./config.js"
 import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
 import { disposeTransformersCache } from "./embeddings.js"
+import { removeTree } from "./fs-retry.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
 import { readIngestionState } from "./ingestion-state.js"
 import { operationSignal } from "./operation.js"
@@ -35,7 +36,7 @@ export async function destroyIndex(
       hasIngestionState,
       hasFingerprintCache,
     )
-    await rm(config.storageDir, { recursive: true, force: true })
+    await removeTree(config.storageDir)
     // Release any cached Transformers.js pipelines so a subsequent re-ingest with
     // a different embedding config does not pin stale ONNX weights in memory.
     await disposeTransformersCache()
