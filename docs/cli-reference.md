@@ -94,7 +94,9 @@ embedding, chunking, extraction, and index-policy changes use the staged-generat
 never deletes the active index first, and only a replacement that passes row-count, checksum, and
 duplicate-ID validation activates. Failed or interrupted rebuilds never activate a partial table
 and can resume. Older configs that omit newer optional fields receive current safe defaults.
-`rgr doctor --fix` repairs setup and index state for current configurations. Use `rgr upgrade`
+`rgr doctor --fix` repairs setup and index state for current configurations, keeps the agent
+integrations already installed in the project, and restores owner-only permissions on Ragmir-owned
+paths under `.ragmir/`. Use `rgr upgrade`
 to migrate retired configuration fields. A long-running host can keep its already loaded
 runtime on the previous generation, then restart or cut over after the upgrade reports
 `status=current` and `ready=true`. Address any advisory with `rgr security-audit` or
