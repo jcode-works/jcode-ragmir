@@ -16,6 +16,8 @@
   <img alt="Linux, macOS, and Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-4c6ef5">
   <a href="./LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e44"></a>
   <a href="https://nodejs.org"><img alt="Node.js 22.12+" src="https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white"></a>
+  <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@jcode.labs/ragmir?color=cb3837"></a>
+  <a href="https://github.com/jcode-works/jcode-ragmir"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jcode-works/jcode-ragmir?style=social"></a>
 </p>
 
 <p align="center">
@@ -30,6 +32,12 @@ Ragmir turns your code, specifications, and office documents into a local search
 Code, Codex, or your own application queries it through MCP, the `rgr` CLI, or a TypeScript API,
 and every passage comes back with a citation the agent can open and check. Your agent plans,
 reasons, and writes with the model you choose; Ragmir finds the evidence.
+
+```bash
+npm install -D @jcode.labs/ragmir
+npx rgr setup --agents claude,codex   # index the project, connect your agents
+npx rgr search "how are permissions checked?" --compact
+```
 
 | Without Ragmir | With Ragmir |
 | --- | --- |
@@ -281,6 +289,14 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Synthetic examples](./packages/ragmir-core/examples/sovereign-rag-demo/README.md)
+
+## Community
+
+Ask questions, propose ideas, and report bugs in
+[GitHub Issues](https://github.com/jcode-works/jcode-ragmir/issues); report vulnerabilities
+privately through [SECURITY](./SECURITY.md). Follow releases on
+[GitHub](https://github.com/jcode-works/jcode-ragmir/releases), and if Ragmir saves your agents
+time, [star the repository](https://github.com/jcode-works/jcode-ragmir) so other teams find it.
 
 ## Contributing
 

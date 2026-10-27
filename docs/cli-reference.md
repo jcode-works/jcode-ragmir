@@ -99,8 +99,10 @@ rgr hooks uninstall
 Each hook gets one marked block that runs `node .ragmir/run.cjs ingest` in the background from the
 knowledge base folder; existing hook content is kept, and a final `exit` stays last. Incremental
 ingestion only re-embeds changed files. `hooks install` resolves `core.hooksPath` and linked
-worktrees, and refuses a hooks folder tracked in the working tree (for example `.husky/`) unless
-`--force` is given. Hooks need Git; on Windows they run in Git's bundled shell.
+worktrees. With husky, it edits the `.husky/<hook>` scripts that husky runs (`manager=husky`) rather
+than the `.husky/_` shims it regenerates; commit those scripts to share the refresh. Another hooks
+folder tracked in the working tree (for example `.githooks/`) needs `--force`. Hooks need Git; on
+Windows they run in Git's bundled shell.
 
 ## Safe upgrades
 
