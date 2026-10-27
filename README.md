@@ -1,29 +1,61 @@
-# Ragmir
+<p align="center">
+  <a href="https://ragmir.com">
+    <img src="https://ragmir.com/og/ragmir-og.png" width="720" alt="Ragmir: local retrieval with exact citations for coding agents">
+  </a>
+</p>
 
-[![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm)](https://www.npmjs.com/package/@jcode.labs/ragmir)
-[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir?color=0b7285)](https://www.npmjs.com/package/@jcode.labs/ragmir)
-[![CI](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-2f9e44)](./LICENSE)
-[![Node.js 22.12+](https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+<h1 align="center">Ragmir</h1>
 
-**Cited project context for coding agents. Local, fast, and offline by default.**
+<p align="center">
+  <strong>Cited project context for coding agents. Local, fast, and offline by default.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm version" src="https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm"></a>
+  <a href="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Linux, macOS, and Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-4c6ef5">
+  <a href="./LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e44"></a>
+  <a href="https://nodejs.org"><img alt="Node.js 22.12+" src="https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#what-your-agent-sees">What your agent sees</a> ·
+  <a href="#benchmarks">Benchmarks</a> ·
+  <a href="./docs/agent-integration.md">Agents and MCP</a> ·
+  <a href="https://ragmir.com">ragmir.com</a>
+</p>
 
 Ragmir turns your code, specifications, and office documents into a local search index. Claude
 Code, Codex, or your own application queries it through MCP, the `rgr` CLI, or a TypeScript API,
 and every passage comes back with a citation the agent can open and check. Your agent plans,
 reasons, and writes with the model you choose; Ragmir finds the evidence.
 
-- **Code and documents in one index.** Hybrid BM25 and vector search understands file paths and
-  camelCase identifiers, so a question about login throttling reaches `LoginAttemptService.java`
-  as well as the security runbook.
-- **Fast on real repositories.** Median search time is 25 ms on a 21,546-chunk Java and TypeScript
-  monorepo with Office files, 14 times faster than the previous release on the same machine.
+| Without Ragmir | With Ragmir |
+| --- | --- |
+| Code search misses the specs, spreadsheets, and scanned PDFs around the code. | One local index for code and documents, with optional local OCR. |
+| Whole files pasted into the prompt, then pasted again on the next question. | A few compact citations per question; passages already seen come back as one-line stubs. |
+| Answers you cannot trace, from files that may have changed since. | Citations to lines, pages, slides, and cells, flagged when their file changed. |
+| An agent in one repository reading another project's documents. | Each server names its base and warns or refuses unrelated workspaces. |
+
+## Why Ragmir
+
+- **Code and documents in one index.** Hybrid BM25 and vector search understands paths and
+  camelCase identifiers and boosts the code that defines what you ask about, so "how are
+  permissions checked" reaches `PermissionService.java`, not only its tests and notes.
+- **Fast on real repositories.** Median search takes 40 ms on a 43,874-chunk Java and TypeScript
+  monorepo with Office files, and the right file reaches the top 10 for 93% of 101 real developer
+  questions (87% with 6.1.6).
 - **Evidence you can verify.** Citations point to source lines, PDF pages, slides, sheet cells, or
-  EPUB sections, and expansion detects when the indexed passage has changed.
+  EPUB sections. Results say when their file changed after indexing (`sourceStatus`) and when
+  their support is thin (`weakEvidence`); unrelated questions return nothing instead of noise.
+- **Always current.** `rgr doctor` compares the files on disk with the index on every run, and
+  `rgr hooks install` refreshes it in the background after commits, merges, and checkouts.
 - **Private by default.** No account, telemetry, or hosted storage. The default `local-hash`
   provider runs offline without a model download; local semantic embeddings are one command away.
-- **Safe to keep running.** Incremental, resumable ingestion and validated atomic rebuilds. Search
-  keeps working while an upgrade rebuilds the index.
+- **The same on every platform.** Paths are cited with forward slashes and in one Unicode form on
+  macOS, Linux, and Windows, so an exclusion written as `Études` also excludes a folder stored
+  decomposed, and every release is tested on all three systems.
 
 Open source under [AGPL-3.0-only](./LICENSE). JCode Works also offers a
 [commercial license](./COMMERCIAL-LICENSE.md).
@@ -40,11 +72,9 @@ pnpm exec rgr ingest
 pnpm exec rgr search "authentication contract" --compact
 ```
 
-Use `--agents claude`, `kimi`, `opencode`, `cline`, or a comma-separated list for your tools.
-Ragmir writes ignored local state under `.ragmir/`. The generated skill and MCP helpers let an agent
-find evidence, expand a citation, and iterate until it has enough context.
-
-For guided setup, give your agent this prompt:
+Use `--agents claude`, `codex`, `kimi`, `opencode`, `cline`, or a comma-separated list. Ragmir
+writes ignored local state under `.ragmir/` and can read a committed `ragmir.config.json`, so a
+team shares its sources and settings through Git. For guided setup, give your agent this prompt:
 
 <!-- ragmir-setup-prompt:start -->
 <details>
@@ -85,80 +115,77 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 </details>
 <!-- ragmir-setup-prompt:end -->
 
-## Benchmarks
+## What your agent sees
 
-Ragmir 6.1 against 6.0.1 on the same machine, with the same configuration and a fresh index built
-by each release. Quality counts a hit when the expected file appears in the first ten results. Latency is the
-median of warm sequential searches in one process; the last column runs eight searches at a time.
+```text
+> Add account recovery. Use Ragmir to find the requirements before changing the code.
 
-| Corpus | Embeddings | nDCG@10 | Recall@10 | Median search | 8 concurrent |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Java/TypeScript monorepo with Office files: 1,745 files, 21,546 chunks, 104 real developer questions | multilingual-e5-small | 0.613 → **0.621** | 84% → **84%** | 354 → **25 ms** | 1,719 → **108 ms** |
-| Same monorepo | local-hash | 0.430 → **0.456** | 62% → **72%** | 349 → **19 ms** | 1,729 → **95 ms** |
-| French and English product documentation: 268 files, 18,758 chunks, 60 questions | mxbai-embed-xsmall | 0.591 → **0.611** | 79% → **82%** | 246 → **21 ms** | 981 → **108 ms** |
-| Same documentation | local-hash | 0.471 → **0.569** | 61% → **68%** | 239 → **16 ms** | 906 → **77 ms** |
-| Ragmir's own code and docs: 249 files, 2,407 chunks, 60 questions | local-hash | 0.462 → **0.625** | 63% → **84%** | 202 → **15 ms** | 829 → **55 ms** |
+ragmir_search({ query: "account recovery lockout acceptance criteria" })
+  [1] specs/account-recovery.docx#2
+ragmir_expand({ citation: "specs/account-recovery.docx#2" })
+  Spec: token expires after 15 minutes; lock after five failures; never reveal whether an
+  account exists.
+ragmir_search({ query: "account recovery SSO exception authentication ADR" })
+  [2] docs/adr/0012-authentication.md:L18-L26#2
+  [1] specs/account-recovery.docx#2 (seen)
 
-Measured on October 3, 2026 on an Apple M3 Max with Node.js 26, LanceDB 0.30, and the `quality`
-profile used by these projects. The two private corpora are described rather than published. Three
-changes account for the difference: candidate pools sized from the fusion bound instead of
-fixed multipliers, automatic compaction of per-file storage fragments, and keyword terms for source
-paths and identifiers, with BM25 leading the `local-hash` fusion. Run the
-[benchmarks](./packages/ragmir-core/benchmarks/README.md) and `rgr evaluate` on your own corpus
-before relying on any number.
+Recovery code and tests updated using the specification [1] and ADR [2].
+```
+
+The agent searches, expands the one passage it needs, and refines. Passages it already received
+come back as stubs, so the second search spends its budget on new evidence.
+
+## Works with your agent
+
+| Agent or client | Setup |
+| --- | --- |
+| Claude Code | `rgr setup --agents claude`: skill plus project MCP server |
+| Codex | `rgr setup --agents codex`: skill plus `.codex/config.toml` helper |
+| Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
+| Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp` |
+| Your own application | `createRagmirClient()` from the TypeScript API |
+
+The MCP server exposes four read-only tools: `ragmir_search` (one question or up to five related
+ones in a shared budget, optional named `scope`), `ragmir_expand`, `ragmir_status`, and
+`ragmir_audit`. Its instructions name the base it serves. Register it per project: a server
+registered for every project answers unrelated workspaces too, and `rgr doctor` flags it.
 
 ## Four workflow examples
 
-### Build a feature with Claude Code or Codex
+| Workflow | Ask | Ragmir provides |
+| --- | --- | --- |
+| Build a feature with Claude Code or Codex | "Implement account recovery from the specification and authentication ADR. Cite your sources." | The rules, the exceptions, and the code that defines them. |
+| Diagnose an incident with Claude Code or Codex | "Investigate the checkout timeout from the runbook, incident report, and retry code." | Operational guidance first, then the implementation to change. |
+| Plan an API migration with Claude Code or Codex | "Prepare the API v2 migration from the compatibility, rollback, and versioning rules." | The plan and ADR constraints before any caller changes. |
+| Decide confidentially with a local or self-hosted chat | "Should attachments go in PostgreSQL or object storage? Show the supporting passages." | Cited evidence for a model you run on your machine or servers. |
 
-Ask your coding agent: "Implement account recovery from the specification and authentication ADR.
-Use Ragmir to find the rules, check exceptions, then update the code and tests. Cite your sources."
+The first three use your coding agent's normal model connection: with a cloud-backed agent,
+selected passages go to its provider. A local index does not make that conversation local.
+[Agent integration](./docs/agent-integration.md) covers all four workflows, MCP setup, and a small
+local or self-hosted chat client. Ragmir does not bundle a chat or a generation model; scripts can
+use the same retrieval API without one.
 
-```mermaid
-flowchart LR
-    Files["Selected project files"] --> Extract["Parse and optionally OCR"]
-    Extract --> Index["Local index"]
-    Agent["Your developer agent"] --> Search["Search and expand citations"]
-    Index --> Search
-    Search --> Agent
-```
+## Benchmarks
 
-The four MCP tools are `ragmir_status`, `ragmir_search`, `ragmir_expand`, and `ragmir_audit`.
-MCP search returns at most three compact citations by default. The agent expands the most useful
-passage, searches again when evidence is missing, and uses the cited context to answer or act.
+Ragmir 6.2 against 6.1.6 on the same machine, configuration, and index, rebuilt by 6.2. Each
+answerable question has one expected file; "top 3" and "top 10" count the questions whose file
+appears there. Unrelated questions (nonsense, weather, recipes, sports) should return nothing.
+Latency is the median of warm sequential searches in one process.
 
-### Diagnose and fix an incident with Claude Code or Codex
+| Corpus | Embeddings | Answer in top 3 | Answer in top 10 | nDCG@10 | Unrelated questions refused | Median search |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Java/TypeScript monorepo with Office files and scans: 2,117 files, 43,874 chunks, 101 developer questions | multilingual-e5-small | 70% → **73%** | 87% → **93%** | 0.639 → **0.670** | 0 → **3** of 30 | 31 → 40 ms |
+| French and English product documentation: 298 files, 20,931 chunks, 60 questions | mxbai-embed-xsmall | 100% → **100%** | 100% → **100%** | 0.932 → **0.938** | 3 → **15** of 30 | 25 → 31 ms |
 
-Ask your coding agent: "Investigate the checkout timeout. Use Ragmir to retrieve the runbook,
-incident report, and retry implementation before changing the code. Add the regression test and
-cite the evidence that supports the fix."
-
-The agent can search operational guidance first, expand the cited rule, then inspect the relevant
-source path before proposing a small repair.
-
-### Plan an API migration with Claude Code or Codex
-
-Ask your coding agent: "Prepare the API v2 migration. Use Ragmir to retrieve compatibility,
-rollback, and versioning rules before changing callers and migration tests. Cite the plan and ADR."
-
-The agent uses the migration plan and architecture decision to identify constraints before changing
-call sites. Ragmir provides evidence, while the agent owns the migration plan and code changes.
-
-### Make a confidential architecture decision with a local or self-hosted chat
-
-Ask your chat: "According to our internal architecture notes, should attachments go in PostgreSQL
-or object storage? Show the passages supporting the decision."
-
-The chat retrieves and expands evidence with Ragmir, then sends it to the model you configured.
-Use a local chat with a downloaded Ollama model and remote calls disabled, or host the chat and
-model on infrastructure you operate. Local mode can keep the whole exchange on the machine;
-self-hosted mode sends the selected excerpts to your server.
-
-The first three workflows use the coding agent's normal model connection. With a cloud-backed
-agent, selected passages go to its model provider. A local index does not make that conversation
-local. [Agent integration](./docs/agent-integration.md) covers all four workflows, including MCP
-setup and a small local or self-hosted chat client. Ragmir does not bundle that chat or a generation
-model. Scripts can use the same retrieval API without a language model.
+Measured on October 27, 2026 on an Apple M3 Max with Node.js 22.23 and LanceDB 0.30, with the
+`quality` profile these projects use and 30 unrelated questions per corpus. The two private corpora
+are described rather than published. Of the passages 6.2 still returned for unrelated questions,
+it flagged 41 of 81 on the monorepo and 37 of 38 on the documentation as weak evidence, against
+7 of 94 and 0 of 60 correct answers. On the monorepo it also applied six exclusion rules that
+6.1.6 silently missed on accented file names and cited 27 decomposed paths in canonical form. The
+extra milliseconds pay for word statistics, code-definition boosts, and crowding checks. Run the
+[benchmarks](./packages/ragmir-core/benchmarks/README.md) and `rgr evaluate` on your own corpus
+before relying on any number.
 
 ## TypeScript
 
@@ -168,9 +195,9 @@ import { createRagmirClient } from "@jcode.labs/ragmir"
 const ragmir = await createRagmirClient({ cwd: process.cwd() })
 try {
   await ragmir.ingest()
-  const passages = await ragmir.search("authentication contract", { topK: 3 })
+  const passages = await ragmir.search("authentication contract", { topK: 3, scope: "docs" })
   for (const passage of passages) {
-    console.log(passage.citation, passage.text)
+    console.log(passage.citation, passage.weakEvidence ? "(verify)" : "", passage.text)
   }
   if (passages[0]) {
     console.log(await ragmir.expandCitation(passages[0].citation, {
@@ -185,11 +212,23 @@ try {
 Keep one client per project root in a long-running Node.js process. Top-level `ingest`, `search`,
 and `expandCitation` are available for one-shot scripts. See the [API reference](./docs/api-reference.md).
 
+## Where your data goes
+
+| Setup | Index and search | Model calls |
+| --- | --- | --- |
+| Local chat with a local model | On your machine | On your machine |
+| Self-hosted chat and model | On your machine | Your servers receive the selected excerpts |
+| Cloud coding agent (Claude Code, Codex, ...) | On your machine | The agent's provider receives the selected excerpts |
+
+Ragmir has no telemetry or hosted storage. It does not host documents, bundle a model, or open an
+HTTP port, and it preserves source text without masking. Confidentiality depends on the whole path
+through the consuming app, model, tools, and logs. Sensitive-file exclusions and local permission
+checks remain, but do not replace source selection or access control.
+
 ## Semantic retrieval and OCR
 
-The default `local-hash` provider ranks BM25 keyword evidence first and uses deterministic local
-vectors only to break ties and recover passages the full-text index missed. It needs no model
-download and is not a semantic embedding model. For semantic retrieval:
+The default `local-hash` provider ranks BM25 keyword evidence first and needs no model download.
+For semantic retrieval, install the optional runtime and enable a pinned local model:
 
 ```bash
 pnpm add -D @huggingface/transformers
@@ -197,68 +236,61 @@ pnpm exec rgr setup --semantic
 pnpm exec rgr ingest
 ```
 
-Setup explicitly downloads and enables the configured embedding model. It may skip automatic
-ingestion when diagnostics report warnings, for example for configured OCR, so run `ingest` and
-check the reported readiness. Normal retrieval uses cached weights with remote loading disabled.
-Evaluate results on your own corpus.
-
-For scanned PDFs, install a supported local OCR engine, then run:
+For scanned PDFs, photos, and legacy Word files, install a local engine (Tesseract or OCRmyPDF,
+textutil, antiword, catdoc, or LibreOffice), then let Ragmir detect and configure it:
 
 ```bash
 pnpm exec rgr ocr doctor
-pnpm exec rgr ocr setup --language eng+fra
+pnpm exec rgr ocr setup --language eng+fra --images --legacy-word
 pnpm exec rgr ingest
 ```
 
-Embedded PDF text is extracted first. OCR runs only on blank pages, with bounded batches and a local
-cache. Image OCR and legacy `.doc` extraction accept explicitly configured local commands.
+Embedded PDF text is extracted first; OCR runs only on blank pages, in bounded batches with a local
+cache. Normal retrieval keeps remote model loading disabled.
 
 ## Supported documents
 
 Text and code, Markdown, JSON/JSONL, YAML, CSV, HTML, PDF, DOCX, XLSX, PPTX, OpenDocument, EPUB,
-RTF, and configured custom text extensions. Transformed formats use native coordinates instead of
-invented source lines. Unsupported, sensitive, oversized, and empty-text files are reported.
+RTF, images and legacy `.doc` with local extractors, and configured custom text extensions.
+Transformed formats use native coordinates instead of invented source lines. Unsupported,
+sensitive, oversized, and empty-text files are reported.
 
 ## Verify and maintain
 
 ```bash
-pnpm exec rgr doctor --deep
-pnpm exec rgr audit --unsupported
-pnpm exec rgr preview --json
+pnpm exec rgr doctor            # live freshness, agent registrations, next steps
+pnpm exec rgr audit             # source rules, concentration, drift by checksum
+pnpm exec rgr hooks install     # refresh after commits, merges, and checkouts
+pnpm exec rgr storage gc        # disk usage, expired generations, orphaned models
 pnpm exec rgr evaluate --golden golden-queries.json
-pnpm exec rgr upgrade --check
 ```
 
-Indexing is incremental. A failed changed file keeps its last good evidence and is reported as
-stale. Rebuilds retain the previous index until a replacement passes validation. Each workstation
-owns its local index; use your normal Git workflow to update sources, then run `rgr ingest`.
-Monorepos can keep separate bases, selected with `rgr bases` or `--project-root`.
-
-## Is it confidential?
-
-Ragmir has no telemetry or hosted storage. Its index stays on the machine where you run it, and it
-preserves source text without masking. Local indexing alone does not make a connected cloud chat
-private: confidentiality depends on the whole path through the consuming app, model, tools, and
-logs. Use a fully local setup, or infrastructure you control, when excerpts must stay within that
-boundary. Hosting your model in a private cloud is possible, but is not the same as offline use.
-
-Sensitive-file exclusions and local permission checks remain, but do not replace source selection
-or access control. Review the selected corpus before indexing or sharing results.
-
-Ragmir supplies no HTTP server. A network-facing application owns its transport, authentication,
-authorization, and rate limits. Local index writer locks coordinate processes on one machine.
+Indexing is incremental and resumable; a failed changed file keeps its last good evidence and is
+reported as stale. Rebuilds keep the previous index until a replacement passes validation, so
+search keeps working during upgrades. Each workstation owns its index: share sources through Git,
+then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bases` or
+`--project-root`.
 
 ## Documentation
 
 - [Quick start](./docs/quick-start.md)
 - [CLI reference](./docs/cli-reference.md)
 - [TypeScript API](./docs/api-reference.md)
-- [Configuration and formats](./docs/configuration.md)
-- [Four agentic RAG workflows](./docs/agent-integration.md)
+- [Configuration, sources, and ranking](./docs/configuration.md)
+- [Agents, MCP, and four workflows](./docs/agent-integration.md)
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Synthetic examples](./packages/ragmir-core/examples/sovereign-rag-demo/README.md)
 
-The workspace contains the library in `packages/ragmir-core` and the static bilingual landing in
-`packages/ragmir-landing`. Development checks: `pnpm validate`; isolated package installation:
-`pnpm offline:smoke`. See [CONTRIBUTING](./CONTRIBUTING.md) and [RELEASING](./RELEASING.md).
+## Contributing
+
+Issues and pull requests are welcome; read [CONTRIBUTING](./CONTRIBUTING.md) and the
+[code of conduct](./CODE_OF_CONDUCT.md) first. Report vulnerabilities through
+[SECURITY](./SECURITY.md). The workspace holds the library in `packages/ragmir-core` and the
+bilingual site in `packages/ragmir-landing`; `pnpm validate` runs every check, and
+[RELEASING](./RELEASING.md) describes the release flow.
+
+## License
+
+Ragmir is open source under [AGPL-3.0-only](./LICENSE). A [commercial license](./COMMERCIAL-LICENSE.md)
+is available from JCode Works for uses that the AGPL does not fit.

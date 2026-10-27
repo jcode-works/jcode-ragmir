@@ -1,7 +1,7 @@
 # @jcode.labs/ragmir
 
 [![npm version](https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm)](https://www.npmjs.com/package/@jcode.labs/ragmir)
-[![npm downloads](https://img.shields.io/npm/dm/@jcode.labs/ragmir?color=0b7285)](https://www.npmjs.com/package/@jcode.labs/ragmir)
+[![CI](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg)](https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-2f9e44)](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
 [![Node.js 22.12+](https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 
@@ -12,17 +12,18 @@ passages with checkable citations through a TypeScript library, the `rgr` CLI, o
 server. Claude Code, Codex, or your own application decides what to search and generates with the
 model you choose. Ragmir does not bundle a chat model or host your documents.
 
-- **Code and documents in one index:** hybrid BM25 and vector search that understands file paths
-  and camelCase identifiers.
-- **Fast on real repositories:** 25 ms median search on a 21,546-chunk monorepo, 14 times faster
-  than the previous release, with up to 35% better nDCG@10 on code and documentation
+- **Code and documents in one index:** hybrid BM25 and vector search that understands paths and
+  camelCase identifiers and boosts the code that defines what you ask about.
+- **Fast on real repositories:** 40 ms median search on a 43,874-chunk monorepo, with the right
+  source in the top 10 for 93% of real developer questions
   ([benchmarks](https://github.com/jcode-works/jcode-ragmir#benchmarks)).
 - **Evidence you can verify:** citations point to source lines or native page, slide, sheet/cell,
-  and EPUB coordinates. Expansion can detect when indexed evidence has changed.
-- **Private by default:** the `local-hash` provider works offline without downloading a model.
-  Semantic embeddings are an explicit option.
-- **Safe to keep running:** incremental, resumable ingestion and validated rebuilds. Search keeps
-  working while an upgrade rebuilds the index.
+  and EPUB coordinates. Results flag changed files (`sourceStatus`) and thin support
+  (`weakEvidence`); unrelated questions return nothing.
+- **Always current:** `rgr doctor` checks the files on disk on every run, and `rgr hooks install`
+  refreshes the index after commits, merges, and checkouts.
+- **Private and portable:** offline by default, with no account or telemetry, and the same paths,
+  exclusions, and citations on Linux, macOS, and Windows.
 
 ## Install and search
 
@@ -37,8 +38,19 @@ npx rgr search "authentication contract" --compact
 ```
 
 `rgr setup` creates ignored local state under `.ragmir/` and installs the selected agent helpers.
-The [quick start](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md) also
+A committed `ragmir.config.json` shares sources and settings with your team. The
+[quick start](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md) also
 covers pnpm and guided setup.
+
+## Connect your agent
+
+`rgr setup --agents claude,codex` prepares a project MCP server and a retrieval skill. The server
+exposes four read-only tools: `ragmir_search` (one question or up to five related ones sharing a
+budget, with named scopes), `ragmir_expand`, `ragmir_status`, and `ragmir_audit`. Passages
+already returned in a session come back as one-line stubs. Its instructions name the base it
+serves, and it warns or refuses agents working in unrelated projects. See
+[agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
+for connection steps and local or self-hosted model examples.
 
 ## TypeScript API
 
@@ -51,7 +63,7 @@ const ragmir = await createRagmirClient({ cwd: process.cwd() })
 try {
   const passages = await ragmir.search("authentication contract", { topK: 3 })
   for (const passage of passages) {
-    console.log(passage.citation, passage.text)
+    console.log(passage.citation, passage.weakEvidence ? "(verify)" : "", passage.text)
   }
   if (passages[0]) {
     console.log(await ragmir.expandCitation(passages[0].citation, {
@@ -66,43 +78,25 @@ try {
 The library also exports top-level `ingest`, `search`, and `expandCitation` functions for one-shot
 scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md).
 
-## MCP for developer agents
-
-`rgr setup --agents claude,codex` prepares a local MCP helper and a retrieval skill for the agents
-you select. The server exposes four bounded tools: `ragmir_status`, `ragmir_search`,
-`ragmir_expand`, and `ragmir_audit`. An agent can search compact results, open an exact cited
-passage, and search again when the evidence is incomplete. The consuming agent owns reasoning,
-generation, and actions. See [agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
-for connection steps and local or self-hosted model examples.
-
 ## Four workflow examples
 
-1. **Build a feature with Claude Code or Codex.** Ask the agent to implement account recovery from
-   the project's specification and ADR. It searches with Ragmir, opens cited passages, checks
-   exceptions, then changes the code and tests.
-2. **Diagnose an incident with Claude Code or Codex.** Ask the agent to investigate a checkout
-   timeout from the runbook, incident report, and retry implementation before it changes code and
-   adds a regression test.
-3. **Plan an API migration with Claude Code or Codex.** Ask the agent to retrieve compatibility,
-   rollback, and versioning rules from the migration plan and ADR before it updates callers and
-   migration tests.
-4. **Make a confidential architecture decision.** Ask a local or self-hosted chat whether internal
-   architecture rules call for attachments in PostgreSQL or object storage. The chat retrieves cited
-   evidence with Ragmir and sends it to a downloaded Ollama model with remote calls disabled, or to
-   a model on your own server.
+1. **Build a feature with Claude Code or Codex.** The agent finds the specification rules and ADR
+   exceptions with Ragmir, opens the cited passages, then changes the code and tests.
+2. **Diagnose an incident with Claude Code or Codex.** It retrieves the runbook, incident report,
+   and retry implementation before it changes code and adds a regression test.
+3. **Plan an API migration with Claude Code or Codex.** It retrieves compatibility, rollback, and
+   versioning rules before it updates callers and migration tests.
+4. **Make a confidential architecture decision.** A local or self-hosted chat retrieves cited
+   evidence and sends it to a model you run, with remote calls disabled.
 
-## Retrieval options and documents
+## Documents, semantic retrieval, and OCR
 
-The default `local-hash` provider ranks BM25 keyword evidence first and uses deterministic local
-vectors to break ties. For semantic embeddings, install `@huggingface/transformers`, then run `npx rgr setup --semantic` to
-download and enable the selected embedding model. Index Markdown, code, JSON, CSV, HTML, PDF,
-DOCX, XLSX, PPTX, OpenDocument, EPUB, and RTF. Scanned PDF pages require a supported local OCR
-engine: inspect `npx rgr ocr doctor`, then configure it with `npx rgr ocr setup`.
+Index Markdown, code, JSON, CSV, HTML, PDF, DOCX, XLSX, PPTX, OpenDocument, EPUB, and RTF; scanned
+PDFs, photos, and legacy `.doc` files use local extractors (`rgr ocr setup --images
+--legacy-word`). The default `local-hash` provider needs no model download. For semantic
+embeddings, install `@huggingface/transformers` and run `npx rgr setup --semantic`.
 
-The index stays on the machine running Ragmir, but retrieved text is not masked. With an entirely
-local consumer it can stay there; a self-hosted or cloud consumer receives the selected passages.
-Confidentiality depends on the full setup, including access controls, transport, tools, and logs.
-Ragmir has no telemetry or hosted storage.
+For guided setup, give your agent this prompt:
 
 <!-- ragmir-setup-prompt:start -->
 <details>
