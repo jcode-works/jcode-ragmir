@@ -316,7 +316,10 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     await clientLifecycle.close()
   })
   server.server.onclose = () => {
-    void autoIngest.close().then(() => clientLifecycle.close()).catch(() => undefined)
+    void autoIngest
+      .close()
+      .then(() => clientLifecycle.close())
+      .catch(() => undefined)
   }
   const workspaceScope = new WorkspaceScope(server.server)
   workspaceScope.attach()
