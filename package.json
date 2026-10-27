@@ -64,6 +64,7 @@
     "lint:fix": "biome check --write .",
     "license:check": "node scripts/license-policy-smoke.mjs",
     "offline:smoke": "node scripts/offline-install-smoke.mjs",
+    "portability:smoke": "node scripts/portability-smoke.mjs",
     "package:check": "pnpm --filter @jcode.labs/ragmir package:check",
     "public:smoke": "node scripts/public-surface-smoke.mjs && pnpm license:check",
     "release:artifacts": "node scripts/release-artifacts.mjs",
