@@ -1268,7 +1268,10 @@ const hooksCommand = program
 hooksCommand
   .command("install")
   .description("Add a background `rgr ingest` to the Git hooks of this repository.")
-  .option("--force", "Also edit hooks in a directory tracked by the working tree, such as .husky.")
+  .option(
+    "--force",
+    "Also edit hooks in a directory tracked by the working tree, such as .githooks; husky is supported.",
+  )
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { force?: boolean; json?: boolean }, command: Command) => {
     const report = await installGitHooks({
@@ -1698,7 +1701,11 @@ function printGitHooks(
     )
   }
   console.log(`hooksDir=${report.hooksDir}`)
+  console.log(`manager=${report.manager}`)
   console.log(`installed=${report.installed.join(",") || "none"}`)
+  if (action === "installed" && report.manager === "husky" && report.changed.length > 0) {
+    console.log("Commit the changed .husky scripts so the refresh follows the repository.")
+  }
   if (report.missing.length > 0) {
     console.log(`missing=${report.missing.join(",")}`)
   }

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { existsSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -62,12 +62,49 @@ describe("git hooks", () => {
 
   it("refuses to edit a hooks directory tracked in the working tree unless forced", async () => {
     const root = await gitRepository()
-    execFileSync("git", ["config", "core.hooksPath", ".husky"], { cwd: root })
+    execFileSync("git", ["config", "core.hooksPath", ".githooks"], { cwd: root })
 
     await expect(installGitHooks({ cwd: root })).rejects.toThrow(/inside the working tree/u)
     const forced = await installGitHooks({ cwd: root, force: true })
 
-    expect(forced.trackedHooksDir).toBe(true)
+    expect(forced).toMatchObject({ manager: "git", trackedHooksDir: true })
+    expect(existsSync(path.join(root, ".githooks", "post-merge"))).toBe(true)
+  })
+
+  it("adds the block to husky 9 scripts instead of the shims husky regenerates", async () => {
+    const root = await gitRepository()
+    const shims = path.join(root, ".husky", "_")
+    await mkdir(shims, { recursive: true })
+    await writeFile(path.join(shims, "h"), "#!/usr/bin/env sh\n", "utf8")
+    await writeFile(path.join(shims, ".gitignore"), "*", "utf8")
+    await writeFile(path.join(root, ".husky", "pre-commit"), "pnpm lint\n", "utf8")
+    execFileSync("git", ["config", "core.hooksPath", ".husky/_"], { cwd: root })
+
+    const installed = await installGitHooks({ cwd: root })
+    const postCommit = await readFile(path.join(root, ".husky", "post-commit"), "utf8")
+    const removed = await uninstallGitHooks({ cwd: root })
+
+    expect(installed).toMatchObject({
+      manager: "husky",
+      hooksDir: path.join(await realpath(root), ".husky"),
+      installed: ["post-checkout", "post-commit", "post-merge", "post-rewrite"],
+    })
+    expect(postCommit).toContain("node .ragmir/run.cjs ingest")
+    expect(existsSync(path.join(shims, "post-commit"))).toBe(false)
+    expect(await readFile(path.join(root, ".husky", "pre-commit"), "utf8")).toBe("pnpm lint\n")
+    expect(removed.changed).toHaveLength(4)
+    expect(existsSync(path.join(root, ".husky", "post-commit"))).toBe(false)
+  })
+
+  it("recognizes husky 8, whose hooks path is the scripts folder itself", async () => {
+    const root = await gitRepository()
+    await mkdir(path.join(root, ".husky", "_"), { recursive: true })
+    await writeFile(path.join(root, ".husky", "_", "husky.sh"), "#!/usr/bin/env sh\n", "utf8")
+    execFileSync("git", ["config", "core.hooksPath", ".husky"], { cwd: root })
+
+    const installed = await installGitHooks({ cwd: root })
+
+    expect(installed).toMatchObject({ manager: "husky", trackedHooksDir: true })
     expect(existsSync(path.join(root, ".husky", "post-merge"))).toBe(true)
   })
 })
