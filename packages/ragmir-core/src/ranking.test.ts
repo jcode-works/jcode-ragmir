@@ -261,20 +261,20 @@ function fullCoverage(
 /** Every single deletion, insertion, substitution, and adjacent swap of a word. */
 function typoVariants(word: string): Set<string> {
   const variants = new Set<string>()
-  for (let index = 0; index <= word.length; index += 1) {
+  for (let cut = 0; cut <= word.length; cut += 1) {
+    const head = word.slice(0, cut)
+    const tail = word.slice(cut)
     for (const letter of "aeirstxz") {
-      variants.add(`${word.slice(0, index)}${letter}${word.slice(index)}`)
-      if (index < word.length) {
-        variants.add(`${word.slice(0, index)}${letter}${word.slice(index + 1)}`)
+      variants.add(`${head}${letter}${tail}`)
+      if (tail.length > 0) {
+        variants.add(`${head}${letter}${tail.slice(1)}`)
       }
     }
-    if (index < word.length) {
-      variants.add(`${word.slice(0, index)}${word.slice(index + 1)}`)
+    if (tail.length > 0) {
+      variants.add(`${head}${tail.slice(1)}`)
     }
-    if (index < word.length - 1) {
-      variants.add(
-        `${word.slice(0, index)}${word[index + 1]}${word[index]}${word.slice(index + 2)}`,
-      )
+    if (tail.length > 1) {
+      variants.add(`${head}${tail.slice(1, 2)}${tail.slice(0, 1)}${tail.slice(2)}`)
     }
   }
   variants.delete(word)
