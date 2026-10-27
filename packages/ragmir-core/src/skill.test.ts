@@ -125,7 +125,7 @@ describe("installSkill", () => {
     expect(agentSetup).toContain(".agents/skills/")
     const runner = await readFile(result.runnerPath, "utf8")
     expect(runner).toContain("@jcode.labs/ragmir@")
-    expect(runner).toContain("dist/cli-entry.js")
+    expect(runner).toContain(JSON.stringify(path.join("dist", "cli-entry.js")).slice(1, -1))
     expect(runner).toContain("await import(pathToFileURL(cliPath).href)")
   })
 
