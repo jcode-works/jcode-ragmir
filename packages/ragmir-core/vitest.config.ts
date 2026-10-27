@@ -1,8 +1,13 @@
 import { defineConfig } from "vitest/config"
 
+// Ingest-heavy tests run about three times slower on Windows; see src/test-support/timeouts.ts.
+const platformTimeoutFactor = process.platform === "win32" ? 3 : 1
+
 export default defineConfig({
   test: {
     maxWorkers: 4,
+    testTimeout: 5_000 * platformTimeoutFactor,
+    hookTimeout: 10_000 * platformTimeoutFactor,
     // MCP servers read the agent's workspace from these; tests run inside agent shells too.
     env: { CLAUDE_PROJECT_DIR: "", RAGMIR_CLIENT_CWD: "" },
     coverage: {

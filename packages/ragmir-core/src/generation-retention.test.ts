@@ -13,6 +13,7 @@ import { generationTableName } from "./ingestion-state.js"
 import { initProject } from "./init.js"
 import { connectStore, writeIndexManifest, writeRowsToTable } from "./store.js"
 import { testConfig } from "./test-support/config.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 import type { Config } from "./types.js"
 
 const tempDirs: string[] = []
@@ -23,7 +24,7 @@ afterEach(async () => {
   }
 })
 
-describe("generation retention", () => {
+describe("generation retention", { timeout: integrationTimeout(60_000) }, () => {
   it("should converge after ten real rebuilds using persisted generation roles", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-generation-rebuilds-"))
     tempDirs.push(root)
@@ -54,7 +55,7 @@ describe("generation retention", () => {
     } finally {
       connection.close()
     }
-  }, 60_000)
+  })
 
   it("should bound ten rebuild generations after the reader grace period", async () => {
     const { config, tableNames, activeState } = await generationFixture(10)

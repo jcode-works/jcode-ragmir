@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto"
 import { createReadStream } from "node:fs"
-import { mkdir, mkdtemp, readdir, rename, rm, stat } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { MAX_EMBEDDING_BATCH_SIZE } from "./defaults.js"
+import { removeTree, renameWithRetry } from "./fs-retry.js"
 import { throwIfAborted } from "./operation.js"
 import { ensurePrivateDirectory } from "./permissions.js"
 import { tokenize } from "./text.js"
@@ -145,7 +146,7 @@ export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingM
       embeddingModelPath: config.embeddingModelPath,
     }
   } finally {
-    await rm(downloadRoot, { recursive: true, force: true })
+    await removeTree(downloadRoot)
   }
 }
 
@@ -556,18 +557,18 @@ async function replaceDirectory(target: string, replacement: string): Promise<vo
     () => false,
   )
   if (hadPrevious) {
-    await rename(target, previous)
+    await renameWithRetry(target, previous)
   }
   try {
-    await rename(replacement, target)
+    await renameWithRetry(replacement, target)
   } catch (error) {
     if (hadPrevious) {
-      await rename(previous, target)
+      await renameWithRetry(previous, target)
     }
     throw error
   }
   if (hadPrevious) {
-    await rm(previous, { recursive: true, force: true })
+    await removeTree(previous)
   }
 }
 

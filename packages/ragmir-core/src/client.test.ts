@@ -9,6 +9,7 @@ import { isRagmirError, type RagmirError } from "./errors.js"
 import { initProject } from "./init.js"
 import { search } from "./query.js"
 import { INDEX_READ_DIAGNOSTICS_CHANNEL, type IndexReadDiagnosticsEvent } from "./store.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 import { workloadSnapshot } from "./workload.js"
 
 const tempDirs: string[] = []
@@ -32,7 +33,7 @@ async function projectWithEvidence(prefix: string): Promise<string> {
   return root
 }
 
-describe("RagmirClient", () => {
+describe("RagmirClient", { timeout: integrationTimeout(10_000) }, () => {
   it("should reuse one client for ingestion and cited retrieval", async () => {
     const root = await projectWithEvidence("ragmir-client-")
     const client = await createRagmirClient({ cwd: root })
@@ -169,7 +170,7 @@ describe("RagmirClient", () => {
     const config = await loadConfig(root)
     expect(workloadSnapshot(config, "search")).toMatchObject({ active: 0, queued: 0 })
     expect(workloadSnapshot(config, "embedding")).toMatchObject({ active: 0, queued: 0 })
-  }, 10_000)
+  })
 
   it("should reject a 100-request burst at the configured queue boundary", async () => {
     const root = await projectWithEvidence("ragmir-client-overload-")

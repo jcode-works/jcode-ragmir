@@ -9,6 +9,7 @@ import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { search } from "./query.js"
 import { readIndexManifest, writeIndexManifest } from "./store.js"
+import { integrationTimeout } from "./test-support/timeouts.js"
 import { inspectUpgrade, upgradeProject } from "./upgrade.js"
 
 const tempDirs: string[] = []
@@ -19,7 +20,7 @@ afterEach(async () => {
   }
 })
 
-describe("upgrade continuity", () => {
+describe("upgrade continuity", { timeout: integrationTimeout(20_000) }, () => {
   it("should stage and atomically activate a rebuild when the index schema is old", async () => {
     const root = await upgradeFixture()
     const config = await loadConfig(root)
@@ -53,7 +54,7 @@ describe("upgrade continuity", () => {
     expect(upgradedManifest?.schemaVersion).toBe(INDEX_SCHEMA_VERSION)
     expect(upgradedManifest?.corpusFingerprint).toBe(fingerprintBefore)
     await expect(search("continuity", { cwd: root })).resolves.toHaveLength(1)
-  }, 20_000)
+  })
 
   it("should apply current safe defaults when an older config omits newer fields", async () => {
     const root = await upgradeFixture()
@@ -76,7 +77,7 @@ describe("upgrade continuity", () => {
       action: "none",
       ready: true,
     })
-  }, 20_000)
+  })
 
   it("should report privacy warnings as non-blocking upgrade advisories", async () => {
     const root = await upgradeFixture()
@@ -102,7 +103,7 @@ describe("upgrade continuity", () => {
       reason: null,
     })
     await expect(search("continuity", { cwd: root })).resolves.toHaveLength(1)
-  }, 20_000)
+  })
 
   it("should stage a rebuild when an old index has no compatible manifest", async () => {
     const root = await upgradeFixture()
@@ -125,7 +126,7 @@ describe("upgrade continuity", () => {
       ready: true,
     })
     await expect(search("continuity", { cwd: root })).resolves.toHaveLength(1)
-  }, 20_000)
+  })
 })
 
 async function upgradeFixture(): Promise<string> {
