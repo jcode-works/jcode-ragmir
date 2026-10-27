@@ -9,6 +9,7 @@ import {
   extractPdfPages,
   inspectPdfOcr,
   normalizeOcrLanguage,
+  ocrRenderDpi,
   parsePdfOcrEngine,
   parsePdfOcrPages,
   pdfOcrCommandIdentity,
@@ -116,13 +117,56 @@ describe("PDF OCR onboarding", () => {
     await expect(
       extractPdfPages({ engine: "tesseract", input, pages: [2, 4, 5], language: "eng" }),
     ).resolves.toMatchObject({
-      subprocesses: 2,
+      subprocesses: 5,
       pages: [
         { page: 2, text: "Synthetic OCR text from Tesseract\n" },
         { page: 4, text: "Synthetic OCR text from Tesseract\n" },
         { page: 5, text: "Synthetic OCR text from Tesseract\n" },
       ],
     })
+    expect((await renderedPdfPages(binDir)).map((args) => args[args.indexOf("-f") + 1])).toEqual([
+      "2",
+      "4",
+      "5",
+    ])
+  })
+
+  it("should render Tesseract pages as LZW TIFF instead of slow PNG", async () => {
+    const root = await createTempRoot("ragmir-ocr-tesseract-render-")
+    const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
+    process.env.PATH = binDir
+    const input = path.join(root, "scan.pdf")
+    await writeFile(input, "synthetic PDF fixture")
+
+    await extractPdfPages({ engine: "tesseract", input, pages: [1, 2], language: "eng" })
+
+    for (const renderArgs of await renderedPdfPages(binDir)) {
+      expect(renderArgs).toEqual(
+        expect.arrayContaining(["-r", "300", "-gray", "-tiff", "-tiffcompression", "lzw"]),
+      )
+      expect(renderArgs).not.toContain("-png")
+    }
+  })
+
+  it("should cap the render resolution of pages sized in pixels", async () => {
+    const root = await createTempRoot("ragmir-ocr-tesseract-dpi-")
+    const binDir = await createFakeTools(root, {
+      tesseract: true,
+      pdftoppm: true,
+      pdfinfoSizes: { 1: [1530, 2196], 2: [595.28, 841.89], 3: [612, 1008] },
+    })
+    process.env.PATH = binDir
+    const input = path.join(root, "scan.pdf")
+    await writeFile(input, "synthetic PDF fixture")
+
+    await extractPdfPages({ engine: "tesseract", input, pages: [1, 2, 3], language: "eng" })
+
+    expect((await renderedPdfPages(binDir)).map((args) => args[args.indexOf("-r") + 1])).toEqual([
+      "137",
+      "300",
+      "300",
+    ])
+    expect(ocrRenderDpi(undefined)).toBe(300)
   })
 
   it("should extract one PDF page with OCRmyPDF sidecar output", async () => {
@@ -175,6 +219,13 @@ describe("PDF OCR onboarding", () => {
   })
 })
 
+async function renderedPdfPages(binDir: string): Promise<string[][]> {
+  return (await readFile(path.join(binDir, "pdftoppm.log"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as string[])
+}
+
 async function createTempRoot(prefix: string): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), prefix))
   tempDirs.push(root)
@@ -187,11 +238,27 @@ async function createFakeTools(
     ocrmypdf?: boolean
     tesseract?: boolean
     pdftoppm?: boolean
+    pdfinfoSizes?: Record<number, [number, number]>
     emptyTesseractOutput?: boolean
   },
 ): Promise<string> {
   const binDir = path.join(root, "bin")
   await mkdir(binDir, { recursive: true })
+
+  if (tools.pdfinfoSizes) {
+    await writeExecutable(
+      path.join(binDir, "pdfinfo"),
+      `const sizes = ${JSON.stringify(tools.pdfinfoSizes)}
+const args = process.argv.slice(2)
+const first = Number(args[args.indexOf("-f") + 1])
+const last = Number(args[args.indexOf("-l") + 1])
+process.stdout.write("Pages:          " + Object.keys(sizes).length + "\\n")
+for (let page = first; page <= last; page += 1) {
+  const [width, height] = sizes[page]
+  process.stdout.write("Page " + String(page).padStart(4) + " size: " + width + " x " + height + " pts\\n")
+}`,
+    )
+  }
 
   if (tools.tesseract) {
     await writeExecutable(
@@ -211,15 +278,22 @@ if (args.includes("--list-langs")) {
   if (tools.pdftoppm) {
     await writeExecutable(
       path.join(binDir, "pdftoppm"),
-      `import { writeFileSync } from "node:fs"
+      `import { appendFileSync, writeFileSync } from "node:fs"
+import path from "node:path"
 const args = process.argv.slice(2)
 if (args.includes("-v")) {
   process.stderr.write("pdftoppm version 25.0.0\\n")
 } else {
+  appendFileSync(path.join(path.dirname(process.argv[1]), "pdftoppm.log"), JSON.stringify(args) + "\\n")
   const first = Number(args[args.indexOf("-f") + 1])
   const last = Number(args[args.indexOf("-l") + 1])
-  for (let page = first; page <= last; page += 1) {
-    writeFileSync(args.at(-1) + "-" + page + ".png", "synthetic image")
+  const extension = args.includes("-tiff") ? ".tif" : ".png"
+  if (args.includes("-singlefile")) {
+    writeFileSync(args.at(-1) + extension, "synthetic image")
+  } else {
+    for (let page = first; page <= last; page += 1) {
+      writeFileSync(args.at(-1) + "-" + page + extension, "synthetic image")
+    }
   }
 }`,
     )
