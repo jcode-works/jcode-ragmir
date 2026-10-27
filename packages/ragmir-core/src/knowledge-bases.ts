@@ -1,12 +1,20 @@
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import fg from "fast-glob"
-import { CONFIG_PATH, LEGACY_CONFIG_PATH } from "./defaults.js"
-import type { KnowledgeBaseIdentity, KnowledgeBaseInfo, KnowledgeBaseInventory } from "./types.js"
+import { CONFIG_PATH, LEGACY_CONFIG_PATH, SHARED_CONFIG_FILENAME } from "./defaults.js"
+import { canonicalSourcePath } from "./source-paths.js"
+import type {
+  Config,
+  KnowledgeBaseIdentity,
+  KnowledgeBaseInfo,
+  KnowledgeBaseInventory,
+} from "./types.js"
 
 const KNOWLEDGE_BASE_PATTERNS = [
   CONFIG_PATH,
   `**/${CONFIG_PATH}`,
+  SHARED_CONFIG_FILENAME,
+  `**/${SHARED_CONFIG_FILENAME}`,
   LEGACY_CONFIG_PATH,
   `**/${LEGACY_CONFIG_PATH}`,
 ]
@@ -106,6 +114,10 @@ function configuredRootAt(projectRoot: string): ConfiguredRoot | null {
   if (existsSync(configPath)) {
     return { projectRoot, configPath, legacy: false }
   }
+  const sharedConfigPath = path.join(projectRoot, SHARED_CONFIG_FILENAME)
+  if (existsSync(sharedConfigPath)) {
+    return { projectRoot, configPath: sharedConfigPath, legacy: false }
+  }
   const legacyConfigPath = path.join(projectRoot, LEGACY_CONFIG_PATH)
   if (existsSync(legacyConfigPath)) {
     return { projectRoot, configPath: legacyConfigPath, legacy: true }
@@ -114,6 +126,9 @@ function configuredRootAt(projectRoot: string): ConfiguredRoot | null {
 }
 
 function configuredRootForConfig(configPath: string): ConfiguredRoot {
+  if (path.basename(configPath) === SHARED_CONFIG_FILENAME) {
+    return { projectRoot: path.dirname(configPath), configPath, legacy: false }
+  }
   const configDirectory = path.dirname(configPath)
   const legacy = path.basename(configDirectory) === path.dirname(LEGACY_CONFIG_PATH)
   return {
@@ -125,5 +140,82 @@ function configuredRootForConfig(configPath: string): ConfiguredRoot {
 
 function knowledgeBaseId(workspaceRoot: string, projectRoot: string): string {
   const relativePath = path.relative(workspaceRoot, projectRoot)
-  return relativePath.length === 0 ? "." : relativePath.split(path.sep).join("/")
+  return relativePath.length === 0 ? "." : canonicalSourcePath(relativePath)
+}
+
+export interface KnowledgeBaseProfile {
+  name: string
+  description: string | null
+  projectRoot: string
+  scopes: Array<{ name: string; description: string | null }>
+}
+
+/** Name, purpose, and scopes that tell an agent which project this base answers for. */
+export function knowledgeBaseProfile(
+  config: Pick<Config, "projectRoot" | "name" | "description" | "scopes">,
+): KnowledgeBaseProfile {
+  return {
+    name: config.name ?? (path.basename(config.projectRoot) || config.projectRoot),
+    description: config.description,
+    projectRoot: config.projectRoot,
+    scopes: Object.entries(config.scopes).map(([name, scope]) => ({
+      name,
+      description: scope.description ?? null,
+    })),
+  }
+}
+
+/**
+ * Synchronous, validation-free read of the profile fields, for building an MCP server whose
+ * instructions must exist before the first request. Invalid values fall back to defaults; the
+ * validated config still governs every tool call.
+ */
+export function readKnowledgeBaseProfileSync(projectRoot: string): KnowledgeBaseProfile {
+  const raw: Record<string, unknown> = {}
+  for (const configPath of [
+    path.join(projectRoot, SHARED_CONFIG_FILENAME),
+    path.join(projectRoot, CONFIG_PATH),
+    path.join(projectRoot, LEGACY_CONFIG_PATH),
+  ]) {
+    try {
+      const value: unknown = JSON.parse(readFileSync(configPath, "utf8"))
+      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+        Object.assign(raw, value)
+      }
+    } catch {
+      // Missing or unreadable files leave the defaults in place.
+    }
+  }
+  const text = (value: unknown): string | null =>
+    typeof value === "string" && value.trim().length > 0 ? value.trim() : null
+  const scopes =
+    typeof raw.scopes === "object" && raw.scopes !== null && !Array.isArray(raw.scopes)
+      ? Object.fromEntries(
+          Object.entries(raw.scopes as Record<string, unknown>).map(([name, scope]) => [
+            name,
+            {
+              includePaths: [],
+              excludePaths: [],
+              ...scopeDescription(scope, text),
+            },
+          ]),
+        )
+      : {}
+  return knowledgeBaseProfile({
+    projectRoot,
+    name: text(raw.name),
+    description: text(raw.description),
+    scopes,
+  })
+}
+
+function scopeDescription(
+  scope: unknown,
+  text: (value: unknown) => string | null,
+): { description?: string } {
+  const description =
+    typeof scope === "object" && scope !== null && "description" in scope
+      ? text((scope as { description?: unknown }).description)
+      : null
+  return description === null ? {} : { description }
 }

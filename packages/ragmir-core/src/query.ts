@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto"
 import { channel } from "node:diagnostics_channel"
+import { stat } from "node:fs/promises"
+import path from "node:path"
 import {
   BooleanQuery,
   type Connection,
@@ -36,6 +38,12 @@ import {
   tokensAreLexicallyRelated,
 } from "./ranking.js"
 import { selectDiverseRows } from "./retrieval-diversity.js"
+import {
+  canonicalUserPath,
+  isCaseInsensitiveFileSystem,
+  resolveExistingPath,
+  unicodePathVariants,
+} from "./source-paths.js"
 import type { IndexReadSnapshot } from "./store.js"
 import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
 import { normalizeForMatch, tokenize } from "./text.js"
@@ -79,6 +87,8 @@ interface SearchRow {
   locationLabel?: string
   cellStart?: string
   cellEnd?: string
+  bytes?: number
+  mtimeMs?: number
   _distance?: number
   _score?: number
 }
@@ -122,6 +132,8 @@ const SEARCH_COLUMNS = [
   "locationLabel",
   "cellStart",
   "cellEnd",
+  "bytes",
+  "mtimeMs",
 ]
 const VECTOR_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_distance"]
 const FTS_SEARCH_COLUMNS = [...SEARCH_COLUMNS, "_score"]
@@ -215,9 +227,10 @@ async function searchWithinGeneration(
     return []
   }
 
+  const scope = resolveSearchScope(config, options.scope)
   const retrievalPredicate = searchPredicate(
-    options.includePaths,
-    options.excludePaths,
+    [scope?.includePaths, options.includePaths],
+    [...(scope?.excludePaths ?? []), ...(options.excludePaths ?? [])],
     options.contextPaths,
   )
   let embeddingQueueMs = 0
@@ -280,12 +293,16 @@ async function searchWithinGeneration(
     isRelevant: (row) => isExactPathMatch(row) || passesAbstention(row),
   })
   const rows = diversity.rows
-  const contextByRow = await contextChunksByRow(table, rows, contextRadius, retrievalPredicate)
+  const [contextByRow, sourceStatuses] = await Promise.all([
+    contextChunksByRow(table, rows, contextRadius, retrievalPredicate),
+    sourceStatusesForRows(config.projectRoot, rows),
+  ])
   throwIfAborted(signal)
   const knowledgeBaseId = knowledgeBaseIdentity(config.projectRoot)?.id ?? null
 
   const results = rows.map((row) => {
     const vectorDistance = typeof row.row._distance === "number" ? row.row._distance : null
+    const sourceStatus = sourceStatuses.get(row.row.relativePath)
     return {
       source: row.row.source,
       relativePath: row.row.relativePath,
@@ -302,6 +319,7 @@ async function searchWithinGeneration(
       pageEnd: nullablePageNumber(row.row.pageEnd),
       context: contextByRow.get(rowKey(row.row)) ?? [],
       evidence: evidenceVersionForRow(row.row, snapshot, knowledgeBaseId),
+      ...(sourceStatus === undefined ? {} : { sourceStatus }),
       ...(options.explain
         ? {
             score: {
@@ -339,6 +357,39 @@ async function searchWithinGeneration(
     }
   })
   return results
+}
+
+/**
+ * Compare each cited file with the size and modification time recorded at indexing. Agents can then
+ * tell evidence that no longer matches the file on disk from current evidence, at one stat per file.
+ */
+async function sourceStatusesForRows(
+  projectRoot: string,
+  rows: Array<RankedRow<SearchRow>>,
+): Promise<Map<string, "modified" | "missing">> {
+  const byPath = new Map<string, SearchRow>()
+  for (const { row } of rows) {
+    if (!byPath.has(row.relativePath)) byPath.set(row.relativePath, row)
+  }
+  const statuses = new Map<string, "modified" | "missing">()
+  await Promise.all(
+    [...byPath.entries()].map(async ([relativePath, row]) => {
+      if (typeof row.bytes !== "number" || typeof row.mtimeMs !== "number") {
+        return
+      }
+      const absolutePath = resolveExistingPath(
+        path.join(projectRoot, ...relativePath.split("/")),
+        isCaseInsensitiveFileSystem(projectRoot),
+      )
+      const info = absolutePath === null ? null : await stat(absolutePath).catch(() => null)
+      if (!info?.isFile()) {
+        statuses.set(relativePath, "missing")
+      } else if (info.size !== row.bytes || info.mtimeMs !== row.mtimeMs) {
+        statuses.set(relativePath, "modified")
+      }
+    }),
+  )
+  return statuses
 }
 
 export function vectorCandidateLimit(
@@ -437,7 +488,7 @@ async function expandCitationWithinGeneration(
     .query()
     .select(SEARCH_COLUMNS)
     .where(
-      `relativePath = ${sqlString(target.relativePath)} AND chunkIndex >= ${minimumChunkIndex} AND chunkIndex <= ${maximumChunkIndex}`,
+      `${relativePathEquals(target.relativePath)} AND chunkIndex >= ${minimumChunkIndex} AND chunkIndex <= ${maximumChunkIndex}`,
     )
     .toArray()) as SearchRow[]
   throwIfAborted(signal)
@@ -452,7 +503,7 @@ async function expandCitationWithinGeneration(
       passages: [],
     }
   }
-  if (citationForRow(targetRow) !== requestedCitation) {
+  if (canonicalUserPath(citationForRow(targetRow)) !== canonicalUserPath(requestedCitation)) {
     throw new Error("Citation coordinates do not match the indexed passage.")
   }
   const evidence = evidenceVersionForRow(
@@ -475,7 +526,7 @@ async function expandCitationWithinGeneration(
       .query()
       .select(SEARCH_COLUMNS)
       .where(
-        `relativePath = ${sqlString(target.relativePath)} AND chunkIndex = ${targetRow.headerChunkIndex}`,
+        `${relativePathEquals(target.relativePath)} AND chunkIndex = ${targetRow.headerChunkIndex}`,
       )
       .limit(1)
       .toArray()) as SearchRow[]
@@ -585,7 +636,7 @@ async function lexicalCandidateRows(
               .filter(
                 (row) =>
                   sourcePathQuery.exactRelativePath === null ||
-                  row.relativePath === sourcePathQuery.exactRelativePath,
+                  row.relativePath.normalize("NFC") === sourcePathQuery.exactRelativePath,
               )
               .map(rowKey)
           : [],
@@ -632,7 +683,7 @@ async function lexicalCandidateRows(
           .filter(
             (row) =>
               sourcePathQuery.exactRelativePath === null ||
-              row.relativePath === sourcePathQuery.exactRelativePath,
+              row.relativePath.normalize("NFC") === sourcePathQuery.exactRelativePath,
           )
           .map(rowKey)
       : [],
@@ -747,25 +798,48 @@ async function executeSourcePathQuery(
     (row) => ({
       ...(row as SearchRow),
       _score:
-        sourcePathQuery.exactRelativePath === (row as SearchRow).relativePath
+        sourcePathQuery.exactRelativePath === (row as SearchRow).relativePath.normalize("NFC")
           ? Number.MAX_SAFE_INTEGER
           : Number.MAX_SAFE_INTEGER - 1,
     }),
   )
 }
 
+function resolveSearchScope(
+  config: Config,
+  scopeName: string | undefined,
+): Config["scopes"][string] | null {
+  if (scopeName === undefined) {
+    return null
+  }
+  const scope = config.scopes[scopeName]
+  if (!scope) {
+    const names = Object.keys(config.scopes)
+    throw new RagmirError(
+      "INVALID_ARGUMENT",
+      names.length === 0
+        ? `Unknown scope "${scopeName}": this knowledge base defines no scopes.`
+        : `Unknown scope "${scopeName}". Configured scopes: ${names.join(", ")}.`,
+    )
+  }
+  return scope
+}
+
+/** Each include group narrows the search (AND); paths inside one group are alternatives (OR). */
 function searchPredicate(
-  includePaths: string[] | undefined,
+  includeGroups: Array<string[] | undefined>,
   excludePaths: string[] | undefined,
   contextPaths: string[] | undefined,
 ): string | null {
-  const includes = normalizePathPrefixes(includePaths)
   const excludes = normalizePathPrefixes(excludePaths)
   const contexts = normalizeContextPaths(contextPaths)
   const clauses: string[] = []
 
-  if (includes.length > 0) {
-    clauses.push(`(${includes.map(pathPrefixPredicate).join(" OR ")})`)
+  for (const includePaths of includeGroups) {
+    const includes = normalizePathPrefixes(includePaths)
+    if (includes.length > 0) {
+      clauses.push(`(${includes.map(pathPrefixPredicate).join(" OR ")})`)
+    }
   }
   if (excludes.length > 0) {
     clauses.push(`NOT (${excludes.map(pathPrefixPredicate).join(" OR ")})`)
@@ -777,18 +851,24 @@ function searchPredicate(
 }
 
 function normalizePathPrefixes(prefixes: string[] | undefined): string[] {
-  return [
-    ...new Set(
-      (prefixes ?? [])
-        .map((prefix) => prefix.trim().replaceAll("\\", "/").replace(/^\.\//u, ""))
-        .map((prefix) => prefix.replace(/\/+$/u, ""))
-        .filter(Boolean),
-    ),
-  ]
+  return [...new Set((prefixes ?? []).map(canonicalUserPath).filter(Boolean))]
 }
 
+/** Match the canonical path and its decomposed form, which indexes built before 6.2 may hold. */
 function pathPrefixPredicate(prefix: string): string {
-  return `(relativePath = ${sqlString(prefix)} OR starts_with(relativePath, ${sqlString(`${prefix}/`)}))`
+  return unicodePathVariants(prefix)
+    .map(
+      (variant) =>
+        `(relativePath = ${sqlString(variant)} OR starts_with(relativePath, ${sqlString(`${variant}/`)}))`,
+    )
+    .join(" OR ")
+}
+
+function relativePathEquals(relativePath: string): string {
+  const variants = unicodePathVariants(relativePath)
+  return variants.length === 1
+    ? `relativePath = ${sqlString(relativePath)}`
+    : `relativePath IN (${variants.map(sqlString).join(", ")})`
 }
 
 function normalizeContextPaths(contextPaths: string[] | undefined): string[] {
@@ -981,7 +1061,7 @@ function parseCitationTarget(citation: string): { relativePath: string; chunkInd
   }
 
   const chunkIndex = Number.parseInt(chunkIndexText, 10)
-  let relativePath = citation.slice(0, match.index)
+  let relativePath = canonicalUserPath(citation.slice(0, match.index))
   relativePath = stripCitationCoordinates(relativePath)
   if (!relativePath) {
     throw new Error("Citation must include a source path before its chunk suffix.")
@@ -1121,7 +1201,7 @@ function isFuzzyLexicalTerm(term: string): boolean {
 function sourcePathPredicateForQuery(
   query: string,
 ): { predicate: string; exactRelativePath: string | null } | null {
-  const normalized = query.trim().replaceAll("\\", "/").replace(/^\.\//u, "")
+  const normalized = canonicalUserPath(query)
   if (!SOURCE_PATH_QUERY_PATTERN.test(normalized)) {
     return null
   }
@@ -1129,11 +1209,14 @@ function sourcePathPredicateForQuery(
   if (!fileName) {
     return null
   }
-  const clauses = new Set<string>([
-    `relativePath = ${sqlString(normalized)}`,
-    `relativePath = ${sqlString(fileName)}`,
-    `ends_with(relativePath, ${sqlString(`/${fileName}`)})`,
-  ])
+  const clauses = new Set<string>(
+    [normalized, fileName].flatMap((value) => [
+      relativePathEquals(value),
+      ...unicodePathVariants(fileName).map(
+        (variant) => `ends_with(relativePath, ${sqlString(`/${variant}`)})`,
+      ),
+    ]),
+  )
   return {
     predicate: `(${[...clauses].join(" OR ")})`,
     exactRelativePath: normalized.includes("/") ? normalized : null,

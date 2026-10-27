@@ -1,6 +1,7 @@
 import { loadConfig } from "./config.js"
 import { doctorWithConfig } from "./doctor.js"
-import { knowledgeBaseIdentity } from "./knowledge-bases.js"
+import { checkIndexFreshness } from "./freshness.js"
+import { knowledgeBaseIdentity, knowledgeBaseProfile } from "./knowledge-bases.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { readIndexManifestFilePage, readIndexManifestHeader } from "./store.js"
 import type {
@@ -35,15 +36,20 @@ export async function getKnowledgeBaseContextWithConfig(
   const report = await doctorWithConfig(config, signal ? { signal } : {})
   throwIfAborted(signal)
   const identity = knowledgeBaseIdentity(config.projectRoot)
+  const profile = knowledgeBaseProfile(config)
 
   return {
     knowledgeBaseId: identity?.id ?? null,
+    knowledgeBase: { name: profile.name, description: profile.description },
+    scopes: profile.scopes,
     projectRoot: config.projectRoot,
     retrievalProfile: config.retrievalProfile,
     embeddingProvider: config.embeddingProvider,
     corpusFingerprint: report.corpusFingerprint,
     ready: report.ready,
     coverage: {
+      verified: report.sourceFreshness?.verified === true || report.inventoryVerified,
+      checkedAt: report.sourceFreshness?.checkedAt ?? null,
       supportedFiles: report.supportedFiles,
       indexedFiles: report.indexedFiles,
       chunksIndexed: report.chunksIndexed,
@@ -81,28 +87,38 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
   throwIfAborted(signal)
   const offset = sourceCatalogOffset(options.offset)
   const limit = sourceCatalogLimit(options.limit)
-  const [manifest, filePage] = await Promise.all([
+  const [manifest, filePage, freshness] = await Promise.all([
     readIndexManifestHeader(config),
     readIndexManifestFilePage(config, offset, limit),
+    checkIndexFreshness(config, { ...(signal ? { signal } : {}), previewLimit: limit }),
   ])
   throwIfAborted(signal)
   const identity = knowledgeBaseIdentity(config.projectRoot)
   const health = manifest?.health
+  const live = freshness.verified ? freshness : null
   const indexedFiles = (filePage?.files ?? []).map((file) => ({
     source: file.relativePath,
     chunks: file.chunkCount,
   }))
-  const missingFromIndex = health?.previews.missingFromIndex.slice(0, limit) ?? []
-  const staleInIndex = health?.previews.staleInIndex.slice(0, limit) ?? []
+  const missingFromIndex = (
+    live?.previews.missingFromIndex ??
+    health?.previews.missingFromIndex ??
+    []
+  ).slice(0, limit)
+  const staleInIndex = (live?.previews.staleInIndex ?? health?.previews.staleInIndex ?? []).slice(
+    0,
+    limit,
+  )
   const emptyTextFiles = health?.previews.emptyTextFiles.slice(0, limit) ?? []
 
   return {
     knowledgeBaseId: identity?.id ?? null,
+    coverageVerified: live !== null,
     totals: {
       indexedFiles: manifest?.fileCount ?? 0,
       chunks: manifest?.chunkCount ?? 0,
-      missingFromIndex: health?.missingFromIndex ?? 0,
-      staleInIndex: health?.staleInIndex ?? 0,
+      missingFromIndex: live?.missingFromIndex ?? health?.missingFromIndex ?? 0,
+      staleInIndex: live?.staleInIndex ?? health?.staleInIndex ?? 0,
       emptyTextFiles: health?.emptyTextFiles ?? 0,
       skippedFiles: health?.skippedFiles ?? 0,
     },
@@ -113,8 +129,14 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
     skippedByReason: health?.skippedByReason ?? {},
     omitted: {
       indexedFiles: Math.max(0, (manifest?.fileCount ?? 0) - indexedFiles.length),
-      missingFromIndex: Math.max(0, (health?.missingFromIndex ?? 0) - missingFromIndex.length),
-      staleInIndex: Math.max(0, (health?.staleInIndex ?? 0) - staleInIndex.length),
+      missingFromIndex: Math.max(
+        0,
+        (live?.missingFromIndex ?? health?.missingFromIndex ?? 0) - missingFromIndex.length,
+      ),
+      staleInIndex: Math.max(
+        0,
+        (live?.staleInIndex ?? health?.staleInIndex ?? 0) - staleInIndex.length,
+      ),
       emptyTextFiles: Math.max(0, (health?.emptyTextFiles ?? 0) - emptyTextFiles.length),
     },
     page: {

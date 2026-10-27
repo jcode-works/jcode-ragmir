@@ -20,6 +20,7 @@ export function compactSearchResults(
     pageEnd: result.pageEnd,
     ...(result.evidence === undefined ? {} : { evidence: result.evidence }),
     ...(result.score === undefined ? {} : { score: result.score }),
+    ...(result.sourceStatus === undefined ? {} : { sourceStatus: result.sourceStatus }),
   }))
 }
 

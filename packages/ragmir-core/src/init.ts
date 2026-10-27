@@ -7,13 +7,27 @@ import {
   LEGACY_CONFIG_PATH,
   RAGMIR_DIR,
   RETRIEVAL_PROFILE_FIELDS,
+  SHARED_CONFIG_FILENAME,
 } from "./defaults.js"
 import { ensureRagmirGitignore } from "./gitignore.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 
 // Writing the balanced budgets would pin them, so a later `retrievalProfile` change kept topK 8.
+// Ranking and MCP defaults stay implicit for the same reason; name and description invite editing.
+const IMPLICIT_DEFAULT_FIELDS = new Set([
+  ...RETRIEVAL_PROFILE_FIELDS,
+  "defaultExcludes",
+  "pathPriors",
+  "sourceWeights",
+  "scopes",
+  "collapseLocaleVariants",
+  "maxChunksPerDataFile",
+  "mcpAllowedRoots",
+  "mcpAutoIngest",
+  "mcpSeenResults",
+])
 const INITIAL_CONFIG = Object.fromEntries(
-  Object.entries(DEFAULT_CONFIG).filter(([key]) => !RETRIEVAL_PROFILE_FIELDS.has(key)),
+  Object.entries(DEFAULT_CONFIG).filter(([key]) => !IMPLICIT_DEFAULT_FIELDS.has(key)),
 )
 
 export async function initProject(cwd = process.cwd()): Promise<string[]> {
@@ -29,9 +43,11 @@ export async function initProject(cwd = process.cwd()): Promise<string[]> {
 
   const configPath = path.join(root, CONFIG_PATH)
   const legacyConfigPath = path.join(root, LEGACY_CONFIG_PATH)
-  const hasConfig = existsSync(configPath)
+  // A committed ragmir.config.json is the project config; a local copy of the defaults would
+  // override every shared key, so init leaves .ragmir/config.json for machine-local overrides.
+  const hasConfig = existsSync(configPath) || existsSync(path.join(root, SHARED_CONFIG_FILENAME))
   const hasLegacyConfig = existsSync(legacyConfigPath)
-  if (hasConfig) {
+  if (existsSync(configPath)) {
     await hardenPrivateFile(configPath)
   }
   if (hasLegacyConfig) {

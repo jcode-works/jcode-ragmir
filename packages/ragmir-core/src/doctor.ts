@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
-import { findProjectConfig, loadConfig } from "./config.js"
+import { findProjectConfig, loadConfig, projectConfigExists } from "./config.js"
 import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
+import { checkIndexFreshness } from "./freshness.js"
 import { getLexicalScanWarning, indexFreshnessWarning } from "./index-diagnostics.js"
 import { lexicalPolicyCurrent } from "./index-policy.js"
 import { auditWithConfig } from "./ingest.js"
@@ -38,7 +39,7 @@ export async function doctorWithConfig(
   const signal = operationSignal(options)
   throwIfAborted(signal)
   const projectConfig = findProjectConfig(config.projectRoot)
-  const initialized = existsSync(projectConfig.configPath)
+  const initialized = projectConfigExists(projectConfig)
   throwIfAborted(signal)
   const command = await rgrCommand(config.projectRoot, [])
   throwIfAborted(signal)
@@ -54,6 +55,12 @@ export async function doctorWithConfig(
       ])
     : [null, null, await readIndexManifestHeader(config)]
   throwIfAborted(signal)
+  // The manifest health snapshot describes the corpus at ingest time; files edited since then only
+  // show up in a live comparison, so the default mode always verifies sizes and modification times.
+  const sourceFreshness =
+    deep || manifest === null ? null : await checkIndexFreshness(config, operationOptions)
+  throwIfAborted(signal)
+  const liveFreshness = sourceFreshness?.verified === true ? sourceFreshness : null
 
   const health = manifest?.health
   const supportedFiles = auditReport?.supportedFiles.length ?? health?.supportedFiles ?? 0
@@ -72,8 +79,13 @@ export async function doctorWithConfig(
   const emptyTextFiles = auditReport?.emptyTextFiles.length ?? health?.emptyTextFiles ?? 0
   const indexedFiles = auditReport?.indexedFiles.length ?? manifest?.fileCount ?? 0
   const chunksIndexed = auditReport?.totalChunks ?? manifest?.chunkCount ?? 0
-  const missingFromIndex = auditReport?.missingFromIndex.length ?? health?.missingFromIndex ?? 0
-  const staleInIndex = auditReport?.staleInIndex.length ?? health?.staleInIndex ?? 0
+  const missingFromIndex =
+    auditReport?.missingFromIndex.length ??
+    liveFreshness?.missingFromIndex ??
+    health?.missingFromIndex ??
+    0
+  const staleInIndex =
+    auditReport?.staleInIndex.length ?? liveFreshness?.staleInIndex ?? health?.staleInIndex ?? 0
   const securityWarnings = securityReport?.warnings ?? health?.securityWarnings ?? []
   const freshnessWarning = indexFreshnessWarning(config, manifest)
   const lexicalScanWarning =
@@ -89,8 +101,10 @@ export async function doctorWithConfig(
     warning: freshnessWarning,
   }
   const diagnosticSnapshotAvailable = deep || health !== undefined
+  const coverageVerified = deep || liveFreshness !== null
   const coverageComplete =
     diagnosticSnapshotAvailable &&
+    coverageVerified &&
     missingFromIndex === 0 &&
     staleInIndex === 0 &&
     emptyTextFiles === 0 &&
@@ -106,6 +120,10 @@ export async function doctorWithConfig(
   const nextSteps = nextActions({
     initialized,
     diagnosticSnapshotAvailable,
+    concentrationWarning:
+      auditReport?.concentration?.warning ?? health?.concentration?.warning ?? null,
+    freshnessError: sourceFreshness?.verified === false ? sourceFreshness.error : null,
+    noncanonicalPaths: liveFreshness?.noncanonicalPaths ?? 0,
     supportedFiles,
     supportedBytes,
     largestFileBytes,
@@ -133,7 +151,7 @@ export async function doctorWithConfig(
     mode: deep ? "deep" : "manifest",
     inventoryVerified: deep,
     securityVerified: deep,
-    cost: deep ? "O(corpus)" : "O(1)",
+    cost: deep ? "O(corpus)" : sourceFreshness ? "O(files)" : "O(1)",
     projectRoot: config.projectRoot,
     initialized,
     packageManager: command.packageManager,
@@ -162,6 +180,7 @@ export async function doctorWithConfig(
     corpusFingerprint: manifest?.corpusFingerprint ?? null,
     securityWarnings,
     indexFreshness,
+    sourceFreshness,
     ready: operationalReady && indexPolicyCurrent,
     readiness: {
       operationalReady,
@@ -177,6 +196,9 @@ export async function doctorWithConfig(
 interface NextActionInput {
   initialized: boolean
   diagnosticSnapshotAvailable: boolean
+  concentrationWarning: string | null
+  freshnessError: string | null
+  noncanonicalPaths: number
   supportedFiles: number
   supportedBytes: number
   largestFileBytes: number
@@ -230,9 +252,24 @@ function nextActions(input: NextActionInput): string[] {
     return steps
   }
 
+  if (input.freshnessError) {
+    steps.push(input.freshnessError)
+  }
+
+  if (input.noncanonicalPaths > 0) {
+    steps.push(
+      `${input.noncanonicalPaths} indexed path(s) use decomposed Unicode names from an older release. Run \`${input.run(["ingest"])}\` once to store canonical paths that path filters and citations match on every platform.`,
+    )
+  }
+
   if (input.chunksIndexed === 0 || input.missingFromIndex > 0 || input.staleInIndex > 0) {
     steps.push(`Run \`${input.run(["doctor", "--fix"])}\` to rebuild stale or missing index data.`)
     steps.push(`Run \`${input.run(["audit"])}\` to verify missingFromIndex=0 and staleInIndex=0.`)
+    if (input.chunksIndexed > 0) {
+      steps.push(
+        `Run \`${input.run(["hooks", "install"])}\` to refresh the index automatically after commits, merges, and checkouts.`,
+      )
+    }
     steps.push(
       "If files remain missing because they are scanned or image-only, configure `pdfOcrCommand` or `imageOcrCommand`, or convert scans/images to OCR text before ingesting.",
     )
@@ -252,6 +289,10 @@ function nextActions(input: NextActionInput): string[] {
 
   if (input.lexicalScanWarning) {
     steps.push(input.lexicalScanWarning)
+  }
+
+  if (input.concentrationWarning) {
+    steps.push(input.concentrationWarning)
   }
 
   if (input.emptyTextFiles > 0) {

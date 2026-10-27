@@ -1,8 +1,15 @@
+import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, open, rm, stat, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { inventorySourceFiles, listSourceFiles } from "./files.js"
+import {
+  discoverSourceFiles,
+  inventorySourceFiles,
+  listSourceFiles,
+  sourceRuleDiagnostics,
+} from "./files.js"
+import { isCaseInsensitiveFileSystem } from "./source-paths.js"
 import { testConfig } from "./test-support/config.js"
 
 const tempDirs: string[] = []
@@ -289,16 +296,16 @@ describe("listSourceFiles", () => {
     const files = await listSourceFiles(testConfig(root))
 
     expect(files.map((file) => file.relativePath)).toEqual([
-      "apps/back/docs/api.md",
       "apps/back/README.md",
-      "apps/front/docs/feature.md",
+      "apps/back/docs/api.md",
       "apps/front/README.md",
+      "apps/front/docs/feature.md",
     ])
     expect(files.map((file) => file.source)).toEqual([
-      "apps/back/docs/api.md",
       "apps/back/README.md",
-      "apps/front/docs/feature.md",
+      "apps/back/docs/api.md",
       "apps/front/README.md",
+      "apps/front/docs/feature.md",
     ])
   })
 
@@ -326,8 +333,8 @@ describe("listSourceFiles", () => {
 
     expect(files.map((file) => file.relativePath)).toEqual([
       "apps/back/docs/api.md",
-      "apps/front/docs/feature.md",
       "apps/front/README.md",
+      "apps/front/docs/feature.md",
     ])
   })
 
@@ -385,10 +392,10 @@ describe("listSourceFiles", () => {
     const files = await listSourceFiles(testConfig(root))
 
     expect(files.map((file) => file.relativePath)).toEqual([
-      "../apps/admin/docs/ops.md",
       "../apps/admin/README.md",
-      "../apps/portal/docs/ux.md",
+      "../apps/admin/docs/ops.md",
       "../apps/portal/README.md",
+      "../apps/portal/docs/ux.md",
     ])
   })
 
@@ -501,6 +508,151 @@ describe("listSourceFiles", () => {
 
     expect(after.supportedFiles[0]?.checksum).not.toBe(before.supportedFiles[0]?.checksum)
     expect(inventoryMetrics(after).hashedFiles).toBe(1)
+  })
+})
+
+describe("portable source paths", () => {
+  const decomposed = "E\u0301tudes"
+  const composed = "\u00c9tudes"
+
+  it("applies a composed exclusion to a decomposed on-disk name and cites the composed path", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-unicode-exclusion-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await mkdir(path.join(root, "files", decomposed), { recursive: true })
+    await writeFile(path.join(root, "files", decomposed, `Propositio\u0301n.md`), "price\n", "utf8")
+    await writeFile(path.join(root, "files", decomposed, "plan.md"), "plan\n", "utf8")
+
+    const files = await listSourceFiles(
+      testConfig(root, { sources: ["files", `!files/${composed}/Propositi\u00f3n.md`] }),
+    )
+
+    expect(files.map((file) => file.relativePath)).toEqual([`files/${composed}/plan.md`])
+    expect(files[0]?.relativePath.normalize("NFC")).toBe(files[0]?.relativePath)
+    expect(existsSync(files[0]?.absolutePath ?? "")).toBe(true)
+  })
+
+  it("applies a composed directory exclusion and glob to decomposed folders", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-unicode-glob-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await mkdir(path.join(root, "docs", decomposed, "archive"), { recursive: true })
+    await writeFile(path.join(root, "docs", decomposed, "guide.md"), "guide\n", "utf8")
+    await writeFile(path.join(root, "docs", decomposed, "archive", "old.md"), "old\n", "utf8")
+
+    const files = await listSourceFiles(
+      testConfig(root, {
+        sources: [`docs/${composed}/**/*.md`, `!docs/${composed}/archive`],
+      }),
+    )
+
+    expect(files.map((file) => file.relativePath)).toEqual([`docs/${composed}/guide.md`])
+  })
+
+  it("resolves a composed source folder that exists only in decomposed form", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-unicode-root-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await mkdir(path.join(root, decomposed), { recursive: true })
+    await writeFile(path.join(root, decomposed, "notes.md"), "notes\n", "utf8")
+
+    const files = await listSourceFiles(testConfig(root, { sources: [composed] }))
+
+    expect(files.map((file) => file.relativePath)).toEqual([`${composed}/notes.md`])
+  })
+
+  it.runIf(isCaseInsensitiveFileSystem(os.tmpdir()))(
+    "matches exclusions without case on case-insensitive volumes",
+    async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-case-exclusion-"))
+      tempDirs.push(root)
+      await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+      await mkdir(path.join(root, "Docs"), { recursive: true })
+      await writeFile(path.join(root, "Docs", "Secret.md"), "secret\n", "utf8")
+      await writeFile(path.join(root, "Docs", "public.md"), "public\n", "utf8")
+
+      const files = await listSourceFiles(
+        testConfig(root, { sources: ["Docs", "!docs/secret.md"] }),
+      )
+
+      expect(files.map((file) => file.relativePath)).toEqual(["Docs/public.md"])
+    },
+  )
+
+  it("skips tool state and lockfiles unless a source names them or defaults are off", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-default-excludes-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await mkdir(path.join(root, ".claude", "skills"), { recursive: true })
+    await mkdir(path.join(root, "docs"), { recursive: true })
+    await writeFile(path.join(root, ".claude", "skills", "tool.md"), "skill\n", "utf8")
+    await writeFile(path.join(root, "docs", "guide.md"), "guide\n", "utf8")
+    await writeFile(path.join(root, "pnpm-lock.yaml"), "lockfileVersion: 9\n", "utf8")
+
+    const defaults = await listSourceFiles(testConfig(root, { sources: ["**/*.{md,yaml}"] }))
+    const named = await listSourceFiles(
+      testConfig(root, { sources: ["**/*.{md,yaml}", ".claude/**/*.md"] }),
+    )
+    const disabled = await listSourceFiles(
+      testConfig(root, { sources: ["**/*.{md,yaml}"], defaultExcludes: false }),
+    )
+
+    expect(defaults.map((file) => file.relativePath)).toEqual(["docs/guide.md"])
+    expect(named.map((file) => file.relativePath)).toEqual([
+      ".claude/skills/tool.md",
+      "docs/guide.md",
+    ])
+    expect(disabled.map((file) => file.relativePath)).toEqual([
+      ".claude/skills/tool.md",
+      "docs/guide.md",
+      "pnpm-lock.yaml",
+    ])
+  })
+
+  it("reports source rules that match nothing or leave an excluded copy indexed", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-rules-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await mkdir(path.join(root, "files", "copy"), { recursive: true })
+    await writeFile(path.join(root, "files", "pricing.md"), "confidential price\n", "utf8")
+    await writeFile(path.join(root, "files", "copy", "pricing.md"), "confidential price\n", "utf8")
+    const config = testConfig(root, {
+      sources: [
+        "files",
+        "missing-folder",
+        "notes/**/*.md",
+        "!files/pricing.md",
+        "!files/absent.md",
+        "docs\\guide.md",
+      ],
+    })
+    const inventory = await inventorySourceFiles(config)
+
+    const diagnostics = await sourceRuleDiagnostics(config, inventory.supportedFiles)
+
+    expect(inventory.supportedFiles.map((file) => file.relativePath)).toEqual([
+      "files/copy/pricing.md",
+    ])
+    expect(diagnostics.unmatchedSources).toEqual(["missing-folder", "docs\\guide.md"])
+    expect(diagnostics.unmatchedPatterns).toEqual(["notes/**/*.md"])
+    expect(diagnostics.unmatchedExclusions).toEqual(["files/absent.md"])
+    expect(diagnostics.excludedCopies).toEqual([
+      { excluded: "files/pricing.md", indexedCopy: "files/copy/pricing.md" },
+    ])
+    expect(diagnostics.portabilityWarnings).toHaveLength(1)
+  })
+
+  it("discovers sizes and modification times without hashing content", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-discovery-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(path.join(root, ".ragmir", "raw", "a.md"), "alpha\n", "utf8")
+
+    const discovery = await discoverSourceFiles(testConfig(root))
+
+    expect(discovery.files).toEqual([
+      expect.objectContaining({ relativePath: ".ragmir/raw/a.md", bytes: 6 }),
+    ])
   })
 })
 

@@ -18,6 +18,12 @@ import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
 import { collectGenerationGarbage } from "./generation-retention.js"
+import {
+  type GitHooksReport,
+  gitHooksStatus,
+  installGitHooks,
+  uninstallGitHooks,
+} from "./git-hooks.js"
 import { indexFreshnessWarning, manifestReady } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
@@ -25,6 +31,7 @@ import { initProject } from "./init.js"
 import { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
+import { RAGMIR_CLIENT_CWD_ENV } from "./mcp-scope.js"
 import {
   configurePdfOcr,
   extractPdfPage,
@@ -1132,6 +1139,40 @@ storageCommand
     }
   })
 
+const hooksCommand = program
+  .command("hooks")
+  .description("Refresh the index automatically after commits, merges, checkouts, and rebases.")
+
+hooksCommand
+  .command("install")
+  .description("Add a background `rgr ingest` to the Git hooks of this repository.")
+  .option("--force", "Also edit hooks in a directory tracked by the working tree, such as .husky.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { force?: boolean; json?: boolean }, command: Command) => {
+    const report = await installGitHooks({
+      cwd: projectRoot(command),
+      ...(options.force === undefined ? {} : { force: options.force }),
+    })
+    printGitHooks(report, options.json === true, "installed")
+  })
+
+hooksCommand
+  .command("uninstall")
+  .description("Remove the Ragmir block from the Git hooks and keep any other hook content.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }, command: Command) => {
+    const report = await uninstallGitHooks({ cwd: projectRoot(command) })
+    printGitHooks(report, options.json === true, "removed")
+  })
+
+hooksCommand
+  .command("status")
+  .description("Show which Git hooks refresh the index.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(async (options: { json?: boolean }, command: Command) => {
+    printGitHooks(await gitHooksStatus({ cwd: projectRoot(command) }), options.json === true)
+  })
+
 program
   .command("destroy-index")
   .description("Remove the generated local vector index from Ragmir storage.")
@@ -1157,6 +1198,7 @@ program
   )
   .action(async (_options: unknown, command: Command) => {
     const explicitRoot = explicitProjectRoot(command)
+    process.env[RAGMIR_CLIENT_CWD_ENV] ||= process.cwd()
     await serveMcp(explicitRoot)
   })
 
@@ -1293,6 +1335,30 @@ program
       console.log(`  4. Run \`${(await rgrCommand(cwd, ["doctor"])).display}\`.`)
     },
   )
+
+// Commands removed by the focused-retrieval release. Agents following old skills still call them,
+// so each one explains its replacement instead of failing as an unknown command.
+const RETIRED_COMMANDS: Array<[string, string]> = [
+  [
+    "ask",
+    "Search with `rgr search` and let your agent or chat write the answer from the citations.",
+  ],
+  ["research", "Let your agent loop over `rgr search` and citation expansion."],
+  ["chat", "Use your coding agent or a local or self-hosted chat with Ragmir citations."],
+  ["audio", "Send retrieved text to a separate text-to-speech tool."],
+]
+for (const [name, replacement] of RETIRED_COMMANDS) {
+  program
+    .command(name, { hidden: true })
+    .allowUnknownOption()
+    .allowExcessArguments()
+    .action(() => {
+      console.error(
+        `\`rgr ${name}\` was removed: Ragmir now returns cited evidence and your agent writes the result. ${replacement} See https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md`,
+      )
+      process.exitCode = 1
+    })
+}
 
 try {
   await program.parseAsync(process.argv)
@@ -1475,6 +1541,29 @@ function printStorageMaintenance(report: Awaited<ReturnType<typeof optimizeStora
   console.log(`completedActions=${report.completedActions.join(",")}`)
   if (report.warning) {
     console.log(pc.yellow(`warning: ${report.warning}`))
+  }
+}
+
+function printGitHooks(
+  report: GitHooksReport,
+  json: boolean,
+  action?: "installed" | "removed",
+): void {
+  if (json) {
+    console.log(JSON.stringify(report, null, 2))
+    return
+  }
+  if (action) {
+    console.log(
+      report.changed.length > 0
+        ? pc.green(`Ragmir auto-ingest ${action} in ${report.changed.join(", ")}.`)
+        : `Git hooks already ${action === "installed" ? "refresh" : "skip"} the index.`,
+    )
+  }
+  console.log(`hooksDir=${report.hooksDir}`)
+  console.log(`installed=${report.installed.join(",") || "none"}`)
+  if (report.missing.length > 0) {
+    console.log(`missing=${report.missing.join(",")}`)
   }
 }
 

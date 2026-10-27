@@ -4,6 +4,21 @@ import type { PackageManager } from "./package-manager.js"
 export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
 export type RagmirRunnerMode = "local-bin" | "workspace" | "installed-package" | "npm-cache"
 
+export type McpRegistrationClient = "claude" | "codex"
+export type McpRegistrationScope = "user" | "local" | "project"
+export type McpProjectApproval = "approved" | "rejected" | "pending"
+
+/** A Ragmir MCP server found in an agent's configuration. */
+export interface McpServerRegistration {
+  client: McpRegistrationClient
+  scope: McpRegistrationScope
+  name: string
+  /** Knowledge base the server answers from, when the entry or its script reveals it. */
+  servedRoot: string | null
+  /** Claude Code only starts project servers from `.mcp.json` after approval. */
+  approval?: McpProjectApproval
+}
+
 export interface AgentIntegrationReport {
   runnerPath: string
   runnerReady: boolean
@@ -12,6 +27,8 @@ export interface AgentIntegrationReport {
   projectAgents: AgentTarget[]
   userAgents: AgentTarget[]
   nativeAgents: AgentTarget[]
+  /** Ragmir MCP servers registered in Claude Code and Codex for this project or for all projects. */
+  mcpServers: McpServerRegistration[]
   ready: boolean
   warnings: string[]
 }
@@ -50,6 +67,35 @@ export interface Config {
   imageOcrTimeoutMs: number
   legacyWordCommand: string[]
   legacyWordTimeoutMs: number
+  /** Display name that agents see; defaults to the project folder name. */
+  name: string | null
+  /** One-sentence purpose that tells agents which questions this base answers. */
+  description: string | null
+  /** Skip tool state, dependency caches, lockfiles, and minified bundles unless a source names them. */
+  defaultExcludes: boolean
+  /** Built-in ranking priors that slightly demote tests, agent instructions, and generated data. */
+  pathPriors: boolean
+  /** Ranking multipliers by glob, for example `{ "archive/**": 0.5 }`. */
+  sourceWeights: Record<string, number>
+  /** Named path filters that searches can select with `scope`. */
+  scopes: Record<string, SearchScope>
+  /** Treat translations of one file (en.json, fr.json, docs/fr/...) as one document in results. */
+  collapseLocaleVariants: boolean
+  /** Keep at most this many chunks per structured data file (JSON, CSV, spreadsheets); null keeps all. */
+  maxChunksPerDataFile: number | null
+  /** Workspace roots that may use this base through MCP; empty warns instead of refusing. */
+  mcpAllowedRoots: string[]
+  /** Refresh the index in the background when MCP results cite changed files. */
+  mcpAutoIngest: boolean
+  /** How MCP search treats passages already returned in the same session. */
+  mcpSeenResults: McpSeenResults
+}
+export type McpSeenResults = "collapse" | "include" | "exclude"
+
+export interface SearchScope {
+  includePaths: string[]
+  excludePaths: string[]
+  description?: string
 }
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
 export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
@@ -175,6 +221,27 @@ export interface IndexHealthSnapshot {
   sourceDiagnostics: SourceDiagnostics
   securityCheckedAt: string
   securityWarnings: string[]
+  concentration?: IndexConcentration
+}
+
+/** Live comparison of the files on disk with the index manifest, by path, size, and mtime. */
+export interface IndexFreshnessReport {
+  method: "stat"
+  /** False when no manifest exists or the check could not finish; counts are then unknown. */
+  verified: boolean
+  checkedAt: string
+  durationMs: number
+  missingFromIndex: number
+  staleInIndex: number
+  modifiedFiles: number
+  removedFiles: number
+  /** Indexed paths stored in decomposed Unicode by an older release; the next ingest fixes them. */
+  noncanonicalPaths: number
+  previews: {
+    missingFromIndex: string[]
+    staleInIndex: string[]
+  }
+  error: string | null
 }
 
 export interface IndexMaintenanceSnapshot {
@@ -223,7 +290,11 @@ export interface SourceFile {
   checksum: string
 }
 
-export type SkippedSourceReason = "unsupported-extension" | "oversized" | "sensitive-name"
+export type SkippedSourceReason =
+  | "unsupported-extension"
+  | "oversized"
+  | "sensitive-name"
+  | "path-collision"
 
 export interface SkippedSourceFile {
   relativePath: string
@@ -511,12 +582,21 @@ export interface KnowledgeBaseInventory {
 
 export interface KnowledgeBaseContextReport {
   knowledgeBaseId: string | null
+  /** Human identity of the base, so an agent can tell whose documents it is reading. */
+  knowledgeBase: {
+    name: string
+    description: string | null
+  }
+  scopes: Array<{ name: string; description: string | null }>
   projectRoot: string
   retrievalProfile: RetrievalProfile
   embeddingProvider: EmbeddingProvider
   corpusFingerprint: string | null
   ready: boolean
   coverage: {
+    /** True only when the counts come from a live comparison, not the ingest-time snapshot. */
+    verified: boolean
+    checkedAt: string | null
     supportedFiles: number
     indexedFiles: number
     chunksIndexed: number
@@ -537,6 +617,8 @@ export interface KnowledgeBaseContextReport {
 
 export interface KnowledgeBaseSourceCatalog {
   knowledgeBaseId: string | null
+  /** Whether missing and stale counts come from a live comparison with the files on disk. */
+  coverageVerified: boolean
   totals: {
     indexedFiles: number
     chunks: number
@@ -576,6 +658,8 @@ export interface SearchOptions extends OperationOptions {
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
+  /** Named scope from the config's `scopes`; combined with includePaths and excludePaths. */
+  scope?: string
   explain?: boolean
   vectorSearchMode?: "adaptive" | "exact"
 }
@@ -610,7 +694,12 @@ export interface SearchResult {
   context: SearchContextChunk[]
   evidence?: EvidenceVersion
   score?: SearchScoreExplanation
+  /** Present when the cited file changed or disappeared since it was indexed. */
+  sourceStatus?: SourceStatus
 }
+
+/** `modified`: size or modification time differs from indexing; `missing`: the file is gone. */
+export type SourceStatus = "modified" | "missing"
 
 export interface EvidenceVersion {
   id: string
@@ -681,6 +770,7 @@ export interface CompactSearchResult {
   pageEnd: number | null
   evidence?: EvidenceVersion
   score?: SearchScoreExplanation
+  sourceStatus?: SourceStatus
 }
 
 export interface SourceDuplicateCandidate {
@@ -871,6 +961,26 @@ export interface IndexQualityReport {
   qualityReportFingerprint: string
 }
 
+export interface SourceRuleDiagnostics {
+  /** Source folders or files listed in the config that do not exist. */
+  unmatchedSources: string[]
+  /** Include globs that select no indexable file. */
+  unmatchedPatterns: string[]
+  /** Exact `!path` exclusions that name no existing file or folder. */
+  unmatchedExclusions: string[]
+  /** Excluded files whose byte-identical copy is still indexed under another path. */
+  excludedCopies: Array<{ excluded: string; indexedCopy: string }>
+  portabilityWarnings: string[]
+}
+
+/** How much of the index the largest files hold; one export can crowd out every other document. */
+export interface IndexConcentration {
+  totalChunks: number
+  topFiles: Array<{ relativePath: string; chunks: number; share: number }>
+  top3Share: number
+  warning: string | null
+}
+
 export interface AuditOptions extends OperationOptions {
   previewLimit?: number
 }
@@ -892,6 +1002,9 @@ export interface AuditReport {
   staleInIndex: string[]
   totalChunks: number
   chunkStats: ChunkStats
+  /** Source rules that select nothing, excluded files still indexed through a copy, portability. */
+  sourceRules?: SourceRuleDiagnostics
+  concentration?: IndexConcentration
   omitted?: {
     indexedFiles: number
     supportedFiles: number
@@ -915,7 +1028,7 @@ export interface DoctorReport {
   mode: "manifest" | "deep"
   inventoryVerified: boolean
   securityVerified: boolean
-  cost: "O(1)" | "O(corpus)"
+  cost: "O(1)" | "O(files)" | "O(corpus)"
   projectRoot: string
   initialized: boolean
   packageManager: PackageManager
@@ -947,6 +1060,8 @@ export interface DoctorReport {
     manifestFound: boolean
     warning: string | null
   }
+  /** Live stat comparison in the default mode; null in deep mode, which verifies checksums. */
+  sourceFreshness: IndexFreshnessReport | null
   ready: boolean
   readiness: {
     operationalReady: boolean

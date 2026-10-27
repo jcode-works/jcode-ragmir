@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -72,6 +72,41 @@ describe("doctor", () => {
       "Run `pnpm exec rgr doctor --fix` to rebuild stale or missing index data.",
     )
   }, 15_000)
+
+  it("reports files added or edited after ingestion instead of trusting the ingest snapshot", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-freshness-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(path.join(raw, "policy.md"), "# Policy\n\nRefunds take 14 days.\n", "utf8")
+    await writeFile(path.join(raw, "touched.md"), "# Touched\n\nSame content.\n", "utf8")
+    await ingest({ cwd: root })
+
+    const fresh = await doctor(root)
+    expect(fresh.cost).toBe("O(files)")
+    expect(fresh.sourceFreshness).toMatchObject({ verified: true, missingFromIndex: 0 })
+    expect(fresh.readiness.coverageComplete).toBe(true)
+
+    await writeFile(path.join(raw, "policy.md"), "# Policy\n\nRefunds take 30 days.\n", "utf8")
+    await writeFile(path.join(raw, "new.md"), "# New\n\nA new note.\n", "utf8")
+    const later = new Date(Date.now() + 60_000)
+    await utimes(path.join(raw, "touched.md"), later, later)
+    const stale = await doctor(root)
+
+    expect(stale.missingFromIndex).toBe(1)
+    expect(stale.staleInIndex).toBe(2)
+    expect(stale.sourceFreshness?.previews).toEqual({
+      missingFromIndex: [".ragmir/raw/new.md"],
+      staleInIndex: [".ragmir/raw/policy.md", ".ragmir/raw/touched.md"],
+    })
+    expect(stale.readiness.coverageComplete).toBe(false)
+    expect(stale.ready).toBe(false)
+
+    await ingest({ cwd: root })
+    const reindexed = await doctor(root)
+    expect(reindexed.sourceFreshness).toMatchObject({ missingFromIndex: 0, staleInIndex: 0 })
+  }, 30_000)
 
   it("recommends the semantic setup shortcut after the index is ready", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-"))

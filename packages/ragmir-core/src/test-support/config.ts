@@ -47,6 +47,17 @@ export function testConfig(
     imageOcrTimeoutMs: DEFAULT_CONFIG.imageOcrTimeoutMs,
     legacyWordCommand: [...DEFAULT_CONFIG.legacyWordCommand],
     legacyWordTimeoutMs: DEFAULT_CONFIG.legacyWordTimeoutMs,
+    name: DEFAULT_CONFIG.name,
+    description: DEFAULT_CONFIG.description,
+    defaultExcludes: DEFAULT_CONFIG.defaultExcludes,
+    pathPriors: DEFAULT_CONFIG.pathPriors,
+    sourceWeights: { ...DEFAULT_CONFIG.sourceWeights },
+    scopes: structuredClone(DEFAULT_CONFIG.scopes),
+    collapseLocaleVariants: DEFAULT_CONFIG.collapseLocaleVariants,
+    maxChunksPerDataFile: DEFAULT_CONFIG.maxChunksPerDataFile,
+    mcpAllowedRoots: [...DEFAULT_CONFIG.mcpAllowedRoots],
+    mcpAutoIngest: DEFAULT_CONFIG.mcpAutoIngest,
+    mcpSeenResults: DEFAULT_CONFIG.mcpSeenResults,
   }
 
   return { ...config, ...configOverrides }

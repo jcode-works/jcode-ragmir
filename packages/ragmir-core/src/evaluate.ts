@@ -12,6 +12,7 @@ import { operationSignal, throwIfAborted } from "./operation.js"
 import { fingerprintIndexManifest, fingerprintQualityReport } from "./quality-report.js"
 import { searchWithConfig } from "./query.js"
 import { rankingPolicyFingerprint, rankingPolicyFor } from "./ranking.js"
+import { canonicalUserPath } from "./source-paths.js"
 import {
   closeIndexReadSnapshot,
   closeStoreConnection,
@@ -485,15 +486,19 @@ async function readGoldenFile(
   }
 }
 
+// Golden files are typed by people on any platform; indexed paths are canonical (NFC, `/`).
 function normalizeGoldenQuery(value: z.infer<typeof goldenQuerySchema>): GoldenQuery {
   return {
     query: value.query,
-    expectedPaths: value.expectedPaths,
+    expectedPaths: value.expectedPaths.map(canonicalUserPath),
     answerable: value.answerable ?? true,
-    relevanceJudgments: value.relevanceJudgments ?? [],
+    relevanceJudgments: (value.relevanceJudgments ?? []).map((judgment) => ({
+      ...judgment,
+      value: canonicalUserPath(judgment.value),
+    })),
     ...(value.expectedCitations === undefined
       ? {}
-      : { expectedCitations: value.expectedCitations }),
+      : { expectedCitations: value.expectedCitations.map(canonicalUserPath) }),
     ...(value.id === undefined ? {} : { id: value.id }),
     ...(value.category === undefined ? {} : { category: value.category }),
     ...(value.locale === undefined ? {} : { locale: value.locale }),
@@ -514,8 +519,8 @@ function evaluateCase(
   latencyMs: number,
 ): EvaluationCaseResult {
   const answerable = goldenQuery.answerable ?? true
-  const returnedPaths = results.map((result) => result.relativePath)
-  const returnedCitations = results.map(citationForResult)
+  const returnedPaths = results.map((result) => result.relativePath.normalize("NFC"))
+  const returnedCitations = results.map((result) => citationForResult(result).normalize("NFC"))
   const pathJudgments = judgmentsFor(
     "path",
     goldenQuery.relevanceJudgments ?? [],

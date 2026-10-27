@@ -25,6 +25,10 @@ export function indexPolicyFingerprint(config: Config): string {
       adapterVersion: CHUNKING_ADAPTER_VERSION,
       size: config.chunkSize,
       overlap: config.chunkOverlap,
+      // Added only when set, so indexes built without a data-file cap keep their fingerprint.
+      ...(config.maxChunksPerDataFile === null
+        ? {}
+        : { maxChunksPerDataFile: config.maxChunksPerDataFile }),
     },
     extraction: {
       parserVersion: 3,
