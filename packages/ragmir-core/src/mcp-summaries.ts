@@ -137,6 +137,38 @@ function emptyAuditOmissions(): NonNullable<AuditReport["omitted"]> {
   }
 }
 
+const AUDIT_SUMMARY_PREVIEWS = 10
+
+/**
+ * Default MCP audit answer: counts, the first drifted files, and the diagnostics an agent can act
+ * on, instead of every path in the corpus.
+ */
+export function summarizeAuditForMcp(report: AuditReport): Record<string, unknown> {
+  const omitted = report.omitted ?? emptyAuditOmissions()
+  return {
+    mode: report.mode,
+    inventoryVerified: report.inventoryVerified,
+    discoveredFiles: report.discoveredFiles,
+    totalChunks: report.totalChunks,
+    counts: {
+      indexedFiles: report.indexedFiles.length + omitted.indexedFiles,
+      supportedFiles: report.supportedFiles.length + omitted.supportedFiles,
+      skippedFiles: report.skippedFiles.length + omitted.skippedFiles,
+      emptyTextFiles: report.emptyTextFiles.length + omitted.emptyTextFiles,
+      missingFromIndex: report.missingFromIndex.length + omitted.missingFromIndex,
+      staleInIndex: report.staleInIndex.length + omitted.staleInIndex,
+    },
+    previews: {
+      missingFromIndex: report.missingFromIndex.slice(0, AUDIT_SUMMARY_PREVIEWS),
+      staleInIndex: report.staleInIndex.slice(0, AUDIT_SUMMARY_PREVIEWS),
+      emptyTextFiles: report.emptyTextFiles.slice(0, AUDIT_SUMMARY_PREVIEWS),
+    },
+    ...(report.sourceRules === undefined ? {} : { sourceRules: report.sourceRules }),
+    ...(report.concentration === undefined ? {} : { concentration: report.concentration }),
+    detail: "Call ragmir_audit with detail:true for every path.",
+  }
+}
+
 export function mcpPreviewLimit(maxBytes: number): number {
   return Math.max(1, Math.min(200, Math.floor(maxBytes / 512)))
 }

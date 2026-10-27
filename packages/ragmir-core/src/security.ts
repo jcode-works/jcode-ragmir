@@ -33,7 +33,7 @@ export async function securityAuditWithConfig(
   throwIfAborted(signal)
   const warnings: string[] = []
   const probeGit = options.deep !== false
-  const configPath = findProjectConfig(config.projectRoot).configPath
+  const configPath = findProjectConfig(config.projectRoot).localConfigPath
   const privatePathDefinitions = privatePathsForConfig(config, configPath)
   const gitPaths = [
     path.join(config.projectRoot, LEGACY_KB_GITIGNORE_ENTRY),

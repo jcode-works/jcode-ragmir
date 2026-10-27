@@ -4,6 +4,7 @@ import { citationForCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
 import { inventorySourceFiles } from "./files.js"
 import { parseFile } from "./parsing.js"
+import { canonicalUserPath, compareCodePoints } from "./source-paths.js"
 import type {
   PreviewChunk,
   PreviewChunksOptions,
@@ -36,7 +37,7 @@ export async function previewChunks(options: PreviewChunksOptions = {}): Promise
   )
   const matchingFiles = inventory.supportedFiles
     .filter((file) => requestedPaths.length === 0 || matchesAnyPath(file, requestedPaths))
-    .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+    .sort((left, right) => compareCodePoints(left.relativePath, right.relativePath))
   const selectedFiles = matchingFiles.slice(0, maxFiles)
   const unmatchedPaths = requestedPaths.filter(
     (prefix) => !inventory.supportedFiles.some((file) => matchesPath(file.relativePath, prefix)),
@@ -126,14 +127,7 @@ function matchesPath(relativePath: string, prefix: string): boolean {
 }
 
 function normalizePathPrefixes(prefixes: string[] | undefined): string[] {
-  return [
-    ...new Set(
-      (prefixes ?? [])
-        .map((prefix) => prefix.trim().replaceAll("\\", "/").replace(/^\.\//u, ""))
-        .map((prefix) => prefix.replace(/\/+$/u, ""))
-        .filter(Boolean),
-    ),
-  ]
+  return [...new Set((prefixes ?? []).map(canonicalUserPath).filter(Boolean))]
 }
 
 function boundedPositiveInteger(

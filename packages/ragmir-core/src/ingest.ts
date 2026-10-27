@@ -14,10 +14,11 @@ import { embeddingModelState, embedTexts } from "./embeddings.js"
 import {
   countSkippedByReason,
   inventorySourceFiles,
+  sourceRuleDiagnostics,
   summarizeUnsupportedExtensions,
 } from "./files.js"
 import { collectGenerationGarbageUnlocked } from "./generation-retention.js"
-import { INDEX_SCHEMA_VERSION } from "./index-diagnostics.js"
+import { INDEX_SCHEMA_VERSION, indexConcentration } from "./index-diagnostics.js"
 import {
   indexPolicyFingerprint,
   ingestionPolicyFingerprint,
@@ -49,6 +50,7 @@ import { operationSignal, throwIfAborted } from "./operation.js"
 import { parseFile } from "./parsing.js"
 import { summarizeIndexedCorpus } from "./quality-report.js"
 import { securityAuditWithConfig } from "./security.js"
+import { compareCodePoints } from "./source-paths.js"
 import type { StorageMaintenanceReport } from "./storage-maintenance.js"
 import { maintainStorageTable } from "./storage-maintenance.js"
 import {
@@ -582,7 +584,7 @@ async function parseSourceFile(
         })
     return {
       file,
-      chunks,
+      chunks: capDataFileChunks(chunks, file.extension, config.maxChunksPerDataFile),
       ocr: parsed.ocr ?? null,
       error: null,
     }
@@ -596,6 +598,48 @@ async function parseSourceFile(
       error: error instanceof Error ? error.message : String(error),
     }
   }
+}
+
+const STRUCTURED_DATA_EXTENSIONS = new Set([
+  ".csv",
+  ".json",
+  ".jsonl",
+  ".log",
+  ".ndjson",
+  ".ods",
+  ".tsv",
+  ".xls",
+  ".xlsx",
+])
+
+/**
+ * Keep a bounded, representative sample of a large structured data file: its first half-budget of
+ * chunks (headers, schema, first records) and evenly spaced records from the rest. One export or log
+ * can otherwise hold most of the index and crowd every other document out of the candidate pools.
+ */
+export function capDataFileChunks<Chunk>(
+  chunks: Chunk[],
+  extension: string,
+  maxChunks: number | null,
+): Chunk[] {
+  if (
+    maxChunks === null ||
+    chunks.length <= maxChunks ||
+    !STRUCTURED_DATA_EXTENSIONS.has(extension.toLowerCase())
+  ) {
+    return chunks
+  }
+  const headCount = Math.ceil(maxChunks / 2)
+  const sampled = chunks.slice(0, headCount)
+  const sampleCount = maxChunks - headCount
+  const remaining = chunks.length - headCount
+  for (let index = 0; index < sampleCount; index += 1) {
+    const chunk = chunks[headCount + Math.floor(((index + 0.5) * remaining) / sampleCount)]
+    if (chunk !== undefined) {
+      sampled.push(chunk)
+    }
+  }
+  return sampled
 }
 
 async function vectorRowsForChunks(
@@ -765,6 +809,7 @@ function indexHealthSnapshot(input: IndexHealthSnapshotInput): IndexHealthSnapsh
     sourceDiagnostics: sourceDiagnostics(input.files, input.inventory.skippedFiles),
     securityCheckedAt: input.checkedAt,
     securityWarnings: [...input.securityWarnings].sort().slice(0, MAX_HEALTH_PREVIEW_ITEMS),
+    concentration: indexConcentration(indexedFilesFromState(input.state)),
   }
 }
 
@@ -821,27 +866,7 @@ function* indexedFilesFromState(state: IngestionRunState): Generator<IndexManife
 }
 
 function sortIngestionFilesForStorage(state: IngestionRunState): void {
-  state.files.sort((left, right) =>
-    compareUnicodeScalarValues(left.relativePath, right.relativePath),
-  )
-}
-
-function compareUnicodeScalarValues(left: string, right: string): number {
-  let leftIndex = 0
-  let rightIndex = 0
-  while (leftIndex < left.length && rightIndex < right.length) {
-    const leftCodePoint = left.codePointAt(leftIndex)
-    const rightCodePoint = right.codePointAt(rightIndex)
-    if (leftCodePoint === undefined || rightCodePoint === undefined) {
-      break
-    }
-    if (leftCodePoint !== rightCodePoint) {
-      return leftCodePoint - rightCodePoint
-    }
-    leftIndex += leftCodePoint > 0xffff ? 2 : 1
-    rightIndex += rightCodePoint > 0xffff ? 2 : 1
-  }
-  return left.length - right.length
+  state.files.sort((left, right) => compareCodePoints(left.relativePath, right.relativePath))
 }
 
 function emptyTextRecords(state: IngestionRunState): Array<{
@@ -1114,6 +1139,7 @@ export async function auditWithConfig(
   const table = await openRowsTable(config)
   throwIfAborted(signal)
   const emptyTextFiles = await currentEmptyTextFiles(config, files, signal)
+  const sourceRules = await sourceRuleDiagnostics(config, files, signal ? { signal } : {})
   throwIfAborted(signal)
 
   if (!table) {
@@ -1135,6 +1161,7 @@ export async function auditWithConfig(
         staleInIndex: [],
         totalChunks: 0,
         chunkStats: summarizeChunkStats([]),
+        sourceRules,
       },
       options.previewLimit,
     )
@@ -1206,6 +1233,10 @@ export async function auditWithConfig(
           .sort(),
         totalChunks: chunkStats.count,
         chunkStats: finishAuditChunkStats(chunkStats),
+        sourceRules,
+        concentration: indexConcentration(
+          [...counts.entries()].map(([relativePath, chunkCount]) => ({ relativePath, chunkCount })),
+        ),
       },
       options.previewLimit,
     )

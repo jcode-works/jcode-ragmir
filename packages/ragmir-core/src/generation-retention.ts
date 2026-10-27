@@ -9,6 +9,12 @@ import type { IngestionRunState } from "./ingestion-state.js"
 import { readIngestionState } from "./ingestion-state.js"
 import { operationSignal } from "./operation.js"
 import { ensurePrivateDirectory } from "./permissions.js"
+import {
+  diskUsage,
+  findStorageOrphans,
+  removeStorageOrphans,
+  type StorageOrphan,
+} from "./storage-usage.js"
 import { activeIndexTableName, connectStore } from "./store.js"
 import type { Config, OperationOptions } from "./types.js"
 
@@ -32,6 +38,8 @@ export type GenerationRole =
 export interface CollectGenerationGarbageOptions extends OperationOptions {
   cwd?: string
   dryRun?: boolean
+  /** Also delete the orphaned models, storage copies, and retired outputs that the report lists. */
+  orphans?: boolean
 }
 
 export interface GenerationInventoryItem {
@@ -47,6 +55,8 @@ export interface GenerationInventoryItem {
     | "retention-age"
     | "retention-limit"
   bytes: number
+  /** Allocated size on disk, including the table's old versions and index files. */
+  diskBytes: number
   tableVersion: number
   lastModifiedAt: string
   ageMs: number
@@ -70,6 +80,10 @@ export interface GenerationGarbageCollectionReport {
   reclaimableBytes: number
   reclaimedBytes: number
   deletedTables: string[]
+  /** Allocated size of the whole storage directory on disk. */
+  storageDiskBytes: number
+  orphans: StorageOrphan[]
+  removedOrphans: string[]
   warning: string | null
 }
 
@@ -90,6 +104,7 @@ interface GenerationLeaseRecord {
 interface GenerationCandidate {
   tableName: string
   bytes: number
+  diskBytes: number
   tableVersion: number
   lastModifiedAt: string
   ageMs: number
@@ -99,6 +114,9 @@ interface CollectUnlockedOptions {
   dryRun?: boolean
   now?: Date
   state?: IngestionRunState | null
+  /** Measure allocated disk space and list orphans; skipped by the cleanup that ends an ingest. */
+  measureDisk?: boolean
+  orphans?: boolean
 }
 
 export async function collectGenerationGarbage(
@@ -109,6 +127,8 @@ export async function collectGenerationGarbage(
   return withIndexWriteLock(config.storageDir, signal, () =>
     collectGenerationGarbageUnlocked(config, undefined, {
       ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+      ...(options.orphans === undefined ? {} : { orphans: options.orphans }),
+      measureDisk: true,
     }),
   )
 }
@@ -227,6 +247,10 @@ async function collectWithConnection(
       candidates.push({
         tableName,
         bytes: stats.totalBytes,
+        diskBytes:
+          options.measureDisk === true
+            ? await diskUsage(path.join(config.storageDir, `${tableName}.lance`))
+            : stats.totalBytes,
         tableVersion,
         lastModifiedAt: new Date(lastModifiedMs).toISOString(),
         ageMs: Math.max(0, nowMs - lastModifiedMs),
@@ -286,7 +310,7 @@ async function collectWithConnection(
 
   const reclaimableBytes = generations
     .filter((generation) => generation.reclaimable)
-    .reduce((sum, generation) => sum + generation.bytes, 0)
+    .reduce((sum, generation) => sum + generation.diskBytes, 0)
   const deletedTables: string[] = []
   let reclaimedBytes = 0
   if (options.dryRun !== true) {
@@ -299,7 +323,7 @@ async function collectWithConnection(
         await connection.dropTable(generation.tableName)
         generation.deleted = true
         deletedTables.push(generation.tableName)
-        reclaimedBytes += generation.bytes
+        reclaimedBytes += generation.diskBytes
       } catch (error) {
         warnings.push(
           `Could not delete generation "${generation.tableName}" (${errorDetail(error)}).`,
@@ -307,6 +331,10 @@ async function collectWithConnection(
       }
     }
   }
+
+  const orphans = options.measureDisk === true ? await findStorageOrphans(config) : []
+  const removedOrphans =
+    options.dryRun !== true && options.orphans === true ? await removeStorageOrphans(orphans) : []
 
   return {
     schemaVersion: 1,
@@ -323,6 +351,9 @@ async function collectWithConnection(
     reclaimableBytes,
     reclaimedBytes,
     deletedTables,
+    storageDiskBytes: options.measureDisk === true ? await diskUsage(config.storageDir) : 0,
+    orphans,
+    removedOrphans,
     warning: warnings.length > 0 ? warnings.join(" ") : null,
   }
 }

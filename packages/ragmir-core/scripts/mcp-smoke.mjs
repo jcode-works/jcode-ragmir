@@ -92,11 +92,15 @@ try {
     throw new Error(`MCP status reported an unexpected output budget: ${JSON.stringify(status)}`)
   }
   if (
-    status.ingestionLimits?.maxFileBytes !== 50_000_000 ||
-    status.ingestionLimits?.maxFiles !== null ||
-    status.ingestionLimits?.maxCorpusBytes !== null
+    status.knowledgeBase?.name !== path.basename(demoRoot) ||
+    status.knowledgeBase?.projectRoot !== demoRoot ||
+    status.coverage?.verified !== true ||
+    status.coverage?.missingFromIndex !== 0
   ) {
-    throw new Error(`MCP status reported unexpected ingestion limits: ${JSON.stringify(status)}`)
+    throw new Error(`MCP status did not report a verified, named base: ${JSON.stringify(status)}`)
+  }
+  if (!client.getInstructions()?.includes(`"${path.basename(demoRoot)}"`)) {
+    throw new Error(`MCP instructions do not name the base: ${client.getInstructions()}`)
   }
 
   const searchResults = await callJsonTool(client, "ragmir_search", {
@@ -152,11 +156,13 @@ try {
     )
   }
 
+  // The passage was already returned in this session; ask for it again in full.
   const filteredSearchResults = await callJsonTool(client, "ragmir_search", {
     query: "offline retrieval approval",
     topK: 5,
     includePaths: ["raw/review-notes.evidence"],
     explain: true,
+    seen: "include",
   })
   if (
     !Array.isArray(filteredSearchResults) ||
@@ -182,6 +188,7 @@ try {
     topK: 5,
     includePaths: ["raw/incident-timeline.jsonl"],
     contextPaths: ["$[1..4]"],
+    seen: "include",
   })
   if (
     !Array.isArray(contextFilteredResults) ||
@@ -194,7 +201,7 @@ try {
   }
 
   const audit = await callJsonTool(client, "ragmir_audit", {})
-  if (audit.missingFromIndex.length !== 0) throw new Error("MCP audit found unindexed sources")
+  if (audit.counts?.missingFromIndex !== 0) throw new Error("MCP audit found unindexed sources")
   if (toolNames.length !== requiredTools.length) throw new Error("Unexpected MCP tool surface")
 
   console.log(

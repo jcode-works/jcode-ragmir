@@ -48,12 +48,32 @@ try {
     true,
   )
 
-  const installedCliPath = path.join(consumerRoot, "node_modules", ".bin", "rgr")
-  const installedVersion = await execFileAsync(installedCliPath, ["--version"], {
-    cwd: consumerRoot,
-    env: offlineEnvironment(),
-    maxBuffer: 1024 * 1024,
-  })
+  // Windows bin shims are .cmd scripts that need a shell; run the packaged entry through node there.
+  const installedCli =
+    process.platform === "win32"
+      ? {
+          command: process.execPath,
+          args: [
+            path.join(
+              consumerRoot,
+              "node_modules",
+              "@jcode.labs",
+              "ragmir",
+              "dist",
+              "cli-entry.js",
+            ),
+          ],
+        }
+      : { command: path.join(consumerRoot, "node_modules", ".bin", "rgr"), args: [] }
+  const installedVersion = await execFileAsync(
+    installedCli.command,
+    [...installedCli.args, "--version"],
+    {
+      cwd: consumerRoot,
+      env: offlineEnvironment(),
+      maxBuffer: 1024 * 1024,
+    },
+  )
   const workerPath = path.join(consumerRoot, "verify.mjs")
   await writeFile(workerPath, offlineWorkerSource(), "utf8")
   const { stdout } = await execFileAsync(process.execPath, [workerPath], {

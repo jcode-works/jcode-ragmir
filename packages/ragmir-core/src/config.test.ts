@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { findProjectRoot, loadConfig } from "./config.js"
+import { findProjectRoot, loadConfig, retrievalProfileOverrides } from "./config.js"
 import { initProject } from "./init.js"
 
 const tempDirs: string[] = []
@@ -637,3 +637,40 @@ function restoreEnv(name: string, value: string | undefined): void {
     process.env[name] = value
   }
 }
+
+describe("retrievalProfileOverrides", () => {
+  it("reports budgets pinned against the selected profile", () => {
+    expect(retrievalProfileOverrides({ topK: 8, hybridTextScanLimit: 10_000 }, "quality")).toEqual([
+      { field: "topK", configured: 8, profileValue: 12 },
+    ])
+    expect(retrievalProfileOverrides({ topK: 8 }, "balanced")).toEqual([])
+    expect(retrievalProfileOverrides({ topK: 20 }, "custom")).toEqual([])
+  })
+})
+
+describe("shared ragmir.config.json", () => {
+  it("reads the committed config, lets the local one override it, and keeps init from shadowing it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-shared-config-"))
+    tempDirs.push(root)
+    await writeFile(
+      path.join(root, "ragmir.config.json"),
+      JSON.stringify({ name: "Docs", sources: ["docs"], retrievalProfile: "quality" }),
+    )
+    const nested = path.join(root, "docs", "guides")
+    await mkdir(nested, { recursive: true })
+
+    await initProject(root)
+    const shared = await loadConfig(nested)
+
+    expect(shared.projectRoot).toBe(root)
+    expect(shared.name).toBe("Docs")
+    expect(shared.topK).toBe(12)
+    await expect(readFile(path.join(root, ".ragmir", "config.json"), "utf8")).rejects.toThrow()
+
+    await writeFile(path.join(root, ".ragmir", "config.json"), JSON.stringify({ topK: 4 }))
+    const overridden = await loadConfig(root)
+    expect(overridden.name).toBe("Docs")
+    expect(overridden.sources).toEqual(["docs"])
+    expect(overridden.topK).toBe(4)
+  })
+})

@@ -1,3 +1,4 @@
+import type { SeenCitationStub } from "./mcp-session.js"
 import type { CompactSearchResult, ExpandedCitation, McpOutputTool, SearchResult } from "./types.js"
 
 export const MIN_MCP_OUTPUT_BYTES = 1_024
@@ -15,7 +16,7 @@ export interface McpOutputMetadata {
 
 export interface McpTextResult {
   [key: string]: unknown
-  content: [{ type: "text"; text: string }]
+  content: Array<{ type: "text"; text: string }>
   _meta: {
     "ragmir/output": McpOutputMetadata
   }
@@ -31,7 +32,12 @@ export interface McpCitationPreview {
   evidence?: { id: string }
 }
 
-export type McpSearchPayload = Array<SearchResult | CompactSearchResult | McpCitationPreview>
+export type McpSearchPayload = Array<
+  SearchResult | CompactSearchResult | McpCitationPreview | SeenCitationStub
+>
+
+/** One group per query of a batched search; the groups share one output budget. */
+export type McpSearchGroupsPayload = Array<{ query: string; results: McpSearchPayload }>
 
 export interface McpExpandedPassagePreview {
   chunkIndex: number
@@ -149,6 +155,51 @@ export function fitSearchPayload(
     }
   }
   return { value: [], omittedItems: value.length, truncated: value.length > 0 }
+}
+
+/**
+ * Fit batched results into one budget: drop the lowest-ranked result of the largest group first, so
+ * every query keeps its best evidence, then fall back to citation previews.
+ */
+export function fitSearchGroups(
+  value: McpSearchGroupsPayload,
+  maxBytes: number,
+): ReducedPayload<McpSearchGroupsPayload> {
+  if (jsonBytes(value) <= maxBytes) {
+    return { value, omittedItems: 0, truncated: false }
+  }
+  const groups = value.map((group) => ({ query: group.query, results: [...group.results] }))
+  let omittedItems = 0
+  while (jsonBytes(groups) > maxBytes) {
+    const largest = groups.reduce<(typeof groups)[number] | undefined>(
+      (current, group) =>
+        group.results.length > 1 && group.results.length > (current?.results.length ?? 1)
+          ? group
+          : current,
+      undefined,
+    )
+    if (!largest) {
+      break
+    }
+    largest.results.pop()
+    omittedItems += 1
+  }
+  if (jsonBytes(groups) <= maxBytes) {
+    return { value: groups, omittedItems, truncated: true }
+  }
+  const previews = groups.map((group) => ({
+    query: group.query,
+    results: group.results.map(toCitationPreview),
+  }))
+  if (jsonBytes(previews) <= maxBytes) {
+    return { value: previews, omittedItems, truncated: true }
+  }
+  const total = value.reduce((sum, group) => sum + group.results.length, 0)
+  return {
+    value: value.map((group) => ({ query: group.query, results: [] })),
+    omittedItems: total,
+    truncated: total > 0,
+  }
 }
 
 export function fitExpandedCitation(

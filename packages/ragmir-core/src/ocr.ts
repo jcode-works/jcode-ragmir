@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
-import { createReadStream } from "node:fs"
+import { createReadStream, existsSync } from "node:fs"
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -168,7 +168,7 @@ export async function configurePdfOcr(
     throw new Error("OCR timeout must be a positive integer.")
   }
 
-  const configuredCommand = await rgrCommand(config.projectRoot, [
+  const pdfOcrCommand = await portableRunnerCommand(config.projectRoot, [
     "ocr",
     "extract-pages",
     "--engine",
@@ -182,7 +182,6 @@ export async function configurePdfOcr(
     "--timeout-ms",
     String(timeoutMs),
   ])
-  const pdfOcrCommand = [configuredCommand.command, ...configuredCommand.args]
   const projectConfig = findProjectConfig(config.projectRoot)
   await mutateProjectConfig(projectConfig, (raw) => {
     Object.assign(raw, { pdfOcrCommand, pdfOcrTimeoutMs: timeoutMs })
@@ -695,7 +694,24 @@ function terminateChild(child: ReturnType<typeof spawn>, signal: NodeJS.Signals)
 }
 
 function externalCommandEnvironment(): NodeJS.ProcessEnv {
-  const allowed = ["HOME", "LANG", "LC_ALL", "PATH", "TEMP", "TMP", "TMPDIR"]
+  // Windows programs need their system and profile folders; TESSDATA_PREFIX locates OCR languages.
+  const allowed = [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "TESSDATA_PREFIX",
+    "SYSTEMROOT",
+    "WINDIR",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "PATHEXT",
+    "COMSPEC",
+  ]
   return Object.fromEntries(
     allowed.flatMap((name) => {
       const value = process.env[name]
@@ -706,4 +722,265 @@ function externalCommandEnvironment(): NodeJS.ProcessEnv {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error
+}
+
+export type LegacyWordEngine = "textutil" | "antiword" | "catdoc" | "soffice"
+
+export interface LocalExtractorStatus {
+  imageOcr: {
+    available: boolean
+    tesseract: OcrExecutableStatus
+    /** macOS converts HEIC, HEIF, and AVIF photos to PNG before OCR. */
+    imageConverter: "sips" | null
+    languages: string[]
+  }
+  legacyWord: {
+    recommendedEngine: LegacyWordEngine | null
+    engines: Record<LegacyWordEngine, boolean>
+  }
+}
+
+export interface ConfigureLocalExtractorsOptions {
+  cwd?: string
+  images?: boolean
+  legacyWord?: boolean
+  language?: string
+  timeoutMs?: number
+}
+
+export interface ConfigureLocalExtractorsResult {
+  configPath: string
+  imageOcrCommand: string[] | null
+  legacyWordCommand: string[] | null
+}
+
+const IMAGE_FORMATS_NEEDING_CONVERSION = new Set([".avif", ".heic", ".heif"])
+const LEGACY_WORD_ENGINE_ORDER: readonly LegacyWordEngine[] = [
+  "textutil",
+  "antiword",
+  "catdoc",
+  "soffice",
+]
+
+/** Local tools that can read photos and scans (Tesseract) and legacy `.doc` files. */
+export async function inspectLocalExtractors(): Promise<LocalExtractorStatus> {
+  const [tesseract, sips, ...legacyEngines] = await Promise.all([
+    probeExecutable(executablePath("tesseract"), ["--version"]),
+    process.platform === "darwin"
+      ? probeExecutable("sips", ["--help"])
+      : Promise.resolve({ available: false, version: null }),
+    ...LEGACY_WORD_ENGINE_ORDER.map((engine) =>
+      engine === "textutil" && process.platform !== "darwin"
+        ? Promise.resolve({ available: false, version: null })
+        : probeExecutable(executablePath(engine), legacyWordProbeArgs(engine)),
+    ),
+  ])
+  const engines = Object.fromEntries(
+    LEGACY_WORD_ENGINE_ORDER.map((engine, index) => [
+      engine,
+      legacyEngines[index]?.available === true,
+    ]),
+  ) as Record<LegacyWordEngine, boolean>
+  return {
+    imageOcr: {
+      available: tesseract.available,
+      tesseract,
+      imageConverter: sips.available ? "sips" : null,
+      languages: tesseract.available ? await listTesseractLanguages() : [],
+    },
+    legacyWord: {
+      recommendedEngine: LEGACY_WORD_ENGINE_ORDER.find((engine) => engines[engine]) ?? null,
+      engines,
+    },
+  }
+}
+
+/**
+ * Configure image OCR and legacy Word extraction with Ragmir's own extractors, run through the
+ * project runner so the config stays portable across machines and operating systems.
+ */
+export async function configureLocalExtractors(
+  options: ConfigureLocalExtractorsOptions = {},
+): Promise<ConfigureLocalExtractorsResult> {
+  const cwd = options.cwd ?? process.cwd()
+  await initProject(cwd)
+  const config = await loadConfig(cwd)
+  const status = await inspectLocalExtractors()
+  const language = normalizeOcrLanguage(options.language)
+  let imageOcrCommand: string[] | null = null
+  let legacyWordCommand: string[] | null = null
+  if (options.images === true) {
+    if (!status.imageOcr.available) {
+      throw new Error(
+        "Image OCR needs Tesseract. Install it (brew install tesseract, apt install tesseract-ocr, or the Windows installer), then rerun.",
+      )
+    }
+    assertLanguagesAvailable(language, status.imageOcr.languages)
+    imageOcrCommand = await portableRunnerCommand(config.projectRoot, [
+      "ocr",
+      "extract-image",
+      "--language",
+      language,
+      "--input",
+      "{input}",
+    ])
+  }
+  if (options.legacyWord === true) {
+    const engine = status.legacyWord.recommendedEngine
+    if (!engine) {
+      throw new Error(
+        "Legacy .doc extraction needs textutil (macOS), antiword or catdoc (Linux), or LibreOffice (any platform).",
+      )
+    }
+    legacyWordCommand = await portableRunnerCommand(config.projectRoot, [
+      "ocr",
+      "extract-doc",
+      "--engine",
+      engine,
+      "--input",
+      "{input}",
+    ])
+  }
+  const projectConfig = findProjectConfig(config.projectRoot)
+  await mutateProjectConfig(projectConfig, (raw) => {
+    if (imageOcrCommand) {
+      raw.imageOcrCommand = imageOcrCommand
+      if (options.timeoutMs !== undefined) raw.imageOcrTimeoutMs = options.timeoutMs
+    }
+    if (legacyWordCommand) {
+      raw.legacyWordCommand = legacyWordCommand
+      if (options.timeoutMs !== undefined) raw.legacyWordTimeoutMs = options.timeoutMs
+    }
+    return { changed: imageOcrCommand !== null || legacyWordCommand !== null, value: undefined }
+  })
+  return { configPath: projectConfig.configPath, imageOcrCommand, legacyWordCommand }
+}
+
+/** OCR one photo or scanned image with Tesseract; HEIC, HEIF, and AVIF go through PNG first. */
+export async function extractImageText(options: {
+  input: string
+  language?: string
+  timeoutMs?: number
+}): Promise<string> {
+  const language = normalizeOcrLanguage(options.language)
+  const timeoutMs = options.timeoutMs ?? OCR_COMMAND_TIMEOUT_MS
+  let input = options.input
+  let workDir: string | null = null
+  try {
+    if (IMAGE_FORMATS_NEEDING_CONVERSION.has(path.extname(input).toLowerCase())) {
+      if (process.platform !== "darwin") {
+        throw new Error(
+          "HEIC, HEIF, and AVIF images need conversion to PNG or JPEG before OCR on this platform.",
+        )
+      }
+      workDir = await mkdtemp(path.join(os.tmpdir(), "ragmir-image-ocr-"))
+      const converted = path.join(workDir, "page.png")
+      await runProcess("sips", ["-s", "format", "png", input, "--out", converted], { timeoutMs })
+      input = converted
+    }
+    const result = await runProcess(
+      executablePath("tesseract"),
+      [input, "stdout", "-l", language],
+      { timeoutMs },
+    )
+    return result.stdout
+  } finally {
+    if (workDir) {
+      await rm(workDir, { recursive: true, force: true })
+    }
+  }
+}
+
+/** Extract the text of a legacy Word `.doc` file with a local converter. */
+export async function extractLegacyWordText(options: {
+  input: string
+  engine: LegacyWordEngine
+  timeoutMs?: number
+}): Promise<string> {
+  const timeoutMs = options.timeoutMs ?? OCR_COMMAND_TIMEOUT_MS
+  switch (options.engine) {
+    case "textutil":
+      return (
+        await runProcess("textutil", ["-convert", "txt", "-stdout", options.input], { timeoutMs })
+      ).stdout
+    case "antiword":
+      return (await runProcess(executablePath("antiword"), [options.input], { timeoutMs })).stdout
+    case "catdoc":
+      return (await runProcess(executablePath("catdoc"), ["-w", options.input], { timeoutMs }))
+        .stdout
+    case "soffice": {
+      const workDir = await mkdtemp(path.join(os.tmpdir(), "ragmir-legacy-word-"))
+      try {
+        await runProcess(
+          executablePath("soffice"),
+          ["--headless", "--convert-to", "txt:Text", "--outdir", workDir, options.input],
+          { timeoutMs },
+        )
+        const output = path.join(
+          workDir,
+          `${path.basename(options.input, path.extname(options.input))}.txt`,
+        )
+        return await readFile(output, "utf8")
+      } finally {
+        await rm(workDir, { recursive: true, force: true })
+      }
+    }
+  }
+}
+
+export function parseLegacyWordEngine(value: string): LegacyWordEngine {
+  const normalized = value.trim().toLowerCase()
+  if (LEGACY_WORD_ENGINE_ORDER.includes(normalized as LegacyWordEngine)) {
+    return normalized as LegacyWordEngine
+  }
+  throw new Error(`Expected one of ${LEGACY_WORD_ENGINE_ORDER.join(", ")}.`)
+}
+
+/**
+ * The runner command with a project-relative runner path: extractor commands run from the project
+ * root, so a committed config works for every clone instead of naming one machine's absolute path.
+ */
+export async function portableRunnerCommand(
+  projectRoot: string,
+  args: string[],
+): Promise<string[]> {
+  const command = await rgrCommand(projectRoot, args)
+  const [runner, ...rest] = command.args
+  if (command.command === "node" && runner !== undefined && path.isAbsolute(runner)) {
+    const relative = path.relative(projectRoot, runner)
+    if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
+      return ["node", relative.split(path.sep).join("/"), ...rest]
+    }
+  }
+  return [command.command, ...command.args]
+}
+
+function legacyWordProbeArgs(engine: LegacyWordEngine): string[] {
+  switch (engine) {
+    case "textutil":
+      return ["-help"]
+    case "antiword":
+      return ["-h"]
+    case "catdoc":
+      return ["-V"]
+    case "soffice":
+      return ["--version"]
+  }
+}
+
+/**
+ * Windows installers for Tesseract and LibreOffice do not always add themselves to PATH, so their
+ * default install locations are tried when the bare command is missing there.
+ */
+function executablePath(command: string): string {
+  if (process.platform !== "win32") {
+    return command
+  }
+  const programFiles = process.env.ProgramFiles ?? "C:\\Program Files"
+  const candidates: Record<string, string> = {
+    tesseract: path.join(programFiles, "Tesseract-OCR", "tesseract.exe"),
+    soffice: path.join(programFiles, "LibreOffice", "program", "soffice.exe"),
+  }
+  const candidate = candidates[command]
+  return candidate !== undefined && existsSync(candidate) ? candidate : command
 }

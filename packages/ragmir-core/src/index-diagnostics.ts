@@ -1,7 +1,7 @@
 import { VECTOR_DISTANCE_METRIC } from "./defaults.js"
 import { indexPolicyFingerprint } from "./index-policy.js"
 import { indexManifestRecoveryWarning, readIndexManifest } from "./store.js"
-import type { Config, IndexManifest } from "./types.js"
+import type { Config, IndexConcentration, IndexManifest } from "./types.js"
 import { vectorModelFingerprint } from "./vector-index.js"
 
 /**
@@ -135,4 +135,47 @@ export function manifestReady(
     health.oversizedFiles === 0 &&
     freshnessWarning === null
   )
+}
+
+const CONCENTRATION_TOP_FILES = 5
+const LARGEST_FILE_SHARE_WARNING = 0.2
+const TOP_THREE_SHARE_WARNING = 0.5
+
+/**
+ * Share of the index held by the largest files. Above a fifth for one file, or half for three, a
+ * data export or log tends to fill the candidate pools of unrelated questions.
+ */
+export function indexConcentration(
+  files: Iterable<{ relativePath: string; chunkCount: number }>,
+): IndexConcentration {
+  const sorted = [...files]
+    .filter((file) => file.chunkCount > 0)
+    .sort((left, right) => right.chunkCount - left.chunkCount)
+  const totalChunks = sorted.reduce((sum, file) => sum + file.chunkCount, 0)
+  const share = (chunks: number): number =>
+    totalChunks === 0 ? 0 : Math.round((chunks / totalChunks) * 1_000) / 1_000
+  const topFiles = sorted.slice(0, CONCENTRATION_TOP_FILES).map((file) => ({
+    relativePath: file.relativePath,
+    chunks: file.chunkCount,
+    share: share(file.chunkCount),
+  }))
+  const top3Share = share(sorted.slice(0, 3).reduce((sum, file) => sum + file.chunkCount, 0))
+  const largest = topFiles[0]
+  const concentrated =
+    sorted.length > 3 &&
+    largest !== undefined &&
+    (largest.share > LARGEST_FILE_SHARE_WARNING || top3Share > TOP_THREE_SHARE_WARNING)
+  return {
+    totalChunks,
+    topFiles,
+    top3Share,
+    warning: concentrated
+      ? `${Math.min(3, sorted.length)} file(s) hold ${Math.round(top3Share * 100)}% of the index (${topFiles
+          .slice(0, 3)
+          .map((file) => `${file.relativePath} ${Math.round(file.share * 100)}%`)
+          .join(
+            ", ",
+          )}). Exclude data exports that agents do not need, cap them with maxChunksPerDataFile, or lower their rank with sourceWeights.`
+      : null,
+  }
 }

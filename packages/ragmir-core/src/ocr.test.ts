@@ -17,6 +17,8 @@ import {
 
 const tempDirs: string[] = []
 const originalPath = process.env.PATH
+// The fake OCR tools are Node scripts with a shebang, which Windows cannot execute directly.
+const itWithFakeTools = it.skipIf(process.platform === "win32")
 
 afterEach(async () => {
   process.env.PATH = originalPath
@@ -37,49 +39,53 @@ describe("PDF OCR onboarding", () => {
     expect(() => parsePdfOcrPages("0,2")).toThrow("between 1")
   })
 
-  it("should detect Tesseract with Poppler and configure the project command", async () => {
-    const root = await createTempRoot("ragmir-ocr-config-")
-    const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
-    process.env.PATH = binDir
-    await writeFile(path.join(root, "package.json"), '{"packageManager":"pnpm@11.9.0"}\n')
+  itWithFakeTools(
+    "should detect Tesseract with Poppler and configure the project command",
+    async () => {
+      const root = await createTempRoot("ragmir-ocr-config-")
+      const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
+      process.env.PATH = binDir
+      await writeFile(path.join(root, "package.json"), '{"packageManager":"pnpm@11.9.0"}\n')
 
-    const status = await inspectPdfOcr(root)
-    expect(status.recommendedEngine).toBe("tesseract")
-    expect(status.languages).toEqual(["eng", "fra"])
+      const status = await inspectPdfOcr(root)
+      expect(status.recommendedEngine).toBe("tesseract")
+      expect(status.languages).toEqual(["eng", "fra"])
 
-    const result = await configurePdfOcr({
-      cwd: root,
-      engine: "auto",
-      language: "eng+fra",
-      timeoutMs: 45_000,
-    })
-    const raw: unknown = JSON.parse(await readFile(result.configPath, "utf8"))
-    expect(isRecord(raw)).toBe(true)
-    if (!isRecord(raw)) {
-      throw new Error("Expected an object config fixture.")
-    }
-    expect(result.engine).toBe("tesseract")
-    expect(raw.pdfOcrCommand).toEqual([
-      "pnpm",
-      "exec",
-      "rgr",
-      "ocr",
-      "extract-pages",
-      "--engine",
-      "tesseract",
-      "--language",
-      "eng+fra",
-      "--input",
-      "{input}",
-      "--pages",
-      "{pages}",
-      "--timeout-ms",
-      "45000",
-    ])
-    expect(raw.pdfOcrTimeoutMs).toBe(45_000)
-  }, 10_000)
+      const result = await configurePdfOcr({
+        cwd: root,
+        engine: "auto",
+        language: "eng+fra",
+        timeoutMs: 45_000,
+      })
+      const raw: unknown = JSON.parse(await readFile(result.configPath, "utf8"))
+      expect(isRecord(raw)).toBe(true)
+      if (!isRecord(raw)) {
+        throw new Error("Expected an object config fixture.")
+      }
+      expect(result.engine).toBe("tesseract")
+      expect(raw.pdfOcrCommand).toEqual([
+        "pnpm",
+        "exec",
+        "rgr",
+        "ocr",
+        "extract-pages",
+        "--engine",
+        "tesseract",
+        "--language",
+        "eng+fra",
+        "--input",
+        "{input}",
+        "--pages",
+        "{pages}",
+        "--timeout-ms",
+        "45000",
+      ])
+      expect(raw.pdfOcrTimeoutMs).toBe(45_000)
+    },
+    10_000,
+  )
 
-  it("should extract one PDF page with the local Tesseract pipeline", async () => {
+  itWithFakeTools("should extract one PDF page with the local Tesseract pipeline", async () => {
     const root = await createTempRoot("ragmir-ocr-tesseract-")
     const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
     process.env.PATH = binDir
@@ -91,47 +97,53 @@ describe("PDF OCR onboarding", () => {
     ).resolves.toBe("Synthetic OCR text from Tesseract\n")
   })
 
-  it("should keep an empty OCR payload when the requested page has no text", async () => {
-    const root = await createTempRoot("ragmir-ocr-tesseract-empty-")
-    const binDir = await createFakeTools(root, {
-      tesseract: true,
-      pdftoppm: true,
-      emptyTesseractOutput: true,
-    })
-    process.env.PATH = binDir
-    const input = path.join(root, "scan.pdf")
-    await writeFile(input, "synthetic PDF fixture")
+  itWithFakeTools(
+    "should keep an empty OCR payload when the requested page has no text",
+    async () => {
+      const root = await createTempRoot("ragmir-ocr-tesseract-empty-")
+      const binDir = await createFakeTools(root, {
+        tesseract: true,
+        pdftoppm: true,
+        emptyTesseractOutput: true,
+      })
+      process.env.PATH = binDir
+      const input = path.join(root, "scan.pdf")
+      await writeFile(input, "synthetic PDF fixture")
 
-    await expect(
-      extractPdfPage({ engine: "tesseract", input, page: 2, language: "eng" }),
-    ).resolves.toBe("")
-  })
+      await expect(
+        extractPdfPage({ engine: "tesseract", input, page: 2, language: "eng" }),
+      ).resolves.toBe("")
+    },
+  )
 
-  it("should extract multiple PDF pages through one bounded Tesseract batch", async () => {
-    const root = await createTempRoot("ragmir-ocr-tesseract-batch-")
-    const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
-    process.env.PATH = binDir
-    const input = path.join(root, "scan.pdf")
-    await writeFile(input, "synthetic PDF fixture")
+  itWithFakeTools(
+    "should extract multiple PDF pages through one bounded Tesseract batch",
+    async () => {
+      const root = await createTempRoot("ragmir-ocr-tesseract-batch-")
+      const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
+      process.env.PATH = binDir
+      const input = path.join(root, "scan.pdf")
+      await writeFile(input, "synthetic PDF fixture")
 
-    await expect(
-      extractPdfPages({ engine: "tesseract", input, pages: [2, 4, 5], language: "eng" }),
-    ).resolves.toMatchObject({
-      subprocesses: 5,
-      pages: [
-        { page: 2, text: "Synthetic OCR text from Tesseract\n" },
-        { page: 4, text: "Synthetic OCR text from Tesseract\n" },
-        { page: 5, text: "Synthetic OCR text from Tesseract\n" },
-      ],
-    })
-    expect((await renderedPdfPages(binDir)).map((args) => args[args.indexOf("-f") + 1])).toEqual([
-      "2",
-      "4",
-      "5",
-    ])
-  })
+      await expect(
+        extractPdfPages({ engine: "tesseract", input, pages: [2, 4, 5], language: "eng" }),
+      ).resolves.toMatchObject({
+        subprocesses: 5,
+        pages: [
+          { page: 2, text: "Synthetic OCR text from Tesseract\n" },
+          { page: 4, text: "Synthetic OCR text from Tesseract\n" },
+          { page: 5, text: "Synthetic OCR text from Tesseract\n" },
+        ],
+      })
+      expect((await renderedPdfPages(binDir)).map((args) => args[args.indexOf("-f") + 1])).toEqual([
+        "2",
+        "4",
+        "5",
+      ])
+    },
+  )
 
-  it("should render Tesseract pages as LZW TIFF instead of slow PNG", async () => {
+  itWithFakeTools("should render Tesseract pages as LZW TIFF instead of slow PNG", async () => {
     const root = await createTempRoot("ragmir-ocr-tesseract-render-")
     const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
     process.env.PATH = binDir
@@ -148,7 +160,7 @@ describe("PDF OCR onboarding", () => {
     }
   })
 
-  it("should cap the render resolution of pages sized in pixels", async () => {
+  itWithFakeTools("should cap the render resolution of pages sized in pixels", async () => {
     const root = await createTempRoot("ragmir-ocr-tesseract-dpi-")
     const binDir = await createFakeTools(root, {
       tesseract: true,
@@ -169,7 +181,7 @@ describe("PDF OCR onboarding", () => {
     expect(ocrRenderDpi(undefined)).toBe(300)
   })
 
-  it("should extract one PDF page with OCRmyPDF sidecar output", async () => {
+  itWithFakeTools("should extract one PDF page with OCRmyPDF sidecar output", async () => {
     const root = await createTempRoot("ragmir-ocr-ocrmypdf-")
     const binDir = await createFakeTools(root, { ocrmypdf: true })
     process.env.PATH = binDir
@@ -181,7 +193,7 @@ describe("PDF OCR onboarding", () => {
     ).resolves.toBe("Synthetic OCR text from OCRmyPDF\n")
   })
 
-  it("should extract multiple selected pages through one OCRmyPDF batch", async () => {
+  itWithFakeTools("should extract multiple selected pages through one OCRmyPDF batch", async () => {
     const root = await createTempRoot("ragmir-ocr-ocrmypdf-batch-")
     const binDir = await createFakeTools(root, { ocrmypdf: true })
     process.env.PATH = binDir
@@ -199,24 +211,27 @@ describe("PDF OCR onboarding", () => {
     })
   })
 
-  it("should invalidate custom OCR identity when command content or language changes", async () => {
-    const root = await createTempRoot("ragmir-ocr-identity-")
-    const script = path.join(root, "ocr-wrapper.mjs")
-    const command = [process.execPath, script, "--language", "eng", "{pages}"]
-    await writeFile(script, 'process.stdout.write("v1")\n')
-    const first = await pdfOcrCommandIdentity(command, root)
-    await writeFile(script, 'process.stdout.write("v2")\n')
-    const changedContent = await pdfOcrCommandIdentity(command, root)
-    const changedLanguage = await pdfOcrCommandIdentity(
-      [process.execPath, script, "--language", "fra", "{pages}"],
-      root,
-    )
+  itWithFakeTools(
+    "should invalidate custom OCR identity when command content or language changes",
+    async () => {
+      const root = await createTempRoot("ragmir-ocr-identity-")
+      const script = path.join(root, "ocr-wrapper.mjs")
+      const command = [process.execPath, script, "--language", "eng", "{pages}"]
+      await writeFile(script, 'process.stdout.write("v1")\n')
+      const first = await pdfOcrCommandIdentity(command, root)
+      await writeFile(script, 'process.stdout.write("v2")\n')
+      const changedContent = await pdfOcrCommandIdentity(command, root)
+      const changedLanguage = await pdfOcrCommandIdentity(
+        [process.execPath, script, "--language", "fra", "{pages}"],
+        root,
+      )
 
-    expect(changedContent.engineVersion).not.toBe(first.engineVersion)
-    expect(changedContent.commandFingerprint).not.toBe(first.commandFingerprint)
-    expect(changedLanguage.language).toBe("fra")
-    expect(changedLanguage.commandFingerprint).not.toBe(changedContent.commandFingerprint)
-  })
+      expect(changedContent.engineVersion).not.toBe(first.engineVersion)
+      expect(changedContent.commandFingerprint).not.toBe(first.commandFingerprint)
+      expect(changedLanguage.language).toBe("fra")
+      expect(changedLanguage.commandFingerprint).not.toBe(changedContent.commandFingerprint)
+    },
+  )
 })
 
 async function renderedPdfPages(binDir: string): Promise<string[][]> {

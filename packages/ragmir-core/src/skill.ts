@@ -1,11 +1,24 @@
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
-import { cp, lstat, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
+import { existsSync, lstatSync } from "node:fs"
+import {
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  readlink,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { DEFAULT_SKILL_TARGET_DIR, RAGMIR_DIR, RAGMIR_PROJECT_ROOT_ENV } from "./defaults.js"
 import { ensureRagmirGitignore } from "./gitignore.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
+import { inspectMcpRegistrations, mcpRegistrationWarnings } from "./mcp-registrations.js"
+import { RAGMIR_CLIENT_CWD_ENV } from "./mcp-scope.js"
 import {
   type RagmirCommand,
   RGR_RUNNER_FILENAME,
@@ -81,6 +94,12 @@ const DEFAULT_MCP_SERVER_NAME = "ragmir"
 const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]+$/u
 const MANAGED_SKILL_METADATA_FILENAME = ".ragmir-managed.json"
 export const SKILL_NAMES = [PRIMARY_SKILL_NAME] as const
+/** Skills of retired commands (audio, reports, legal dossiers); their instructions now fail. */
+export const RETIRED_SKILL_NAMES = [
+  "ragmir-audio-summary",
+  "ragmir-legal-dossier",
+  "ragmir-markdown-report",
+] as const
 
 export const MCP_CONFIG_FILENAME = "mcp.json"
 export const AGENT_SETUP_FILENAME = "agent-setup.md"
@@ -334,7 +353,7 @@ export async function installAgentSkills(
   const cwd = path.resolve(options.cwd ?? process.cwd())
   const scope = options.scope ?? "project"
   const requestedMode = options.mode ?? "link"
-  const homeDir = path.resolve(options.homeDir ?? process.env.HOME ?? process.cwd())
+  const homeDir = path.resolve(options.homeDir ?? os.homedir())
   const env = options.env ?? process.env
   const agents = options.agents ?? SUPPORTED_AGENT_TARGETS
   const installOptions: InstallSkillOptions = { cwd, agents }
@@ -351,6 +370,7 @@ export async function installAgentSkills(
     const destination = AGENT_DESTINATIONS[agent]
     const targetDir = agentTargetDir(agent, scope, cwd, homeDir, env)
     await mkdir(targetDir, { recursive: true })
+    await removeRetiredSkills(targetDir, false)
 
     const { mode, skillPaths } = await exposeAgentSkills(
       sourceDir,
@@ -526,6 +546,55 @@ async function copyBundledSkills(targetDir: string): Promise<void> {
       }),
     ),
   )
+  // The kit directory under .ragmir/ belongs to Ragmir, so retired skills there go with the upgrade.
+  const ragmirOwned = targetDir.split(path.sep).some((segment) => segment === RAGMIR_DIR)
+  await removeRetiredSkills(targetDir, ragmirOwned)
+}
+
+/**
+ * Remove retired Ragmir skills that Ragmir installed: anything in a Ragmir-owned directory, links
+ * into a `.ragmir/skills` kit, and copies carrying Ragmir's managed marker. Edited or independently
+ * installed copies stay, and doctor reports them.
+ */
+async function removeRetiredSkills(directory: string, ragmirOwned: boolean): Promise<string[]> {
+  const removed: string[] = []
+  for (const skillName of RETIRED_SKILL_NAMES) {
+    const target = path.join(directory, skillName)
+    const stats = await lstat(target).catch(() => null)
+    if (!stats) {
+      continue
+    }
+    const managed =
+      ragmirOwned ||
+      (stats.isSymbolicLink() &&
+        /[\\/]\.ragmir[\\/]skills[\\/]/u.test(await readlink(target).catch(() => ""))) ||
+      (stats.isDirectory() && (await readManagedSkillMetadata(target))?.managedBy === "ragmir")
+    if (managed) {
+      await rm(target, { recursive: true, force: true })
+      removed.push(target)
+    }
+  }
+  return removed
+}
+
+/** Retired Ragmir skills still present in the project's kit or agent skill directories. */
+function obsoleteRagmirSkills(projectRoot: string): string[] {
+  const directories = [
+    path.join(projectRoot, DEFAULT_SKILL_TARGET_DIR),
+    ...SUPPORTED_AGENT_TARGETS.map((agent) =>
+      path.join(projectRoot, AGENT_DESTINATIONS[agent].projectDir),
+    ),
+  ]
+  return directories.flatMap((directory) =>
+    RETIRED_SKILL_NAMES.filter((skillName) => {
+      try {
+        lstatSync(path.join(directory, skillName))
+        return true
+      } catch {
+        return false
+      }
+    }).map((skillName) => posixRelativePath(projectRoot, path.join(directory, skillName))),
+  )
 }
 
 async function exposeAgentSkills(
@@ -697,7 +766,7 @@ function posixRelativePath(cwd: string, filePath: string): string {
 
 export function inspectAgentIntegration(
   cwd = process.cwd(),
-  homeDir = process.env.HOME ?? process.cwd(),
+  homeDir = os.homedir(),
   env: Record<string, string | undefined> = process.env,
 ): AgentIntegrationReport {
   const projectRoot = path.resolve(cwd)
@@ -726,6 +795,14 @@ export function inspectAgentIntegration(
       "No native agent skill exposure was detected. Run `rgr install-agent --agents <list>`.",
     )
   }
+  const mcpServers = inspectMcpRegistrations(projectRoot, resolvedHome)
+  warnings.push(...mcpRegistrationWarnings(projectRoot, mcpServers))
+  const obsoleteSkills = obsoleteRagmirSkills(projectRoot)
+  if (obsoleteSkills.length > 0) {
+    warnings.push(
+      `Retired Ragmir skills still describe removed commands: ${obsoleteSkills.join(", ")}. Run \`rgr install-agent\` to remove the Ragmir-managed copies, or delete them.`,
+    )
+  }
 
   return {
     runnerPath,
@@ -735,6 +812,7 @@ export function inspectAgentIntegration(
     projectAgents,
     userAgents,
     nativeAgents,
+    mcpServers,
     ready: probe.runnerReady && nativeAgents.length > 0,
     warnings,
   }
@@ -816,6 +894,8 @@ const PACKAGE_SPEC = ${JSON.stringify(packageSpec)}
 const INSTALLED_CLI = ${JSON.stringify(installedCliPath)}
 const PROBE_ARG = ${JSON.stringify(RGR_RUNNER_PROBE_ARG)}
 const projectRoot = path.resolve(process.env.${RAGMIR_PROJECT_ROOT_ENV} || process.cwd())
+// The MCP server compares this launch directory with the base it serves.
+process.env.${RAGMIR_CLIENT_CWD_ENV} = process.env.${RAGMIR_CLIENT_CWD_ENV} || process.cwd()
 
 function isRagmirWorkspaceCli(cliPath) {
   if (!existsSync(cliPath)) return false
@@ -825,6 +905,38 @@ function isRagmirWorkspaceCli(cliPath) {
     return manifest.name === "@jcode.labs/ragmir"
   } catch {
     return false
+  }
+}
+
+// Walk up like Node's module resolution, so a moved or upgraded install never strands the runner.
+function projectPackageCli() {
+  let current = projectRoot
+  while (true) {
+    const candidate = path.join(current, "node_modules", "@jcode.labs", "ragmir", "dist", "cli-entry.js")
+    if (isRagmirWorkspaceCli(candidate)) return candidate
+    const parent = path.dirname(current)
+    if (parent === current) return null
+    current = parent
+  }
+}
+
+// npm's own CLI runs through node directly, so Windows needs no shell to launch npx.cmd.
+function npxCommand(args) {
+  const npmRoots = [
+    path.join(path.dirname(process.execPath), "node_modules", "npm"),
+    path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "npm"),
+  ]
+  for (const npmRoot of npmRoots) {
+    const npxCli = path.join(npmRoot, "bin", "npx-cli.js")
+    if (existsSync(npxCli)) {
+      return { command: process.execPath, args: [npxCli, ...args], probeArgs: [npxCli, "--version"] }
+    }
+  }
+  return {
+    command: process.platform === "win32" ? "npx.cmd" : "npx",
+    args,
+    probeArgs: ["--version"],
+    shell: process.platform === "win32",
   }
 }
 
@@ -839,6 +951,16 @@ function resolveCommand() {
     }
   }
 
+  const packageCli = projectPackageCli()
+  if (packageCli) {
+    return {
+      mode: "installed-package",
+      command: process.execPath,
+      args: [packageCli],
+      requiresDownload: false,
+    }
+  }
+
   if (isRagmirWorkspaceCli(INSTALLED_CLI)) {
     return {
       mode: "installed-package",
@@ -848,20 +970,15 @@ function resolveCommand() {
     }
   }
 
-  const localBin = path.join(
-    projectRoot,
-    "node_modules",
-    ".bin",
-    process.platform === "win32" ? "rgr.cmd" : "rgr",
-  )
-  if (existsSync(localBin)) {
+  // Windows shims (.cmd) cannot be spawned without a shell, so only POSIX uses the bin link.
+  const localBin = path.join(projectRoot, "node_modules", ".bin", "rgr")
+  if (process.platform !== "win32" && existsSync(localBin)) {
     return { mode: "local-bin", command: localBin, args: [], requiresDownload: false }
   }
 
   return {
     mode: "npm-cache",
-    command: process.platform === "win32" ? "npx.cmd" : "npx",
-    args: ["--yes", "--package", PACKAGE_SPEC, "rgr"],
+    ...npxCommand(["--yes", "--prefer-offline", "--package", PACKAGE_SPEC, "rgr"]),
     requiresDownload: true,
   }
 }
@@ -886,10 +1003,12 @@ const selected = resolveCommand()
 const commandArgs = process.argv.slice(2)
 
 if (commandArgs[0] === PROBE_ARG) {
-  const probeArgs = selected.mode === "npm-cache" ? ["--version"] : [...selected.args, "--version"]
+  // Probing the npx fallback checks npx itself and never downloads the package.
+  const probeArgs = selected.probeArgs ?? [...selected.args, "--version"]
   const probe = spawnSync(selected.command, probeArgs, {
     cwd: projectRoot,
     stdio: "ignore",
+    shell: selected.shell === true,
     env: { ...process.env, ${RAGMIR_PROJECT_ROOT_ENV}: projectRoot },
   })
   const available = probe.status === 0
@@ -908,9 +1027,16 @@ if (commandArgs[0] === PROBE_ARG) {
     process.exitCode = 1
   })
 } else {
+  if (selected.mode === "npm-cache") {
+    // stderr keeps MCP stdio intact while telling the operator that code may be fetched.
+    console.error(
+      \`Ragmir is not installed in \${projectRoot}; running \${PACKAGE_SPEC} through npx, which may download it. Install it with the project's package manager to run offline.\`,
+    )
+  }
   const result = spawnSync(selected.command, [...selected.args, ...commandArgs], {
     cwd: projectRoot,
     stdio: "inherit",
+    shell: selected.shell === true,
     env: { ...process.env, ${RAGMIR_PROJECT_ROOT_ENV}: projectRoot },
   })
   if (result.error) {
