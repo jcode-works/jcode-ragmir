@@ -1,9 +1,10 @@
-import { createHash } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { createReadStream } from "node:fs"
-import { mkdir, readdir, stat } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, rename, rm, stat } from "node:fs/promises"
 import path from "node:path"
 import { MAX_EMBEDDING_BATCH_SIZE } from "./defaults.js"
 import { throwIfAborted } from "./operation.js"
+import { ensurePrivateDirectory } from "./permissions.js"
 import { tokenize } from "./text.js"
 import type { Config, IngestionEmbeddingModelState } from "./types.js"
 import { runWorkload, type WorkloadAdmission } from "./workload.js"
@@ -22,6 +23,9 @@ const MAX_LOCAL_HASH_FEATURE_CACHE_ENTRIES = 16_384
 const MAX_TRANSFORMERS_PIPELINES = 1
 const MAX_QUERY_EMBEDDING_CACHE_ENTRIES = 128
 const MAX_QUERY_EMBEDDING_CACHE_VALUES = 65_536
+const MODEL_BOOTSTRAP_TEXTS = ["Ragmir semantic embedding model bootstrap."]
+/** Files that Transformers.js offline discovery reads from the model root before loading. */
+const OFFLINE_DISCOVERY_FILES = ["config.json", "tokenizer_config.json"]
 const transformersPipelines = new Map<string, TransformersPipelineEntry>()
 const transformersModelOwners = new Map<string, number>()
 
@@ -32,6 +36,12 @@ declare global {
 interface TransformersExtractor {
   (texts: string[], options: { pooling: "mean"; normalize: true }): Promise<unknown>
   dispose?: () => Promise<void>
+  tokenizer?: unknown
+}
+
+interface TransformersFileEnvironment {
+  cacheDir: string
+  allowLocalModels: boolean
 }
 
 interface TransformersPipelineEntry {
@@ -93,28 +103,41 @@ export async function embedTexts(
   })
 }
 
+/**
+ * Download the configured model revision and install it as an offline snapshot.
+ *
+ * Transformers.js caches a pinned revision under `<model>/<revision>/`, but its offline file
+ * discovery only reads `<model>/` on the main revision and then loads the pipeline without a
+ * tokenizer. The download therefore runs in a private cache where local files cannot shadow the
+ * pinned revision, and the complete revision snapshot replaces `<model>/` only after validation.
+ */
 export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingModelResult> {
-  await mkdir(config.embeddingModelPath, { recursive: true })
-  const pullConfig = {
-    ...config,
-    embeddingProvider: "transformers",
-    transformersAllowRemoteModels: true,
-  } satisfies Config
-  const lease = await acquireTransformersPipeline(pullConfig)
+  await ensurePrivateDirectory(config.embeddingModelPath)
+  const modelRoot = embeddingModelRoot(config)
+  const downloadRoot = await mkdtemp(path.join(config.embeddingModelPath, ".download-"))
   try {
-    await lease.extractor(["Ragmir semantic embedding model bootstrap."], {
-      pooling: "mean",
-      normalize: true,
-    })
-    const embeddingModelDigest = await resolveEmbeddingModelDigest(pullConfig)
+    const extractor = await createTransformersExtractor(
+      { ...config, embeddingProvider: "transformers", transformersAllowRemoteModels: true },
+      { cacheDir: downloadRoot, allowLocalModels: false },
+    )
+    try {
+      await extractor(MODEL_BOOTSTRAP_TEXTS, { pooling: "mean", normalize: true })
+    } finally {
+      await extractor.dispose?.()
+    }
+    const snapshot = cachedRevisionPath(config, downloadRoot)
+    await assertOfflineSnapshot(config, snapshot)
+    const embeddingModelDigest = await artifactTreeDigest(snapshot)
     if (
       config.embeddingModelDigest !== null &&
-      config.embeddingModelDigest !== embeddingModelDigest
+      config.embeddingModelDigest !== embeddingModelDigest &&
+      !(await recordsUnloadableRevisionLayout(config, modelRoot))
     ) {
       throw new Error(
         `Embedding model digest mismatch: expected ${config.embeddingModelDigest}, received ${embeddingModelDigest}.`,
       )
     }
+    await replaceDirectory(modelRoot, snapshot)
     return {
       embeddingModel: config.embeddingModel,
       embeddingModelRevision: config.embeddingModelRevision,
@@ -122,8 +145,7 @@ export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingM
       embeddingModelPath: config.embeddingModelPath,
     }
   } finally {
-    await lease.release()
-    await disposeTransformersModel(pullConfig)
+    await rm(downloadRoot, { recursive: true, force: true })
   }
 }
 
@@ -298,7 +320,13 @@ function transformersCacheKey(config: Config): string {
   ].join("\n")
 }
 
-async function createTransformersExtractor(config: Config): Promise<TransformersExtractor> {
+async function createTransformersExtractor(
+  config: Config,
+  files: TransformersFileEnvironment = {
+    cacheDir: config.embeddingModelPath,
+    allowLocalModels: true,
+  },
+): Promise<TransformersExtractor> {
   return withTransformersEnvironment(async () => {
     const transformers = await import("@huggingface/transformers").catch((error: unknown) => {
       if (
@@ -317,18 +345,28 @@ async function createTransformersExtractor(config: Config): Promise<Transformers
     const previous = {
       localModelPath: transformers.env.localModelPath,
       cacheDir: transformers.env.cacheDir,
+      allowLocalModels: transformers.env.allowLocalModels,
       allowRemoteModels: transformers.env.allowRemoteModels,
     }
     transformers.env.localModelPath = config.embeddingModelPath
-    transformers.env.cacheDir = config.embeddingModelPath
+    transformers.env.cacheDir = files.cacheDir
+    transformers.env.allowLocalModels = files.allowLocalModels
     transformers.env.allowRemoteModels = config.transformersAllowRemoteModels
     try {
-      return (await transformers.pipeline("feature-extraction", config.embeddingModel, {
+      const extractor = (await transformers.pipeline("feature-extraction", config.embeddingModel, {
         revision: config.embeddingModelRevision,
       })) as TransformersExtractor
+      if ("tokenizer" in extractor && extractor.tokenizer == null) {
+        await extractor.dispose?.()
+        throw new Error(
+          `Transformers.js loaded ${config.embeddingModel} without its tokenizer from ${embeddingModelRoot(config)}. Run \`rgr models pull --enable\` to install a complete offline snapshot, then \`rgr ingest --rebuild\`.`,
+        )
+      }
+      return extractor
     } finally {
       transformers.env.localModelPath = previous.localModelPath
       transformers.env.cacheDir = previous.cacheDir
+      transformers.env.allowLocalModels = previous.allowLocalModels
       transformers.env.allowRemoteModels = previous.allowRemoteModels
     }
   })
@@ -446,7 +484,10 @@ function takeTransformersCache(): TransformersPipelineEntry[] {
 }
 
 async function resolveEmbeddingModelDigest(config: Config): Promise<string> {
-  const modelRoot = embeddingModelRoot(config)
+  return artifactTreeDigest(embeddingModelRoot(config))
+}
+
+async function artifactTreeDigest(modelRoot: string): Promise<string> {
   const files = await modelArtifactFiles(modelRoot)
   if (files.length === 0) {
     throw new Error(`No embedding model artifacts found under ${modelRoot}.`)
@@ -464,6 +505,70 @@ async function resolveEmbeddingModelDigest(config: Config): Promise<string> {
     identity.update("\n")
   }
   return `sha256:${identity.digest("hex")}`
+}
+
+/** Transformers.js keys main-revision files as `<model>/<file>` and pinned ones under the revision. */
+function cachedRevisionPath(config: Config, cacheRoot: string): string {
+  const modelCache = path.join(cacheRoot, config.embeddingModel)
+  return config.embeddingModelRevision === "main"
+    ? modelCache
+    : path.join(modelCache, config.embeddingModelRevision)
+}
+
+async function assertOfflineSnapshot(config: Config, snapshot: string): Promise<void> {
+  for (const filename of OFFLINE_DISCOVERY_FILES) {
+    const metadata = await stat(path.join(snapshot, filename)).catch(() => null)
+    if (!metadata?.isFile()) {
+      throw new Error(
+        `Transformers.js did not download ${filename} for ${config.embeddingModel}@${config.embeddingModelRevision}, so the model could not load offline. The installed model was left unchanged.`,
+      )
+    }
+  }
+}
+
+/**
+ * Earlier pulls let Transformers.js cache pinned revisions under `<model>/<revision>/`, a layout
+ * that offline discovery never loads. A digest recorded for exactly that tree identifies an install
+ * that could not serve offline embeddings, so a validated snapshot may replace it.
+ */
+async function recordsUnloadableRevisionLayout(
+  config: Config,
+  modelRoot: string,
+): Promise<boolean> {
+  if (config.embeddingModelRevision === "main") {
+    return false
+  }
+  const revisionCache = await stat(path.join(modelRoot, config.embeddingModelRevision)).catch(
+    () => null,
+  )
+  if (!revisionCache?.isDirectory()) {
+    return false
+  }
+  return (await artifactTreeDigest(modelRoot).catch(() => null)) === config.embeddingModelDigest
+}
+
+/** Swap in a complete directory so an interrupted pull keeps the previous model artifacts. */
+async function replaceDirectory(target: string, replacement: string): Promise<void> {
+  await mkdir(path.dirname(target), { recursive: true })
+  const previous = `${target}.previous-${randomUUID()}`
+  const hadPrevious = await stat(target).then(
+    () => true,
+    () => false,
+  )
+  if (hadPrevious) {
+    await rename(target, previous)
+  }
+  try {
+    await rename(replacement, target)
+  } catch (error) {
+    if (hadPrevious) {
+      await rename(previous, target)
+    }
+    throw error
+  }
+  if (hadPrevious) {
+    await rm(previous, { recursive: true, force: true })
+  }
 }
 
 function embeddingModelRoot(config: Config): string {

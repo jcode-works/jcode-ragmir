@@ -94,7 +94,9 @@ embedding, chunking, extraction, and index-policy changes use the staged-generat
 never deletes the active index first, and only a replacement that passes row-count, checksum, and
 duplicate-ID validation activates. Failed or interrupted rebuilds never activate a partial table
 and can resume. Older configs that omit newer optional fields receive current safe defaults.
-`rgr doctor --fix` repairs setup and index state for current configurations. Use `rgr upgrade`
+`rgr doctor --fix` repairs setup and index state for current configurations, keeps the agent
+integrations already installed in the project, and restores owner-only permissions on Ragmir-owned
+paths under `.ragmir/`. Use `rgr upgrade`
 to migrate retired configuration fields. A long-running host can keep its already loaded
 runtime on the previous generation, then restart or cut over after the upgrade reports
 `status=current` and `ready=true`. Address any advisory with `rgr security-audit` or
@@ -169,9 +171,9 @@ successful ingestion. Run `rgr doctor --deep` when current filesystem coverage, 
 ignore behavior, executable probes, or compatible quality evidence must be verified live. Deep
 doctor and `rgr audit` label their O(corpus) cost in text and JSON output. A missing or invalid
 manifest always yields `ready=false`, including legacy tables that predate manifest activation.
-`readiness.lexicalIndexCurrent` is `false` for an index built before path and identifier keyword
-terms. Search keeps using that index; the next `rgr ingest` or `rgr upgrade` stages and validates
-a rebuild before activating it.
+`readiness.lexicalIndexCurrent` is `false` for an index built under an older keyword policy, such as
+one without accent-folded terms or path and identifier terms. Search keeps using that index; the
+next `rgr ingest` or `rgr upgrade` stages and validates a rebuild before activating it.
 
 `rgr ingest --rebuild` writes batches into an isolated LanceDB generation. The existing index stays
 active until the new table and manifest pass row-count, checksum, and duplicate-ID validation. The

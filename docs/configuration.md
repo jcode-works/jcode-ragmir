@@ -59,7 +59,9 @@ representative concurrency benchmark.
 
 Profiles bound retrieval work. They are candidate and diversification budgets, not a guarantee that
 a larger budget improves every corpus. Evaluate the profile against a representative golden set
-before changing production configuration.
+before changing production configuration. An explicit `topK` or `hybridTextScanLimit` overrides the
+profile value. `rgr setup` leaves both unset; configs created by earlier versions contain the
+`balanced` values, so remove them when a profile should choose.
 
 | Profile | Quality intent | Latency intent | Default `topK` | Fallback batch size | Vector candidates | FTS candidates | Document cap | Context radius |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -81,8 +83,10 @@ expand only a primary pool that cannot fill the demand, preserving established r
 The full-text index covers each passage's structural context, cited header text, and body, plus its
 relative source path and the parts of camelCase, PascalCase, acronym, and letter-digit identifiers.
 A question about "login attempts" can therefore reach `LoginAttemptService.java`, while embeddings
-keep using the passage text without these keyword terms. The LanceDB analyzer lowercases, folds
-accents, applies English stemming, and removes English stop words.
+keep using the passage text without these keyword terms. Ragmir folds case, accents, and other
+diacritics in this text exactly as it folds query terms, then the LanceDB analyzer applies English
+stemming and removes English stop words. Folding first keeps "Réfraction" and "refraction" on the
+same indexed term, because the analyzer stems words before it folds their accents.
 
 After scoring and abstention, the deterministic diversity pass keeps at most
 `maxChunksPerDocument` primary passages per relative path while preserving rank order. It then
@@ -139,10 +143,11 @@ rgr ingest --rebuild
 ```
 
 This preloads the configured Transformers model once and leaves normal remote model loading disabled.
-Use `rgr models pull --enable` for the same change after initial setup. Both commands persist the
-resolved immutable revision and artifact digest. Bundled model profiles use pinned commits. Pin a
-custom model to a 40-character commit before relying on reproducible search results; `main` remains
-mutable and therefore unverified.
+Use `rgr models pull --enable` for the same change after initial setup. Both commands download the
+pinned revision into a private cache, install it under `embeddingModelPath` as the offline snapshot
+that local loading reads, and persist the resolved immutable revision and artifact digest. Bundled
+model profiles use pinned commits. Pin a custom model to a 40-character commit before relying on
+reproducible search results; `main` remains mutable and therefore unverified.
 
 `local-hash` never resolves Transformers.js, ONNX Runtime, or Sharp. In a long-running process,
 Transformers pipelines are shared per exact model identity and disposed when the final

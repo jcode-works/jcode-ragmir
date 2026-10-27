@@ -131,7 +131,7 @@ function upgradeReason(report: DoctorReport, status: UpgradeStatus): string | nu
       report.indexFreshness.warning ??
       (report.readiness.lexicalIndexCurrent
         ? "The active index policy differs from this Ragmir runtime and requires a staged rebuild."
-        : "The active index predates path and identifier keyword terms. Search keeps working while upgrade stages the rebuild.")
+        : "The active index predates the current keyword terms. Search keeps working while upgrade stages the rebuild.")
     )
   }
   return report.nextSteps[0] ?? "The active index needs repair before retrieval is ready."
