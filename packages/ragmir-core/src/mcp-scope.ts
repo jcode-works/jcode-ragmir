@@ -122,7 +122,10 @@ export function workspaceScopeRefusal(
   name: string,
   config: Config,
 ): string {
-  return `This Ragmir server serves the "${name}" knowledge base only to workspaces under ${config.mcpAllowedRoots.join(", ")} (mcpAllowedRoots). Your workspace is ${verdict.workspaceRoots.join(", ")}. Register a project-scoped Ragmir server for this workspace instead.`
+  const allowedRoots = config.mcpAllowedRoots.map((root) =>
+    resolveAllowedRoot(config.projectRoot, root),
+  )
+  return `This Ragmir server serves the "${name}" knowledge base only to workspaces under ${allowedRoots.join(", ")} (mcpAllowedRoots). Your workspace is ${verdict.workspaceRoots.join(", ")}. Register a project-scoped Ragmir server for this workspace instead.`
 }
 
 function resolveAllowedRoot(projectRoot: string, value: string): string {
