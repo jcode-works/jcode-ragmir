@@ -438,24 +438,54 @@ function configWithModelIdentityDefaults(
   }
 }
 
+/** Budgets each retrieval profile chooses for fields the config leaves unset. */
+export const RETRIEVAL_PROFILE_BUDGETS: Readonly<
+  Record<
+    Exclude<Config["retrievalProfile"], "custom">,
+    { topK: number; hybridTextScanLimit: number }
+  >
+> = {
+  fast: { topK: 5, hybridTextScanLimit: 2_000 },
+  balanced: {
+    topK: DEFAULT_CONFIG.topK,
+    hybridTextScanLimit: DEFAULT_CONFIG.hybridTextScanLimit,
+  },
+  quality: { topK: 12, hybridTextScanLimit: 10_000 },
+}
+
 function applyRetrievalProfile(config: RawConfig, raw: Record<string, unknown>): RawConfig {
-  if (config.retrievalProfile === "fast") {
-    return {
-      ...config,
-      topK: raw.topK === undefined ? 5 : config.topK,
-      hybridTextScanLimit:
-        raw.hybridTextScanLimit === undefined ? 2_000 : config.hybridTextScanLimit,
-    }
+  if (config.retrievalProfile === "custom") {
+    return config
   }
-  if (config.retrievalProfile === "quality") {
-    return {
-      ...config,
-      topK: raw.topK === undefined ? 12 : config.topK,
-      hybridTextScanLimit:
-        raw.hybridTextScanLimit === undefined ? 10_000 : config.hybridTextScanLimit,
-    }
+  const budgets = RETRIEVAL_PROFILE_BUDGETS[config.retrievalProfile]
+  return {
+    ...config,
+    topK: raw.topK === undefined ? budgets.topK : config.topK,
+    hybridTextScanLimit:
+      raw.hybridTextScanLimit === undefined
+        ? budgets.hybridTextScanLimit
+        : config.hybridTextScanLimit,
   }
-  return config
+}
+
+/**
+ * Budgets pinned in the config that differ from the selected profile. Older `rgr init` wrote every
+ * default, so a later switch to the quality profile silently kept topK 8.
+ */
+export function retrievalProfileOverrides(
+  raw: Record<string, unknown>,
+  profile: Config["retrievalProfile"],
+): Array<{ field: "topK" | "hybridTextScanLimit"; configured: number; profileValue: number }> {
+  if (profile === "custom") {
+    return []
+  }
+  const budgets = RETRIEVAL_PROFILE_BUDGETS[profile]
+  return (["topK", "hybridTextScanLimit"] as const).flatMap((field) => {
+    const configured = raw[field]
+    return typeof configured === "number" && configured !== budgets[field]
+      ? [{ field, configured, profileValue: budgets[field] }]
+      : []
+  })
 }
 
 function resolveFromRoot(projectRoot: string, input: string): string {

@@ -17,6 +17,7 @@ import { doctor } from "./doctor.js"
 import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
+import { checkIndexFreshness } from "./freshness.js"
 import { collectGenerationGarbage } from "./generation-retention.js"
 import {
   type GitHooksReport,
@@ -28,15 +29,24 @@ import { indexFreshnessWarning, manifestReady } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
 import { initProject } from "./init.js"
-import { discoverKnowledgeBases, knowledgeBaseIdentity } from "./knowledge-bases.js"
+import {
+  discoverKnowledgeBases,
+  knowledgeBaseIdentity,
+  knowledgeBaseProfile,
+} from "./knowledge-bases.js"
 import { ingestionLimits } from "./limits.js"
 import { serveMcp } from "./mcp.js"
 import { RAGMIR_CLIENT_CWD_ENV } from "./mcp-scope.js"
 import {
+  configureLocalExtractors,
   configurePdfOcr,
+  extractImageText,
+  extractLegacyWordText,
   extractPdfPage,
   extractPdfPages,
+  inspectLocalExtractors,
   inspectPdfOcr,
+  parseLegacyWordEngine,
   parsePdfOcrEngine,
   parsePdfOcrPages,
 } from "./ocr.js"
@@ -117,28 +127,43 @@ modelsCommand
 
 const ocrCommand = program
   .command("ocr")
-  .description("Configure and diagnose local OCR for scanned PDF pages.")
+  .description("Configure and diagnose local OCR for scanned PDFs, images, and legacy .doc files.")
 
 ocrCommand
   .command("doctor")
   .description("Detect supported local PDF OCR engines and installed languages.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { json?: boolean }, command: Command) => {
-    const status = await inspectPdfOcr(projectRoot(command))
+    const [status, local] = await Promise.all([
+      inspectPdfOcr(projectRoot(command)),
+      inspectLocalExtractors(),
+    ])
     if (options.json) {
-      console.log(JSON.stringify(status, null, 2))
+      console.log(JSON.stringify({ ...status, local }, null, 2))
       return
     }
 
     printPdfOcrStatus(status)
+    console.log(
+      `imageOcr=${local.imageOcr.available ? "tesseract" : "unavailable"}${local.imageOcr.imageConverter ? ` (+${local.imageOcr.imageConverter} for HEIC/AVIF)` : ""}`,
+    )
+    console.log(`legacyWord=${local.legacyWord.recommendedEngine ?? "unavailable"}`)
+    if (local.imageOcr.available || local.legacyWord.recommendedEngine) {
+      console.log("Run `rgr ocr setup --images --legacy-word` to index photos and .doc files too.")
+    }
   })
 
 ocrCommand
   .command("setup")
-  .description("Detect a local PDF OCR engine and write a safe batched-page configuration.")
-  .option("--engine <engine>", "OCR engine: auto, ocrmypdf, or tesseract.", "auto")
+  .description(
+    "Detect local OCR and converters, then configure scanned PDFs, images, and legacy .doc files.",
+  )
+  .option("--engine <engine>", "PDF OCR engine: auto, ocrmypdf, or tesseract.", "auto")
   .option("--language <codes>", "Tesseract language codes such as eng, fra, or eng+fra.", "eng")
   .option("--timeout-ms <number>", "Per-batch OCR timeout in milliseconds.", parsePositiveInt)
+  .option("--no-pdf", "Leave scanned-PDF OCR unchanged.")
+  .option("--images", "Also OCR photos and scanned images (PNG, JPEG, TIFF, HEIC, ...).")
+  .option("--legacy-word", "Also extract legacy Word .doc files with a local converter.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
@@ -146,31 +171,92 @@ ocrCommand
         engine: string
         language: string
         timeoutMs?: number
+        pdf: boolean
+        images?: boolean
+        legacyWord?: boolean
         json?: boolean
       },
       command: Command,
     ) => {
-      const configureOptions: Parameters<typeof configurePdfOcr>[0] = {
-        cwd: projectRoot(command),
-        engine: parsePdfOcrEngine(options.engine, true),
-        language: options.language,
+      const cwd = projectRoot(command)
+      let pdf: Awaited<ReturnType<typeof configurePdfOcr>> | null = null
+      if (options.pdf) {
+        const configureOptions: Parameters<typeof configurePdfOcr>[0] = {
+          cwd,
+          engine: parsePdfOcrEngine(options.engine, true),
+          language: options.language,
+        }
+        addOption(configureOptions, "timeoutMs", options.timeoutMs)
+        pdf = await configurePdfOcr(configureOptions)
       }
-      addOption(configureOptions, "timeoutMs", options.timeoutMs)
-      const result = await configurePdfOcr(configureOptions)
+      const local =
+        options.images || options.legacyWord
+          ? await configureLocalExtractors({
+              cwd,
+              language: options.language,
+              ...(options.images ? { images: true } : {}),
+              ...(options.legacyWord ? { legacyWord: true } : {}),
+              ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+            })
+          : null
       if (options.json) {
-        console.log(JSON.stringify(result, null, 2))
+        console.log(JSON.stringify({ pdf, local }, null, 2))
         return
       }
 
-      console.log(pc.green("Local PDF OCR configured."))
-      console.log(`engine=${result.engine}`)
-      console.log(`language=${result.language}`)
-      console.log(`timeoutMs=${result.timeoutMs}`)
-      console.log(`configPath=${result.configPath}`)
+      if (pdf) {
+        console.log(pc.green("Local PDF OCR configured."))
+        console.log(`engine=${pdf.engine}`)
+        console.log(`language=${pdf.language}`)
+        console.log(`timeoutMs=${pdf.timeoutMs}`)
+        console.log(`configPath=${pdf.configPath}`)
+      }
+      if (local?.imageOcrCommand) {
+        console.log(pc.green("Local image OCR configured."))
+      }
+      if (local?.legacyWordCommand) {
+        console.log(
+          pc.green(`Legacy Word extraction configured (${local.legacyWordCommand.at(-3)}).`),
+        )
+      }
       console.log("")
       console.log("Next steps:")
-      console.log("  1. Run `rgr ingest` to index scanned PDF pages with local OCR.")
+      console.log("  1. Run `rgr ingest` to index the newly readable files with local OCR.")
       console.log("  2. Run `rgr doctor` to confirm complete coverage.")
+    },
+  )
+
+ocrCommand
+  .command("extract-image", { hidden: true })
+  .requiredOption("--input <path>", "Image file to read.")
+  .option("--language <codes>", "Tesseract language codes.", "eng")
+  .option("--timeout-ms <number>", "OCR timeout in milliseconds.", parsePositiveInt)
+  .action(
+    async (options: { input: string; language: string; timeoutMs?: number }, command: Command) => {
+      process.stdout.write(
+        await extractImageText({
+          input: path.resolve(projectRoot(command), options.input),
+          language: options.language,
+          ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+        }),
+      )
+    },
+  )
+
+ocrCommand
+  .command("extract-doc", { hidden: true })
+  .requiredOption("--input <path>", "Legacy Word file to read.")
+  .requiredOption("--engine <engine>", "Converter: textutil, antiword, catdoc, or soffice.")
+  .option("--timeout-ms <number>", "Conversion timeout in milliseconds.", parsePositiveInt)
+  .action(
+    async (options: { input: string; engine: string; timeoutMs?: number }, command: Command) => {
+      process.stdout.write(
+        await extractLegacyWordText({
+          input: path.resolve(projectRoot(command), options.input),
+          engine: parseLegacyWordEngine(options.engine),
+          ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+        }),
+      )
     },
   )
 
@@ -656,6 +742,7 @@ program
     collectOptionValue,
     [],
   )
+  .option("--scope <name>", "Search a named scope from the config's `scopes`.")
   .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
   .option("--exact-vector-search", "Bypass ANN and use exhaustive vector search for diagnostics.")
   .option("--compact", "Return short snippets instead of full passages.")
@@ -670,6 +757,7 @@ program
         includePath: string[]
         excludePath: string[]
         contextPath: string[]
+        scope?: string
         explain?: boolean
         exactVectorSearch?: boolean
         compact?: boolean
@@ -709,8 +797,14 @@ program
 
       for (const [index, result] of outputResults.entries()) {
         const distance = result.distance === null ? "n/a" : result.distance.toFixed(4)
+        const flags = [
+          result.sourceStatus === undefined
+            ? null
+            : pc.yellow(`source ${result.sourceStatus} since indexing`),
+          result.weakEvidence ? pc.yellow("weak evidence") : null,
+        ].filter((flag): flag is string => flag !== null)
         console.log(
-          `\n${pc.cyan(`[${index + 1}] ${result.citation}`)} chunk=${result.chunkIndex} distance=${distance}`,
+          `\n${pc.cyan(`[${index + 1}] ${result.citation}`)} chunk=${result.chunkIndex} distance=${distance}${flags.length > 0 ? ` ${flags.join(" ")}` : ""}`,
         )
         console.log(
           "snippet" in result ? result.snippet : result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH),
@@ -961,8 +1055,12 @@ program
     const freshnessWarning = indexFreshnessWarning(config, manifest)
     const ready = manifestReady(manifest, freshnessWarning)
     const ingestion = await getIngestionProgress(config)
+    const profile = knowledgeBaseProfile(config)
+    const sourceFreshness = manifest ? await checkIndexFreshness(config) : null
     const status = {
       knowledgeBaseId: identity?.id ?? null,
+      knowledgeBase: { name: profile.name, description: profile.description },
+      scopes: profile.scopes,
       projectRoot: config.projectRoot,
       rawDir: config.rawDir,
       storageDir: config.storageDir,
@@ -994,6 +1092,7 @@ program
       indexedFiles: manifest?.fileCount ?? 0,
       chunksIndexed: manifest?.chunkCount ?? 0,
       health: health ?? null,
+      sourceFreshness,
       maintenance: manifest?.maintenance ?? null,
       ingestion,
     }
@@ -1002,8 +1101,15 @@ program
       return
     }
 
+    console.log(`knowledgeBase=${profile.name}`)
+    if (profile.description) {
+      console.log(`description=${profile.description}`)
+    }
     console.log(`knowledgeBaseId=${identity?.id ?? "none"}`)
     console.log(`projectRoot=${config.projectRoot}`)
+    if (profile.scopes.length > 0) {
+      console.log(`scopes=${profile.scopes.map((scope) => scope.name).join(",")}`)
+    }
     console.log(`rawDir=${config.rawDir}`)
     console.log(`storageDir=${config.storageDir}`)
     console.log(`sourcesFile=${config.sourcesFile}`)
@@ -1032,6 +1138,13 @@ program
     console.log(`corpusFingerprint=${manifest?.corpusFingerprint ?? "unavailable"}`)
     console.log(`indexedFiles=${manifest?.fileCount ?? 0}`)
     console.log(`chunksIndexed=${manifest?.chunkCount ?? 0}`)
+    if (sourceFreshness?.verified) {
+      console.log(
+        `sourceFreshness=verified missingFromIndex=${sourceFreshness.missingFromIndex} staleInIndex=${sourceFreshness.staleInIndex}`,
+      )
+    } else if (sourceFreshness) {
+      console.log(`sourceFreshness=unverified (${sourceFreshness.error ?? "unknown"})`)
+    }
     if (freshnessWarning) {
       console.log(`indexFreshnessWarning=${freshnessWarning}`)
     }
@@ -1102,23 +1215,32 @@ storageCommand
 
 storageCommand
   .command("gc")
-  .description("Inspect or reclaim expired local index generations.")
+  .description(
+    "Reclaim expired index generations and report disk usage and orphaned models or copies.",
+  )
   .option("--dry-run", "Report generation roles and reclaimable bytes without deleting tables.")
+  .option(
+    "--orphans",
+    "Also delete the listed orphans: unused models (including retired chat models), storage copies, and retired outputs.",
+  )
   .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { dryRun?: boolean; json?: boolean }, command: Command) => {
-    const report = await collectGenerationGarbage({
-      cwd: projectRoot(command),
-      ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
-    })
-    if (options.json) {
-      console.log(JSON.stringify(report, null, 2))
-    } else {
-      printGenerationGarbageCollection(report)
-    }
-    if (report.warning) {
-      process.exitCode = 1
-    }
-  })
+  .action(
+    async (options: { dryRun?: boolean; orphans?: boolean; json?: boolean }, command: Command) => {
+      const report = await collectGenerationGarbage({
+        cwd: projectRoot(command),
+        ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+        ...(options.orphans === undefined ? {} : { orphans: options.orphans }),
+      })
+      if (options.json) {
+        console.log(JSON.stringify(report, null, 2))
+      } else {
+        printGenerationGarbageCollection(report)
+      }
+      if (report.warning) {
+        process.exitCode = 1
+      }
+    },
+  )
 
 storageCommand
   .command("generations")
@@ -1393,6 +1515,7 @@ function withSearchOptions(
     includePath?: string[]
     excludePath?: string[]
     contextPath?: string[]
+    scope?: string
     explain?: boolean
     exactVectorSearch?: boolean
   },
@@ -1404,6 +1527,7 @@ function withSearchOptions(
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
+  scope?: string
   explain?: boolean
   vectorSearchMode?: "exact"
 } {
@@ -1415,9 +1539,11 @@ function withSearchOptions(
     includePaths?: string[]
     excludePaths?: string[]
     contextPaths?: string[]
+    scope?: string
     explain?: boolean
     vectorSearchMode?: "exact"
   } = { cwd }
+  addOption(result, "scope", options.scope)
   addOption(result, "topK", options.topK)
   addOption(result, "maxChunksPerDocument", options.maxChunksPerDocument)
   addOption(result, "contextRadius", options.contextRadius)
@@ -1472,6 +1598,11 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`agentIntegration.projectAgents=${report.agentIntegration.projectAgents.join(",")}`)
   console.log(`agentIntegration.userAgents=${report.agentIntegration.userAgents.join(",")}`)
   console.log(`agentIntegration.nativeAgents=${report.agentIntegration.nativeAgents.join(",")}`)
+  for (const server of report.agentIntegration.mcpServers) {
+    console.log(
+      `agentIntegration.mcpServer=${server.client}:${server.scope}:${server.name} servedRoot=${server.servedRoot ?? "unknown"}${server.approval ? ` approval=${server.approval}` : ""}`,
+    )
+  }
   for (const warning of report.agentIntegration.warnings) {
     console.log(pc.yellow(`agentIntegration.warning: ${warning}`))
   }
@@ -1490,6 +1621,12 @@ function printDoctor(report: Awaited<ReturnType<typeof doctor>>): void {
   console.log(`chunksIndexed=${report.chunksIndexed}`)
   console.log(`missingFromIndex=${report.missingFromIndex}`)
   console.log(`staleInIndex=${report.staleInIndex}`)
+  console.log(
+    `coverageVerified=${report.readiness.coverageComplete || report.sourceFreshness?.verified === true || report.inventoryVerified}`,
+  )
+  if (report.sourceFreshness?.verified === false) {
+    console.log(pc.yellow(`sourceFreshness: ${report.sourceFreshness.error ?? "unverified"}`))
+  }
   console.log(`corpusFingerprint=${report.corpusFingerprint ?? "unavailable"}`)
   console.log(`securityWarnings=${report.securityWarnings.length}`)
   if (report.securityWarnings.length > 0) {
@@ -1574,13 +1711,23 @@ function printGenerationGarbageCollection(
   console.log(`resumableTableName=${report.resumableTableName ?? "none"}`)
   console.log(`rollbackTableName=${report.rollbackTableName ?? "none"}`)
   console.log(`generations=${report.generations.length}`)
+  console.log(`storageDiskBytes=${report.storageDiskBytes}`)
   console.log(`reclaimableBytes=${report.reclaimableBytes}`)
   console.log(`reclaimedBytes=${report.reclaimedBytes}`)
   console.log(`deletedTables=${report.deletedTables.join(",")}`)
   for (const generation of report.generations) {
     console.log(
-      `generation=${generation.tableName} role=${generation.role} bytes=${generation.bytes} ageMs=${generation.ageMs} leased=${generation.leased} reclaimable=${generation.reclaimable} deleted=${generation.deleted}`,
+      `generation=${generation.tableName} role=${generation.role} bytes=${generation.bytes} diskBytes=${generation.diskBytes} ageMs=${generation.ageMs} leased=${generation.leased} reclaimable=${generation.reclaimable} deleted=${generation.deleted}`,
     )
+  }
+  for (const orphan of report.orphans) {
+    const removed = report.removedOrphans.includes(orphan.path)
+    console.log(
+      `orphan=${orphan.path} kind=${orphan.kind} diskBytes=${orphan.diskBytes} removed=${removed} reason=${JSON.stringify(orphan.reason)}`,
+    )
+  }
+  if (report.orphans.length > 0 && report.removedOrphans.length === 0) {
+    console.log("Run `rgr storage gc --orphans` to delete the orphans listed above.")
   }
   if (report.warning) {
     console.log(pc.yellow(`warning: ${report.warning}`))

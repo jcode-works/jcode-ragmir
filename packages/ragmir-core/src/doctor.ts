@@ -1,6 +1,12 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
-import { findProjectConfig, loadConfig, projectConfigExists } from "./config.js"
+import {
+  findProjectConfig,
+  loadConfig,
+  projectConfigExists,
+  readMergedProjectConfig,
+  retrievalProfileOverrides,
+} from "./config.js"
 import { RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
 import { checkIndexFreshness } from "./freshness.js"
@@ -117,8 +123,18 @@ export async function doctorWithConfig(
     : false
   throwIfAborted(signal)
 
+  const profileOverrides = initialized
+    ? retrievalProfileOverrides(
+        await readMergedProjectConfig(projectConfig).catch(() => ({})),
+        config.retrievalProfile,
+      )
+    : []
   const nextSteps = nextActions({
     initialized,
+    profileOverrides: profileOverrides.map(
+      (override) =>
+        `${override.field}: ${override.configured} in the config overrides the ${config.retrievalProfile} profile's ${override.profileValue}. Remove it to follow the profile, or set retrievalProfile to "custom" to keep it deliberately.`,
+    ),
     diagnosticSnapshotAvailable,
     concentrationWarning:
       auditReport?.concentration?.warning ?? health?.concentration?.warning ?? null,
@@ -195,6 +211,7 @@ export async function doctorWithConfig(
 
 interface NextActionInput {
   initialized: boolean
+  profileOverrides: string[]
   diagnosticSnapshotAvailable: boolean
   concentrationWarning: string | null
   freshnessError: string | null
@@ -294,6 +311,8 @@ function nextActions(input: NextActionInput): string[] {
   if (input.concentrationWarning) {
     steps.push(input.concentrationWarning)
   }
+
+  steps.push(...input.profileOverrides)
 
   if (input.emptyTextFiles > 0) {
     steps.push(
