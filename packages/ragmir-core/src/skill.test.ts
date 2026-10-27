@@ -106,7 +106,8 @@ describe("installSkill", () => {
     expect(codexConfig).toContain(`args = [${JSON.stringify(result.runnerPath)}, "serve-mcp"]`)
     expect(codexConfig).toContain(`cwd = ${JSON.stringify(root)}`)
     expect(codexConfig).toContain("[[skills.config]]")
-    expect(codexConfig).toContain(path.join(root, ".ragmir", "skills", "ragmir"))
+    // TOML basic strings escape backslashes, as JSON does.
+    expect(codexConfig).toContain(JSON.stringify(path.join(root, ".ragmir", "skills", "ragmir")))
     expect(kimiConfig.mcpServers.ragmir.env.RAGMIR_PROJECT_ROOT).toBe(root)
     expect(opencodeConfig.mcp.ragmir).toEqual({
       type: "local",

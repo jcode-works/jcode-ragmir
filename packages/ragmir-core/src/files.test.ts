@@ -633,7 +633,11 @@ describe("portable source paths", () => {
     expect(inventory.supportedFiles.map((file) => file.relativePath)).toEqual([
       "files/copy/pricing.md",
     ])
-    expect(diagnostics.unmatchedSources).toEqual(["missing-folder", "docs\\guide.md"])
+    // Windows reads the backslash as a separator; POSIX keeps it as part of the name.
+    expect(diagnostics.unmatchedSources).toEqual([
+      "missing-folder",
+      process.platform === "win32" ? "docs/guide.md" : "docs\\guide.md",
+    ])
     expect(diagnostics.unmatchedPatterns).toEqual(["notes/**/*.md"])
     expect(diagnostics.unmatchedExclusions).toEqual(["files/absent.md"])
     expect(diagnostics.excludedCopies).toEqual([

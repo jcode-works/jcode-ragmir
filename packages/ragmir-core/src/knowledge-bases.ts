@@ -67,7 +67,8 @@ export async function discoverKnowledgeBases(
     ignore: KNOWLEDGE_BASE_DISCOVERY_IGNORES,
   })
   const byProjectRoot = new Map<string, ConfiguredRoot>()
-  for (const configPath of configPaths.sort()) {
+  // fast-glob returns forward slashes on Windows; identities use native absolute paths.
+  for (const configPath of configPaths.map((entry) => path.resolve(entry)).sort()) {
     const configuredRoot = configuredRootForConfig(configPath)
     const existing = byProjectRoot.get(configuredRoot.projectRoot)
     if (!existing || (existing.legacy && !configuredRoot.legacy)) {

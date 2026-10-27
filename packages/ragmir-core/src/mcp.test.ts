@@ -643,6 +643,33 @@ describe("MCP workspace scope and session", () => {
     expect(excluded).toEqual([])
   })
 
+  it("flags changed citations and starts one background refresh when mcpAutoIngest is on", async () => {
+    const root = await indexedProject("ragmir-mcp-auto-ingest-", { mcpAutoIngest: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "refunds.md"),
+      "# Refunds\n\nRefund requests are approved within 30 days.\n",
+      "utf8",
+    )
+    const { client } = await connectTestClient(root)
+
+    const first = await client.callTool({
+      name: "ragmir_search",
+      arguments: { query: "refund requests approved", seen: "include" },
+    })
+    const second = await client.callTool({
+      name: "ragmir_search",
+      arguments: { query: "refund requests approved", seen: "include" },
+    })
+
+    expect(JSON.parse(textContent(first))[0]).toMatchObject({ sourceStatus: "modified" })
+    expect(first.content.at(-1)).toMatchObject({
+      text: expect.stringContaining("a background re-index started"),
+    })
+    expect(second.content.at(-1)).toMatchObject({
+      text: expect.stringContaining("run `rgr ingest` before relying on them"),
+    })
+  })
+
   it("searches a named scope and lists the configured scopes for unknown names", async () => {
     const root = await indexedProject("ragmir-mcp-scopes-", {
       scopes: { docs: { includePaths: ["docs"], excludePaths: [] } },

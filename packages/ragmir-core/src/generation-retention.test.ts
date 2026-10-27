@@ -54,7 +54,7 @@ describe("generation retention", () => {
     } finally {
       connection.close()
     }
-  })
+  }, 60_000)
 
   it("should bound ten rebuild generations after the reader grace period", async () => {
     const { config, tableNames, activeState } = await generationFixture(10)

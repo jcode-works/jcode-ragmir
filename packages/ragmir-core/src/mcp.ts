@@ -85,7 +85,7 @@ const searchToolInputSchema = z
       .min(1)
       .max(MAX_MCP_BATCH_QUERIES)
       .optional(),
-    topK: looseNumberSchema.optional(),
+    topK: z.number().optional(),
     maxChunksPerDocument: looseNumberSchema.optional(),
     contextRadius: looseNumberSchema.optional(),
     maxBytes: looseNumberSchema.optional(),
