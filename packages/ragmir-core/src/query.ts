@@ -111,8 +111,11 @@ const DIVERSITY_CANDIDATE_MULTIPLIER = 4
 const MAX_VECTOR_CANDIDATES = 1_000
 const MAX_LEXICAL_CANDIDATES = 4_000
 const FULL_TEXT_INDEX_NAME = "searchText_idx"
-// Document frequencies only weigh words; beyond this many passages a word is common either way.
-const TERM_FREQUENCY_LIMIT = 10_000
+// Document frequencies only weigh words: past 2% of the passages a word is common either way, and
+// counting deeper only adds full-text reads (3 to 6 ms per word on a 44,000-passage index).
+const TERM_FREQUENCY_SHARE = 0.02
+const MIN_TERM_FREQUENCY_LIMIT = 500
+const MAX_TERM_FREQUENCY_LIMIT = 5_000
 const MAX_CACHED_TERM_GENERATIONS = 4
 const UNSEGMENTED_SCRIPT_PATTERN =
   /[\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
@@ -490,6 +493,10 @@ async function queryTermFrequencies(
     }
   }
   const generationCache = cache
+  const frequencyLimit = Math.min(
+    MAX_TERM_FREQUENCY_LIMIT,
+    Math.max(MIN_TERM_FREQUENCY_LIMIT, Math.ceil(stats.numIndexedRows * TERM_FREQUENCY_SHARE)),
+  )
   const unique = [...new Set(tokens)]
   const unmeasuredTerms = new Set(unique.filter((token) => UNSEGMENTED_SCRIPT_PATTERN.test(token)))
   const measured = unique.filter((token) => !unmeasuredTerms.has(token))
@@ -503,7 +510,7 @@ async function queryTermFrequencies(
         const rows = await table
           .search(new MatchQuery(token, "searchText"), "fts", "searchText")
           .select(["id"])
-          .limit(TERM_FREQUENCY_LIMIT)
+          .limit(frequencyLimit)
           .toArray()
         generationCache.set(token, rows.length)
       }),
@@ -524,9 +531,12 @@ function withFuzzyMatches(
   if (!statistics) {
     return null
   }
-  const absent = [...new Set(tokens)].filter(
-    (token) => (statistics.documentFrequencies.get(token) ?? 0) === 0 && token.length >= 7,
-  )
+  const measured = [...new Set(tokens)].filter((token) => !statistics.unmeasuredTerms?.has(token))
+  // Fuzzy matches only decide whether no query word is known at all; skip the scan otherwise.
+  if (measured.some((token) => (statistics.documentFrequencies.get(token) ?? 0) > 0)) {
+    return statistics
+  }
+  const absent = measured.filter((token) => token.length >= 7)
   if (absent.length === 0 || candidateRows.length === 0) {
     return statistics
   }
