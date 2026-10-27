@@ -1045,12 +1045,26 @@ function lexicalQuery(
     .map((match) => match[0])
     .filter(Boolean)
   const identifiers = [...new Set(identifierTerms)]
-  const firstIdentifier = identifiers[0]
+  // Only identifiers with a digit, underscore, or dot must match exactly. Hyphenated words such as
+  // "t-score" or the French "est-elle" boost the passages that contain them without excluding others.
+  const exactIdentifiers = identifiers.filter((identifier) => /[\d_.]/u.test(identifier))
+  const hyphenatedWords = identifiers.filter((identifier) => !/[\d_.]/u.test(identifier))
+  const rankedQuery: FullTextQuery =
+    hyphenatedWords.length === 0
+      ? broadQuery
+      : new BooleanQuery([
+          [Occur.Should, broadQuery],
+          ...hyphenatedWords.map((word): [Occur, FullTextQuery] => [
+            Occur.Should,
+            new PhraseQuery(word, "searchText"),
+          ]),
+        ])
+  const firstIdentifier = exactIdentifiers[0]
   if (firstIdentifier !== undefined) {
     const firstExactIdentifierQuery = new PhraseQuery(firstIdentifier, "searchText")
     const exactIdentifierQueries = [
       firstExactIdentifierQuery,
-      ...identifiers.slice(1).map((identifier) => new PhraseQuery(identifier, "searchText")),
+      ...exactIdentifiers.slice(1).map((identifier) => new PhraseQuery(identifier, "searchText")),
     ]
     const exactIdentifierQuery: FullTextQuery =
       exactIdentifierQueries.length === 1
@@ -1059,7 +1073,7 @@ function lexicalQuery(
             exactIdentifierQueries.map((item): [Occur, FullTextQuery] => [Occur.Should, item]),
           )
     const fuzzyIdentifierQuery = new BooleanQuery(
-      identifiers.map((identifier): [Occur, FullTextQuery] => [
+      exactIdentifiers.map((identifier): [Occur, FullTextQuery] => [
         Occur.Should,
         new MatchQuery(identifier, "searchText", {
           boost: 2,
@@ -1069,11 +1083,11 @@ function lexicalQuery(
         }),
       ]),
     )
-    supplemental.push(fuzzyIdentifierQuery, broadQuery)
+    supplemental.push(fuzzyIdentifierQuery, rankedQuery)
     return {
       primary: new BooleanQuery([
         [Occur.Must, exactIdentifierQuery],
-        [Occur.Should, broadQuery],
+        [Occur.Should, rankedQuery],
       ]),
       supplemental,
     }
@@ -1095,7 +1109,7 @@ function lexicalQuery(
     )
   }
   return {
-    primary: broadQuery,
+    primary: rankedQuery,
     supplemental,
   }
 }

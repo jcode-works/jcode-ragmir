@@ -515,6 +515,38 @@ describe("search", () => {
     expect(fuzzy[0]?.score?.lexicalQueryVariants).toBeGreaterThan(1)
   }, 15_000)
 
+  it("should let hyphenated question words boost keyword matches without filtering them", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-hyphenated-words-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await Promise.all([
+      writeFile(
+        path.join(root, ".ragmir", "raw", "thyroid.md"),
+        "Thyroïde : TSH 1.830 uIU/mL, valeur normale.\n",
+        "utf8",
+      ),
+      ...Array.from({ length: 12 }, (_entry, index) =>
+        writeFile(
+          path.join(root, ".ragmir", "raw", `faq-${String(index).padStart(2, "0")}.md`),
+          `Cette procédure est-elle obligatoire pour le dossier ${index} ?\n`,
+          "utf8",
+        ),
+      ),
+    ])
+    await ingest({ cwd: root })
+
+    const results = await search("Ma thyroïde est-elle normale ?", {
+      cwd: root,
+      topK: 3,
+      explain: true,
+    })
+    const thyroid = results.find((result) => result.relativePath === ".ragmir/raw/thyroid.md")
+
+    expect(thyroid?.score?.lexicalBackend).toBe("fts")
+    expect(thyroid?.score?.lexicalRank).toBeGreaterThan(0)
+  }, 15_000)
+
   it("should scan a complete lexical fallback in bounded batches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-truncated-fallback-"))
     tempDirs.push(root)
