@@ -125,6 +125,14 @@ describe("landing public contract", () => {
     expect(heroSource).not.toContain("hero_subtagline")
   })
 
+  it("should back the hero with the measured benchmark numbers of the README", () => {
+    expect([en.hero_proof_recall_value, en.hero_proof_speed_value]).toEqual(["93%", "40 ms"])
+    expect([fr.hero_proof_recall_value, fr.hero_proof_speed_value]).toEqual(["93 %", "40 ms"])
+    expect(en.hero_proof_speed_label).toContain("43,874-chunk monorepo")
+    expect(heroSource).toContain('t("hero_proof_recall_value")')
+    expect(heroSource).toContain("https://github.com/jcode-works/jcode-ragmir#benchmarks")
+  })
+
   it("should position Ragmir as the evidence layer for agentic RAG workflows", () => {
     expect(en.seo_home_title).toContain("Agentic RAG for developers")
     expect(fr.seo_home_title).toContain("RAG agentique pour développeurs")
