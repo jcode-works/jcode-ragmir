@@ -5,10 +5,26 @@ import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { setupProject } from "./setup.js"
 
-vi.mock("@huggingface/transformers", () => ({
-  env: {},
-  pipeline: async () => async () => ({}),
-}))
+vi.mock("@huggingface/transformers", async () => {
+  const env: { cacheDir?: string; allowRemoteModels?: boolean } = {}
+  return {
+    env,
+    // A remote pipeline caches the pinned revision under <cacheDir>/<model>/<revision>/.
+    pipeline: async (_task: string, model: string, { revision }: { revision: string }) => {
+      if (env.allowRemoteModels && env.cacheDir) {
+        const snapshot = path.join(env.cacheDir, model, revision)
+        await mkdir(path.join(snapshot, "onnx"), { recursive: true })
+        await Promise.all([
+          writeFile(path.join(snapshot, "config.json"), "{}\n"),
+          writeFile(path.join(snapshot, "onnx", "model.onnx"), "test-model"),
+          writeFile(path.join(snapshot, "tokenizer.json"), "{}\n"),
+          writeFile(path.join(snapshot, "tokenizer_config.json"), "{}\n"),
+        ])
+      }
+      return async () => ({})
+    },
+  }
+})
 
 const tempDirs: string[] = []
 
@@ -63,13 +79,6 @@ describe("setupProject", () => {
   it("can preload and enable semantic embeddings during setup", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-setup-semantic-"))
     tempDirs.push(root)
-    const modelRoot = path.join(root, ".ragmir", "models", "intfloat", "multilingual-e5-small")
-    await mkdir(path.join(modelRoot, "onnx"), { recursive: true })
-    await Promise.all([
-      writeFile(path.join(modelRoot, "config.json"), "{}\n"),
-      writeFile(path.join(modelRoot, "onnx", "model.onnx"), "test-model"),
-      writeFile(path.join(modelRoot, "tokenizer.json"), "{}\n"),
-    ])
 
     const result = await setupProject({ cwd: root, ingest: false, semantic: true })
     const config = JSON.parse(

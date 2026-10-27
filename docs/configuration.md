@@ -139,10 +139,11 @@ rgr ingest --rebuild
 ```
 
 This preloads the configured Transformers model once and leaves normal remote model loading disabled.
-Use `rgr models pull --enable` for the same change after initial setup. Both commands persist the
-resolved immutable revision and artifact digest. Bundled model profiles use pinned commits. Pin a
-custom model to a 40-character commit before relying on reproducible search results; `main` remains
-mutable and therefore unverified.
+Use `rgr models pull --enable` for the same change after initial setup. Both commands download the
+pinned revision into a private cache, install it under `embeddingModelPath` as the offline snapshot
+that local loading reads, and persist the resolved immutable revision and artifact digest. Bundled
+model profiles use pinned commits. Pin a custom model to a 40-character commit before relying on
+reproducible search results; `main` remains mutable and therefore unverified.
 
 `local-hash` never resolves Transformers.js, ONNX Runtime, or Sharp. In a long-running process,
 Transformers pipelines are shared per exact model identity and disposed when the final

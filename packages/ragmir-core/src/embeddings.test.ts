@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -7,6 +7,7 @@ import { RagmirClient } from "./client.js"
 import {
   clearTransformersCache,
   disposeTransformersCache,
+  embeddingModelArtifactDigest,
   embedText,
   embedTexts,
   prepareEmbeddingText,
@@ -22,11 +23,18 @@ const transformersMock = vi.hoisted(() => ({
   env: {
     localModelPath: "initial-local-path",
     cacheDir: "initial-cache-dir",
+    allowLocalModels: true,
     allowRemoteModels: false,
   },
   pipeline: vi.fn(),
 }))
 const tempDirs: string[] = []
+const revisionArtifacts: Record<string, string> = {
+  "config.json": '{"model_type":"test","revision":"pinned"}\n',
+  "onnx/model.onnx": "deterministic-model",
+  "tokenizer.json": '{"version":"1.0"}\n',
+  "tokenizer_config.json": '{"tokenizer_class":"TestTokenizer"}\n',
+}
 
 vi.mock("@huggingface/transformers", () => transformersMock)
 
@@ -34,6 +42,7 @@ beforeEach(async () => {
   await disposeTransformersCache()
   transformersMock.env.localModelPath = "initial-local-path"
   transformersMock.env.cacheDir = "initial-cache-dir"
+  transformersMock.env.allowLocalModels = true
   transformersMock.env.allowRemoteModels = false
   transformersMock.pipeline.mockReset()
   transformersMock.pipeline.mockImplementation(async () => async (texts: string[]) => ({
@@ -338,12 +347,14 @@ describe("embedding model adapters", () => {
       {
         localModelPath: "/tmp/ragmir-transformer-model",
         cacheDir: "/tmp/ragmir-transformer-model",
+        allowLocalModels: true,
         allowRemoteModels: true,
       },
     ])
     expect(transformersMock.env).toEqual({
       localModelPath: "initial-local-path",
       cacheDir: "initial-cache-dir",
+      allowLocalModels: true,
       allowRemoteModels: false,
     })
   })
@@ -355,6 +366,7 @@ describe("embedding model adapters", () => {
     expect(transformersMock.env).toEqual({
       localModelPath: "initial-local-path",
       cacheDir: "initial-cache-dir",
+      allowLocalModels: true,
       allowRemoteModels: false,
     })
   })
@@ -378,10 +390,9 @@ describe("embedding model adapters", () => {
   })
 
   it("should enable remote loading only while explicitly pulling a model", async () => {
-    let allowRemoteModelsDuringCreation = false
-    transformersMock.pipeline.mockImplementation(async () => {
-      allowRemoteModelsDuringCreation = transformersMock.env.allowRemoteModels
-      return async (texts: string[]) => ({ tolist: () => texts.map(() => [1, 0]) })
+    let downloadEnvironment: typeof transformersMock.env | undefined
+    mockTransformersDownload((env) => {
+      downloadEnvironment = { ...env }
     })
     const config = await transformerArtifactConfig({ transformersAllowRemoteModels: false })
 
@@ -391,8 +402,105 @@ describe("embedding model adapters", () => {
       embeddingModelDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
       embeddingModelPath: config.embeddingModelPath,
     })
-    expect(allowRemoteModelsDuringCreation).toBe(true)
-    expect(transformersMock.env.allowRemoteModels).toBe(false)
+    expect(downloadEnvironment).toMatchObject({ allowRemoteModels: true, allowLocalModels: false })
+    expect(downloadEnvironment?.cacheDir).not.toBe(config.embeddingModelPath)
+    expect(transformersMock.env).toMatchObject({
+      cacheDir: "initial-cache-dir",
+      allowLocalModels: true,
+      allowRemoteModels: false,
+    })
+  })
+
+  it("should install the pinned revision where offline discovery reads it", async () => {
+    mockTransformersDownload()
+    const config = await transformerArtifactConfig()
+    const modelRoot = path.join(config.embeddingModelPath, "test", "embedding-model")
+
+    const result = await pullEmbeddingModel(config)
+
+    expect((await listFiles(modelRoot)).sort()).toEqual(Object.keys(revisionArtifacts).sort())
+    await expect(readFile(path.join(modelRoot, "config.json"), "utf8")).resolves.toBe(
+      revisionArtifacts["config.json"],
+    )
+    expect(result.embeddingModelDigest).toBe(await embeddingModelArtifactDigest(config))
+    expect(await readdir(config.embeddingModelPath)).toEqual(["test"])
+    expect(await readdir(path.join(config.embeddingModelPath, "test"))).toEqual(["embedding-model"])
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "should create the model directory with owner-only permissions",
+    async () => {
+      mockTransformersDownload()
+      const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-embedding-private-"))
+      tempDirs.push(root)
+      const config = transformerConfig({ embeddingModelPath: path.join(root, "models") })
+
+      await pullEmbeddingModel(config)
+
+      expect((await stat(config.embeddingModelPath)).mode & 0o077).toBe(0)
+    },
+  )
+
+  it("should keep the installed model when the download cannot load offline", async () => {
+    mockTransformersDownload(undefined, { omit: "tokenizer_config.json" })
+    const config = await transformerArtifactConfig()
+    const modelRoot = path.join(config.embeddingModelPath, "test", "embedding-model")
+    const before = await embeddingModelArtifactDigest(config)
+
+    await expect(pullEmbeddingModel(config)).rejects.toThrow(
+      "did not download tokenizer_config.json",
+    )
+    expect(await embeddingModelArtifactDigest(config)).toBe(before)
+    expect(await readdir(config.embeddingModelPath)).toEqual(["test"])
+    await expect(readFile(path.join(modelRoot, "config.json"), "utf8")).resolves.toBe(
+      '{"model_type":"test"}\n',
+    )
+  })
+
+  it("should keep the installed model when the recorded digest does not match", async () => {
+    mockTransformersDownload()
+    const config = await transformerArtifactConfig({
+      embeddingModelDigest: `sha256:${"0".repeat(64)}`,
+    })
+    const before = await embeddingModelArtifactDigest(config)
+
+    await expect(pullEmbeddingModel(config)).rejects.toThrow("Embedding model digest mismatch")
+    expect(await embeddingModelArtifactDigest(config)).toBe(before)
+  })
+
+  it("should replace an unloadable revision cache recorded by an earlier pull", async () => {
+    mockTransformersDownload()
+    const config = await transformerArtifactConfig()
+    const modelRoot = path.join(config.embeddingModelPath, "test", "embedding-model")
+    await rm(modelRoot, { recursive: true, force: true })
+    await writeArtifacts(path.join(modelRoot, "test-revision"), revisionArtifacts, {
+      omit: "config.json",
+    })
+    await writeFile(
+      path.join(modelRoot, "config.json"),
+      '{"model_type":"test","revision":"main"}\n',
+    )
+    const legacyDigest = await embeddingModelArtifactDigest(config)
+
+    const result = await pullEmbeddingModel({ ...config, embeddingModelDigest: legacyDigest })
+
+    expect(result.embeddingModelDigest).not.toBe(legacyDigest)
+    expect((await listFiles(modelRoot)).sort()).toEqual(Object.keys(revisionArtifacts).sort())
+  })
+
+  it("should explain a pipeline that Transformers.js loaded without its tokenizer", async () => {
+    const dispose = vi.fn(async () => undefined)
+    transformersMock.pipeline.mockResolvedValue(
+      Object.assign(async (texts: string[]) => ({ tolist: () => texts.map(() => [1, 0]) }), {
+        dispose,
+        tokenizer: null,
+      }),
+    )
+
+    await expect(embedTexts(["query"], transformerConfig())).rejects.toThrow(
+      "Run `rgr models pull --enable`",
+    )
+    expect(dispose).toHaveBeenCalledOnce()
   })
 
   it("should deduplicate concurrent creation of the same Transformers pipeline", async () => {
@@ -540,6 +648,7 @@ describe("embedding model adapters", () => {
   })
 
   it("should produce the same digest and policy fingerprint for identical clean artifacts", async () => {
+    mockTransformersDownload()
     const firstConfig = await transformerArtifactConfig()
     const secondConfig = await transformerArtifactConfig()
 
@@ -609,6 +718,56 @@ function transformerConfig(overrides: Partial<Config> = {}): Config {
     transformersAllowRemoteModels: false,
     ...overrides,
   })
+}
+
+/**
+ * Mirror the Transformers.js 4.3 file cache: a remote pipeline stores the pinned revision under
+ * `<cacheDir>/<model>/<revision>/` and the main-revision discovery config at `<cacheDir>/<model>/`.
+ */
+function mockTransformersDownload(
+  onCreate?: (env: typeof transformersMock.env) => void,
+  options: { omit?: string } = {},
+): void {
+  transformersMock.pipeline.mockImplementation(
+    async (_task: string, model: string, { revision }: { revision: string }) => {
+      const env = transformersMock.env
+      onCreate?.(env)
+      if (env.allowRemoteModels) {
+        const modelCache = path.join(env.cacheDir, model)
+        await writeArtifacts(path.join(modelCache, revision), revisionArtifacts, options)
+        await writeFile(
+          path.join(modelCache, "config.json"),
+          '{"model_type":"test","revision":"main"}\n',
+        )
+      }
+      return async (texts: string[]) => ({ tolist: () => texts.map(() => [1, 0]) })
+    },
+  )
+}
+
+async function writeArtifacts(
+  directory: string,
+  artifacts: Record<string, string>,
+  options: { omit?: string } = {},
+): Promise<void> {
+  for (const [name, content] of Object.entries(artifacts)) {
+    if (name === options.omit) {
+      continue
+    }
+    await mkdir(path.dirname(path.join(directory, name)), { recursive: true })
+    await writeFile(path.join(directory, name), content)
+  }
+}
+
+async function listFiles(directory: string, prefix = ""): Promise<string[]> {
+  const files: string[] = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const name = prefix ? `${prefix}/${entry.name}` : entry.name
+    files.push(
+      ...(entry.isDirectory() ? await listFiles(path.join(directory, entry.name), name) : [name]),
+    )
+  }
+  return files
 }
 
 async function transformerArtifactConfig(overrides: Partial<Config> = {}): Promise<Config> {
