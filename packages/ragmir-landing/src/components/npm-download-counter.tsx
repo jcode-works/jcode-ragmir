@@ -28,8 +28,10 @@ export function NpmDownloadCounter({
   locale,
   align = "start",
 }: NpmDownloadCounterProps): React.JSX.Element {
-  const [displayCount, setDisplayCount] = useState(0)
-  const displayCountRef = useRef(0)
+  // Start from the real count so the server-rendered page, crawlers, and readers without
+  // JavaScript see it; the count-up only animates later changes.
+  const [displayCount, setDisplayCount] = useState(downloads)
+  const displayCountRef = useRef(downloads)
   const animationRef = useRef<number>(0)
 
   useEffect(() => {
