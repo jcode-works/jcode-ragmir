@@ -32,6 +32,7 @@ import type { QueryTermStatistics, RankedRow } from "./ranking.js"
 import {
   abstentionFilter,
   fusionCandidateDepth,
+  fuzzyMatchPrefilter,
   queryEvidence,
   queryTermCoverage,
   rankHybridRows,
@@ -540,10 +541,18 @@ function withFuzzyMatches(
   if (absent.length === 0 || candidateRows.length === 0) {
     return statistics
   }
+  const prefilters = absent.map((token) => ({ token, possible: fuzzyMatchPrefilter(token) }))
   const fuzzyMatchedTerms = new Set<string>()
   for (const row of candidateRows) {
+    const folded = normalizeForMatch(row.searchText)
+    const pending = prefilters
+      .filter(({ token, possible }) => !fuzzyMatchedTerms.has(token) && possible(folded))
+      .map(({ token }) => token)
+    if (pending.length === 0) {
+      continue
+    }
     for (const textToken of tokenize(row.searchText)) {
-      for (const token of absent) {
+      for (const token of pending) {
         if (!fuzzyMatchedTerms.has(token) && tokensAreFuzzyRelated(token, textToken)) {
           fuzzyMatchedTerms.add(token)
         }

@@ -3,12 +3,16 @@ import {
   abstentionFilter,
   candidatePassesAbstention,
   fusionCandidateDepth,
+  fuzzyMatchPrefilter,
+  type QueryTermStatistics,
   queryEvidence,
+  queryTermCoverage,
   rankHybridRows,
   rankingPolicyFor,
+  tokensAreFuzzyRelated,
   tokensAreLexicallyRelated,
 } from "./ranking.js"
-import { tokenize } from "./text.js"
+import { identifierParts, normalizeForMatch, tokenize } from "./text.js"
 
 interface FixtureRow {
   relativePath: string
@@ -173,6 +177,109 @@ describe("hybrid ranking", () => {
     }
   })
 })
+
+describe("keyword evidence prefilters", () => {
+  it("should give the same coverage as a full word comparison", () => {
+    const evidence = queryEvidence("How are permission checks enforced for événements and ΛΟΓΟΣ?")
+    const terms: QueryTermStatistics = {
+      documentCount: 1_000,
+      documentFrequencies: new Map([
+        ["permission", 40],
+        ["checks", 300],
+        ["enforced", 12],
+        ["evenements", 5],
+        ["λογος", 2],
+      ]),
+    }
+    const coverage = queryTermCoverage(evidence, terms)
+    const texts = [
+      "The weather stays mild all week.",
+      "PermissionService grants access after checking roles.",
+      "Les Événements sont vérifiés chaque jour.",
+      "Permissions are checked and enforced for every evenement.",
+      "enforcement of permissionsChecks",
+      "Permis de construire",
+      "ΛΟΓΟΣService λόγος",
+      "",
+    ]
+
+    for (const text of texts) {
+      expect(coverage(text), text).toBe(fullCoverage(evidence, terms, text))
+    }
+    expect(coverage(texts[0] ?? "")).toBe(0)
+    expect(coverage(texts[3] ?? "")).toBeGreaterThan(0.5)
+  })
+
+  it("should never reject a text that holds a fuzzy match", () => {
+    let related = 0
+    for (const word of ["security", "permission", "checklist", "deployment", "workspace"]) {
+      const possible = fuzzyMatchPrefilter(word)
+      for (const variant of typoVariants(word)) {
+        if (tokensAreFuzzyRelated(word, variant)) {
+          related += 1
+          expect(possible(normalizeForMatch(`Notes about ${variant} today.`)), variant).toBe(true)
+        }
+      }
+    }
+    expect(related).toBeGreaterThan(100)
+    expect(fuzzyMatchPrefilter("sceurity")(normalizeForMatch("The security review"))).toBe(true)
+    expect(
+      fuzzyMatchPrefilter("sceurity")(normalizeForMatch("Weather forecast for tomorrow")),
+    ).toBe(false)
+    expect(fuzzyMatchPrefilter("événement")("evenement")).toBe(false)
+  })
+})
+
+/** Coverage computed against every word of the text, without the stem-prefix shortcut. */
+function fullCoverage(
+  evidence: ReturnType<typeof queryEvidence>,
+  terms: QueryTermStatistics,
+  text: string,
+): number {
+  const tokens = [...new Set(evidence.tokens)]
+  const weights = tokens.map((token) => {
+    const frequency = terms.documentFrequencies.get(token) ?? 0
+    return Math.log(1 + (terms.documentCount - frequency + 0.5) / (frequency + 0.5))
+  })
+  const textTokens = [...tokenize(text), ...identifierParts(text)]
+  const sameStem = (query: string, word: string): boolean => {
+    const shorter = query.length <= word.length ? query : word
+    const longer = shorter === query ? word : query
+    return (
+      query === word ||
+      (shorter.length >= 5 && longer.length - shorter.length <= 4 && longer.startsWith(shorter))
+    )
+  }
+  const matched = tokens.reduce(
+    (sum, token, index) =>
+      textTokens.some((word) => sameStem(token, word)) ? sum + (weights[index] ?? 0) : sum,
+    0,
+  )
+  return matched / weights.reduce((sum, weight) => sum + weight, 0)
+}
+
+/** Every single deletion, insertion, substitution, and adjacent swap of a word. */
+function typoVariants(word: string): Set<string> {
+  const variants = new Set<string>()
+  for (let index = 0; index <= word.length; index += 1) {
+    for (const letter of "aeirstxz") {
+      variants.add(`${word.slice(0, index)}${letter}${word.slice(index)}`)
+      if (index < word.length) {
+        variants.add(`${word.slice(0, index)}${letter}${word.slice(index + 1)}`)
+      }
+    }
+    if (index < word.length) {
+      variants.add(`${word.slice(0, index)}${word.slice(index + 1)}`)
+    }
+    if (index < word.length - 1) {
+      variants.add(
+        `${word.slice(0, index)}${word[index + 1]}${word[index]}${word.slice(index + 2)}`,
+      )
+    }
+  }
+  variants.delete(word)
+  return variants
+}
 
 function row(
   relativePath: string,

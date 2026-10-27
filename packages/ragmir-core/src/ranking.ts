@@ -5,7 +5,7 @@ import {
   lexicalDocument,
   lexicalDocumentScore,
 } from "./lexical-scoring.js"
-import { identifierParts, tokenize } from "./text.js"
+import { identifierParts, normalizeForMatch, tokenize } from "./text.js"
 import type { EmbeddingProvider, RetrievalProfile } from "./types.js"
 
 export interface RankingRow {
@@ -387,10 +387,21 @@ export function queryTermCoverage(
   if (totalWeight <= 0) {
     return () => 0
   }
+  // Every word sharing a stem with a query word contains its stem prefix, so a passage whose folded
+  // text holds none of them covers nothing. Unrelated candidates then skip word segmentation.
+  const stemPrefixes = tokens.map(stemPrefix)
   return (text) => {
+    const folded = normalizeForMatch(text)
+    const present = stemPrefixes.map((prefix) => folded.includes(prefix))
+    if (!present.includes(true)) {
+      return 0
+    }
     const textTokens = new Set([...tokenize(text), ...identifierParts(text)])
     let matched = 0
     tokens.forEach((token, index) => {
+      if (!present[index]) {
+        return
+      }
       for (const textToken of textTokens) {
         if (shareStem(token, textToken)) {
           matched += weights[index] ?? 0
@@ -400,6 +411,13 @@ export function queryTermCoverage(
     })
     return matched / totalWeight
   }
+}
+
+/** The prefix that every word passing shareStem with this query word contains. */
+function stemPrefix(token: string): string {
+  return token.length < MIN_STEM_PREFIX_LENGTH
+    ? token
+    : token.slice(0, Math.max(MIN_STEM_PREFIX_LENGTH, token.length - MAX_STEM_SUFFIX_LENGTH))
 }
 
 function shareStem(queryToken: string, textToken: string): boolean {
@@ -495,6 +513,35 @@ export function tokensAreFuzzyRelated(queryToken: string, textToken: string): bo
     Math.abs(queryToken.length - textToken.length) <= 1 &&
     trigramDiceSimilarity(queryToken, textToken) >= MIN_TRIGRAM_DICE_SIMILARITY
   )
+}
+
+/**
+ * Cheap necessary condition for tokensAreFuzzyRelated on a folded text: a word whose trigram Dice
+ * similarity reaches s shares at least s / (2 - s) of the query word's trigrams, so a text holding
+ * fewer of them has no fuzzy match and needs no word segmentation.
+ */
+export function fuzzyMatchPrefilter(queryToken: string): (foldedText: string) => boolean {
+  if (!isFuzzyComparable(queryToken)) {
+    return () => false
+  }
+  const trigrams = [...tokenTrigrams(queryToken)]
+  const required = Math.ceil(
+    (MIN_TRIGRAM_DICE_SIMILARITY * trigrams.length) / (2 - MIN_TRIGRAM_DICE_SIMILARITY) - 1e-9,
+  )
+  return (foldedText) => {
+    let found = 0
+    for (const [index, trigram] of trigrams.entries()) {
+      if (foldedText.includes(trigram)) {
+        found += 1
+        if (found >= required) {
+          return true
+        }
+      } else if (found + trigrams.length - index - 1 < required) {
+        return false
+      }
+    }
+    return false
+  }
 }
 
 function isFuzzyComparable(token: string): boolean {
