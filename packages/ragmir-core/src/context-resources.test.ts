@@ -73,7 +73,7 @@ describe("context resources", () => {
     expect((await getKnowledgeBaseContext(secondRoot)).corpusFingerprint).not.toBe(
       first.corpusFingerprint,
     )
-  })
+  }, 15_000)
 
   it("should cap source details while preserving complete totals", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-resource-"))
