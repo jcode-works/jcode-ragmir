@@ -59,7 +59,9 @@ representative concurrency benchmark.
 
 Profiles bound retrieval work. They are candidate and diversification budgets, not a guarantee that
 a larger budget improves every corpus. Evaluate the profile against a representative golden set
-before changing production configuration.
+before changing production configuration. An explicit `topK` or `hybridTextScanLimit` overrides the
+profile value. `rgr setup` leaves both unset; configs created by earlier versions contain the
+`balanced` values, so remove them when a profile should choose.
 
 | Profile | Quality intent | Latency intent | Default `topK` | Fallback batch size | Vector candidates | FTS candidates | Document cap | Context radius |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
