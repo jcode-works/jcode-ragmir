@@ -5,7 +5,7 @@ import {
   lexicalDocument,
   lexicalDocumentScore,
 } from "./lexical-scoring.js"
-import { tokenize } from "./text.js"
+import { identifierParts, tokenize } from "./text.js"
 import type { EmbeddingProvider, RetrievalProfile } from "./types.js"
 
 export interface RankingRow {
@@ -21,26 +21,59 @@ export interface RankedRow<Row extends RankingRow = RankingRow> {
   vectorScore: number
   lexicalScore: number
   combinedScore: number
+  /** Source weight times definition boost applied to the fused score (1 when neutral). */
+  scoreMultiplier: number
   vectorRank: number | null
   lexicalRank: number | null
   lexicalBackendScore: number | null
 }
 
 export interface RankingPolicy {
-  version: 6
+  version: 7
   embeddingProvider: EmbeddingProvider
+  /** Semantic model whose calibrated evidence profile applies; null for local-hash. */
+  embeddingModel: string | null
   retrievalProfile: RetrievalProfile
   maxChunksPerDocument: number
   rrfK: number
   vectorWeight: number
   lexicalWeight: number
   maximumVectorDistance: number | null
+  /** Vector distance that counts as strong evidence on its own. */
+  strongVectorDistance: number | null
+  /** Distance required when no query word occurs in the corpus at all (gibberish, other topics). */
+  vocabularyFreeDistance: number | null
+  /** IDF-weighted share of query words a passage needs to count as lexical evidence; 0 = any word. */
+  minimumLexicalCoverage: number
+  /** Below this coverage, and without a strong vector match, a passage is flagged weakEvidence. */
+  weakEvidenceCoverage: number
 }
 
 export interface QueryEvidence {
   query: string
   tokens: string[]
   anchors: string[]
+}
+
+/** Document frequency of each query word in the active index. */
+export interface QueryTermStatistics {
+  documentCount: number
+  documentFrequencies: ReadonlyMap<string, number>
+  /** Words with no exact occurrence that a fuzzy keyword query still matched, such as typos. */
+  fuzzyMatchedTerms?: ReadonlySet<string>
+  /**
+   * Words in scripts written without spaces (Thai, Chinese, Japanese, ...): the keyword index
+   * segments them differently from queries, so their frequency is not measured or weighted.
+   */
+  unmeasuredTerms?: ReadonlySet<string>
+}
+
+interface EvidenceProfile {
+  maximumVectorDistance: number | null
+  strongVectorDistance: number | null
+  vocabularyFreeDistance: number | null
+  minimumLexicalCoverage: number
+  weakEvidenceCoverage: number
 }
 
 const RRF_K = 60
@@ -54,6 +87,43 @@ const MIN_LEXICAL_PREFIX_LENGTH = 4
 const MIN_FUZZY_TOKEN_LENGTH = 7
 const MIN_TRIGRAM_DICE_SIMILARITY = 0.5
 const TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE = 1.1
+// Calibrated on French and English golden sets plus out-of-scope and nonsense questions. e5 packs
+// every text into a narrow distance band (relevant passages up to 0.36, unrelated ones from 0.26),
+// so its vector channel stays permissive and weak evidence relies more on query-word coverage.
+// mxbai separates them (relevant passages mostly under 1.1, unrelated ones above 1.0).
+const MODEL_EVIDENCE_PROFILES: Readonly<Record<string, EvidenceProfile>> = {
+  "intfloat/multilingual-e5-small": {
+    maximumVectorDistance: 0.4,
+    strongVectorDistance: 0.3,
+    vocabularyFreeDistance: 0.24,
+    minimumLexicalCoverage: 0.3,
+    weakEvidenceCoverage: 0.3,
+  },
+  "mixedbread-ai/mxbai-embed-xsmall-v1": {
+    maximumVectorDistance: TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE,
+    strongVectorDistance: 0.9,
+    vocabularyFreeDistance: 0.85,
+    minimumLexicalCoverage: 0.3,
+    weakEvidenceCoverage: 0.5,
+  },
+}
+// Uncalibrated models keep the historical rule: any related query word, or a distance up to 1.1.
+const DEFAULT_TRANSFORMERS_PROFILE: EvidenceProfile = {
+  maximumVectorDistance: TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE,
+  strongVectorDistance: null,
+  vocabularyFreeDistance: null,
+  minimumLexicalCoverage: 0,
+  weakEvidenceCoverage: 0.3,
+}
+const LOCAL_HASH_PROFILE: EvidenceProfile = {
+  maximumVectorDistance: null,
+  strongVectorDistance: null,
+  vocabularyFreeDistance: null,
+  minimumLexicalCoverage: 0,
+  weakEvidenceCoverage: 0.3,
+}
+const MIN_STEM_PREFIX_LENGTH = 5
+const MAX_STEM_SUFFIX_LENGTH = 4
 const IDENTIFIER_PATTERN = /[\p{L}\p{N}]+(?:[-_./][\p{L}\p{N}]+)+/gu
 const LOW_INFORMATION_WORDS = new Set(
   (
@@ -71,20 +141,23 @@ export function rankingPolicyFor(
   embeddingProvider: EmbeddingProvider,
   retrievalProfile: RetrievalProfile,
   maxChunksPerDocument: number,
+  embeddingModel?: string,
 ): RankingPolicy {
+  const semantic = embeddingProvider === "transformers"
+  const profile = semantic
+    ? ((embeddingModel === undefined ? undefined : MODEL_EVIDENCE_PROFILES[embeddingModel]) ??
+      DEFAULT_TRANSFORMERS_PROFILE)
+    : LOCAL_HASH_PROFILE
   return {
-    version: 6,
+    version: 7,
     embeddingProvider,
+    embeddingModel: semantic ? (embeddingModel ?? null) : null,
     retrievalProfile,
     maxChunksPerDocument,
     rrfK: RRF_K,
-    vectorWeight:
-      embeddingProvider === "local-hash"
-        ? RRF_LOCAL_HASH_VECTOR_WEIGHT
-        : RRF_SEMANTIC_VECTOR_WEIGHT,
+    vectorWeight: semantic ? RRF_SEMANTIC_VECTOR_WEIGHT : RRF_LOCAL_HASH_VECTOR_WEIGHT,
     lexicalWeight: RRF_LEXICAL_WEIGHT,
-    maximumVectorDistance:
-      embeddingProvider === "transformers" ? TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE : null,
+    ...profile,
   }
 }
 
@@ -126,6 +199,7 @@ export function rankHybridRows<Row extends RankingRow>(
   vectorRows: Row[],
   textRows: Row[],
   policy: RankingPolicy,
+  scoreMultiplierOf?: (row: Row) => number,
 ): Array<RankedRow<Row>> {
   const queryTokens = tokenize(query)
   const evidence = queryEvidence(query)
@@ -185,11 +259,13 @@ export function rankHybridRows<Row extends RankingRow>(
         vectorRank === undefined ? 0 : policy.vectorWeight / (policy.rrfK + vectorRank)
       const lexicalScore =
         lexicalRank === undefined ? 0 : policy.lexicalWeight / (policy.rrfK + lexicalRank)
+      const scoreMultiplier = scoreMultiplierOf ? scoreMultiplierOf(row) : 1
       return {
         row,
         vectorScore,
         lexicalScore,
-        combinedScore: vectorScore + lexicalScore,
+        combinedScore: (vectorScore + lexicalScore) * scoreMultiplier,
+        scoreMultiplier,
         vectorRank: vectorRank === undefined ? null : vectorRank + 1,
         lexicalRank: lexicalRank === undefined ? null : lexicalRank + 1,
         lexicalBackendScore: lexicalScores.get(key) ?? null,
@@ -210,28 +286,133 @@ export function candidatePassesAbstention(
   evidenceOrQuery: QueryEvidence | string,
   row: RankingRow,
   policy: RankingPolicy,
+  terms: QueryTermStatistics | null = null,
 ): boolean {
   const evidence =
     typeof evidenceOrQuery === "string" ? queryEvidence(evidenceOrQuery) : evidenceOrQuery
-  return abstentionFilter(evidence, policy)(row)
+  return abstentionFilter(evidence, policy, terms)(row)
+}
+
+/**
+ * Whether no query word occurs in the corpus, exactly or through a fuzzy keyword match. Only
+ * vector evidence can then support a passage, and nonsense or unrelated questions get none.
+ */
+export function vocabularyFree(
+  evidence: QueryEvidence,
+  terms: QueryTermStatistics | null,
+): boolean {
+  return (
+    terms !== null &&
+    evidence.anchors.length === 0 &&
+    evidence.tokens.length > 0 &&
+    evidence.tokens.every(
+      (token) =>
+        (terms.documentFrequencies.get(token) ?? 0) === 0 &&
+        !terms.fuzzyMatchedTerms?.has(token) &&
+        !terms.unmeasuredTerms?.has(token),
+    )
+  )
 }
 
 /**
  * Compile the abstention rule once per query. Candidates are then checked lazily in ranked order,
- * so the query tokens, prefixes, and trigrams are not rebuilt for every candidate.
+ * so the query tokens, prefixes, and trigrams are not rebuilt for every candidate. With term
+ * statistics, calibrated models need IDF-weighted query-word coverage instead of one shared word:
+ * a passage that only shares the most common word of the question is not lexical evidence.
  */
 export function abstentionFilter(
   evidence: QueryEvidence,
   policy: RankingPolicy,
+  terms: QueryTermStatistics | null = null,
 ): (row: RankingRow) => boolean {
   const hasLexicalEvidence = lexicalEvidenceMatcher(evidence)
-  if (policy.embeddingProvider === "local-hash" || evidence.anchors.length > 0) {
+  if (evidence.anchors.length > 0) {
     return (row) => hasLexicalEvidence(row.searchText)
   }
+  const noKnownWords = vocabularyFree(evidence, terms)
+  if (policy.embeddingProvider === "local-hash") {
+    return noKnownWords ? () => false : (row) => hasLexicalEvidence(row.searchText)
+  }
   const maximumVectorDistance = policy.maximumVectorDistance
+  if (noKnownWords) {
+    const required = policy.vocabularyFreeDistance ?? maximumVectorDistance
+    return (row) => required !== null && rowDistance(row) <= required
+  }
+  const coverage =
+    terms !== null && policy.minimumLexicalCoverage > 0 ? queryTermCoverage(evidence, terms) : null
+  const lexical = coverage
+    ? (row: RankingRow) => coverage(row.searchText) >= policy.minimumLexicalCoverage
+    : (row: RankingRow) => hasLexicalEvidence(row.searchText)
   return (row) =>
-    (maximumVectorDistance !== null && rowDistance(row) <= maximumVectorDistance) ||
-    hasLexicalEvidence(row.searchText)
+    (maximumVectorDistance !== null && rowDistance(row) <= maximumVectorDistance) || lexical(row)
+}
+
+/**
+ * Flag a selected passage whose support is thin: it holds a small IDF-weighted share of the query
+ * words and has no strong vector match. Search still returns it; agents should verify it first.
+ */
+export function weakEvidenceFilter(
+  evidence: QueryEvidence,
+  policy: RankingPolicy,
+  terms: QueryTermStatistics | null,
+): (row: RankingRow) => boolean {
+  if (terms === null || evidence.anchors.length > 0 || evidence.tokens.length === 0) {
+    return () => false
+  }
+  const coverage = queryTermCoverage(evidence, terms)
+  const strong = policy.strongVectorDistance
+  return (row) =>
+    coverage(row.searchText) < policy.weakEvidenceCoverage &&
+    !(strong !== null && rowDistance(row) <= strong)
+}
+
+/**
+ * IDF-weighted share of query words present in a text. Words match exactly or as one stem with a
+ * short ending (`permission`, `permissions`), so a rare word weighs more than a frequent one and a
+ * word missing from the corpus weighs the most.
+ */
+export function queryTermCoverage(
+  evidence: QueryEvidence,
+  terms: QueryTermStatistics,
+): (text: string) => number {
+  const tokens = [...new Set(evidence.tokens)].filter((token) => !terms.unmeasuredTerms?.has(token))
+  const weights = tokens.map((token) => {
+    const documentFrequency = Math.min(
+      terms.documentFrequencies.get(token) ?? 0,
+      terms.documentCount,
+    )
+    return Math.log(1 + (terms.documentCount - documentFrequency + 0.5) / (documentFrequency + 0.5))
+  })
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+  if (totalWeight <= 0) {
+    return () => 0
+  }
+  return (text) => {
+    const textTokens = new Set([...tokenize(text), ...identifierParts(text)])
+    let matched = 0
+    tokens.forEach((token, index) => {
+      for (const textToken of textTokens) {
+        if (shareStem(token, textToken)) {
+          matched += weights[index] ?? 0
+          break
+        }
+      }
+    })
+    return matched / totalWeight
+  }
+}
+
+function shareStem(queryToken: string, textToken: string): boolean {
+  if (queryToken === textToken) {
+    return true
+  }
+  const shorter = queryToken.length <= textToken.length ? queryToken : textToken
+  const longer = shorter === queryToken ? textToken : queryToken
+  return (
+    shorter.length >= MIN_STEM_PREFIX_LENGTH &&
+    longer.length - shorter.length <= MAX_STEM_SUFFIX_LENGTH &&
+    longer.startsWith(shorter)
+  )
 }
 
 export function tokensAreLexicallyRelated(queryToken: string, textToken: string): boolean {
@@ -304,6 +485,16 @@ function lexicalEvidenceMatcher(evidence: QueryEvidence): (text: string) => bool
     }
     return false
   }
+}
+
+/** Typo-level similarity between long words (one edit apart in length, shared trigrams). */
+export function tokensAreFuzzyRelated(queryToken: string, textToken: string): boolean {
+  return (
+    isFuzzyComparable(queryToken) &&
+    isFuzzyComparable(textToken) &&
+    Math.abs(queryToken.length - textToken.length) <= 1 &&
+    trigramDiceSimilarity(queryToken, textToken) >= MIN_TRIGRAM_DICE_SIMILARITY
+  )
 }
 
 function isFuzzyComparable(token: string): boolean {

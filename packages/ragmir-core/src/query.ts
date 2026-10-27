@@ -18,6 +18,7 @@ import { embedText } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
 import { acquireGenerationReadLease } from "./generation-retention.js"
 import { indexFreshnessWarning } from "./index-diagnostics.js"
+import { lexicalPolicyCurrent } from "./index-policy.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import {
   addLexicalDocument,
@@ -27,15 +28,18 @@ import {
 } from "./lexical-scoring.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
-import type { RankedRow } from "./ranking.js"
+import type { QueryTermStatistics, RankedRow } from "./ranking.js"
 import {
   abstentionFilter,
   fusionCandidateDepth,
   queryEvidence,
+  queryTermCoverage,
   rankHybridRows,
   rankingPolicyFingerprint,
   rankingPolicyFor,
+  tokensAreFuzzyRelated,
   tokensAreLexicallyRelated,
+  weakEvidenceFilter,
 } from "./ranking.js"
 import { selectDiverseRows } from "./retrieval-diversity.js"
 import {
@@ -44,6 +48,7 @@ import {
   resolveExistingPath,
   unicodePathVariants,
 } from "./source-paths.js"
+import { definitionBoostOf, localeDocumentKey, sourceWeightOf } from "./source-weights.js"
 import type { IndexReadSnapshot } from "./store.js"
 import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
 import { normalizeForMatch, tokenize } from "./text.js"
@@ -106,6 +111,12 @@ const DIVERSITY_CANDIDATE_MULTIPLIER = 4
 const MAX_VECTOR_CANDIDATES = 1_000
 const MAX_LEXICAL_CANDIDATES = 4_000
 const FULL_TEXT_INDEX_NAME = "searchText_idx"
+// Document frequencies only weigh words; beyond this many passages a word is common either way.
+const TERM_FREQUENCY_LIMIT = 10_000
+const MAX_CACHED_TERM_GENERATIONS = 4
+const UNSEGMENTED_SCRIPT_PATTERN =
+  /[\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+const termFrequencyCache = new Map<string, Map<string, number>>()
 const LEXICAL_IDENTIFIER_PATTERN = /[\p{L}\p{N}]+(?:[-_.][\p{L}\p{N}]+)+/gu
 const SOURCE_PATH_QUERY_PATTERN = /^[\p{L}\p{N}_. /\\-]+\.[a-z0-9]{1,12}$/iu
 export const QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL = "ragmir:query-explanation"
@@ -234,6 +245,11 @@ async function searchWithinGeneration(
     options.contextPaths,
   )
   let embeddingQueueMs = 0
+  // Indexes built before folded keyword text cannot answer exact word frequencies reliably.
+  const termFrequenciesPromise =
+    snapshot.manifest && lexicalPolicyCurrent(snapshot.manifest)
+      ? queryTermFrequencies(table, queryTokens, snapshot).catch(() => null)
+      : Promise.resolve(null)
   const lexicalCandidatesPromise = lexicalCandidateRows(table, sanitized.query, {
     ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
     fallbackBatchSize: config.hybridTextScanLimit,
@@ -247,14 +263,31 @@ async function searchWithinGeneration(
   }).then(async (vector) => {
     throwIfAborted(signal)
     const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
-    const vectorQuery = configureAdaptiveVectorQuery(
-      table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
-      manifest.vectorIndex,
-      options.vectorSearchMode === "exact",
+    const limit = vectorCandidateLimit(candidateDemand, config.retrievalProfile)
+    const nearest = async (predicate: string | null): Promise<SearchRow[]> => {
+      const vectorQuery = configureAdaptiveVectorQuery(
+        table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
+        manifest.vectorIndex,
+        options.vectorSearchMode === "exact",
+      )
+      return (await (predicate ? vectorQuery.where(predicate) : vectorQuery)
+        .limit(limit)
+        .toArray()) as SearchRow[]
+    }
+    const rows = await nearest(retrievalPredicate)
+    const crowding = crowdingDocuments(rows, topK)
+    if (crowding.length === 0) {
+      return rows
+    }
+    // One large file (an export, a log, a spreadsheet) filled the pool with its own chunks, yet
+    // shows at most maxChunksPerDocument of them; a second pass reaches the other documents.
+    throwIfAborted(signal)
+    const others = `NOT (${crowding.map(relativePathEquals).join(" OR ")})`
+    const more = await nearest(
+      retrievalPredicate ? `(${retrievalPredicate}) AND ${others}` : others,
     )
-    return (await (retrievalPredicate ? vectorQuery.where(retrievalPredicate) : vectorQuery)
-      .limit(vectorCandidateLimit(candidateDemand, config.retrievalProfile))
-      .toArray()) as SearchRow[]
+    const seen = new Set(rows.map(rowKey))
+    return [...rows, ...more.filter((row) => !seen.has(rowKey(row)))]
   })
   const [vectorRowsOutcome, lexicalCandidatesOutcome] = await Promise.allSettled([
     vectorRowsPromise,
@@ -268,21 +301,32 @@ async function searchWithinGeneration(
   }
   const vectorRows = vectorRowsOutcome.value
   const lexicalCandidates = lexicalCandidatesOutcome.value
+  const termStatistics = withFuzzyMatches(await termFrequenciesPromise, queryTokens, [
+    ...lexicalCandidates.rows,
+    ...vectorRows,
+  ])
   throwIfAborted(signal)
   const rankingPolicy = rankingPolicyFor(
     config.embeddingProvider,
     config.retrievalProfile,
     maxChunksPerDocument,
+    config.embeddingModel,
   )
+  const weightOf = sourceWeightOf(config)
+  const definitionBoost = definitionBoostOf(queryTokens)
   const rankedRows = rankHybridRows(
     sanitized.query,
     vectorRows,
     lexicalCandidates.rows,
     rankingPolicy,
+    (row) => weightOf(row.relativePath) * definitionBoost(row),
   )
   const isExactPathMatch = (row: SearchRow): boolean =>
     lexicalCandidates.exactPathMatches.has(rowKey(row))
-  const passesAbstention = abstentionFilter(evidence, rankingPolicy)
+  const passesAbstention = abstentionFilter(evidence, rankingPolicy, termStatistics)
+  const hasWeakEvidence = weakEvidenceFilter(evidence, rankingPolicy, termStatistics)
+  const coverageOf =
+    options.explain && termStatistics ? queryTermCoverage(evidence, termStatistics) : null
   const orderedRows = rankedRows.sort(
     (left, right) => Number(isExactPathMatch(right.row)) - Number(isExactPathMatch(left.row)),
   )
@@ -290,6 +334,9 @@ async function searchWithinGeneration(
     topK,
     maxChunksPerDocument,
     isExactPathMatch,
+    ...(config.collapseLocaleVariants
+      ? { documentKeyOf: (row: SearchRow) => localeDocumentKey(row.relativePath) }
+      : {}),
     isRelevant: (row) => isExactPathMatch(row) || passesAbstention(row),
   })
   const rows = diversity.rows
@@ -320,6 +367,9 @@ async function searchWithinGeneration(
       context: contextByRow.get(rowKey(row.row)) ?? [],
       evidence: evidenceVersionForRow(row.row, snapshot, knowledgeBaseId),
       ...(sourceStatus === undefined ? {} : { sourceStatus }),
+      ...(!isExactPathMatch(row.row) && hasWeakEvidence(row.row)
+        ? { weakEvidence: true as const }
+        : {}),
       ...(options.explain
         ? {
             score: {
@@ -328,6 +378,7 @@ async function searchWithinGeneration(
               originalQueryLength: sanitized.originalLength,
               fusion: "rrf" as const,
               combinedScore: row.combinedScore,
+              scoreMultiplier: row.scoreMultiplier,
               vectorContribution: row.vectorScore,
               lexicalContribution: row.lexicalScore,
               vectorRank: row.vectorRank,
@@ -351,12 +402,34 @@ async function searchWithinGeneration(
               workloadQueueMs: workloadQueueMs + embeddingQueueMs,
               rankingPolicyFingerprint: rankingPolicyFingerprint(rankingPolicy),
               matchedTerms: matchedQueryTerms(config.projectRoot, queryTokens, row.row.searchText),
+              queryTermCoverage: coverageOf ? coverageOf(row.row.searchText) : null,
             },
           }
         : {}),
     }
   })
   return results
+}
+
+const CROWDING_MIN_CHUNKS = 4
+const CROWDING_SHARE = 0.25
+
+/** Documents holding a quarter or more of a candidate pool that reaches too few documents. */
+function crowdingDocuments(rows: readonly SearchRow[], topK: number): string[] {
+  if (rows.length < CROWDING_MIN_CHUNKS * 2) {
+    return []
+  }
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    counts.set(row.relativePath, (counts.get(row.relativePath) ?? 0) + 1)
+  }
+  if (counts.size >= Math.min(rows.length, topK * 3)) {
+    return []
+  }
+  const threshold = Math.max(CROWDING_MIN_CHUNKS, Math.ceil(rows.length * CROWDING_SHARE))
+  return [...counts.entries()]
+    .filter(([, count]) => count >= threshold)
+    .map(([relativePath]) => relativePath)
 }
 
 /**
@@ -390,6 +463,85 @@ async function sourceStatusesForRows(
     }),
   )
   return statuses
+}
+
+/**
+ * Count, for each query word, the passages whose keyword text contains it, with one bounded
+ * full-text query per word. Cached per index generation: words repeat across an agent's searches.
+ */
+async function queryTermFrequencies(
+  table: RowsTable,
+  tokens: readonly string[],
+  snapshot: IndexReadSnapshot,
+): Promise<QueryTermStatistics | null> {
+  const stats = await table.indexStats(FULL_TEXT_INDEX_NAME).catch(() => undefined)
+  if (!stats || stats.numUnindexedRows > 0) {
+    return null
+  }
+  const cacheKey = `${snapshot.tableName}\0${snapshot.manifestFingerprint ?? ""}`
+  let cache = termFrequencyCache.get(cacheKey)
+  if (!cache) {
+    cache = new Map()
+    termFrequencyCache.set(cacheKey, cache)
+    while (termFrequencyCache.size > MAX_CACHED_TERM_GENERATIONS) {
+      const oldest = termFrequencyCache.keys().next().value
+      if (oldest === undefined) break
+      termFrequencyCache.delete(oldest)
+    }
+  }
+  const generationCache = cache
+  const unique = [...new Set(tokens)]
+  const unmeasuredTerms = new Set(unique.filter((token) => UNSEGMENTED_SCRIPT_PATTERN.test(token)))
+  const measured = unique.filter((token) => !unmeasuredTerms.has(token))
+  if (measured.length === 0) {
+    return null
+  }
+  await Promise.all(
+    measured
+      .filter((token) => !generationCache.has(token))
+      .map(async (token) => {
+        const rows = await table
+          .search(new MatchQuery(token, "searchText"), "fts", "searchText")
+          .select(["id"])
+          .limit(TERM_FREQUENCY_LIMIT)
+          .toArray()
+        generationCache.set(token, rows.length)
+      }),
+  )
+  return {
+    documentCount: stats.numIndexedRows,
+    documentFrequencies: new Map(measured.map((token) => [token, generationCache.get(token) ?? 0])),
+    ...(unmeasuredTerms.size > 0 ? { unmeasuredTerms } : {}),
+  }
+}
+
+/** Mark absent words that a candidate still matches fuzzily, so typos are not treated as noise. */
+function withFuzzyMatches(
+  statistics: QueryTermStatistics | null,
+  tokens: readonly string[],
+  candidateRows: readonly SearchRow[],
+): QueryTermStatistics | null {
+  if (!statistics) {
+    return null
+  }
+  const absent = [...new Set(tokens)].filter(
+    (token) => (statistics.documentFrequencies.get(token) ?? 0) === 0 && token.length >= 7,
+  )
+  if (absent.length === 0 || candidateRows.length === 0) {
+    return statistics
+  }
+  const fuzzyMatchedTerms = new Set<string>()
+  for (const row of candidateRows) {
+    for (const textToken of tokenize(row.searchText)) {
+      for (const token of absent) {
+        if (!fuzzyMatchedTerms.has(token) && tokensAreFuzzyRelated(token, textToken)) {
+          fuzzyMatchedTerms.add(token)
+        }
+      }
+    }
+    if (fuzzyMatchedTerms.size === absent.length) break
+  }
+  return { ...statistics, fuzzyMatchedTerms }
 }
 
 export function vectorCandidateLimit(

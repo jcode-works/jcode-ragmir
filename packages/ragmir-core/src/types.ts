@@ -696,6 +696,11 @@ export interface SearchResult {
   score?: SearchScoreExplanation
   /** Present when the cited file changed or disappeared since it was indexed. */
   sourceStatus?: SourceStatus
+  /**
+   * Present when the passage holds few of the question's distinctive words and has no strong
+   * semantic match: verify it before relying on it.
+   */
+  weakEvidence?: true
 }
 
 /** `modified`: size or modification time differs from indexing; `missing`: the file is gone. */
@@ -715,6 +720,8 @@ export interface SearchScoreExplanation {
   originalQueryLength: number
   fusion: "rrf"
   combinedScore: number
+  /** Path prior, configured source weight, and code definition boost applied to the fused score. */
+  scoreMultiplier: number
   vectorContribution: number
   lexicalContribution: number
   vectorRank: number | null
@@ -738,6 +745,8 @@ export interface SearchScoreExplanation {
   workloadQueueMs: number
   rankingPolicyFingerprint: string
   matchedTerms: string[]
+  /** IDF-weighted share of query words in the passage; null without word statistics. */
+  queryTermCoverage: number | null
 }
 
 export interface ExpandCitationOptions extends OperationOptions {
@@ -771,6 +780,7 @@ export interface CompactSearchResult {
   evidence?: EvidenceVersion
   score?: SearchScoreExplanation
   sourceStatus?: SourceStatus
+  weakEvidence?: true
 }
 
 export interface SourceDuplicateCandidate {

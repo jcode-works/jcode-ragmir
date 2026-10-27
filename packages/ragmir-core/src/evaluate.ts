@@ -257,6 +257,7 @@ export async function evaluateGoldenQueriesWithConfig(
       config.embeddingProvider,
       config.retrievalProfile,
       config.maxChunksPerDocument,
+      config.embeddingModel,
     ),
   )
   throwIfAborted(signal)
