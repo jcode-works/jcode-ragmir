@@ -116,8 +116,7 @@ describe("withIndexWriteLock", () => {
     const active = spawnLockChild(storageDir, "active", 5_000, 2_000)
     const acquired = await waitForEvent(active, "acquired")
     const firstHeartbeat = (await readIndexWriteLockOwner(storageDir))?.heartbeatAt
-    await delay(60)
-    const secondHeartbeat = (await readIndexWriteLockOwner(storageDir))?.heartbeatAt
+    const secondHeartbeat = await waitForHeartbeatAfter(storageDir, firstHeartbeat)
     const blocked = spawnLockChild(storageDir, "blocked", 10, 50)
 
     await expect(waitForExit(blocked)).resolves.toMatchObject({ code: 1 })
@@ -304,6 +303,23 @@ async function waitForEvent(
     await delay(10)
   }
   throw new Error(`Timed out waiting for child event ${event}.`)
+}
+
+/** Wait for the owner's next heartbeat; a fixed delay can elapse before one lands on a busy runner. */
+async function waitForHeartbeatAfter(
+  storageDir: string,
+  previous: string | undefined,
+  timeoutMs = 3_000,
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const current = (await readIndexWriteLockOwner(storageDir))?.heartbeatAt
+    if (current !== undefined && current !== previous) {
+      return current
+    }
+    await delay(10)
+  }
+  throw new Error(`Timed out waiting for a lock heartbeat after ${previous}.`)
 }
 
 async function waitForExit(
