@@ -14,6 +14,7 @@ import Strengths from "../../components/sections/strengths.astro"
 import UseCases from "../../components/sections/use-cases.astro"
 import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
+import { PROJECT_LINKS } from "../../lib/project-links"
 
 export function getStaticPaths() {
   return locales.map((locale) => ({
@@ -76,22 +77,21 @@ const structuredData = [
     abstract: sourceDescription,
     url: siteUrl,
     inLanguage: ["en", "fr"],
-    codeRepository: "https://github.com/jcode-works/jcode-ragmir",
+    codeRepository: PROJECT_LINKS.github,
     codeSampleType: "full solution",
     runtimePlatform: "Node.js 22 on Linux x64 or macOS ARM64",
     programmingLanguage: "TypeScript",
     keywords: ["agentic RAG", "local RAG", "coding agents", "cited retrieval", "MCP", "TypeScript", "AGPL open source"],
-    license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
-    usageInfo:
-      "https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md",
+    license: PROJECT_LINKS.license,
+    usageInfo: PROJECT_LINKS.commercialLicense,
     isAccessibleForFree: true,
     ...(publicVersion ? { version: publicVersion } : {}),
     isPartOf: {
       "@id": "https://ragmir.com/#website",
     },
     sameAs: [
-      "https://github.com/jcode-works/jcode-ragmir",
-      "https://www.npmjs.com/package/@jcode.labs/ragmir",
+      PROJECT_LINKS.github,
+      PROJECT_LINKS.npm,
     ],
     publisher: {
       "@id": "https://ragmir.com/#organization",
@@ -121,6 +121,7 @@ const localizedLibraryUrl = `${getLocalizedUrl("/", locale)}#library`
 const localizedFeaturesUrl = `${getLocalizedUrl("/", locale)}#features`
 const localizedUseCasesUrl = `${getLocalizedUrl("/", locale)}#use-cases`
 const localizedAgentsUrl = `${getLocalizedUrl("/", locale)}#agents`
+const localizedFaqUrl = `${getLocalizedUrl("/", locale)}#faq`
 const localizedTeamUrl = getLocalizedUrl("/team", locale)
 ---
 
@@ -139,7 +140,9 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       client:load
       alternateLocales={alternateLocales}
       locale={locale}
+      currentPath={Astro.url.pathname}
       localizedAgentsUrl={localizedAgentsUrl}
+      localizedFaqUrl={localizedFaqUrl}
       localizedFeaturesUrl={localizedFeaturesUrl}
       localizedHomeUrl={localizedHomeUrl}
       localizedLibraryUrl={localizedLibraryUrl}

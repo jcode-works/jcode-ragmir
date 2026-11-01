@@ -1,8 +1,11 @@
 ---
 import { ArrowDown, ArrowRight } from "@lucide/astro"
+import { GithubIcon } from "../github-icon"
 import { HeroDemo } from "../hero-demo"
 import { NpmDownloadCounter } from "../npm-download-counter"
+import { NpmIcon } from "../npm-icon"
 import { RagmirBackground } from "../ragmir-background"
+import { GITHUB_URL, NPM_URL, PROJECT_LINKS } from "../../lib/project-links"
 import { getMonthlyNpmDownloads } from "../../services/npm-downloads"
 
 interface Props {
@@ -63,6 +66,26 @@ const heroTitleLines = [
           {t("hero_secondary_cta")}
         </a>
       </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <a
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/25 bg-white/5 px-4 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/15 sm:text-sm"
+          href={GITHUB_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <GithubIcon className="size-4" />
+          {t("hero_github_cta")}
+        </a>
+        <a
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/25 bg-white/5 px-4 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/15 sm:text-sm"
+          href={NPM_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <NpmIcon className="size-4" />
+          {t("hero_npm_cta")}
+        </a>
+      </div>
       {monthlyNpmDownloads !== null && (
         <div class="mt-3">
           <NpmDownloadCounter
@@ -80,7 +103,7 @@ const heroTitleLines = [
         {` ${t("hero_proof_speed_label")}. `}
         <a
           class="font-semibold text-white underline underline-offset-2 hover:text-white/80"
-          href="https://github.com/jcode-works/jcode-ragmir#benchmarks"
+          href={PROJECT_LINKS.benchmarks}
         >
           {t("hero_proof_link")}
         </a>

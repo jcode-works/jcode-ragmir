@@ -1,4 +1,5 @@
 import type { Connection } from "@lancedb/lancedb"
+import { measureAbstentionCalibration } from "./abstention-calibration.js"
 import { summarizeChunkStats } from "./chunk-stats.js"
 import { chunkDocument, chunkLexicalText, chunkSearchText } from "./chunking.js"
 import { loadConfig } from "./config.js"
@@ -66,6 +67,7 @@ import {
   writeIndexManifest,
 } from "./store.js"
 import type {
+  AbstentionCalibration,
   AuditOptions,
   AuditReport,
   Config,
@@ -415,6 +417,13 @@ async function ingestUnlocked(
     }
     storageWarning = combineWarnings(storageWarning, maintenance.warning)
     await validateIngestionTable(state, manifest, config, connection)
+    const abstentionCalibration =
+      manifest.chunkCount > 0
+        ? await measureIndexCalibration(tableName, config, connection, signal)
+        : null
+    if (abstentionCalibration) {
+      manifest = { ...manifest, abstentionCalibration }
+    }
     await writeEmptyTextFiles(emptyTextRecords(state), config)
     await writeIndexManifest(manifest, config, indexedFilesFromState(state))
     try {
@@ -475,6 +484,33 @@ async function ingestUnlocked(
       }
     }
     throw error
+  }
+}
+
+/**
+ * Store where off-topic questions land in the new index, so search reads its noise floor instead of
+ * measuring it. Calibration is an optimization: a failure keeps the index and the policy distances.
+ */
+async function measureIndexCalibration(
+  tableName: string,
+  config: Config,
+  connection: Connection | undefined,
+  signal: AbortSignal | undefined,
+): Promise<AbstentionCalibration | null> {
+  if (config.embeddingProvider !== "transformers") {
+    return null
+  }
+  const table = await openRowsTableByName(tableName, config, connection)
+  if (!table) {
+    return null
+  }
+  try {
+    return await measureAbstentionCalibration(table, config, embedTexts, signal)
+  } catch {
+    throwIfAborted(signal)
+    return null
+  } finally {
+    closeRowsTable(table, config)
   }
 }
 
@@ -955,6 +991,7 @@ export interface IngestionMetadataValidationOptions {
   fileRows: AsyncIterable<unknown>
 }
 
+/** @public Benchmarks import it from the build. */
 export async function validateIngestionMetadata(
   options: IngestionMetadataValidationOptions,
 ): Promise<void> {

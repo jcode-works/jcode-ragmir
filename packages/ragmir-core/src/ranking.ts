@@ -29,7 +29,7 @@ export interface RankedRow<Row extends RankingRow = RankingRow> {
 }
 
 export interface RankingPolicy {
-  version: 7
+  version: 8
   embeddingProvider: EmbeddingProvider
   /** Semantic model whose calibrated evidence profile applies; null for local-hash. */
   embeddingModel: string | null
@@ -90,7 +90,8 @@ const TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE = 1.1
 // Calibrated on French and English golden sets plus out-of-scope and nonsense questions. e5 packs
 // every text into a narrow distance band (relevant passages up to 0.36, unrelated ones from 0.26),
 // so its vector channel stays permissive and weak evidence relies more on query-word coverage.
-// mxbai separates them (relevant passages mostly under 1.1, unrelated ones above 1.0).
+// mxbai separates them (relevant passages mostly under 1.1, unrelated ones above 1.0). These
+// absolute distances are upper bounds: each index also caps them with its own noise floor.
 const MODEL_EVIDENCE_PROFILES: Readonly<Record<string, EvidenceProfile>> = {
   "intfloat/multilingual-e5-small": {
     maximumVectorDistance: 0.4,
@@ -99,15 +100,18 @@ const MODEL_EVIDENCE_PROFILES: Readonly<Record<string, EvidenceProfile>> = {
     minimumLexicalCoverage: 0.3,
     weakEvidenceCoverage: 0.3,
   },
+  // A coverage of 0.5 flagged a third of the correct passages of a TypeScript repository as weak:
+  // natural-language questions share few words with code. 0.3 flagged 6 of 96.
   "mixedbread-ai/mxbai-embed-xsmall-v1": {
     maximumVectorDistance: TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE,
     strongVectorDistance: 0.9,
     vocabularyFreeDistance: 0.85,
     minimumLexicalCoverage: 0.3,
-    weakEvidenceCoverage: 0.5,
+    weakEvidenceCoverage: 0.3,
   },
 }
 // Uncalibrated models keep the historical rule: any related query word, or a distance up to 1.1.
+// The index's noise floor then decides which of their passages count as strong evidence.
 const DEFAULT_TRANSFORMERS_PROFILE: EvidenceProfile = {
   maximumVectorDistance: TRANSFORMERS_MAXIMUM_VECTOR_DISTANCE,
   strongVectorDistance: null,
@@ -149,7 +153,7 @@ export function rankingPolicyFor(
       DEFAULT_TRANSFORMERS_PROFILE)
     : LOCAL_HASH_PROFILE
   return {
-    version: 7,
+    version: 8,
     embeddingProvider,
     embeddingModel: semantic ? (embeddingModel ?? null) : null,
     retrievalProfile,
@@ -287,20 +291,64 @@ export function candidatePassesAbstention(
   row: RankingRow,
   policy: RankingPolicy,
   terms: QueryTermStatistics | null = null,
+  noiseFloor: number | null = null,
 ): boolean {
   const evidence =
     typeof evidenceOrQuery === "string" ? queryEvidence(evidenceOrQuery) : evidenceOrQuery
-  return abstentionFilter(evidence, policy, terms)(row)
+  return abstentionFilter(evidence, policy, terms, noiseFloor)(row)
+}
+
+/**
+ * The policy's vector distances with the index's noise floor applied: the distance at which the
+ * nearest passage of an off-topic probe question sits. A model packs every text into its own
+ * band, and a corpus shifts it, so only a passage nearer than any off-topic question counts as
+ * strong evidence, and a question with no known word needs one. The admission distance stays the
+ * policy's: capping it removed correct passages from real developer questions. Local-hash vectors
+ * carry no meaning and keep the policy.
+ */
+export function effectiveVectorDistances(
+  policy: RankingPolicy,
+  noiseFloor: number | null,
+): Pick<
+  RankingPolicy,
+  "maximumVectorDistance" | "strongVectorDistance" | "vocabularyFreeDistance"
+> {
+  if (noiseFloor === null || policy.embeddingProvider === "local-hash") {
+    return policy
+  }
+  const capped = (distance: number | null): number =>
+    distance === null ? noiseFloor : Math.min(distance, noiseFloor)
+  return {
+    maximumVectorDistance: policy.maximumVectorDistance,
+    strongVectorDistance: capped(policy.strongVectorDistance),
+    vocabularyFreeDistance: capped(policy.vocabularyFreeDistance ?? policy.maximumVectorDistance),
+  }
+}
+
+/** How many leading results must all be weak before semantic search answers nothing. */
+const WEAK_ANSWER_DEPTH = 5
+
+/**
+ * Whether a semantic answer holds no real evidence: every leading result is weak. Off-topic and
+ * near-domain questions without an answer typically land here. Local-hash search keeps such
+ * results, since its weak flag was never calibrated to refuse.
+ */
+export function isWeakAnswer<Row>(
+  rows: readonly Row[],
+  policy: RankingPolicy,
+  isWeak: (row: Row) => boolean,
+): boolean {
+  if (policy.embeddingProvider === "local-hash" || rows.length === 0) {
+    return false
+  }
+  return rows.slice(0, WEAK_ANSWER_DEPTH).every(isWeak)
 }
 
 /**
  * Whether no query word occurs in the corpus, exactly or through a fuzzy keyword match. Only
  * vector evidence can then support a passage, and nonsense or unrelated questions get none.
  */
-export function vocabularyFree(
-  evidence: QueryEvidence,
-  terms: QueryTermStatistics | null,
-): boolean {
+function vocabularyFree(evidence: QueryEvidence, terms: QueryTermStatistics | null): boolean {
   return (
     terms !== null &&
     evidence.anchors.length === 0 &&
@@ -324,6 +372,7 @@ export function abstentionFilter(
   evidence: QueryEvidence,
   policy: RankingPolicy,
   terms: QueryTermStatistics | null = null,
+  noiseFloor: number | null = null,
 ): (row: RankingRow) => boolean {
   const hasLexicalEvidence = lexicalEvidenceMatcher(evidence)
   if (evidence.anchors.length > 0) {
@@ -333,9 +382,10 @@ export function abstentionFilter(
   if (policy.embeddingProvider === "local-hash") {
     return noKnownWords ? () => false : (row) => hasLexicalEvidence(row.searchText)
   }
-  const maximumVectorDistance = policy.maximumVectorDistance
+  const distances = effectiveVectorDistances(policy, noiseFloor)
+  const maximumVectorDistance = distances.maximumVectorDistance
   if (noKnownWords) {
-    const required = policy.vocabularyFreeDistance ?? maximumVectorDistance
+    const required = distances.vocabularyFreeDistance ?? maximumVectorDistance
     return (row) => required !== null && rowDistance(row) <= required
   }
   const coverage =
@@ -355,12 +405,13 @@ export function weakEvidenceFilter(
   evidence: QueryEvidence,
   policy: RankingPolicy,
   terms: QueryTermStatistics | null,
+  noiseFloor: number | null = null,
 ): (row: RankingRow) => boolean {
   if (terms === null || evidence.anchors.length > 0 || evidence.tokens.length === 0) {
     return () => false
   }
   const coverage = queryTermCoverage(evidence, terms)
-  const strong = policy.strongVectorDistance
+  const strong = effectiveVectorDistances(policy, noiseFloor).strongVectorDistance
   return (row) =>
     coverage(row.searchText) < policy.weakEvidenceCoverage &&
     !(strong !== null && rowDistance(row) <= strong)

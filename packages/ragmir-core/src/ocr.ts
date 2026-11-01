@@ -15,7 +15,7 @@ import { mutateProjectConfig } from "./project-config-file.js"
 const OCR_COMMAND_TIMEOUT_MS = 120_000
 const OCR_PROBE_TIMEOUT_MS = 10_000
 const OCR_PROCESS_KILL_GRACE_MS = 1_000
-export const OCR_RENDER_DPI = 300
+const OCR_RENDER_DPI = 300
 /** Longest rendered page side in pixels: US Legal at 300 DPI, so standard paper keeps 300 DPI. */
 const MAX_OCR_RENDER_PIXELS = 4_200
 export const MAX_OCR_BATCH_PAGES = 16

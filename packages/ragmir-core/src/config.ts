@@ -32,6 +32,7 @@ import {
   MAX_WORKLOAD_QUEUE_TIMEOUT_MS,
   SHARED_CONFIG_FILENAME,
 } from "./defaults.js"
+import { RagmirError } from "./errors.js"
 import { isRecord } from "./guards.js"
 import type { Config, WorkloadLimit } from "./types.js"
 
@@ -198,7 +199,7 @@ const rawConfigSchema = z
 
 type RawConfig = z.infer<typeof rawConfigSchema>
 
-export const RETIRED_CONFIG_KEYS = [
+const RETIRED_CONFIG_KEYS = [
   "privacyProfile",
   "acceptedRisks",
   "redaction",
@@ -304,7 +305,10 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
   const raw = await readMergedProjectConfig(projectConfig)
   const retired = retiredConfigKeys(raw)
   if (retired.length > 0) {
-    throw new Error(
+    // A typed code lets agents and MCP clients route to `rgr upgrade` instead of reporting an
+    // internal failure.
+    throw new RagmirError(
+      "CONFIG_MIGRATION_REQUIRED",
       `Retired configuration fields: ${retired.join(", ")}. Run \`rgr upgrade\` to back up and migrate the config and rebuild the index. Ragmir now preserves source text without masking; your consuming model controls where retrieved content is sent.`,
     )
   }
@@ -439,7 +443,7 @@ function configWithModelIdentityDefaults(
 }
 
 /** Budgets each retrieval profile chooses for fields the config leaves unset. */
-export const RETRIEVAL_PROFILE_BUDGETS: Readonly<
+const RETRIEVAL_PROFILE_BUDGETS: Readonly<
   Record<
     Exclude<Config["retrievalProfile"], "custom">,
     { topK: number; hybridTextScanLimit: number }

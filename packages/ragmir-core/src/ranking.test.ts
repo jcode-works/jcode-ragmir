@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 import {
   abstentionFilter,
   candidatePassesAbstention,
+  effectiveVectorDistances,
   fusionCandidateDepth,
   fuzzyMatchPrefilter,
+  isWeakAnswer,
   type QueryTermStatistics,
   queryEvidence,
   queryTermCoverage,
@@ -11,6 +13,7 @@ import {
   rankingPolicyFor,
   tokensAreFuzzyRelated,
   tokensAreLexicallyRelated,
+  weakEvidenceFilter,
 } from "./ranking.js"
 import { identifierParts, normalizeForMatch, tokenize } from "./text.js"
 
@@ -27,7 +30,7 @@ describe("hybrid ranking", () => {
     const alpha = row("alpha.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const beta = row("beta.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const policy = rankingPolicyFor("local-hash", "balanced", 1)
-    expect(policy.version).toBe(7)
+    expect(policy.version).toBe(8)
 
     const forward = rankHybridRows("policy evidence", [beta, alpha], [alpha, beta], policy)
     const reversed = rankHybridRows("policy evidence", [alpha, beta], [beta, alpha], policy)
@@ -294,6 +297,78 @@ function row(
     ...(scores.score === undefined ? {} : { _score: scores.score }),
   }
 }
+
+describe("noise floor abstention", () => {
+  const e5 = rankingPolicyFor("transformers", "quality", 2, "intfloat/multilingual-e5-small")
+  const uncalibrated = rankingPolicyFor(
+    "transformers",
+    "quality",
+    2,
+    "intfloat/multilingual-e5-base",
+  )
+  const terms: QueryTermStatistics = {
+    documentCount: 100,
+    documentFrequencies: new Map([
+      ["weather", 1],
+      ["forecast", 0],
+      ["tomorrow", 3],
+    ]),
+  }
+
+  it("should cap strong and vocabulary-free distances with the index noise floor", () => {
+    expect(effectiveVectorDistances(e5, 0.27)).toEqual({
+      maximumVectorDistance: 0.4,
+      strongVectorDistance: 0.27,
+      vocabularyFreeDistance: 0.24,
+    })
+    expect(effectiveVectorDistances(uncalibrated, 0.31)).toEqual({
+      maximumVectorDistance: 1.1,
+      strongVectorDistance: 0.31,
+      vocabularyFreeDistance: 0.31,
+    })
+    expect(effectiveVectorDistances(e5, null)).toMatchObject({ maximumVectorDistance: 0.4 })
+    const localHash = rankingPolicyFor("local-hash", "balanced", 1)
+    expect(effectiveVectorDistances(localHash, 0.2)).toMatchObject({ maximumVectorDistance: null })
+  })
+
+  it("should require a passage nearer than any off-topic question when no word is known", () => {
+    const nonsense = queryEvidence("flimbo grastic wuvvle")
+    const unknown: QueryTermStatistics = { documentCount: 100, documentFrequencies: new Map() }
+    const near = row("near.md", "Release notes.", { distance: 0.28 })
+    const noise = row("noise.md", "Release notes.", { distance: 0.6 })
+    const passes = abstentionFilter(nonsense, uncalibrated, unknown, 0.31)
+
+    expect(passes(near)).toBe(true)
+    expect(passes(noise)).toBe(false)
+    expect(abstentionFilter(nonsense, uncalibrated, unknown)(noise)).toBe(true)
+  })
+
+  it("should keep the policy admission distance for questions with known words", () => {
+    const evidence = queryEvidence("weather forecast tomorrow")
+    const semantic = row("semantic.md", "Unrelated release notes.", { distance: 0.33 })
+
+    expect(abstentionFilter(evidence, e5, terms, 0.3)(semantic)).toBe(true)
+  })
+
+  it("should treat a passage nearer than the floor as strong evidence", () => {
+    const evidence = queryEvidence("weather forecast tomorrow")
+    const weak = weakEvidenceFilter(evidence, uncalibrated, terms, 0.32)
+
+    expect(weak(row("close.md", "Daily operations.", { distance: 0.2 }))).toBe(false)
+    expect(weak(row("far.md", "Daily operations.", { distance: 0.4 }))).toBe(true)
+  })
+
+  it("should refuse a semantic answer only when every leading result is weak", () => {
+    const flags = (values: boolean[]) => values.map((weak, index) => ({ index, weak }))
+    const isWeak = (entry: { weak: boolean }) => entry.weak
+
+    expect(isWeakAnswer(flags([true, true, true, true, true, false]), e5, isWeak)).toBe(true)
+    expect(isWeakAnswer(flags([true, false, true]), e5, isWeak)).toBe(false)
+    expect(isWeakAnswer([], e5, isWeak)).toBe(false)
+    const localHash = rankingPolicyFor("local-hash", "balanced", 1)
+    expect(isWeakAnswer(flags([true, true]), localHash, isWeak)).toBe(false)
+  })
+})
 
 function rankedKeys(rows: Array<{ row: FixtureRow }>): string[] {
   return rows.map(({ row: value }) => `${value.relativePath}\0#${value.chunkIndex}`)

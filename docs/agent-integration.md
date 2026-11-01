@@ -134,7 +134,8 @@ questions appears once. Within one MCP session, passages already returned come b
 Results flag two conditions. `sourceStatus: "modified"` or `"missing"` means the cited file changed
 after indexing; with `mcpAutoIngest: true`, the server then starts one background incremental
 ingest (at most once a minute). `weakEvidence: true` means the passage holds few of the question's
-distinctive words and has no strong semantic match.
+distinctive words and has no strong semantic match. An empty answer means the base holds no
+evidence for the question: say so instead of answering from the nearest passages.
 
 The tools accept common argument spellings (`top_k`, `radius`, `max_bytes`, `paths`, `q`) and
 clamp out-of-range numbers instead of failing; the response notes each adjustment and lists ignored

@@ -396,6 +396,24 @@ function maintenanceReasons(
   return reasons
 }
 
+/**
+ * Advice for an index left in many small fragments, for example by a release that compacted only
+ * past 100,000 rows. Such a 10,000-chunk index searched five times slower until it was compacted.
+ */
+export function fragmentationWarning(
+  fragments: StorageMaintenanceReport["fragments"] | undefined,
+  run: (args: string[]) => string,
+): string | null {
+  if (
+    fragments === undefined ||
+    fragments.total < AUTOMATIC_COMPACTION_FRAGMENT_COUNT ||
+    fragments.smallRatio < SMALL_FRAGMENT_RATIO_THRESHOLD
+  ) {
+    return null
+  }
+  return `The index is split into ${fragments.total} table fragments, which slows every search. Run \`${run(["storage", "optimize"])}\` to compact it.`
+}
+
 function fragmentationRequiresCompaction(
   health: TableHealth,
   automaticCompactionEligible: boolean,

@@ -63,6 +63,7 @@
   },
   "scripts": {
     "bench:compare": "node benchmarks/compare.mjs",
+    "bench:competitors": "pnpm build && node benchmarks/competitors.mjs",
     "bench:cli-startup": "pnpm build && node benchmarks/cli-startup.mjs",
     "bench:concurrency": "pnpm build && node benchmarks/concurrency.mjs",
     "bench:discovery": "pnpm build && node benchmarks/discovery.mjs",
@@ -118,10 +119,14 @@
   },
   "devDependencies": {
     "@huggingface/transformers": "^4.3.1",
+    "@langchain/core": "^1.3.2",
+    "@langchain/textsplitters": "^1.0.2",
+    "@orama/orama": "^3.1.18",
     "@types/html-to-text": "^9.0.4",
     "@types/node": "^22.20.5",
     "@types/picomatch": "^4.0.3",
     "apache-arrow": "^18.1.0",
+    "minisearch": "^7.2.0",
     "publint": "^0.3.25",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"

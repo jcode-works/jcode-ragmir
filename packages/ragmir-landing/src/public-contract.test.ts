@@ -9,6 +9,7 @@ import { USE_CASES } from "./components/use-case-carousel.js"
 import { getFaqItems } from "./content/faq.js"
 import { RAGMIR_SETUP_PROMPT } from "./content/setup-prompt.js"
 import { getLocalizedUrl, loadTranslations, useTranslations } from "./i18n/utils.js"
+import { FOOTER_LINK_KEYS, PROJECT_LINK_LABEL_KEYS, PROJECT_LINKS } from "./lib/project-links.js"
 import { cn } from "./lib/utils.js"
 
 const homePageSource = readFileSync(
@@ -62,6 +63,10 @@ const closingCtaSource = readFileSync(
 )
 const footerSource = readFileSync(
   fileURLToPath(new URL("./components/sections/footer.astro", import.meta.url)),
+  "utf8",
+)
+const navbarSource = readFileSync(
+  fileURLToPath(new URL("./components/landing-navbar.tsx", import.meta.url)),
   "utf8",
 )
 const textareaSource = readFileSync(
@@ -126,11 +131,37 @@ describe("landing public contract", () => {
   })
 
   it("should back the hero with the measured benchmark numbers of the README", () => {
-    expect([en.hero_proof_recall_value, en.hero_proof_speed_value]).toEqual(["93%", "40 ms"])
-    expect([fr.hero_proof_recall_value, fr.hero_proof_speed_value]).toEqual(["93 %", "40 ms"])
-    expect(en.hero_proof_speed_label).toContain("43,874-chunk monorepo")
+    expect([en.hero_proof_recall_value, en.hero_proof_speed_value]).toEqual(["93%", "39 ms"])
+    expect([fr.hero_proof_recall_value, fr.hero_proof_speed_value]).toEqual(["93 %", "39 ms"])
+    expect(en.hero_proof_speed_label).toContain("29,778-chunk monorepo")
     expect(heroSource).toContain('t("hero_proof_recall_value")')
-    expect(heroSource).toContain("https://github.com/jcode-works/jcode-ragmir#benchmarks")
+    expect(PROJECT_LINKS.benchmarks).toBe("https://github.com/jcode-works/jcode-ragmir#benchmarks")
+    expect(heroSource).toContain("PROJECT_LINKS.benchmarks")
+  })
+
+  it("should send visitors to GitHub and npm from the hero and the mobile drawer", () => {
+    expect(PROJECT_LINKS.github).toBe("https://github.com/jcode-works/jcode-ragmir")
+    expect(PROJECT_LINKS.npm).toBe("https://www.npmjs.com/package/@jcode.labs/ragmir")
+    for (const source of [heroSource, navbarSource]) {
+      expect(source).toContain('t("hero_github_cta")')
+      expect(source).toContain('t("hero_npm_cta")')
+    }
+    expect([en.hero_github_cta, en.hero_npm_cta]).toEqual(["View on GitHub", "View on npm"])
+    expect([fr.hero_github_cta, fr.hero_npm_cta]).toEqual(["Voir sur GitHub", "Voir sur npm"])
+  })
+
+  it("should list every project link in the footer and label it in both locales", () => {
+    expect([...FOOTER_LINK_KEYS].sort()).toEqual(Object.keys(PROJECT_LINKS).sort())
+    expect(footerSource).toContain("FOOTER_LINK_KEYS.map")
+    expect(navbarSource).toContain("PROJECT_LINKS[key]")
+    for (const key of Object.values(PROJECT_LINK_LABEL_KEYS)) {
+      expect(en).toHaveProperty(key)
+      expect(fr).toHaveProperty(key)
+    }
+    for (const key of ["nav_faq", "nav_section_docs", "nav_section_project"]) {
+      expect(en).toHaveProperty(key)
+      expect(fr).toHaveProperty(key)
+    }
   })
 
   it("should position Ragmir as the evidence layer for agentic RAG workflows", () => {
@@ -225,12 +256,14 @@ describe("landing public contract", () => {
     expect(en.footer_link_commercial_license).toBe("Commercial license")
     expect(fr.footer_link_commercial_license).toBe("Licence commerciale")
     expect(closingCtaSource).toContain('t("closing_open_source")')
-    expect(footerSource).toContain("COMMERCIAL-LICENSE.md")
-    expect(homePageSource).toContain(
-      'license: "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE"',
+    expect(PROJECT_LINKS.commercialLicense).toContain("COMMERCIAL-LICENSE.md")
+    expect(PROJECT_LINKS.license).toBe(
+      "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
     )
-    expect(homePageSource).toContain("usageInfo:")
-    expect(homePageSource).toContain("COMMERCIAL-LICENSE.md")
+    expect(FOOTER_LINK_KEYS).toContain("commercialLicense")
+    expect(FOOTER_LINK_KEYS).toContain("license")
+    expect(homePageSource).toContain("license: PROJECT_LINKS.license")
+    expect(homePageSource).toContain("usageInfo: PROJECT_LINKS.commercialLicense")
   })
 
   it("should provide every localized key referenced by hero scenarios", () => {
