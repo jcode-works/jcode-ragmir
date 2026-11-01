@@ -5,7 +5,8 @@ import {
   lexicalDocument,
   lexicalDocumentScore,
 } from "./lexical-scoring.js"
-import { identifierParts, normalizeForMatch, tokenize } from "./text.js"
+import { identifierParts, normalizeForMatch, shareStem, stemPrefix, tokenize } from "./text.js"
+import { memoizeByText } from "./text-memo.js"
 import type { EmbeddingProvider, RetrievalProfile } from "./types.js"
 
 export interface RankingRow {
@@ -29,7 +30,7 @@ export interface RankedRow<Row extends RankingRow = RankingRow> {
 }
 
 export interface RankingPolicy {
-  version: 8
+  version: 9
   embeddingProvider: EmbeddingProvider
   /** Semantic model whose calibrated evidence profile applies; null for local-hash. */
   embeddingModel: string | null
@@ -47,6 +48,13 @@ export interface RankingPolicy {
   minimumLexicalCoverage: number
   /** Below this coverage, and without a strong vector match, a passage is flagged weakEvidence. */
   weakEvidenceCoverage: number
+  /** Coverage a passage needs when only the keyword channel returned it, without vector support. */
+  lexicalOnlyEvidenceCoverage: number
+  /**
+   * Share of the question's IDF weight on words found nowhere in the index at which its focus counts
+   * as absent: only a passage within the vocabulary-free distance can then answer, none without one.
+   */
+  absentFocusShare: number
 }
 
 export interface QueryEvidence {
@@ -126,9 +134,24 @@ const LOCAL_HASH_PROFILE: EvidenceProfile = {
   minimumLexicalCoverage: 0,
   weakEvidenceCoverage: 0.3,
 }
-const MIN_STEM_PREFIX_LENGTH = 5
-const MAX_STEM_SUFFIX_LENGTH = 4
+// With a semantic model, a passage the vector channel did not return at all has keyword support
+// only. Off-topic questions share one everyday word with many documents ("height", "capital"),
+// while answers on three real corpora came from the keyword channel alone in 2 of 250 questions.
+// With the other 6.5 rules, requiring half of the question's IDF weight there raised refusals of
+// off-topic questions on those corpora from 54 to 68 of 90, without refusing an answer.
+const LEXICAL_ONLY_EVIDENCE_COVERAGE = 0.5
+// A question whose most distinctive words occur nowhere in the index asks about something the corpus
+// lacks ("How does it sync with Pinecone?"). Without a model nothing else can vouch for a passage,
+// so local-hash refuses once absent words carry half of the question's IDF weight: on three real
+// corpora, 65 of 90 off-topic and 27 of 110 near-domain questions instead of 56 and 17, with none of
+// 250 answers refused, and 7 instead of 5 once an unknown word was added to each of those questions.
+// Semantic models keep the vector channel's judgment and only refuse when every word is absent: a
+// 40% share there refused 17 more of those 250 altered questions for 17 more unanswerable ones.
+const SEMANTIC_ABSENT_FOCUS_SHARE = 1
+const LOCAL_HASH_ABSENT_FOCUS_SHARE = 0.5
 const IDENTIFIER_PATTERN = /[\p{L}\p{N}]+(?:[-_./][\p{L}\p{N}]+)+/gu
+const WORD_JOINER_PATTERN = /[^\p{L}\p{N}]/u
+const WORD_JOINERS = /[^\p{L}\p{N}]+/u
 const LOW_INFORMATION_WORDS = new Set(
   (
     "a about an and are as at be been by can could describe did do does for from had has have how " +
@@ -140,6 +163,11 @@ const LOW_INFORMATION_WORDS = new Set(
     "comment dois doit"
   ).split(" "),
 )
+
+/** Whether a folded word carries little meaning on its own ("the", "what", "de", "les"). */
+export function isLowInformationWord(token: string): boolean {
+  return LOW_INFORMATION_WORDS.has(token)
+}
 
 export function rankingPolicyFor(
   embeddingProvider: EmbeddingProvider,
@@ -153,7 +181,7 @@ export function rankingPolicyFor(
       DEFAULT_TRANSFORMERS_PROFILE)
     : LOCAL_HASH_PROFILE
   return {
-    version: 8,
+    version: 9,
     embeddingProvider,
     embeddingModel: semantic ? (embeddingModel ?? null) : null,
     retrievalProfile,
@@ -162,6 +190,10 @@ export function rankingPolicyFor(
     vectorWeight: semantic ? RRF_SEMANTIC_VECTOR_WEIGHT : RRF_LOCAL_HASH_VECTOR_WEIGHT,
     lexicalWeight: RRF_LEXICAL_WEIGHT,
     ...profile,
+    lexicalOnlyEvidenceCoverage: semantic
+      ? LEXICAL_ONLY_EVIDENCE_COVERAGE
+      : profile.weakEvidenceCoverage,
+    absentFocusShare: semantic ? SEMANTIC_ABSENT_FOCUS_SHARE : LOCAL_HASH_ABSENT_FOCUS_SHARE,
   }
 }
 
@@ -216,8 +248,8 @@ export function rankHybridRows<Row extends RankingRow>(
     }
     return key
   }
-  const compareKeys = (left: Row, right: Row): number => keyOf(left).localeCompare(keyOf(right))
-  const rows = mergeRows(vectorRows, textRows, keyOf, compareKeys)
+  const compareKeys = (left: Row, right: Row): number => compareOrdinal(keyOf(left), keyOf(right))
+  const rows = mergeRows(vectorRows, textRows, keyOf)
   const exactAnchorMatches = new Map<string, number>()
   if (evidence.anchors.length > 0) {
     const requestedAnchors = new Set(evidence.anchors)
@@ -329,36 +361,68 @@ export function effectiveVectorDistances(
 const WEAK_ANSWER_DEPTH = 5
 
 /**
- * Whether a semantic answer holds no real evidence: every leading result is weak. Off-topic and
- * near-domain questions without an answer typically land here. Local-hash search keeps such
- * results, since its weak flag was never calibrated to refuse.
+ * Whether an answer holds no real evidence: every leading result is weak. Off-topic and
+ * near-domain questions without an answer typically land here. With local-hash, whose weak flag
+ * is keyword coverage alone, this refused 56 of 90 off-topic questions on three real corpora
+ * instead of 12, and none of 250 answerable ones: the least covered correct answer still held 35%
+ * of its question's IDF-weighted words.
  */
-export function isWeakAnswer<Row>(
-  rows: readonly Row[],
-  policy: RankingPolicy,
-  isWeak: (row: Row) => boolean,
-): boolean {
-  if (policy.embeddingProvider === "local-hash" || rows.length === 0) {
+export function isWeakAnswer<Row>(rows: readonly Row[], isWeak: (row: Row) => boolean): boolean {
+  if (rows.length === 0) {
     return false
   }
   return rows.slice(0, WEAK_ANSWER_DEPTH).every(isWeak)
 }
 
+function idfWeightOf(documentFrequency: number, documentCount: number): number {
+  const frequency = Math.min(documentFrequency, documentCount)
+  return Math.log(1 + (documentCount - frequency + 0.5) / (frequency + 0.5))
+}
+
+/** Inverse document frequency weight of a query word, as the coverage rules use it. */
+function idfWeight(token: string, terms: QueryTermStatistics): number {
+  return idfWeightOf(terms.documentFrequencies.get(token) ?? 0, terms.documentCount)
+}
+
 /**
- * Whether no query word occurs in the corpus, exactly or through a fuzzy keyword match. Only
- * vector evidence can then support a passage, and nonsense or unrelated questions get none.
+ * Share of the IDF weight of these query words carried by words found nowhere in the index, neither
+ * exactly nor through a fuzzy keyword match. A missing word weighs as if one document held it: on a
+ * small index an unseen word would otherwise outweigh the rest of the question, so one unusual verb
+ * ("proves") could pass for the question's focus. Words in unsegmented scripts are not measured,
+ * and a query holding one never counts as absent.
  */
-function vocabularyFree(evidence: QueryEvidence, terms: QueryTermStatistics | null): boolean {
+export function absentShareOf(tokens: readonly string[], terms: QueryTermStatistics): number {
+  const unique = [...new Set(tokens)]
+  if (unique.length === 0 || unique.some((token) => terms.unmeasuredTerms?.has(token))) {
+    return 0
+  }
+  let total = 0
+  let absent = 0
+  for (const token of unique) {
+    const documentFrequency = terms.documentFrequencies.get(token) ?? 0
+    const weight = idfWeightOf(Math.max(1, documentFrequency), terms.documentCount)
+    total += weight
+    if (documentFrequency === 0 && !terms.fuzzyMatchedTerms?.has(token)) {
+      absent += weight
+    }
+  }
+  return total > 0 ? absent / total : 0
+}
+
+/**
+ * Whether the question's focus is absent from the corpus: its words carrying `absentFocusShare` of
+ * the IDF weight occur nowhere, as with nonsense, unrelated, or near-domain questions about a missing
+ * feature. Only vector evidence can then support a passage.
+ */
+function focusAbsent(
+  evidence: QueryEvidence,
+  terms: QueryTermStatistics | null,
+  policy: RankingPolicy,
+): boolean {
   return (
     terms !== null &&
     evidence.anchors.length === 0 &&
-    evidence.tokens.length > 0 &&
-    evidence.tokens.every(
-      (token) =>
-        (terms.documentFrequencies.get(token) ?? 0) === 0 &&
-        !terms.fuzzyMatchedTerms?.has(token) &&
-        !terms.unmeasuredTerms?.has(token),
-    )
+    absentShareOf(evidence.tokens, terms) >= policy.absentFocusShare
   )
 }
 
@@ -378,7 +442,7 @@ export function abstentionFilter(
   if (evidence.anchors.length > 0) {
     return (row) => hasLexicalEvidence(row.searchText)
   }
-  const noKnownWords = vocabularyFree(evidence, terms)
+  const noKnownWords = focusAbsent(evidence, terms, policy)
   if (policy.embeddingProvider === "local-hash") {
     return noKnownWords ? () => false : (row) => hasLexicalEvidence(row.searchText)
   }
@@ -399,7 +463,8 @@ export function abstentionFilter(
 
 /**
  * Flag a selected passage whose support is thin: it holds a small IDF-weighted share of the query
- * words and has no strong vector match. Search still returns it; agents should verify it first.
+ * words and has no strong vector match, or only the keyword channel returned it and it covers less
+ * than its policy share. Search still returns it; agents should verify it first.
  */
 export function weakEvidenceFilter(
   evidence: QueryEvidence,
@@ -412,49 +477,87 @@ export function weakEvidenceFilter(
   }
   const coverage = queryTermCoverage(evidence, terms)
   const strong = effectiveVectorDistances(policy, noiseFloor).strongVectorDistance
-  return (row) =>
-    coverage(row.searchText) < policy.weakEvidenceCoverage &&
-    !(strong !== null && rowDistance(row) <= strong)
+  return (row) => {
+    const distance = rowDistance(row)
+    if (strong !== null && distance <= strong) {
+      return false
+    }
+    const required = Number.isFinite(distance)
+      ? policy.weakEvidenceCoverage
+      : policy.lexicalOnlyEvidenceCoverage
+    return coverage(row.searchText) < required
+  }
 }
+
+const coverageByTerms = new WeakMap<
+  QueryTermStatistics,
+  WeakMap<QueryEvidence, (text: string) => number>
+>()
 
 /**
  * IDF-weighted share of query words present in a text. Words match exactly or as one stem with a
  * short ending (`permission`, `permissions`), so a rare word weighs more than a frequent one and a
- * word missing from the corpus weighs the most.
+ * word missing from the corpus weighs the most. The abstention and weak-evidence filters of one
+ * query share a single memoized function, so each candidate text is segmented once.
  */
 export function queryTermCoverage(
   evidence: QueryEvidence,
   terms: QueryTermStatistics,
 ): (text: string) => number {
+  let byEvidence = coverageByTerms.get(terms)
+  if (!byEvidence) {
+    byEvidence = new WeakMap()
+    coverageByTerms.set(terms, byEvidence)
+  }
+  let coverage = byEvidence.get(evidence)
+  if (!coverage) {
+    const measure = measureQueryTermCoverage(evidence, terms)
+    const known = new Map<string, number>()
+    coverage = (text) => {
+      let value = known.get(text)
+      if (value === undefined) {
+        value = measure(text)
+        known.set(text, value)
+      }
+      return value
+    }
+    byEvidence.set(evidence, coverage)
+  }
+  return coverage
+}
+
+function measureQueryTermCoverage(
+  evidence: QueryEvidence,
+  terms: QueryTermStatistics,
+): (text: string) => number {
   const tokens = [...new Set(evidence.tokens)].filter((token) => !terms.unmeasuredTerms?.has(token))
-  const weights = tokens.map((token) => {
-    const documentFrequency = Math.min(
-      terms.documentFrequencies.get(token) ?? 0,
-      terms.documentCount,
-    )
-    return Math.log(1 + (terms.documentCount - documentFrequency + 0.5) / (documentFrequency + 0.5))
-  })
+  const weights = tokens.map((token) => idfWeight(token, terms))
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
   if (totalWeight <= 0) {
     return () => 0
   }
+  // A misspelled word that the keyword search matched fuzzily covers its fuzzy relatives, as there.
+  const fuzzy = tokens.map((token) => terms.fuzzyMatchedTerms?.has(token) ?? false)
   // Every word sharing a stem with a query word contains its stem prefix, so a passage whose folded
   // text holds none of them covers nothing. Unrelated candidates then skip word segmentation.
   const stemPrefixes = tokens.map(stemPrefix)
   return (text) => {
-    const folded = normalizeForMatch(text)
-    const present = stemPrefixes.map((prefix) => folded.includes(prefix))
+    const folded = foldedText(text)
+    const present = stemPrefixes.map((prefix, index) => fuzzy[index] || folded.includes(prefix))
     if (!present.includes(true)) {
       return 0
     }
-    const textTokens = new Set([...tokenize(text), ...identifierParts(text)])
+    const textTokens = coverageWords(text)
     let matched = 0
     tokens.forEach((token, index) => {
       if (!present[index]) {
         return
       }
       for (const textToken of textTokens) {
-        if (shareStem(token, textToken)) {
+        if (
+          shareStem(token, textToken) ||
+          (fuzzy[index] && tokensAreFuzzyRelated(token, textToken))
+        ) {
           matched += weights[index] ?? 0
           break
         }
@@ -464,25 +567,25 @@ export function queryTermCoverage(
   }
 }
 
-/** The prefix that every word passing shareStem with this query word contains. */
-function stemPrefix(token: string): string {
-  return token.length < MIN_STEM_PREFIX_LENGTH
-    ? token
-    : token.slice(0, Math.max(MIN_STEM_PREFIX_LENGTH, token.length - MAX_STEM_SUFFIX_LENGTH))
-}
+const foldedText = memoizeByText(normalizeForMatch)
 
-function shareStem(queryToken: string, textToken: string): boolean {
-  if (queryToken === textToken) {
-    return true
+/**
+ * The words of a passage as the keyword index splits them: word segmentation keeps JSONPath and
+ * dotted identifiers (`compliance.description`) and French elisions (`l'abstention`) whole, while
+ * the keyword index also matches each part.
+ */
+const coverageWords = memoizeByText((text: string): ReadonlySet<string> => {
+  const words = new Set<string>()
+  for (const word of [...tokenize(text), ...identifierParts(text)]) {
+    words.add(word)
+    if (WORD_JOINER_PATTERN.test(word)) {
+      for (const part of word.split(WORD_JOINERS)) {
+        if (part.length > 1) words.add(part)
+      }
+    }
   }
-  const shorter = queryToken.length <= textToken.length ? queryToken : textToken
-  const longer = shorter === queryToken ? textToken : queryToken
-  return (
-    shorter.length >= MIN_STEM_PREFIX_LENGTH &&
-    longer.length - shorter.length <= MAX_STEM_SUFFIX_LENGTH &&
-    longer.startsWith(shorter)
-  )
-}
+  return words
+})
 
 export function tokensAreLexicallyRelated(queryToken: string, textToken: string): boolean {
   if (queryToken === textToken) {
@@ -655,17 +758,17 @@ function isSingleEditApart(left: string, right: string): boolean {
   return true
 }
 
+/** Merge both candidate lists by row key; the final ranking sort fixes the order. */
 function mergeRows<Row extends RankingRow>(
   vectorRows: Row[],
   textRows: Row[],
   keyOf: (row: Row) => string,
-  compareKeys: (left: Row, right: Row) => number,
 ): Row[] {
   const rows = new Map<string, Row>()
-  for (const row of [...textRows].sort(compareKeys)) {
+  for (const row of textRows) {
     rows.set(keyOf(row), row)
   }
-  for (const row of [...vectorRows].sort(compareKeys)) {
+  for (const row of vectorRows) {
     const key = keyOf(row)
     const existing = rows.get(key)
     if (!existing) {
@@ -708,7 +811,12 @@ function bm25Scores<Row extends RankingRow>(
 }
 
 function compareScoredKeys(left: [string, number], right: [string, number]): number {
-  return right[1] - left[1] || left[0].localeCompare(right[0])
+  return right[1] - left[1] || compareOrdinal(left[0], right[0])
+}
+
+/** Locale-independent tie-break, so equal scores rank the same on every machine. */
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function rowDistance(row: RankingRow): number {
