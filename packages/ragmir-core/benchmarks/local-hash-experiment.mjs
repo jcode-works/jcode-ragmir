@@ -4,7 +4,7 @@ import path from "node:path"
 import { performance } from "node:perf_hooks"
 import { fileURLToPath } from "node:url"
 import { tokenize } from "../dist/text.js"
-import { environmentMetadata } from "./lib/metrics.mjs"
+import { environmentMetadata, percentile } from "./lib/metrics.mjs"
 
 const dimensions = 384
 const tokenHashSeed = 0x811c9dc5
@@ -217,10 +217,6 @@ function compareQuality(baseline, candidate) {
 
 function delta(candidate, baseline) {
   return candidate - baseline
-}
-
-function percentile(sorted, quantile) {
-  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * quantile) - 1))]
 }
 
 function benchmarkTexts() {

@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { RAGMIR_GITIGNORE_ENTRY } from "./defaults.js"
 
-export const RAGMIR_GITIGNORE_ENTRIES = [RAGMIR_GITIGNORE_ENTRY]
+const RAGMIR_GITIGNORE_ENTRIES = [RAGMIR_GITIGNORE_ENTRY]
 
 export async function ensureRagmirGitignore(
   cwd = process.cwd(),

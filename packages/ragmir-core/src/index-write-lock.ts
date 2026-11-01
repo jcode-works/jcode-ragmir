@@ -8,7 +8,7 @@ import { isRecord } from "./guards.js"
 import { throwIfAborted } from "./operation.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 
-export const INDEX_WRITE_LOCK_DIRECTORY = ".writer-lock"
+const INDEX_WRITE_LOCK_DIRECTORY = ".writer-lock"
 const RECOVERY_LOCK_DIRECTORY = ".writer-lock-recovery"
 const OWNER_FILENAME = "owner.json"
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000

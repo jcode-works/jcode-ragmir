@@ -6,7 +6,7 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { performance } from "node:perf_hooks"
-import { environmentMetadata } from "./lib/metrics.mjs"
+import { environmentMetadata, percentile } from "./lib/metrics.mjs"
 
 const SAMPLE_COUNT = 100
 const WARMUP_COUNT = 10
@@ -135,8 +135,4 @@ async function replaceChunkCount(projectRoot, chunkCount) {
     manifest.vectorIndex.coverage = 1
   }
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-}
-
-function percentile(sorted, quantile) {
-  return sorted[Math.max(0, Math.ceil(sorted.length * quantile) - 1)] ?? 0
 }

@@ -6,12 +6,7 @@ import { RAGMIR_DIR } from "./defaults.js"
 import { RGR_RUNNER_FILENAME } from "./package-manager.js"
 import { canonicalSourcePath } from "./source-paths.js"
 
-export const GIT_HOOK_NAMES = [
-  "post-checkout",
-  "post-commit",
-  "post-merge",
-  "post-rewrite",
-] as const
+const GIT_HOOK_NAMES = ["post-checkout", "post-commit", "post-merge", "post-rewrite"] as const
 export type GitHookName = (typeof GIT_HOOK_NAMES)[number]
 
 const BLOCK_START = "# >>> ragmir auto-ingest >>>"

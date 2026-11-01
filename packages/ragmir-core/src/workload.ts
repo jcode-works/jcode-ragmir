@@ -4,7 +4,7 @@ import { RagmirError } from "./errors.js"
 import { throwIfAborted } from "./operation.js"
 import type { Config, WorkloadKind, WorkloadLimit } from "./types.js"
 
-export const WORKLOAD_DIAGNOSTICS_CHANNEL = "ragmir:workload"
+const WORKLOAD_DIAGNOSTICS_CHANNEL = "ragmir:workload"
 const workloadDiagnostics = channel(WORKLOAD_DIAGNOSTICS_CHANNEL)
 
 export interface WorkloadAdmission {

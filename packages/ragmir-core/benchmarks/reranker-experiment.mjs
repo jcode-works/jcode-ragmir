@@ -11,7 +11,7 @@ import {
 } from "@huggingface/transformers"
 import { createRagmirClient } from "../dist/index.js"
 import { CORPUS_PRESETS, generateCorpus } from "./lib/corpus.mjs"
-import { environmentMetadata } from "./lib/metrics.mjs"
+import { environmentMetadata, percentile } from "./lib/metrics.mjs"
 
 const benchmarkPath = fileURLToPath(import.meta.url)
 const packageRoot = path.resolve(path.dirname(benchmarkPath), "..")
@@ -358,10 +358,6 @@ function latencySummary(values) {
     p95Ms: percentile(sorted, 0.95),
     p99Ms: percentile(sorted, 0.99),
   }
-}
-
-function percentile(sorted, quantile) {
-  return sorted[Math.max(0, Math.ceil(sorted.length * quantile) - 1)] ?? 0
 }
 
 function mean(values) {

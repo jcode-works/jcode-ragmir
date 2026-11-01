@@ -9,7 +9,7 @@ import type { Config } from "./types.js"
  * `pathPriors: false` turns them off and `sourceWeights` can override any pattern. Agent
  * instruction files stay neutral: in many projects they hold the rules a question is about.
  */
-export const DEFAULT_PATH_PRIORS: Readonly<Record<string, number>> = {
+const DEFAULT_PATH_PRIORS: Readonly<Record<string, number>> = {
   "**/__tests__/**": 0.85,
   "**/*.{test,spec}.*": 0.85,
   "**/test/**": 0.85,
