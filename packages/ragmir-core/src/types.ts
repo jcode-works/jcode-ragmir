@@ -56,6 +56,11 @@ export interface Config {
   maxFileBytes: number
   ingestConcurrency: number
   embeddingBatchSize: number
+  /**
+   * Device for document embeddings during ingestion. `webgpu` falls back to the CPU when the
+   * runtime offers no WebGPU; search embeds short queries on the CPU, where they are faster.
+   */
+  ingestEmbeddingDevice: IngestEmbeddingDevice
   sourceFingerprintMode: SourceFingerprintMode
   incrementalFailurePolicy: IncrementalFailurePolicy
   hybridTextScanLimit: number
@@ -100,6 +105,8 @@ export interface SearchScope {
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
 export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
 export type SourceFingerprintMode = "fast" | "strict"
+/** Where Transformers models embed document batches during ingestion; queries stay on the CPU. */
+export type IngestEmbeddingDevice = "cpu" | "webgpu"
 export type WorkloadKind = "search" | "embedding" | "ingestion"
 
 export interface WorkloadLimit {

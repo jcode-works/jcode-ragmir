@@ -52,6 +52,7 @@ const embeddingModelDigestSchema = z
   .nullable()
 const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
 const sourceFingerprintModeSchema = z.enum(["fast", "strict"])
+const ingestEmbeddingDeviceSchema = z.enum(["cpu", "webgpu"])
 const incrementalFailurePolicySchema = z.enum(["preserve-last-good", "remove-stale"])
 const configPathSchema = z.string().min(1).max(MAX_CONFIG_PATH_CHARACTERS)
 const configTextSchema = z.string().min(1).max(MAX_CONFIG_TEXT_CHARACTERS)
@@ -124,6 +125,9 @@ const rawConfigSchema = z
     maxFileBytes: z.number().int().positive().default(DEFAULT_CONFIG.maxFileBytes),
     ingestConcurrency: z.number().int().positive().default(DEFAULT_CONFIG.ingestConcurrency),
     embeddingBatchSize: z.number().int().positive().default(DEFAULT_CONFIG.embeddingBatchSize),
+    ingestEmbeddingDevice: ingestEmbeddingDeviceSchema.default(
+      DEFAULT_CONFIG.ingestEmbeddingDevice,
+    ),
     sourceFingerprintMode: sourceFingerprintModeSchema.default(
       DEFAULT_CONFIG.sourceFingerprintMode,
     ),
@@ -354,6 +358,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     maxFileBytes: effective.maxFileBytes,
     ingestConcurrency: effective.ingestConcurrency,
     embeddingBatchSize: effective.embeddingBatchSize,
+    ingestEmbeddingDevice: effective.ingestEmbeddingDevice,
     sourceFingerprintMode: effective.sourceFingerprintMode,
     incrementalFailurePolicy: effective.incrementalFailurePolicy,
     hybridTextScanLimit: effective.hybridTextScanLimit,

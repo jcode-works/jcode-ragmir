@@ -56,6 +56,19 @@ describe("loadConfig", () => {
     expect(config.legacyWordCommand).toEqual([])
     expect(config.legacyWordTimeoutMs).toBe(120_000)
     expect(config.sourceFingerprintMode).toBe("fast")
+    expect(config.ingestEmbeddingDevice).toBe("cpu")
+  })
+
+  it("should load the ingestion embedding device and reject unknown devices", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-config-device-"))
+    tempDirs.push(root)
+    await mkdir(path.join(root, ".ragmir"), { recursive: true })
+    const configPath = path.join(root, ".ragmir/config.json")
+    await writeFile(configPath, JSON.stringify({ ingestEmbeddingDevice: "webgpu" }), "utf8")
+
+    await expect(loadConfig(root)).resolves.toMatchObject({ ingestEmbeddingDevice: "webgpu" })
+    await writeFile(configPath, JSON.stringify({ ingestEmbeddingDevice: "cuda" }), "utf8")
+    await expect(loadConfig(root)).rejects.toThrow(/ingestEmbeddingDevice/)
   })
 
   it("should load strict source fingerprint mode", async () => {
