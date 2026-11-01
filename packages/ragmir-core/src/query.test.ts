@@ -872,6 +872,34 @@ describe("search", { timeout: integrationTimeout(20_000) }, () => {
     expect(typo[0]?.relativePath).toBe(".ragmir/raw/security.md")
     expect(typo[0]?.score?.lexicalQueryVariants).toBeGreaterThan(1)
     expect(wrongWord).toEqual([])
+    const typoAmongKnownWords = await search("sceurity controls", { cwd: root, topK: 1 })
+    expect(typoAmongKnownWords[0]?.relativePath).toBe(".ragmir/raw/security.md")
+    expect(await search("pinecone controls", { cwd: root, topK: 1 })).toEqual([])
+  })
+
+  it("should not let a heading word that every passage holds outrank the agreed answer", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-common-heading-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    for (const name of ["contract", "runbook", "policy"]) {
+      await writeFile(
+        path.join(raw, `${name}.md`),
+        `# Synthetic ${name}\n\nSynthetic ${name} notes for the demo.\n`,
+        "utf8",
+      )
+    }
+    await writeFile(
+      path.join(raw, "scan.md"),
+      "Synthetic confidential scan of the signed control evidence.\n",
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const results = await search("synthetic confidential evidence", { cwd: root, topK: 2 })
+
+    expect(results[0]?.relativePath).toBe(".ragmir/raw/scan.md")
   })
 
   it("blocks search when the active index policy differs", async () => {

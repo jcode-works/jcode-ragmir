@@ -131,6 +131,42 @@ describe("embedding model adapters", () => {
     expect(extractor).toHaveBeenCalledTimes(3)
   })
 
+  it("embeds ingestion batches on WebGPU when configured and keeps queries on the CPU", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [1, 0]),
+    }))
+    transformersMock.pipeline.mockResolvedValue(extractor)
+    const devices = () =>
+      transformersMock.pipeline.mock.calls.map(
+        (call) => (call[2] as { device?: string } | undefined)?.device ?? "default",
+      )
+
+    await embedTexts(["chunk one", "chunk two"], transformerConfig())
+    expect(devices()).toEqual(["default"])
+
+    const webgpu: Config = { ...transformerConfig(), ingestEmbeddingDevice: "webgpu" }
+    await embedTexts(["chunk one", "chunk two"], webgpu, "document")
+    await embedText("short question", webgpu)
+
+    expect(devices()).toEqual(["default", "webgpu", "default"])
+  })
+
+  it("falls back to the CPU when the runtime offers no WebGPU", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map(() => [1, 0]),
+    }))
+    transformersMock.pipeline.mockImplementation(
+      async (_task: string, _model: string, options?: { device?: string }) => {
+        if (options?.device === "webgpu") throw new Error("Unsupported device: webgpu")
+        return extractor
+      },
+    )
+    const config: Config = { ...transformerConfig(), ingestEmbeddingDevice: "webgpu" }
+
+    await expect(embedTexts(["chunk"], config, "document")).resolves.toEqual([[1, 0]])
+    expect(transformersMock.pipeline).toHaveBeenCalledTimes(2)
+  })
+
   it("isolates query vectors by project root and exact model identity", async () => {
     const extractor = vi.fn(async (texts: string[]) => ({
       tolist: () => texts.map(() => [1, 0]),

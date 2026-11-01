@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  93% of real developer questions find the right file in the top 10 · 39 ms median search on a
-  29,778-chunk monorepo · <a href="#benchmarks">benchmarks</a>
+  94% of real developer questions find the right file in the top 10 · 36 ms median search on a
+  30,171-chunk monorepo · <a href="#benchmarks">benchmarks</a>
 </p>
 
 <p align="center">
@@ -56,18 +56,19 @@ npx rgr search "how are permissions checked?" --compact
 - **Code and documents in one index.** Hybrid BM25 and vector search understands paths and
   camelCase identifiers and boosts the code that defines what you ask about, so "how are
   permissions checked" reaches `PermissionService.java`, not only its tests and notes.
-- **Fast on real repositories.** Median search takes 39 ms on a 29,778-chunk Java and TypeScript
-  monorepo with Office files, and the right file reaches the top 10 for 93% of 101 real developer
-  questions.
-- **Ahead of the usual RAG stacks.** On this repository, the right file reaches the top 3 for 76%
-  of developer questions, against 56% for a LangChain.js pipeline and 70% for MiniSearch BM25 with
-  the same embedding model, and Ragmir refuses 27 of 30 off-topic questions where they refuse at
-  most 3.
+- **Fast on real repositories.** Median search takes 36 ms on a 30,171-chunk Java and TypeScript
+  monorepo with Office files, and the right file reaches the top 10 for 94% of 101 real developer
+  questions. GPU ingestion rebuilds this repository's index twice as fast on Apple silicon.
+- **Ahead of the usual RAG stacks.** On this repository, the right file reaches the top 3 for 83%
+  of developer questions, against 63% for a LangChain.js pipeline and 79% for MiniSearch BM25 with
+  the same embedding model, and Ragmir refuses 24 of 30 off-topic questions, 28 without a model,
+  where they refuse at most 2.
 - **Evidence you can verify.** Citations point to source lines, PDF pages, slides, sheet cells, or
   EPUB sections. Results say when their file changed after indexing (`sourceStatus`) and when
   their support is thin (`weakEvidence`). Questions your sources cannot answer return nothing
-  instead of noise: 58 of 90 off-topic and 24 of 90 near-domain questions on real bases, up from
-  41 and 1.
+  instead of noise: 68 of 90 off-topic and 26 of 110 near-domain questions on three real bases, up
+  from 54 and 23 in 6.4, and 65 and 27 without any model, up from 12 and 1, with no correct answer
+  refused.
 - **Always current.** `rgr doctor` compares the files on disk with the index on every run, and
   `rgr hooks install` refreshes it in the background after commits, merges, and checkouts.
 - **Private by default.** No account, telemetry, or hosted storage. The default `local-hash`
@@ -188,46 +189,65 @@ use the same retrieval API without one.
 
 ### Real projects
 
-Ragmir 6.4 against 6.3.1 on the same machine, configuration, and indexes. Each answerable question
+Ragmir 6.5 against 6.4 on the same machine, configuration, and indexes. Each answerable question
 lists the files that answer it; "top 3" and "top 10" count the questions with one of them there.
 Off-topic questions (sports, cooking, weather, nonsense) and near-domain questions about features
 the project does not have should return nothing. Latency is the median of warm sequential searches
 in one process.
 
-| Corpus | Embeddings | Answer in top 3 | Answer in top 10 | Off-topic refused | Near-domain refused | Correct answers flagged weak | Median search |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Java/TypeScript monorepo with Office files and scans: 2,297 files, 29,778 chunks, 101 developer questions | multilingual-e5-base | 74% → **74%** | 93% → **93%** | 0 → **16** of 30 | 1 → **11** of 30 | 11 → **8** of 94 | 39 → 39 ms |
-| French and English product documentation: 299 files, 21,011 chunks, 60 questions | mxbai-embed-xsmall | 100% → **100%** | 100% → **100%** | 16 → **17** of 30 | 0 → **6** of 30 | 0 → **0** of 60 | 28 → 28 ms |
-| This repository: 229 files, 2,490 chunks, 99 developer questions | mxbai-embed-xsmall | 75% → **75%** | 97% → **97%** | 25 → **25** of 30 | 0 → **7** of 30 | 32 → **6** of 96 | 22 → 22 ms |
+| Corpus | Embeddings | Answer first | Answer in top 3 | Answer in top 10 | Off-topic refused | Near-domain refused | Correct answers flagged weak | Median search |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Java/TypeScript monorepo with Office files and scans: 2,325 files, 30,171 chunks, 101 developer questions | multilingual-e5-base | 44% → **54%** | 73% → **77%** | 93% → **94%** | 16 → **22** of 30 | 11 → **11** of 30 | 8 of 94 → **10** of 95 | 39 → **36 ms** |
+| French and English product documentation: 299 files, 21,011 chunks, 60 questions | mxbai-embed-xsmall | 97% → **100%** | 100% → **100%** | 100% → **100%** | 17 → **23** of 30 | 6 → **9** of 30 | 0 → **0** of 60 | 29 → **26 ms** |
+| This repository: 237 files, 2,541 chunks, 89 developer questions | mxbai-embed-xsmall | 51% → **54%** | 81% → **83%** | 100% → **100%** | 21 → **23** of 30 | 6 → **6** of 40 | 6 → **4** of 89 | 23 → **17 ms** |
+| The same three corpora with `local-hash`, the monorepo without OCR text | none | 28 to 83% → **35 to 88%** | 46 to 90% → **63 to 90%** | 79 to 99% → **84 to 98%** | 12 → **65** of 90 | 1 → **27** of 110 | 15 of 222 → **9** of 226 | 20 to 31 → **16 to 30 ms** |
 
-Measured on November 1, 2026 on an Apple M3 Max with Node.js 26 and LanceDB 0.30, with the
+Measured on November 1, 2026 on an Apple M3 Max with Node.js 24 and LanceDB 0.30, with the
 `quality` profile these projects use. Near-domain questions pair the project's own vocabulary with
 an integration, service, or format it does not have, and each was checked absent from every
-indexed file. 6.4 kept every answer in place and caught them by measuring each index's noise
-floor: a passage only counts as a strong vector match when it is nearer than 24 off-topic probe
-questions, and a search whose first five results are all weak answers nothing. The two private
-corpora are described rather than published. Run the [benchmarks](./packages/ragmir-core/benchmarks/README.md)
-and `rgr evaluate` on your own corpus before relying on any number.
+indexed file. 6.5 refuses no correct answer and ranks the right file first more often on all six
+indexes: the keyword query weights function words such as "de" or "what" at 0.3, and passages
+whose file name or heading path holds words of the question gain up to 20%. The one loss is
+`local-hash` on this repository: three fewer questions find their file in the top 5, and one fewer
+in the top 10. It refuses more because a passage that only the keyword search returned now needs
+half of the question's weighted words: one shared everyday word ("height", "capital") no longer
+makes an off-topic question look answered. Without a model, `local-hash` now also answers nothing
+when none of its first five passages holds 30% of the question's weighted words, or when words
+found nowhere in the index carry half of the question's weight, as in a question about an
+integration the project lacks. A long-running process remembers the query-independent work done
+per passage, so warm searches are faster. This repository's question set moved ten questions about
+the retired Chat and TTS packages to the near-domain list. The two private corpora are described
+rather than published. Run the [benchmarks](./packages/ragmir-core/benchmarks/README.md) and
+`rgr evaluate` on your own corpus before relying on any number.
+
+### Ingestion on the GPU
+
+`ingestEmbeddingDevice: "webgpu"` embeds document batches through the WebGPU runtime that ONNX
+Runtime bundles; search keeps embedding short queries on the CPU, where they are faster. On the same
+Apple M3 Max, a full rebuild of this repository (2,519 chunks, `mxbai-embed-xsmall-v1`) took 28 s
+instead of 59 s, and `multilingual-e5-base` embedded 300-token passages 3.7 times faster. Both
+indexes returned identical results for all 159 benchmark questions, and GPU vectors stayed within
+4e-7 of the CPU's.
 
 ### Against other retrieval stacks
 
-`pnpm bench:competitors` indexes the 210 tracked documentation and source files of this
-repository and asks its 99 developer questions plus 30 off-topic and 30 near-domain questions. Every
+`pnpm bench:competitors` indexes the 218 tracked documentation and source files of this
+repository and asks its 89 developer questions plus 30 off-topic and 40 near-domain questions. Every
 vector side uses the same model and vectors (`mxbai-embed-xsmall-v1`); the other stacks read the same
 files split by LangChain's `RecursiveCharacterTextSplitter` (1,000 characters, 200 overlap).
 
 | System | Answer in top 3 | Answer in top 10 | MRR@10 | Off-topic refused | Near-domain refused | Median search |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Ragmir**, hybrid with `mxbai-embed-xsmall-v1` | **76%** | **97%** | **0.647** | **27** of 30 | **5** of 30 | 22 ms |
-| **Ragmir**, `local-hash` without a model | **79%** | 96% | 0.611 | 9 of 30 | 0 of 30 | 20 ms |
-| LangChain.js splitter with exact cosine search, as `MemoryVectorStore` | 56% | 89% | 0.509 | 0 of 30 | 0 of 30 | 5 ms |
-| Orama 3 hybrid, default similarity 0.8 | 18% | 35% | 0.144 | 2 of 30 | 0 of 30 | 5 ms |
-| Orama 3 hybrid, similarity 0.1 | 38% | 64% | 0.317 | 0 of 30 | 0 of 30 | 6 ms |
-| MiniSearch 7 BM25 | 70% | 92% | 0.566 | 3 of 30 | 0 of 30 | 1 ms |
+| **Ragmir**, hybrid with `mxbai-embed-xsmall-v1` | **83%** | **100%** | **0.705** | **24** of 30 | **4** of 40 | 18 ms |
+| **Ragmir**, `local-hash` without a model | **88%** | **99%** | **0.701** | **28** of 30 | **13** of 40 | 17 ms |
+| LangChain.js splitter with exact cosine search, as `MemoryVectorStore` | 63% | 87% | 0.530 | 0 of 30 | 0 of 40 | 5 ms |
+| Orama 3 hybrid, default similarity 0.8 | 19% | 38% | 0.154 | 2 of 30 | 0 of 40 | 6 ms |
+| Orama 3 hybrid, similarity 0.1 | 42% | 71% | 0.347 | 0 of 30 | 0 of 40 | 7 ms |
+| MiniSearch 7 BM25 | 79% | 96% | 0.617 | 2 of 30 | 0 of 40 | 1 ms |
 
 In-memory libraries answer faster, but they return results for almost every off-topic question,
-and none ranks the answering file as high: it reaches the top 3 for 76 to 79% of questions with Ragmir,
-against 56% with the LangChain.js pipeline and 70% with MiniSearch. Measured on the same machine on
+and none ranks the answering file as high: it reaches the top 3 for 83 to 88% of questions with Ragmir,
+against 63% with the LangChain.js pipeline and 79% with MiniSearch. Measured on the same machine on
 November 1, 2026; [the benchmark guide](./packages/ragmir-core/benchmarks/README.md) explains every
 setting.
 
@@ -291,6 +311,44 @@ pnpm exec rgr ingest
 
 Embedded PDF text is extracted first; OCR runs only on blank pages, in bounded batches with a local
 cache. Normal retrieval keeps remote model loading disabled.
+
+### Choosing an embedding model
+
+Start without one: `local-hash` needs no download and put the answering file in the top 3 for 90%
+of this repository's developer questions. Add a model when questions use words your sources do not
+(synonyms, paraphrases, another language) or when refusals should follow meaning, not keywords.
+
+| Your sources | Model | Why |
+| --- | --- | --- |
+| English code and documentation | `mixedbread-ai/mxbai-embed-xsmall-v1` | Smallest and fastest; pinned revision and calibrated abstention bundled. |
+| French, English, or mixed | `intfloat/multilingual-e5-small`, the `rgr setup --semantic` default | Multilingual; pinned revision and calibrated abstention bundled. |
+| Large mixed-language monorepo | `intfloat/multilingual-e5-base` | On a 30,171-chunk French and Java monorepo it ranked answers above e5-small, while e5-large scored lower. Pin its revision and digest yourself. |
+
+Newer open models score higher on public benchmarks, and Ragmir is evaluating them before it
+supports them: IBM's Granite Embedding Multilingual R2 (97M and 311M, Apache-2.0, ONNX signed by
+IBM), Google's EmbeddingGemma 2 (Apache-2.0), and Qwen3-Embedding-0.6B (Apache-2.0). Do not
+configure them yet: they need a different pooling or task prompts than the mean pooling Ragmir
+applies today, so their vectors would be degraded. Jina embeddings use a non-commercial license.
+
+A model is code you run on your sources, so treat it as a dependency. Ragmir loads only ONNX
+weights through Transformers.js (no pickled objects, no remote code), pins a 40-character revision,
+records the artifact digest, and keeps downloads disabled after setup. Before switching, check
+that the ONNX files come from the original lab or the Transformers.js maintainers, that the license
+allows your use, and that `rgr evaluate` on your own questions beats your current model. A new
+model needs `rgr ingest --rebuild`.
+
+### Claude Code and Codex as the model
+
+Your agent's model already reads every cited passage and decides what it means, so Ragmir leaves
+reasoning to it and returns evidence, `weakEvidence` flags, and refusals. It cannot borrow that
+model for its own retrieval:
+
+- **Embeddings.** Claude and Codex models do not produce embeddings. Anthropic points to Voyage AI,
+  a cloud API, which would send your whole corpus off the machine at ingest.
+- **Reranking or judging through the agent.** MCP sampling, which lets a server ask the client's
+  model, is deprecated since the 2026-07-28 MCP specification, and neither Claude Code nor Codex
+  supports it. A judge that reads untrusted documents can also be steered by instructions planted
+  in them, and small local judges did not improve Ragmir's refusals on real corpora.
 
 ## Supported documents
 
