@@ -1,7 +1,36 @@
-import { ChevronDown, Globe2, Menu, X } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  ArrowUpRight,
+  BookOpen,
+  Bot,
+  Briefcase,
+  ChevronDown,
+  ChevronRight,
+  CircleHelp,
+  Download,
+  FileCode,
+  Gauge,
+  Globe2,
+  History,
+  Layers,
+  type LucideIcon,
+  Menu,
+  Scale,
+  Sparkles,
+  Tag,
+  Users,
+  X,
+} from "lucide-react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
+import {
+  GITHUB_URL,
+  NPM_URL,
+  PROJECT_LINK_LABEL_KEYS,
+  PROJECT_LINKS,
+  type ProjectLinkKey,
+} from "../lib/project-links"
 import { cn } from "../lib/utils"
 import { GithubIcon } from "./github-icon"
+import { NpmIcon } from "./npm-icon"
 import { Button } from "./ui/button"
 
 interface AlternateLocale {
@@ -19,7 +48,10 @@ interface LandingNavbarProps {
   localizedLibraryUrl: string
   localizedFeaturesUrl: string
   localizedAgentsUrl: string
+  localizedFaqUrl: string
   localizedTeamUrl: string
+  /** Path of the page on screen, so the drawer can light its own row. */
+  currentPath?: string
 }
 
 const externalLinkProps = {
@@ -27,7 +59,120 @@ const externalLinkProps = {
   rel: "noopener noreferrer",
 } as const
 
-const GITHUB_URL = "https://github.com/jcode-works/jcode-ragmir"
+interface DrawerLink {
+  href: string
+  label: string
+  icon: LucideIcon
+  external?: boolean
+}
+
+/** The drawer's sections under the pages card: documentation first, then the project's records. */
+const DRAWER_SECTIONS: ReadonlyArray<{
+  titleKey: string
+  links: ReadonlyArray<{ key: ProjectLinkKey; icon: LucideIcon }>
+}> = [
+  {
+    titleKey: "nav_section_docs",
+    links: [
+      { key: "docs", icon: BookOpen },
+      { key: "apiReference", icon: FileCode },
+      { key: "benchmarks", icon: Gauge },
+    ],
+  },
+  {
+    titleKey: "nav_section_project",
+    links: [
+      { key: "releases", icon: Tag },
+      { key: "changelog", icon: History },
+      { key: "license", icon: Scale },
+      { key: "commercialLicense", icon: Briefcase },
+    ],
+  },
+]
+
+/** One drawer row: a grey icon, the label, then a chevron, or an arrow for a link that leaves the site. */
+const DRAWER_ROW_CLASS_NAME =
+  "flex min-h-11 items-center gap-3 px-4 font-semibold text-foreground text-sm transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-foreground/10"
+
+const DRAWER_SECTION_TITLE_CLASS_NAME =
+  "mb-2 font-black text-foreground text-sm uppercase tracking-tight"
+
+/** One card of the drawer: rows one under the other, the page on screen lit. */
+function DrawerLinkList({
+  links,
+  currentPath,
+  onNavigate,
+  tabIndex,
+}: {
+  links: readonly DrawerLink[]
+  currentPath: string | undefined
+  onNavigate: () => void
+  tabIndex: number
+}): React.JSX.Element {
+  return (
+    <ul className="overflow-hidden rounded-2xl bg-card">
+      {links.map(({ href, label, icon: Icon, external }) => {
+        const current = !external && currentPath !== undefined && href === currentPath
+        return (
+          <li className="border-foreground/[0.06] border-b last:border-b-0" key={href}>
+            <a
+              aria-current={current ? "page" : undefined}
+              className={cn(DRAWER_ROW_CLASS_NAME, current && "bg-foreground/[0.06] font-bold")}
+              href={href}
+              onClick={external ? undefined : onNavigate}
+              tabIndex={tabIndex}
+              {...(external ? externalLinkProps : {})}
+            >
+              <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">{label}</span>
+              {external ? (
+                <ArrowUpRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
+              ) : (
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
+              )}
+            </a>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** One titled group of the drawer: the section title over a card of rows. */
+function DrawerSection({
+  title,
+  links,
+  currentPath,
+  onNavigate,
+  tabIndex,
+}: {
+  title: string
+  links: readonly DrawerLink[]
+  currentPath: string | undefined
+  onNavigate: () => void
+  tabIndex: number
+}): React.JSX.Element {
+  const titleId = useId()
+  return (
+    <section aria-labelledby={titleId} className="mt-6">
+      <h2 className={DRAWER_SECTION_TITLE_CLASS_NAME} id={titleId}>
+        {title}
+      </h2>
+      <DrawerLinkList
+        currentPath={currentPath}
+        links={links}
+        onNavigate={onNavigate}
+        tabIndex={tabIndex}
+      />
+    </section>
+  )
+}
 
 export function RagmirLogo(): React.JSX.Element {
   return (
@@ -102,7 +247,9 @@ export function LandingNavbar({
   localizedLibraryUrl,
   localizedFeaturesUrl,
   localizedAgentsUrl,
+  localizedFaqUrl,
   localizedTeamUrl,
+  currentPath,
 }: LandingNavbarProps): React.JSX.Element {
   const t = (key: string): string => translations[key] ?? key
   const version = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
@@ -120,6 +267,27 @@ export function LandingNavbar({
     { href: localizedFeaturesUrl, label: t("nav_features") },
     { href: localizedTeamUrl, label: t("nav_team") },
   ]
+
+  const drawerPageLinks: DrawerLink[] = [
+    { href: localizedUseCasesUrl, label: t("nav_use_cases"), icon: Layers },
+    { href: localizedLibraryUrl, label: t("nav_library"), icon: Download },
+    { href: localizedAgentsUrl, label: t("nav_agents"), icon: Bot },
+    { href: localizedFeaturesUrl, label: t("nav_features"), icon: Sparkles },
+    { href: localizedFaqUrl, label: t("nav_faq"), icon: CircleHelp },
+    { href: localizedTeamUrl, label: t("nav_team"), icon: Users },
+  ]
+  const drawerSections = DRAWER_SECTIONS.map((section) => ({
+    title: t(section.titleKey),
+    links: section.links.map(
+      ({ key, icon }): DrawerLink => ({
+        href: PROJECT_LINKS[key],
+        label: t(PROJECT_LINK_LABEL_KEYS[key]),
+        icon,
+        external: true,
+      }),
+    ),
+  }))
+  const drawerTabIndex = menuOpen ? 0 : -1
 
   const closeMenu = useCallback(() => {
     menuTriggerRef.current?.focus()
@@ -200,7 +368,7 @@ export function LandingNavbar({
             </a>
             {version && (
               <a
-                href="https://www.npmjs.com/package/@jcode.labs/ragmir"
+                href={NPM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
@@ -276,55 +444,100 @@ export function LandingNavbar({
         />
         <div
           className={cn(
-            "absolute inset-y-0 right-0 flex w-4/5 max-w-xs flex-col gap-6 border-border border-l bg-card p-6 shadow-2xl shadow-black/60 transition-transform duration-300 ease-out",
+            "absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col border-border border-l bg-background shadow-2xl shadow-black/60 transition-transform duration-300 ease-out",
             menuOpen ? "translate-x-0" : "translate-x-full",
           )}
         >
-          <div className="flex items-center justify-between">
-            <RagmirLogo />
-            <button
-              aria-label={t("nav_menu_close")}
-              className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={closeMenu}
-              tabIndex={menuOpen ? 0 : -1}
-              type="button"
-            >
-              <X aria-hidden="true" className="size-5" />
-            </button>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-background px-5 pt-3 pb-3">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-full h-4 bg-linear-to-b from-background to-transparent"
+              />
+              <a
+                aria-label="Ragmir"
+                className="flex items-center transition hover:opacity-80"
+                href={localizedHomeUrl}
+                onClick={closeMenu}
+                tabIndex={drawerTabIndex}
+              >
+                <RagmirLogo />
+              </a>
+              <button
+                aria-label={t("nav_menu_close")}
+                className="flex size-10 items-center justify-center rounded-full text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={closeMenu}
+                tabIndex={drawerTabIndex}
+                type="button"
+              >
+                <X aria-hidden="true" className="size-5" />
+              </button>
+            </div>
+
+            <nav aria-label={t("nav_aria_label")} className="px-5 pb-6">
+              <DrawerLinkList
+                currentPath={currentPath}
+                links={drawerPageLinks}
+                onNavigate={closeMenu}
+                tabIndex={drawerTabIndex}
+              />
+
+              {drawerSections.map((section) => (
+                <DrawerSection
+                  currentPath={currentPath}
+                  key={section.title}
+                  links={section.links}
+                  onNavigate={closeMenu}
+                  tabIndex={drawerTabIndex}
+                  title={section.title}
+                />
+              ))}
+
+              <div className="mt-7 flex items-center justify-between gap-3">
+                <nav
+                  aria-label={t("language_label")}
+                  className="flex items-center gap-1 rounded-full bg-card p-1"
+                >
+                  {alternateLocales.map((entry) => (
+                    <a
+                      aria-current={entry.locale === locale ? "page" : undefined}
+                      className="rounded-full px-3 py-1.5 font-bold text-muted-foreground text-xs uppercase transition hover:text-foreground aria-[current=page]:bg-muted aria-[current=page]:text-foreground"
+                      href={entry.href}
+                      hrefLang={entry.locale}
+                      key={entry.locale}
+                      tabIndex={drawerTabIndex}
+                    >
+                      {entry.locale}
+                    </a>
+                  ))}
+                </nav>
+                {version && (
+                  <a
+                    className="font-medium text-muted-foreground text-xs no-underline transition hover:text-foreground"
+                    href={NPM_URL}
+                    tabIndex={drawerTabIndex}
+                    {...externalLinkProps}
+                  >
+                    Ragmir v{version}
+                  </a>
+                )}
+              </div>
+            </nav>
           </div>
 
-          <nav aria-label={t("nav_aria_label")} className="flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <a
-                className="rounded-lg px-3 py-3 font-bold text-base text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                href={link.href}
-                key={link.href}
-                onClick={closeMenu}
-                tabIndex={menuOpen ? 0 : -1}
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="mt-auto">
-            <Button asChild className="w-full" size="sm">
-              <a href={GITHUB_URL} {...externalLinkProps} tabIndex={menuOpen ? 0 : -1}>
+          <div className="grid gap-2 border-border border-t bg-background px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <Button asChild className="h-11 w-full font-bold text-sm">
+              <a href={GITHUB_URL} {...externalLinkProps} tabIndex={drawerTabIndex}>
                 <GithubIcon data-icon="inline-start" />
-                {t("nav_github")}
+                {t("hero_github_cta")}
               </a>
             </Button>
-            {version && (
-              <a
-                href="https://www.npmjs.com/package/@jcode.labs/ragmir"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 block text-center text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
-                tabIndex={menuOpen ? 0 : -1}
-              >
-                v{version}
+            <Button asChild className="h-11 w-full font-bold text-sm" variant="outline">
+              <a href={NPM_URL} {...externalLinkProps} tabIndex={drawerTabIndex}>
+                <NpmIcon data-icon="inline-start" />
+                {t("hero_npm_cta")}
               </a>
-            )}
+            </Button>
           </div>
         </div>
       </div>
