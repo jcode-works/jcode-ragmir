@@ -2,6 +2,7 @@ import { performance } from "node:perf_hooks"
 import { createRagmirClient } from "../dist/index.js"
 import { loadConfig } from "../dist/config.js"
 import { workloadSnapshot } from "../dist/workload.js"
+import { percentile } from "./lib/metrics.mjs"
 
 const root = requiredEnvironment("RAGMIR_CONCURRENCY_ROOT")
 const requests = positiveInteger(process.env.RAGMIR_CONCURRENCY_REQUESTS ?? "100")
@@ -77,13 +78,6 @@ function summarize(sorted) {
     p99: percentile(sorted, 0.99),
     max: sorted.at(-1) ?? 0,
   }
-}
-
-function percentile(sorted, ratio) {
-  if (sorted.length === 0) {
-    return 0
-  }
-  return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * ratio) - 1)] ?? 0
 }
 
 function requiredEnvironment(name) {

@@ -109,7 +109,7 @@ const DEFAULT_SUPPORTED_FILE_NAMES = new Set([
   "procfile",
   "rakefile",
 ])
-export const DEFAULT_FAST_GLOB_IGNORES = [
+const DEFAULT_FAST_GLOB_IGNORES = [
   "**/.git/**",
   "**/node_modules/**",
   `**/${LEGACY_KB_DIR}/**`,
@@ -119,7 +119,7 @@ export const DEFAULT_FAST_GLOB_IGNORES = [
  * Tool state, dependency caches, lockfiles, and generated bundles that drown out project knowledge.
  * They are skipped unless `defaultExcludes` is false or a source entry names the directory itself.
  */
-export const DEFAULT_EXCLUDED_DIRECTORIES = [
+const DEFAULT_EXCLUDED_DIRECTORIES = [
   ".agents",
   ".angular",
   ".cache",
@@ -155,7 +155,7 @@ export const DEFAULT_EXCLUDED_DIRECTORIES = [
   "DerivedData",
   "Pods",
 ] as const
-export const DEFAULT_EXCLUDED_FILES = [
+const DEFAULT_EXCLUDED_FILES = [
   "*.map",
   "*.min.css",
   "*.min.js",
@@ -221,7 +221,7 @@ export interface SourceInventoryOptions extends OperationOptions {
   writeFingerprintCache?: boolean
 }
 
-export const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
+const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".atom",
   ".adoc",
   ".astro",
@@ -778,7 +778,7 @@ async function mapLimit<T>(
   await Promise.all(workers)
 }
 
-export function supportedExtensions(config: Config): Set<string> {
+function supportedExtensions(config: Config): Set<string> {
   return new Set([
     ...DEFAULT_SUPPORTED_EXTENSIONS,
     ...(config.imageOcrCommand.length > 0 ? OCR_IMAGE_EXTENSIONS : []),
@@ -929,7 +929,7 @@ function sourcePattern(projectRoot: string, input: string): string {
   return canonicalSourcePath(pattern).replace(/^(?:\.\/)+/u, "")
 }
 
-export function isSensitiveFilePath(absolutePath: string): boolean {
+function isSensitiveFilePath(absolutePath: string): boolean {
   const baseName = path.basename(absolutePath).toLowerCase()
   const extension = path.extname(absolutePath).toLowerCase()
   return (

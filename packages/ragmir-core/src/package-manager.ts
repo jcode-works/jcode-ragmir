@@ -66,7 +66,9 @@ function displayRunnerCommand(root: string, runnerPath: string, args: string[]):
   return `node ${suffix}`
 }
 
+/** @deprecated Use `rgrCommand`. @alias */
 export const ragmirCommand = rgrCommand
+/** @deprecated Use `rgrCommand`. @alias */
 export const kbCommand = rgrCommand
 
 async function packageJsonManager(root: string): Promise<PackageManager | null> {

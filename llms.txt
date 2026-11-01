@@ -31,8 +31,9 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
   session as short stubs. Instructions name the base; unrelated workspaces get a scope notice, or
   a refusal with `mcpAllowedRoots`. Register Ragmir per project, not for every project.
 - Results carry `sourceStatus` when the cited file changed after indexing and `weakEvidence` when
-  support is thin. `rgr doctor` checks freshness on every run; `rgr hooks install` refreshes the
-  index after Git operations.
+  support is thin. An empty semantic answer means the base holds no evidence for the question.
+  `rgr doctor` checks freshness on every run; `rgr hooks install` refreshes the index after Git
+  operations.
 - Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.
 - Present four workflow examples: build a feature, diagnose an incident, and plan a migration with
   Claude Code or Codex using cited project evidence; then make a confidential architecture decision

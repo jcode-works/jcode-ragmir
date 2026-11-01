@@ -46,8 +46,9 @@ rgr search "migration" --exact-vector-search
 
 Text output marks a result whose file changed or disappeared after indexing
 (`source modified since indexing`) and a result with thin support (`weak evidence`). JSON results
-carry the same information as `sourceStatus` and `weakEvidence`. `--scope` applies a named scope
-from the config; `--include-path` accepts backslashes on every platform.
+carry the same information as `sourceStatus` and `weakEvidence`. A semantic search whose first five
+results are all weak prints no result: the base holds no evidence for the question. `--scope`
+applies a named scope from the config; `--include-path` accepts backslashes on every platform.
 
 `sources add` accepts paths, globs, and `!` exclusions. Search accepts `--top-k`,
 `--include-path`, `--exclude-path`, and repeatable `--context-path`. Search accepts
@@ -202,7 +203,9 @@ doctor and `rgr audit` label their O(corpus) cost in text and JSON output. A mis
 manifest always yields `ready=false`, including legacy tables that predate manifest activation.
 `readiness.lexicalIndexCurrent` is `false` for an index built under an older keyword policy, such as
 one without accent-folded terms or path and identifier terms. Search keeps using that index; the
-next `rgr ingest` or `rgr upgrade` stages and validates a rebuild before activating it.
+next `rgr ingest` or `rgr upgrade` stages and validates a rebuild before activating it. Its next
+steps also ask for `rgr storage optimize` when the index is split into many small fragments, and for
+`rgr ingest` when a semantic index has no stored noise floor yet.
 
 `rgr ingest --rebuild` writes batches into an isolated LanceDB generation. The existing index stays
 active until the new table and manifest pass row-count, checksum, and duplicate-ID validation. The

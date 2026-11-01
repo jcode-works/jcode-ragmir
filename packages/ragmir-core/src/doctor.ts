@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
+import { noiseFloorAdvice } from "./abstention-calibration.js"
 import {
   findProjectConfig,
   loadConfig,
@@ -25,8 +26,9 @@ import {
   MCP_CONFIG_FILENAME,
   SKILL_NAMES,
 } from "./skill.js"
+import { fragmentationWarning } from "./storage-maintenance.js"
 import { readIndexManifest, readIndexManifestHeader } from "./store.js"
-import type { Config, DoctorOptions, DoctorReport } from "./types.js"
+import type { Config, DoctorOptions, DoctorReport, IndexMaintenanceSnapshot } from "./types.js"
 
 export async function doctor(
   cwd = process.cwd(),
@@ -129,6 +131,8 @@ export async function doctorWithConfig(
         config.retrievalProfile,
       )
     : []
+  const runCommand = (args: string[]): string =>
+    command.display + (args.length > 0 ? ` ${args.join(" ")}` : "")
   const nextSteps = nextActions({
     initialized,
     profileOverrides: profileOverrides.map(
@@ -159,7 +163,9 @@ export async function doctorWithConfig(
     freshnessWarning,
     lexicalIndexCurrent,
     lexicalScanWarning,
-    run: (args) => command.display + (args.length > 0 ? ` ${args.join(" ")}` : ""),
+    fragments: manifest?.maintenance?.fragments,
+    noiseFloorAdvice: noiseFloorAdvice(manifest, config, runCommand),
+    run: runCommand,
   })
 
   throwIfAborted(signal)
@@ -235,6 +241,9 @@ interface NextActionInput {
   freshnessWarning: string | null
   lexicalIndexCurrent: boolean
   lexicalScanWarning: string | null
+  /** Fragment counts from the manifest's last maintenance snapshot. */
+  fragments: IndexMaintenanceSnapshot["fragments"] | undefined
+  noiseFloorAdvice: string | null
   run: (args: string[]) => string
 }
 
@@ -306,6 +315,15 @@ function nextActions(input: NextActionInput): string[] {
 
   if (input.lexicalScanWarning) {
     steps.push(input.lexicalScanWarning)
+  }
+
+  const storageWarning = fragmentationWarning(input.fragments, input.run)
+  if (storageWarning) {
+    steps.push(storageWarning)
+  }
+
+  if (input.noiseFloorAdvice) {
+    steps.push(input.noiseFloorAdvice)
   }
 
   if (input.concentrationWarning) {

@@ -1,6 +1,7 @@
 export type RagmirErrorCode =
   | "ABORTED"
   | "CLIENT_CLOSED"
+  | "CONFIG_MIGRATION_REQUIRED"
   | "EVIDENCE_CHANGED"
   | "INDEX_BUSY"
   | "INDEX_UNAVAILABLE"

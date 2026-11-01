@@ -9,10 +9,10 @@ import type {
   VectorIndexStrategy,
 } from "./types.js"
 
-export const VECTOR_INDEX_NAME = "vector_idx"
-export const RELATIVE_PATH_INDEX_NAME = "relativePath_idx"
+const VECTOR_INDEX_NAME = "vector_idx"
+const RELATIVE_PATH_INDEX_NAME = "relativePath_idx"
 export const ANN_MINIMUM_ROWS = 100_000
-export const SCALAR_INDEX_MINIMUM_ROWS = 10_000
+const SCALAR_INDEX_MINIMUM_ROWS = 10_000
 const VECTOR_INDEX_POLICY_VERSION = 1
 const L_CORPUS_ROWS = 1_000_000
 

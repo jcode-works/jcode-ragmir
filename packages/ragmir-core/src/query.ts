@@ -11,10 +11,11 @@ import {
   Operator,
   PhraseQuery,
 } from "@lancedb/lancedb"
+import { indexNoiseFloor } from "./abstention-calibration.js"
 import { citationForCoordinates, stripCitationCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
 import { MAX_SEARCH_TOP_K, VECTOR_DISTANCE_METRIC } from "./defaults.js"
-import { embedText } from "./embeddings.js"
+import { embedText, embedTexts } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
 import { acquireGenerationReadLease } from "./generation-retention.js"
 import { indexFreshnessWarning } from "./index-diagnostics.js"
@@ -33,6 +34,7 @@ import {
   abstentionFilter,
   fusionCandidateDepth,
   fuzzyMatchPrefilter,
+  isWeakAnswer,
   queryEvidence,
   queryTermCoverage,
   rankHybridRows,
@@ -254,6 +256,13 @@ async function searchWithinGeneration(
     snapshot.manifest && lexicalPolicyCurrent(snapshot.manifest)
       ? queryTermFrequencies(table, queryTokens, snapshot).catch(() => null)
       : Promise.resolve(null)
+  const noiseFloorPromise = indexNoiseFloor(
+    table,
+    config,
+    snapshot.manifest,
+    `${snapshot.tableName}\0${snapshot.manifestFingerprint ?? ""}`,
+    embedTexts,
+  )
   const lexicalCandidatesPromise = lexicalCandidateRows(table, sanitized.query, {
     ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
     fallbackBatchSize: config.hybridTextScanLimit,
@@ -327,8 +336,10 @@ async function searchWithinGeneration(
   )
   const isExactPathMatch = (row: SearchRow): boolean =>
     lexicalCandidates.exactPathMatches.has(rowKey(row))
-  const passesAbstention = abstentionFilter(evidence, rankingPolicy, termStatistics)
-  const hasWeakEvidence = weakEvidenceFilter(evidence, rankingPolicy, termStatistics)
+  const noiseFloor = await noiseFloorPromise
+  throwIfAborted(signal)
+  const passesAbstention = abstentionFilter(evidence, rankingPolicy, termStatistics, noiseFloor)
+  const hasWeakEvidence = weakEvidenceFilter(evidence, rankingPolicy, termStatistics, noiseFloor)
   const coverageOf =
     options.explain && termStatistics ? queryTermCoverage(evidence, termStatistics) : null
   const orderedRows = rankedRows.sort(
@@ -343,7 +354,15 @@ async function searchWithinGeneration(
       : {}),
     isRelevant: (row) => isExactPathMatch(row) || passesAbstention(row),
   })
-  const rows = diversity.rows
+  // A semantic answer whose leading passages are all weak holds no evidence: answer nothing rather
+  // than noise. An exact path match is never weak.
+  const rows = isWeakAnswer(
+    diversity.rows,
+    rankingPolicy,
+    (row) => !isExactPathMatch(row.row) && hasWeakEvidence(row.row),
+  )
+    ? []
+    : diversity.rows
   const [contextByRow, sourceStatuses] = await Promise.all([
     contextChunksByRow(table, rows, contextRadius, retrievalPredicate),
     sourceStatusesForRows(config.projectRoot, rows),
@@ -399,6 +418,7 @@ async function searchWithinGeneration(
               lexicalIndexedRows: lexicalCandidates.indexedRows,
               lexicalUnindexedRows: lexicalCandidates.unindexedRows,
               lexicalCoverage: lexicalCandidates.coverage,
+              noiseFloorDistance: noiseFloor,
               lexicalScanBatches: lexicalCandidates.scanBatches,
               diversityStrategy: "document-cap" as const,
               maxChunksPerDocument,
@@ -508,9 +528,11 @@ async function queryTermFrequencies(
     measured
       .filter((token) => !generationCache.has(token))
       .map(async (token) => {
+        // Selecting `_score` keeps LanceDB from projecting it implicitly, which logs a deprecation
+        // warning on stderr for every measured query word.
         const rows = await table
           .search(new MatchQuery(token, "searchText"), "fts", "searchText")
-          .select(["id"])
+          .select(["id", "_score"])
           .limit(frequencyLimit)
           .toArray()
         generationCache.set(token, rows.length)

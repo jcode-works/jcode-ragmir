@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto"
-import { createReadStream } from "node:fs"
 import { open as openFile, rm } from "node:fs/promises"
 import path from "node:path"
 import { renameWithRetry } from "./fs-retry.js"
 import { isRecord } from "./guards.js"
+import { acceptJsonLines } from "./json-lines.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import type { Config, SourceFingerprintMode } from "./types.js"
 
@@ -31,18 +31,9 @@ export async function readSourceFingerprintCache(
   config: Config,
 ): Promise<Map<string, SourceFingerprintRecord> | null> {
   const records = new Map<string, SourceFingerprintRecord>()
-  const stream = createReadStream(path.join(config.storageDir, SOURCE_FINGERPRINT_CACHE_FILENAME))
-  stream.setEncoding("utf8")
-  let buffered = ""
   let headerRead = false
 
-  const applyLine = (line: string): boolean => {
-    let value: unknown
-    try {
-      value = JSON.parse(line) as unknown
-    } catch {
-      return false
-    }
+  const accept = (value: unknown): boolean => {
     if (!headerRead) {
       headerRead = true
       return isRecord(value) && value.version === CACHE_VERSION && value.type === "header"
@@ -55,22 +46,11 @@ export async function readSourceFingerprintCache(
   }
 
   try {
-    for await (const chunk of stream) {
-      buffered += typeof chunk === "string" ? chunk : chunk.toString("utf8")
-      let lineEnd = buffered.indexOf("\n")
-      while (lineEnd >= 0) {
-        const line = buffered.slice(0, lineEnd)
-        buffered = buffered.slice(lineEnd + 1)
-        if (!line || !applyLine(line)) {
-          return null
-        }
-        lineEnd = buffered.indexOf("\n")
-      }
-    }
-    if (buffered && !applyLine(buffered)) {
-      return null
-    }
-    return headerRead ? records : null
+    const complete = await acceptJsonLines(
+      path.join(config.storageDir, SOURCE_FINGERPRINT_CACHE_FILENAME),
+      accept,
+    )
+    return complete && headerRead ? records : null
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
       return new Map()

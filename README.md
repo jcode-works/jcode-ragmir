@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  93% of real developer questions find the right file in the top 10 · 40 ms median search on a
-  43,874-chunk monorepo · <a href="#benchmarks">benchmarks</a>
+  93% of real developer questions find the right file in the top 10 · 39 ms median search on a
+  29,778-chunk monorepo · <a href="#benchmarks">benchmarks</a>
 </p>
 
 <p align="center">
@@ -56,12 +56,18 @@ npx rgr search "how are permissions checked?" --compact
 - **Code and documents in one index.** Hybrid BM25 and vector search understands paths and
   camelCase identifiers and boosts the code that defines what you ask about, so "how are
   permissions checked" reaches `PermissionService.java`, not only its tests and notes.
-- **Fast on real repositories.** Median search takes 40 ms on a 43,874-chunk Java and TypeScript
+- **Fast on real repositories.** Median search takes 39 ms on a 29,778-chunk Java and TypeScript
   monorepo with Office files, and the right file reaches the top 10 for 93% of 101 real developer
-  questions (87% with 6.1.6).
+  questions.
+- **Ahead of the usual RAG stacks.** On this repository, the right file reaches the top 3 for 76%
+  of developer questions, against 56% for a LangChain.js pipeline and 70% for MiniSearch BM25 with
+  the same embedding model, and Ragmir refuses 27 of 30 off-topic questions where they refuse at
+  most 3.
 - **Evidence you can verify.** Citations point to source lines, PDF pages, slides, sheet cells, or
   EPUB sections. Results say when their file changed after indexing (`sourceStatus`) and when
-  their support is thin (`weakEvidence`); unrelated questions return nothing instead of noise.
+  their support is thin (`weakEvidence`). Questions your sources cannot answer return nothing
+  instead of noise: 58 of 90 off-topic and 24 of 90 near-domain questions on real bases, up from
+  41 and 1.
 - **Always current.** `rgr doctor` compares the files on disk with the index on every run, and
   `rgr hooks install` refreshes it in the background after commits, merges, and checkouts.
 - **Private by default.** No account, telemetry, or hosted storage. The default `local-hash`
@@ -180,25 +186,50 @@ use the same retrieval API without one.
 
 ## Benchmarks
 
-Ragmir 6.2 against 6.1.6 on the same machine, configuration, and index, rebuilt by 6.2. Each
-answerable question has one expected file; "top 3" and "top 10" count the questions whose file
-appears there. Unrelated questions (nonsense, weather, recipes, sports) should return nothing.
-Latency is the median of warm sequential searches in one process.
+### Real projects
 
-| Corpus | Embeddings | Answer in top 3 | Answer in top 10 | nDCG@10 | Unrelated questions refused | Median search |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Java/TypeScript monorepo with Office files and scans: 2,117 files, 43,874 chunks, 101 developer questions | multilingual-e5-small | 70% → **73%** | 87% → **93%** | 0.639 → **0.670** | 0 → **3** of 30 | 31 → 40 ms |
-| French and English product documentation: 298 files, 20,931 chunks, 60 questions | mxbai-embed-xsmall | 100% → **100%** | 100% → **100%** | 0.932 → **0.938** | 3 → **15** of 30 | 25 → 31 ms |
+Ragmir 6.4 against 6.3.1 on the same machine, configuration, and indexes. Each answerable question
+lists the files that answer it; "top 3" and "top 10" count the questions with one of them there.
+Off-topic questions (sports, cooking, weather, nonsense) and near-domain questions about features
+the project does not have should return nothing. Latency is the median of warm sequential searches
+in one process.
 
-Measured on October 27, 2026 on an Apple M3 Max with Node.js 22.23 and LanceDB 0.30, with the
-`quality` profile these projects use and 30 unrelated questions per corpus. The two private corpora
-are described rather than published. Of the passages 6.2 still returned for unrelated questions,
-it flagged 41 of 81 on the monorepo and 37 of 38 on the documentation as weak evidence, against
-7 of 94 and 0 of 60 correct answers. On the monorepo it also applied six exclusion rules that
-6.1.6 silently missed on accented file names and cited 27 decomposed paths in canonical form. The
-extra milliseconds pay for word statistics, code-definition boosts, and crowding checks. Run the
-[benchmarks](./packages/ragmir-core/benchmarks/README.md) and `rgr evaluate` on your own corpus
-before relying on any number.
+| Corpus | Embeddings | Answer in top 3 | Answer in top 10 | Off-topic refused | Near-domain refused | Correct answers flagged weak | Median search |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Java/TypeScript monorepo with Office files and scans: 2,297 files, 29,778 chunks, 101 developer questions | multilingual-e5-base | 74% → **74%** | 93% → **93%** | 0 → **16** of 30 | 1 → **11** of 30 | 11 → **8** of 94 | 39 → 39 ms |
+| French and English product documentation: 299 files, 21,011 chunks, 60 questions | mxbai-embed-xsmall | 100% → **100%** | 100% → **100%** | 16 → **17** of 30 | 0 → **6** of 30 | 0 → **0** of 60 | 28 → 28 ms |
+| This repository: 229 files, 2,490 chunks, 99 developer questions | mxbai-embed-xsmall | 75% → **75%** | 97% → **97%** | 25 → **25** of 30 | 0 → **7** of 30 | 32 → **6** of 96 | 22 → 22 ms |
+
+Measured on November 1, 2026 on an Apple M3 Max with Node.js 26 and LanceDB 0.30, with the
+`quality` profile these projects use. Near-domain questions pair the project's own vocabulary with
+an integration, service, or format it does not have, and each was checked absent from every
+indexed file. 6.4 kept every answer in place and caught them by measuring each index's noise
+floor: a passage only counts as a strong vector match when it is nearer than 24 off-topic probe
+questions, and a search whose first five results are all weak answers nothing. The two private
+corpora are described rather than published. Run the [benchmarks](./packages/ragmir-core/benchmarks/README.md)
+and `rgr evaluate` on your own corpus before relying on any number.
+
+### Against other retrieval stacks
+
+`pnpm bench:competitors` indexes the 210 tracked documentation and source files of this
+repository and asks its 99 developer questions plus 30 off-topic and 30 near-domain questions. Every
+vector side uses the same model and vectors (`mxbai-embed-xsmall-v1`); the other stacks read the same
+files split by LangChain's `RecursiveCharacterTextSplitter` (1,000 characters, 200 overlap).
+
+| System | Answer in top 3 | Answer in top 10 | MRR@10 | Off-topic refused | Near-domain refused | Median search |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **Ragmir**, hybrid with `mxbai-embed-xsmall-v1` | **76%** | **97%** | **0.647** | **27** of 30 | **5** of 30 | 22 ms |
+| **Ragmir**, `local-hash` without a model | **79%** | 96% | 0.611 | 9 of 30 | 0 of 30 | 20 ms |
+| LangChain.js splitter with exact cosine search, as `MemoryVectorStore` | 56% | 89% | 0.509 | 0 of 30 | 0 of 30 | 5 ms |
+| Orama 3 hybrid, default similarity 0.8 | 18% | 35% | 0.144 | 2 of 30 | 0 of 30 | 5 ms |
+| Orama 3 hybrid, similarity 0.1 | 38% | 64% | 0.317 | 0 of 30 | 0 of 30 | 6 ms |
+| MiniSearch 7 BM25 | 70% | 92% | 0.566 | 3 of 30 | 0 of 30 | 1 ms |
+
+In-memory libraries answer faster, but they return results for almost every off-topic question,
+and none ranks the answering file as high: it reaches the top 3 for 76 to 79% of questions with Ragmir,
+against 56% with the LangChain.js pipeline and 70% with MiniSearch. Measured on the same machine on
+November 1, 2026; [the benchmark guide](./packages/ragmir-core/benchmarks/README.md) explains every
+setting.
 
 ## TypeScript
 

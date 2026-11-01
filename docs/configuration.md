@@ -149,11 +149,20 @@ distinctive word counts more than a common one:
   `mxbai-embed-xsmall-v1` uses 1.1. Other models keep the previous rule: any related query word,
   or a distance up to 1.1.
 
+Every Transformers index also measures its own noise floor: `rgr ingest` embeds 24 fixed off-topic
+probe questions (sports, cooking, geography, nonsense, in English and French) and stores the
+distance of the nearest passage any of them reaches. A model packs texts into its own band and a
+corpus shifts it, so only a passage nearer than every off-topic probe counts as a strong vector
+match, and a question with no known word needs one. An index built before this release measures
+the floor once per process on its first search; the next `rgr ingest` stores it.
+
 Each result whose passage holds few of the question's distinctive words and has no strong vector
-match carries `weakEvidence: true`. It is still returned; agents should verify it first. On a
-French and English golden set over a Java and TypeScript monorepo, these rules kept every
-answerable question's source, and with `mxbai-embed-xsmall-v1` they rejected 16 of 30 unrelated
-questions instead of 3. Evaluate your own corpus with `rgr evaluate`.
+match carries `weakEvidence: true`. When the first five results of a Transformers search are all
+weak, the answer holds no real evidence and search returns nothing. `local-hash` search keeps such
+results. On a Java and TypeScript monorepo, a product documentation base, and this repository
+(260 answerable questions), these rules kept every answer in place while refusing 58 of 90
+off-topic and 24 of 90 near-domain unanswerable questions, against 41 and 1 before, and flagged
+14 correct answers as weak instead of 43. Evaluate your own corpus with `rgr evaluate`.
 
 Changing an embedding provider, model, revision, digest, or chunking field requires
 `rgr ingest --rebuild`. Revision and artifact digest participate in the index, vector-index, and

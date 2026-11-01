@@ -190,6 +190,7 @@ export interface IndexManifest {
   staleFiles?: IndexManifestStaleFile[]
   health?: IndexHealthSnapshot
   maintenance?: IndexMaintenanceSnapshot
+  abstentionCalibration?: AbstentionCalibration
   qualityReport?: IndexQualityReport
 }
 
@@ -242,6 +243,18 @@ export interface IndexFreshnessReport {
     staleInIndex: string[]
   }
   error: string | null
+}
+
+/**
+ * Where off-topic questions land in this index: the smallest distance between a fixed set of
+ * off-topic probe questions and their nearest passage. Search only accepts vector evidence nearer
+ * than this noise floor.
+ */
+export interface AbstentionCalibration {
+  schemaVersion: 1
+  embeddingModel: string
+  probeCount: number
+  noiseFloorDistance: number
 }
 
 export interface IndexMaintenanceSnapshot {
@@ -747,6 +760,8 @@ export interface SearchScoreExplanation {
   matchedTerms: string[]
   /** IDF-weighted share of query words in the passage; null without word statistics. */
   queryTermCoverage: number | null
+  /** Distance of the nearest passage to off-topic probe questions; null for local-hash. */
+  noiseFloorDistance: number | null
 }
 
 export interface ExpandCitationOptions extends OperationOptions {

@@ -4,10 +4,10 @@ import { open as openFile, readdir, readFile, rm } from "node:fs/promises"
 import path from "node:path"
 import { syncDirectory, writePrivateFileAtomic } from "./durable-file.js"
 import { isRecord } from "./guards.js"
+import { acceptJsonLines } from "./json-lines.js"
 import { ensurePrivateDirectory, hardenPrivateFile } from "./permissions.js"
 import type {
   Config,
-  IndexManifest,
   IndexManifestFile,
   IngestionFileStage,
   IngestionProgress,
@@ -305,14 +305,6 @@ export async function compactIngestionState(
   runtime.dirtyFiles.clear()
 }
 
-export async function writeStagedIndexManifest(
-  manifest: IndexManifest,
-  runId: string,
-  config: Config,
-): Promise<void> {
-  await writePrivateJsonAtomic(stagedManifestPath(runId, config), manifest, config.storageDir)
-}
-
 export async function removeStagedIndexManifest(runId: string, config: Config): Promise<void> {
   await rm(stagedManifestPath(runId, config), { force: true })
 }
@@ -445,6 +437,8 @@ async function applyIngestionJournal(
   runtime: IngestionRuntime,
   snapshotUpdatedAt: string,
 ): Promise<boolean> {
+  // Unlike the file snapshot, the append-only journal skips empty lines and ignores a final line
+  // without a newline: an append interrupted by a crash must not discard the entries before it.
   const stream = createReadStream(path.join(config.storageDir, INGESTION_JOURNAL_FILENAME))
   stream.setEncoding("utf8")
   let buffered = ""
@@ -578,17 +572,7 @@ async function readIngestionFileSnapshot(
 ): Promise<{ values: IngestionFileState[]; byPath: Map<string, IngestionFileState> } | null> {
   const values: IngestionFileState[] = []
   const byPath = new Map<string, IngestionFileState>()
-  const stream = createReadStream(path.join(config.storageDir, header.fileSnapshot))
-  stream.setEncoding("utf8")
-  let buffered = ""
-
-  const applyLine = (line: string): boolean => {
-    let value: unknown
-    try {
-      value = JSON.parse(line) as unknown
-    } catch {
-      return false
-    }
+  const accept = (value: unknown): boolean => {
     if (!isIngestionFileState(value, header.policyFingerprint) || byPath.has(value.relativePath)) {
       return false
     }
@@ -598,22 +582,11 @@ async function readIngestionFileSnapshot(
   }
 
   try {
-    for await (const chunk of stream) {
-      buffered += typeof chunk === "string" ? chunk : chunk.toString("utf8")
-      let lineEnd = buffered.indexOf("\n")
-      while (lineEnd >= 0) {
-        const line = buffered.slice(0, lineEnd)
-        buffered = buffered.slice(lineEnd + 1)
-        if (!line || !applyLine(line)) {
-          return null
-        }
-        lineEnd = buffered.indexOf("\n")
-      }
-    }
-    if (buffered && !applyLine(buffered)) {
-      return null
-    }
-    return values.length === header.fileCount ? { values, byPath } : null
+    const complete = await acceptJsonLines(
+      path.join(config.storageDir, header.fileSnapshot),
+      accept,
+    )
+    return complete && values.length === header.fileCount ? { values, byPath } : null
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
       return null
@@ -627,19 +600,8 @@ function isIngestionRunState(value: unknown, config: Config): value is Ingestion
     !isRecord(value) ||
     (value.version !== LEGACY_INGESTION_STATE_VERSION &&
       value.version !== INGESTION_STATE_VERSION) ||
-    !isUuidV4(value.runId) ||
-    (value.mode !== "incremental" && value.mode !== "rebuild") ||
-    !isIngestionRunStatus(value.status) ||
-    typeof value.tableName !== "string" ||
-    (value.previousTableName !== null && typeof value.previousTableName !== "string") ||
-    typeof value.policyFingerprint !== "string" ||
-    value.policyFingerprint.length === 0 ||
-    !isPositiveSafeInteger(value.batchSize) ||
-    !isIsoTimestamp(value.createdAt) ||
-    !isIsoTimestamp(value.updatedAt) ||
-    !isIsoTimestamp(value.lastActivityAt) ||
-    typeof value.resumed !== "boolean" ||
-    !Array.isArray(value.files)
+    !Array.isArray(value.files) ||
+    !isIngestionRunMetadata(value, config)
   ) {
     return false
   }
@@ -648,22 +610,7 @@ function isIngestionRunState(value: unknown, config: Config): value is Ingestion
   if (!value.files.every((file) => isIngestionFileState(file, policyFingerprint))) {
     return false
   }
-
-  const uniquePaths = new Set(value.files.map((file) => file.relativePath))
-  if (uniquePaths.size !== value.files.length || !isManagedTableName(value.tableName, config)) {
-    return false
-  }
-
-  if (value.mode === "incremental") {
-    return value.previousTableName === null
-  }
-
-  return (
-    value.tableName === generationTableName(config.tableName, value.runId) &&
-    value.previousTableName !== null &&
-    value.previousTableName !== value.tableName &&
-    isManagedTableName(value.previousTableName, config)
-  )
+  return new Set(value.files.map((file) => file.relativePath)).size === value.files.length
 }
 
 function isPersistedIngestionRunHeader(
