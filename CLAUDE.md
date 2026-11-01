@@ -5,6 +5,7 @@
 ```bash
 pnpm bootstrap
 pnpm validate
+pnpm knip
 pnpm dev:landing
 pnpm example
 ```

@@ -1,0 +1,1172 @@
+{
+  "description": "Questions about the public Ragmir repository: answerable developer questions with every file that answers them, off-topic questions, and near-domain questions about features Ragmir does not have. Expected paths are tracked files.",
+  "answerable": [
+    {
+      "id": "guided-setup-1",
+      "query": "How should a coding agent inspect a repository before installing Ragmir?",
+      "expectedPaths": [
+        "docs/quick-start.md",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/README.md"
+      ]
+    },
+    {
+      "id": "guided-setup-2",
+      "query": "Which approvals must the guided Ragmir setup request before changing dependencies or downloading models?",
+      "expectedPaths": [
+        "docs/quick-start.md",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/README.md"
+      ]
+    },
+    {
+      "id": "guided-setup-3",
+      "query": "How does the guided setup choose sources and exclude secrets or generated noise?",
+      "expectedPaths": [
+        "docs/quick-start.md",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/README.md"
+      ]
+    },
+    {
+      "id": "guided-setup-4",
+      "query": "What verification should the guided setup run after indexing the repository?",
+      "expectedPaths": [
+        "docs/quick-start.md",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/README.md"
+      ]
+    },
+    {
+      "id": "guided-setup-5",
+      "query": "How should an existing Ragmir installation be inspected before it is upgraded?",
+      "expectedPaths": [
+        "docs/quick-start.md",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/README.md"
+      ]
+    },
+    {
+      "id": "package-manager-1",
+      "query": "How does the guided setup prompt detect pnpm npm Yarn or Bun?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/package-manager.ts",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "docs/quick-start.md",
+        "packages/ragmir-landing/src/components/library-section.tsx"
+      ]
+    },
+    {
+      "id": "package-manager-2",
+      "query": "Which package manager signal has priority when Ragmir builds commands?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/package-manager.ts",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "docs/quick-start.md",
+        "packages/ragmir-landing/src/components/library-section.tsx"
+      ]
+    },
+    {
+      "id": "package-manager-3",
+      "query": "What rgr execution prefix is generated for a Bun project?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/package-manager.ts",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "docs/quick-start.md",
+        "packages/ragmir-landing/src/components/library-section.tsx"
+      ]
+    },
+    {
+      "id": "package-manager-4",
+      "query": "How does Ragmir avoid choosing a second lockfile in a workspace?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/package-manager.ts",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "docs/quick-start.md",
+        "packages/ragmir-landing/src/components/library-section.tsx"
+      ]
+    },
+    {
+      "id": "package-manager-5",
+      "query": "How does rgrCommand turn a detected package manager into a display command?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/package-manager.ts",
+        "packages/ragmir-core/src/setup-prompt.ts",
+        "docs/quick-start.md",
+        "packages/ragmir-landing/src/components/library-section.tsx"
+      ]
+    },
+    {
+      "id": "privacy-1",
+      "query": "What stays local when Ragmir Core indexes and retrieves project documents?",
+      "expectedPaths": [
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "SECURITY-HARDENING.md",
+        "llms.txt",
+        "context7.json"
+      ]
+    },
+    {
+      "id": "privacy-2",
+      "query": "Does Ragmir Core upload the corpus or call a language model?",
+      "expectedPaths": [
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "SECURITY-HARDENING.md",
+        "llms.txt",
+        "context7.json"
+      ]
+    },
+    {
+      "id": "privacy-3",
+      "query": "Where are generated indexes reports helpers and metadata-only logs stored?",
+      "expectedPaths": [
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "SECURITY-HARDENING.md",
+        "llms.txt",
+        "context7.json"
+      ]
+    },
+    {
+      "id": "privacy-4",
+      "query": "When can retrieved passages cross a network boundary?",
+      "expectedPaths": [
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "SECURITY-HARDENING.md",
+        "llms.txt",
+        "context7.json"
+      ]
+    },
+    {
+      "id": "privacy-5",
+      "query": "Why is local-hash described as offline rather than semantic?",
+      "expectedPaths": [
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "SECURITY-HARDENING.md",
+        "llms.txt",
+        "context7.json"
+      ]
+    },
+    {
+      "id": "agent-mcp-1",
+      "query": "How should a coding agent connect to Ragmir through the local MCP server?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/api-reference.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/src/mcp.ts",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "agent-mcp-2",
+      "query": "Which native helpers are generated for Claude Code Codex Kimi OpenCode and Cline?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/api-reference.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/src/mcp.ts",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "agent-mcp-3",
+      "query": "How does an MCP helper select the correct knowledge base in a monorepo?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/api-reference.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/src/mcp.ts",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "agent-mcp-4",
+      "query": "Why should an agent read ragmir://context before retrieval?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/api-reference.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/src/mcp.ts",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "agent-mcp-5",
+      "query": "What happens when an unmanaged same-name agent skill already exists?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/api-reference.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/src/mcp.ts",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "team-1",
+      "query": "How do teammates synchronize Ragmir sources while keeping one local index per developer?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/configuration.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "team-2",
+      "query": "What does a metadata-only team snapshot contain and exclude?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/configuration.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "team-3",
+      "query": "How does team compare explain local-only peer-only and changed files?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/configuration.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "team-4",
+      "query": "Who decides which Git Drive or folder revision is authoritative?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/configuration.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "team-5",
+      "query": "Why must actively written .ragmir storage stay local to each workstation?",
+      "expectedPaths": [
+        "docs/agent-integration.md",
+        "README.md",
+        "docs/configuration.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "cli-1",
+      "query": "Which rgr commands cover setup preview ingest search audit and maintenance?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "cli-2",
+      "query": "How can a user explain lexical and vector contributions to a search ranking?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "cli-3",
+      "query": "What bounds apply to top-k and context radius in CLI retrieval?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "cli-4",
+      "query": "How does research report timeout code scan and evidence budgets?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "cli-5",
+      "query": "Which command audits unsupported files without writing the index?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "api-1",
+      "query": "How should a long-running Node process reuse and close a Ragmir client?",
+      "expectedPaths": [
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/client.ts",
+        "packages/ragmir-core/src/query.ts"
+      ]
+    },
+    {
+      "id": "api-2",
+      "query": "Which TypeScript API returns cited retrieval context without synthesized prose?",
+      "expectedPaths": [
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/client.ts",
+        "packages/ragmir-core/src/query.ts"
+      ]
+    },
+    {
+      "id": "api-3",
+      "query": "How can application code cancel a Ragmir operation or set a timeout?",
+      "expectedPaths": [
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/client.ts",
+        "packages/ragmir-core/src/query.ts"
+      ]
+    },
+    {
+      "id": "api-4",
+      "query": "What lifecycle resources are owned by createRagmirClient?",
+      "expectedPaths": [
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/client.ts",
+        "packages/ragmir-core/src/query.ts"
+      ]
+    },
+    {
+      "id": "api-5",
+      "query": "Which typed API expands a citation into its source context?",
+      "expectedPaths": [
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/client.ts",
+        "packages/ragmir-core/src/query.ts"
+      ]
+    },
+    {
+      "id": "configuration-1",
+      "query": "How are stable source globs configured for a Ragmir knowledge base?",
+      "expectedPaths": [
+        "docs/configuration.md",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/src/config.ts",
+        "packages/ragmir-core/src/setup-prompt.ts"
+      ]
+    },
+    {
+      "id": "configuration-2",
+      "query": "Which configuration fields select local-hash or Transformers embeddings?",
+      "expectedPaths": [
+        "docs/configuration.md",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/src/config.ts",
+        "packages/ragmir-core/src/setup-prompt.ts"
+      ]
+    },
+    {
+      "id": "configuration-3",
+      "query": "How should private external source folders be authorized?",
+      "expectedPaths": [
+        "docs/configuration.md",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/src/config.ts",
+        "packages/ragmir-core/src/setup-prompt.ts"
+      ]
+    },
+    {
+      "id": "configuration-4",
+      "query": "What ingestion windows independently bound files bytes chunks vectors and concurrency?",
+      "expectedPaths": [
+        "docs/configuration.md",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/src/config.ts",
+        "packages/ragmir-core/src/setup-prompt.ts"
+      ]
+    },
+    {
+      "id": "configuration-5",
+      "query": "How does the nearest configured ancestor behave in a monorepo?",
+      "expectedPaths": [
+        "docs/configuration.md",
+        "README.md",
+        "docs/agent-integration.md",
+        "packages/ragmir-core/src/config.ts",
+        "packages/ragmir-core/src/setup-prompt.ts"
+      ]
+    },
+    {
+      "id": "upgrade-1",
+      "query": "How should an old Ragmir installation check compatibility after a package update?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/upgrade.ts",
+        "packages/ragmir-core/src/upgrade.test.ts",
+        "CHANGELOG.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "upgrade-2",
+      "query": "When does an upgrade require a staged rebuild instead of index reuse?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/upgrade.ts",
+        "packages/ragmir-core/src/upgrade.test.ts",
+        "CHANGELOG.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "upgrade-3",
+      "query": "Why does Ragmir never delete the active index before rebuilding?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/upgrade.ts",
+        "packages/ragmir-core/src/upgrade.test.ts",
+        "CHANGELOG.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "upgrade-4",
+      "query": "How can a long-running service continue serving during an index upgrade?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/upgrade.ts",
+        "packages/ragmir-core/src/upgrade.test.ts",
+        "CHANGELOG.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "upgrade-5",
+      "query": "Which safe defaults are applied to older configuration files?",
+      "expectedPaths": [
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "packages/ragmir-core/src/upgrade.ts",
+        "packages/ragmir-core/src/upgrade.test.ts",
+        "CHANGELOG.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "chat-1",
+      "query": "How is local GGUF answer synthesis kept separate from Ragmir Core retrieval?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "chat-2",
+      "query": "What are the download sizes for lite fast and quality Chat profiles?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "chat-3",
+      "query": "How does Ragmir Chat validate visible citation markers in a local answer?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "chat-4",
+      "query": "Which command verifies a Chat model profile is ready for offline generation?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "chat-5",
+      "query": "Does installing Ragmir Core require Qwen Gemma or the Chat package?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "tts-1",
+      "query": "Which languages have an offline Ragmir TTS model?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "tts-2",
+      "query": "When may narration text be sent to the Edge speech service?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "tts-3",
+      "query": "How should a TTS model be preloaded with non-sensitive text?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "tts-4",
+      "query": "Which output format is produced by offline Transformers speech?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "tts-5",
+      "query": "Does Ragmir TTS retrieve evidence or only render caller-provided text?",
+      "expectedPaths": [
+        "README.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "troubleshooting-1",
+      "query": "What should a user inspect when Ragmir search results are weak?",
+      "expectedPaths": [
+        "docs/troubleshooting.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/cli-reference.md"
+      ]
+    },
+    {
+      "id": "troubleshooting-2",
+      "query": "How can unsupported or oversized files be diagnosed?",
+      "expectedPaths": [
+        "docs/troubleshooting.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/cli-reference.md"
+      ]
+    },
+    {
+      "id": "troubleshooting-3",
+      "query": "What repairs should doctor fix perform without deleting healthy storage?",
+      "expectedPaths": [
+        "docs/troubleshooting.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/cli-reference.md"
+      ]
+    },
+    {
+      "id": "troubleshooting-4",
+      "query": "How should a missing optional Chat or TTS peer package be diagnosed?",
+      "expectedPaths": [
+        "docs/troubleshooting.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/cli-reference.md"
+      ]
+    },
+    {
+      "id": "troubleshooting-5",
+      "query": "Which checks distinguish privacy warnings from operational readiness?",
+      "expectedPaths": [
+        "docs/troubleshooting.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/cli-reference.md"
+      ]
+    },
+    {
+      "id": "security-1",
+      "query": "Which privacy controls harden a Ragmir installation for confidential documents?",
+      "expectedPaths": [
+        "SECURITY-HARDENING.md",
+        "SECURITY.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "docs/agent-integration.md"
+      ]
+    },
+    {
+      "id": "security-2",
+      "query": "How does security-audit verify Git ignore coverage and local permissions?",
+      "expectedPaths": [
+        "SECURITY-HARDENING.md",
+        "SECURITY.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "docs/agent-integration.md"
+      ]
+    },
+    {
+      "id": "security-3",
+      "query": "What content must never be committed from the .ragmir directory?",
+      "expectedPaths": [
+        "SECURITY-HARDENING.md",
+        "SECURITY.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "docs/agent-integration.md"
+      ]
+    },
+    {
+      "id": "security-4",
+      "query": "Why must vulnerabilities leaked secrets and private document disclosures be reported privately instead of in a public issue?",
+      "expectedPaths": [
+        "SECURITY-HARDENING.md",
+        "SECURITY.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "docs/agent-integration.md"
+      ]
+    },
+    {
+      "id": "security-5",
+      "query": "Why are OCR and external extractors explicit local authority boundaries?",
+      "expectedPaths": [
+        "SECURITY-HARDENING.md",
+        "SECURITY.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "docs/agent-integration.md"
+      ]
+    },
+    {
+      "id": "release-1",
+      "query": "What validation gate must pass before a Ragmir release?",
+      "expectedPaths": [
+        "RELEASING.md",
+        "README.md",
+        "package.json",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "release-2",
+      "query": "How are Core Chat and TTS package compatibility checked before publishing?",
+      "expectedPaths": [
+        "RELEASING.md",
+        "README.md",
+        "package.json",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "release-3",
+      "query": "Which release notes sections describe highlights details and verification?",
+      "expectedPaths": [
+        "RELEASING.md",
+        "README.md",
+        "package.json",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "release-4",
+      "query": "How is semantic-release used to publish Ragmir packages?",
+      "expectedPaths": [
+        "RELEASING.md",
+        "README.md",
+        "package.json",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "release-5",
+      "query": "What should be verified after npm packages and the landing are released?",
+      "expectedPaths": [
+        "RELEASING.md",
+        "README.md",
+        "package.json",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "contributing-1",
+      "query": "Which Node version and package manager should contributors use?",
+      "expectedPaths": [
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md"
+      ]
+    },
+    {
+      "id": "contributing-2",
+      "query": "How should a contributor run the repository validation suite?",
+      "expectedPaths": [
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md"
+      ]
+    },
+    {
+      "id": "contributing-3",
+      "query": "What code and documentation expectations apply to a Ragmir change?",
+      "expectedPaths": [
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md"
+      ]
+    },
+    {
+      "id": "contributing-4",
+      "query": "How should commits be formatted in the Ragmir repository?",
+      "expectedPaths": [
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md"
+      ]
+    },
+    {
+      "id": "contributing-5",
+      "query": "Which local generated files must contributors keep out of Git?",
+      "expectedPaths": [
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md"
+      ]
+    },
+    {
+      "id": "scripts-1",
+      "query": "Which root script runs the complete Ragmir validation gate?",
+      "expectedPaths": [
+        "package.json",
+        "README.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "RELEASING.md",
+        "scripts/public-surface-smoke.mjs",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "scripts-2",
+      "query": "Which package scripts build Core Chat TTS and the landing?",
+      "expectedPaths": [
+        "package.json",
+        "README.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "RELEASING.md",
+        "scripts/public-surface-smoke.mjs",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "scripts-3",
+      "query": "What script checks the public repository surface for secrets and generated state?",
+      "expectedPaths": [
+        "package.json",
+        "README.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "RELEASING.md",
+        "scripts/public-surface-smoke.mjs",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "scripts-4",
+      "query": "Which pnpm command runs the landing development server on localhost 4322?",
+      "expectedPaths": [
+        "package.json",
+        "README.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "RELEASING.md",
+        "scripts/public-surface-smoke.mjs",
+        "scripts/semantic-release-smoke.mjs",
+        "packages/ragmir-landing/README.md"
+      ]
+    },
+    {
+      "id": "scripts-5",
+      "query": "Which release script verifies semantic-release configuration?",
+      "expectedPaths": [
+        "package.json",
+        "README.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "RELEASING.md",
+        "scripts/public-surface-smoke.mjs",
+        "scripts/semantic-release-smoke.mjs"
+      ]
+    },
+    {
+      "id": "mcp-1",
+      "query": "Which read-focused tools are exposed by the Ragmir MCP server?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/mcp.ts",
+        "docs/agent-integration.md",
+        "docs/api-reference.md",
+        "README.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "mcp-2",
+      "query": "How are MCP JSON responses bounded when the output budget is small?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/mcp.ts",
+        "docs/agent-integration.md",
+        "docs/api-reference.md",
+        "README.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "mcp-3",
+      "query": "When does the MCP server refresh its lazy Ragmir client?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/mcp.ts",
+        "docs/agent-integration.md",
+        "docs/api-reference.md",
+        "README.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "mcp-4",
+      "query": "How does MCP advertise destructive and open-world tool behavior?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/mcp.ts",
+        "docs/agent-integration.md",
+        "docs/api-reference.md",
+        "README.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "mcp-5",
+      "query": "Which MCP resources orient an agent before it searches?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/mcp.ts",
+        "docs/agent-integration.md",
+        "docs/api-reference.md",
+        "README.md",
+        "llms.txt",
+        "context7.json",
+        "packages/ragmir-core/skills/ragmir/SKILL.md"
+      ]
+    },
+    {
+      "id": "ingestion-1",
+      "query": "How does Ragmir ingestion discover redact chunk embed and commit selected files?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/ingest.ts",
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "AGENTS.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "ingestion-2",
+      "query": "How are concurrent local index writers serialized?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/ingest.ts",
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "AGENTS.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "ingestion-3",
+      "query": "What durable progress allows an interrupted ingestion to resume?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/ingest.ts",
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "AGENTS.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "ingestion-4",
+      "query": "How does a rebuild validate and activate a new generation atomically?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/ingest.ts",
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "AGENTS.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "ingestion-5",
+      "query": "When can an unchanged file be reused instead of parsed again?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/ingest.ts",
+        "docs/cli-reference.md",
+        "README.md",
+        "packages/ragmir-core/README.md",
+        "docs/configuration.md",
+        "AGENTS.md",
+        "llms.txt"
+      ]
+    },
+    {
+      "id": "evaluation-1",
+      "query": "Which metrics are calculated by the Ragmir golden-query evaluator?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/evaluate.ts",
+        "docs/cli-reference.md",
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/benchmarks/README.md"
+      ]
+    },
+    {
+      "id": "evaluation-2",
+      "query": "What makes a retrieval quality report eligible for verification?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/evaluate.ts",
+        "docs/cli-reference.md",
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/benchmarks/README.md"
+      ]
+    },
+    {
+      "id": "evaluation-3",
+      "query": "How are exact citations graded in a golden query?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/evaluate.ts",
+        "docs/cli-reference.md",
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/benchmarks/README.md"
+      ]
+    },
+    {
+      "id": "evaluation-4",
+      "query": "How does a hard-negative case measure false positives?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/evaluate.ts",
+        "docs/cli-reference.md",
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/benchmarks/README.md"
+      ]
+    },
+    {
+      "id": "evaluation-5",
+      "query": "What invalidates a stored retrieval quality fingerprint?",
+      "expectedPaths": [
+        "packages/ragmir-core/src/evaluate.ts",
+        "docs/cli-reference.md",
+        "docs/api-reference.md",
+        "README.md",
+        "packages/ragmir-core/benchmarks/README.md"
+      ]
+    },
+    {
+      "id": "landing-1",
+      "query": "Which structured data entities describe the Ragmir landing page?",
+      "expectedPaths": [
+        "packages/ragmir-landing/src/pages/[...locale]/index.astro",
+        "packages/ragmir-landing/src/components/library-section.tsx",
+        "packages/ragmir-landing/messages/en.json",
+        "packages/ragmir-landing/messages/fr.json",
+        "packages/ragmir-landing/README.md",
+        "packages/ragmir-landing/src/public-contract.test.ts",
+        "scripts/public-surface-smoke.mjs"
+      ]
+    },
+    {
+      "id": "landing-2",
+      "query": "How does the landing keep English and French metadata aligned?",
+      "expectedPaths": [
+        "packages/ragmir-landing/src/pages/[...locale]/index.astro",
+        "packages/ragmir-landing/src/components/library-section.tsx",
+        "packages/ragmir-landing/messages/en.json",
+        "packages/ragmir-landing/messages/fr.json",
+        "packages/ragmir-landing/README.md",
+        "packages/ragmir-landing/src/public-contract.test.ts",
+        "scripts/public-surface-smoke.mjs"
+      ]
+    },
+    {
+      "id": "landing-3",
+      "query": "Where does the landing present the copyable guided setup prompt?",
+      "expectedPaths": [
+        "packages/ragmir-landing/src/pages/[...locale]/index.astro",
+        "packages/ragmir-landing/src/components/library-section.tsx",
+        "packages/ragmir-landing/messages/en.json",
+        "packages/ragmir-landing/messages/fr.json",
+        "packages/ragmir-landing/README.md",
+        "packages/ragmir-landing/src/public-contract.test.ts",
+        "scripts/public-surface-smoke.mjs"
+      ]
+    },
+    {
+      "id": "landing-4",
+      "query": "Which package-manager tabs are available for manual installation?",
+      "expectedPaths": [
+        "packages/ragmir-landing/src/pages/[...locale]/index.astro",
+        "packages/ragmir-landing/src/components/library-section.tsx",
+        "packages/ragmir-landing/messages/en.json",
+        "packages/ragmir-landing/messages/fr.json",
+        "packages/ragmir-landing/README.md",
+        "packages/ragmir-landing/src/public-contract.test.ts",
+        "scripts/public-surface-smoke.mjs"
+      ]
+    }
+  ],
+  "unrelated": [
+    "What is the weather forecast for Lyon tomorrow?",
+    "Quel temps fera-t-il à Bordeaux ce week-end ?",
+    "How do I make a classic French onion soup?",
+    "Recette de la tarte tatin aux pommes",
+    "Who won the 2018 FIFA World Cup final?",
+    "Qui a remporté le Tour de France 2019 ?",
+    "What is the capital of Australia?",
+    "Combien de lunes possède la planète Jupiter ?",
+    "How tall is the Eiffel Tower?",
+    "Quelle est la meilleure période pour visiter le Japon ?",
+    "What is the boiling point of water at the top of Mount Everest?",
+    "Comment faire pousser des tomates sur un balcon ?",
+    "Who painted the Mona Lisa?",
+    "Quel est le prix moyen d'un billet de train Paris Marseille ?",
+    "How do I change a flat tire on a bicycle?",
+    "Quelle race de chien est la plus calme pour un appartement ?",
+    "What are the rules of cricket?",
+    "Comment détartrer une bouilloire avec du vinaigre ?",
+    "When did the Roman Empire fall?",
+    "Quels sont les symptômes d'un rhume chez le chat ?",
+    "Best hiking trails near Chamonix",
+    "Quelle est la hauteur du Mont Blanc ?",
+    "How does a sourdough starter work?",
+    "qwzx plorbnik vantrel ?",
+    "blorf glimmer tasky snarl",
+    "zxcv asdf qwer uiop",
+    "Lorem ipsum dolor sit amet consectetur",
+    "Où trouver des champignons en forêt en octobre ?",
+    "What year did the Berlin Wall fall?",
+    "Quel vin servir avec une raclette ?"
+  ],
+  "nearDomain": [
+    "How does Ragmir expose a GraphQL API?",
+    "Where is the Helm chart to deploy Ragmir on Kubernetes?",
+    "How does Ragmir sync with a Pinecone index?",
+    "How do I configure the Redis cache for Ragmir search results?",
+    "Which command exports the Ragmir index to Parquet?",
+    "Is there a Windows MSI installer for Ragmir?",
+    "How do I connect Ragmir to a Slack bot?",
+    "How does the Ragmir Discord integration work?",
+    "How do I index Confluence spaces with Ragmir?",
+    "How does the Ragmir SharePoint connector authenticate?",
+    "How do I sync a Notion workspace into Ragmir?",
+    "How does Ragmir encrypt the index with AWS KMS?",
+    "How do I configure SAML single sign-on for Ragmir?",
+    "Which Prometheus metrics does Ragmir export?",
+    "Where is the Ragmir Java SDK documented?",
+    "How do I stream Ragmir search results over server-sent events?",
+    "How do I index AutoCAD DWG drawings with Ragmir?",
+    "How do I index Outlook PST email archives?",
+    "How do I configure the built-in web crawler to index a website?",
+    "How do I index YouTube video transcripts with Ragmir?",
+    "Which Elasticsearch version does Ragmir require?",
+    "How do I configure Ragmir with Azure OpenAI embeddings?",
+    "How does Ragmir index WhatsApp or iMessage chats?",
+    "How does Ragmir handle Git LFS files during ingestion?",
+    "How do I index a MongoDB collection with Ragmir?",
+    "How does the GraphRAG knowledge graph builder in Ragmir work?",
+    "How do I configure the Ragmir Chrome extension?",
+    "How does Ragmir OCR Arabic right-to-left scans?",
+    "How does Ragmir handle Excel macros in .xlsm files?",
+    "How does Ragmir federated search query several remote servers?"
+  ]
+}

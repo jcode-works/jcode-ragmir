@@ -17,6 +17,7 @@ Generated corpora, model caches, and raw results stay outside Git.
 | `pnpm bench:observability` | Diagnostic completeness, privacy, and disabled-path cost |
 | `pnpm bench:parsers [-- --stress]` | Office, EPUB, PDF throughput, memory, citations, and malformed input |
 | `pnpm bench:compare -- --baseline baseline.json --current current.json` | Comparable result regression |
+| `pnpm bench:competitors [-- --model-path /path/to/models]` | Ragmir against LangChain.js, Orama, and MiniSearch on this repository |
 
 Additional root scripts cover CLI startup, discovery, ingestion memory, metadata, local-hash
 runtime, storage maintenance, status, runtime reuse, OCR cache, generation retention, concurrency,
@@ -35,6 +36,14 @@ and explicit reranker, compression, hashing, and content-dedup experiments.
   complete corpus independently, with a one-chunk document cap and no calibrated abstention.
   The gate covers exact references, long-query preservation, and spreadsheet header retrieval.
   Other outcomes are reported, not presented as representative developer-task success rates.
+- `bench:competitors` indexes the tracked documentation and source of this repository at the
+  current commit and asks the questions in `fixtures/repository-questions.json`: 99 developer
+  questions with every file that answers them, 30 off-topic questions, and 30 near-domain
+  questions about features Ragmir does not have. The other stacks read the same files split by
+  LangChain's `RecursiveCharacterTextSplitter` (1,000 characters, 200 overlap), and every vector
+  side uses Ragmir's embedding function, so models, prefixes, and vectors are identical. Orama
+  runs with its default 0.8 hybrid similarity and with 0.1, which lets its vector side rank. A
+  question counts as answered when one of its files appears; a refusal is an empty result.
 - `bench:compare` recognizes scale and quality reports separately. It validates both quality runs,
   their absolute gates, and explicit workload versions. Missing identities or metrics are invalid,
   incompatible workloads are inconclusive, and only complete comparable reports can pass.
