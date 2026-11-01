@@ -1,4 +1,8 @@
 import type { RankedRow, RankingRow } from "./ranking.js"
+import { memoizeByText } from "./text-memo.js"
+
+/** Texts that differ only in spacing or case count as one passage. */
+const duplicateKeyOf = memoizeByText((text) => text.replace(/\s+/gu, " ").trim().toLowerCase())
 
 interface DiversifiableRow extends RankingRow {
   text: string
@@ -102,7 +106,7 @@ function uniqueRelevantRows<Row extends DiversifiableRow>(
   isRelevant: ((row: Row) => boolean) | undefined,
   isExactPathMatch: ((row: Row) => boolean) | undefined,
 ): (index: number) => RankedRow<Row> | undefined {
-  const textKeys = rows.map((ranked) => ranked.row.text.replace(/\s+/gu, " ").trim().toLowerCase())
+  const textKeys = rows.map((ranked) => duplicateKeyOf(ranked.row.text))
   const rowsByText = new Map<string, number[]>()
   textKeys.forEach((textKey, index) => {
     const group = rowsByText.get(textKey)

@@ -31,9 +31,11 @@ import { operationSignal, throwIfAborted } from "./operation.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 import type { QueryTermStatistics, RankedRow } from "./ranking.js"
 import {
+  absentShareOf,
   abstentionFilter,
   fusionCandidateDepth,
   fuzzyMatchPrefilter,
+  isLowInformationWord,
   isWeakAnswer,
   queryEvidence,
   queryTermCoverage,
@@ -51,7 +53,13 @@ import {
   resolveExistingPath,
   unicodePathVariants,
 } from "./source-paths.js"
-import { definitionBoostOf, localeDocumentKey, sourceWeightOf } from "./source-weights.js"
+import {
+  definitionBoostOf,
+  fileNameBoostOf,
+  headingBoostOf,
+  localeDocumentKey,
+  sourceWeightOf,
+} from "./source-weights.js"
 import type { IndexReadSnapshot } from "./store.js"
 import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
 import { normalizeForMatch, tokenize } from "./text.js"
@@ -283,9 +291,9 @@ async function searchWithinGeneration(
         manifest.vectorIndex,
         options.vectorSearchMode === "exact",
       )
-      return (await (predicate ? vectorQuery.where(predicate) : vectorQuery)
-        .limit(limit)
-        .toArray()) as SearchRow[]
+      return plainRows(
+        await (predicate ? vectorQuery.where(predicate) : vectorQuery).limit(limit).toArray(),
+      )
     }
     const rows = await nearest(retrievalPredicate)
     const crowding = crowdingDocuments(rows, topK)
@@ -314,25 +322,31 @@ async function searchWithinGeneration(
   }
   const vectorRows = vectorRowsOutcome.value
   const lexicalCandidates = lexicalCandidatesOutcome.value
-  const termStatistics = withFuzzyMatches(await termFrequenciesPromise, queryTokens, [
-    ...lexicalCandidates.rows,
-    ...vectorRows,
-  ])
-  throwIfAborted(signal)
   const rankingPolicy = rankingPolicyFor(
     config.embeddingProvider,
     config.retrievalProfile,
     maxChunksPerDocument,
     config.embeddingModel,
   )
+  const termStatistics = withFuzzyMatches(
+    await termFrequenciesPromise,
+    queryTokens,
+    [...lexicalCandidates.rows, ...vectorRows],
+    rankingPolicy.absentFocusShare,
+  )
+  throwIfAborted(signal)
   const weightOf = sourceWeightOf(config)
-  const definitionBoost = definitionBoostOf(queryTokens)
+  const boostTokens = distinctiveTokens(queryTokens, termStatistics)
+  const definitionBoost = definitionBoostOf(boostTokens)
+  const fileNameBoost = fileNameBoostOf(boostTokens)
+  const headingBoost = headingBoostOf(boostTokens)
   const rankedRows = rankHybridRows(
     sanitized.query,
     vectorRows,
     lexicalCandidates.rows,
     rankingPolicy,
-    (row) => weightOf(row.relativePath) * definitionBoost(row),
+    (row) =>
+      weightOf(row.relativePath) * definitionBoost(row) * fileNameBoost(row) * headingBoost(row),
   )
   const isExactPathMatch = (row: SearchRow): boolean =>
     lexicalCandidates.exactPathMatches.has(rowKey(row))
@@ -358,7 +372,6 @@ async function searchWithinGeneration(
   // than noise. An exact path match is never weak.
   const rows = isWeakAnswer(
     diversity.rows,
-    rankingPolicy,
     (row) => !isExactPathMatch(row.row) && hasWeakEvidence(row.row),
   )
     ? []
@@ -545,21 +558,42 @@ async function queryTermFrequencies(
   }
 }
 
+/**
+ * Query words that can tell passages apart. A word held by more than half of the passages has no
+ * positive inverse document frequency, so a file-name, heading, or definition match on it would lift
+ * nearly every passage above the one both channels ranked first.
+ */
+function distinctiveTokens(
+  tokens: readonly string[],
+  statistics: QueryTermStatistics | null,
+): readonly string[] {
+  if (!statistics) {
+    return tokens
+  }
+  return tokens.filter(
+    (token) => (statistics.documentFrequencies.get(token) ?? 0) * 2 <= statistics.documentCount,
+  )
+}
+
 /** Mark absent words that a candidate still matches fuzzily, so typos are not treated as noise. */
 function withFuzzyMatches(
   statistics: QueryTermStatistics | null,
   tokens: readonly string[],
   candidateRows: readonly SearchRow[],
+  absentFocusShare: number,
 ): QueryTermStatistics | null {
   if (!statistics) {
     return null
   }
-  const measured = [...new Set(tokens)].filter((token) => !statistics.unmeasuredTerms?.has(token))
-  // Fuzzy matches only decide whether no query word is known at all; skip the scan otherwise.
-  if (measured.some((token) => (statistics.documentFrequencies.get(token) ?? 0) > 0)) {
+  // Fuzzy matches only decide whether the question's focus is absent, so a misspelled word does not
+  // make an answerable question look unanswerable; skip the scan when the focus is present anyway.
+  if (absentShareOf(tokens, statistics) < absentFocusShare) {
     return statistics
   }
-  const absent = measured.filter((token) => token.length >= 7)
+  const measured = [...new Set(tokens)].filter((token) => !statistics.unmeasuredTerms?.has(token))
+  const absent = measured.filter(
+    (token) => token.length >= 7 && (statistics.documentFrequencies.get(token) ?? 0) === 0,
+  )
   if (absent.length === 0 || candidateRows.length === 0) {
     return statistics
   }
@@ -973,9 +1007,21 @@ async function executeFullTextQuery(
   pathPredicate: string | null,
 ): Promise<SearchRow[]> {
   const searchQuery = table.search(query, "fts", "searchText").select(FTS_SEARCH_COLUMNS)
-  return (await (pathPredicate ? searchQuery.where(pathPredicate) : searchQuery)
-    .limit(limit)
-    .toArray()) as SearchRow[]
+  return plainRows(
+    await (pathPredicate ? searchQuery.where(pathPredicate) : searchQuery).limit(limit).toArray(),
+  )
+}
+
+/**
+ * LanceDB returns Arrow row proxies that decode a field on every read, and ranking reads the path,
+ * text, and score of each candidate many times, so candidates become plain objects once.
+ */
+function plainRows(rows: unknown[]): SearchRow[] {
+  return rows.map((row) =>
+    typeof (row as { toJSON?: unknown }).toJSON === "function"
+      ? (row as { toJSON(): SearchRow }).toJSON()
+      : (row as SearchRow),
+  )
 }
 
 async function executeSourcePathQuery(
@@ -1304,6 +1350,31 @@ function citationForRow(row: SearchRow): string {
   return citationForCoordinates(row)
 }
 
+// Function words still help phrase-like matches but must not rank a passage on their own. The
+// keyword analyzer drops English stop words such as "the", yet keeps question words and French
+// function words: "de" and "les" match most passages of a French corpus and "what" a rare few that
+// then look distinctive. Weighting them 0.3 raised top-3 hits on three real corpora with and without
+// an embedding model (from 45% to 60% on a French and Java monorepo without one), refusing no answer.
+const FUNCTION_WORD_WEIGHT = 0.3
+
+function keywordQuery(tokens: readonly string[]): FullTextQuery {
+  const content = tokens.filter((token) => !isLowInformationWord(token))
+  const functionWords = tokens.filter(isLowInformationWord)
+  if (content.length === 0 || functionWords.length === 0) {
+    return new MatchQuery(tokens.join(" "), "searchText", { operator: Operator.Or })
+  }
+  return new BooleanQuery([
+    [Occur.Should, new MatchQuery(content.join(" "), "searchText", { operator: Operator.Or })],
+    [
+      Occur.Should,
+      new MatchQuery(functionWords.join(" "), "searchText", {
+        operator: Operator.Or,
+        boost: FUNCTION_WORD_WEIGHT,
+      }),
+    ],
+  ])
+}
+
 function lexicalQuery(
   query: string,
 ): { primary: FullTextQuery; supplemental: FullTextQuery[] } | null {
@@ -1312,7 +1383,7 @@ function lexicalQuery(
     return null
   }
   const joined = tokens.join(" ")
-  const broadQuery = new MatchQuery(joined, "searchText", { operator: Operator.Or })
+  const broadQuery = keywordQuery(tokens)
   const supplemental: FullTextQuery[] = []
   const identifierTerms = [...normalizeForMatch(query).matchAll(LEXICAL_IDENTIFIER_PATTERN)]
     .map((match) => match[0])

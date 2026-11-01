@@ -1,6 +1,7 @@
 import path from "node:path"
 import picomatch from "picomatch"
-import { identifierParts, normalizeForMatch } from "./text.js"
+import { identifierParts, normalizeForMatch, shareStem, stemPrefix } from "./text.js"
+import { memoizeByText } from "./text-memo.js"
 import type { Config } from "./types.js"
 
 /**
@@ -26,7 +27,8 @@ interface CompiledWeight {
   weight: number
 }
 
-const compiledWeights = new Map<string, CompiledWeight[]>()
+/** One weight function per distinct weight table, so its per-path memo outlives each query. */
+const weightFunctions = new Map<string, (relativePath: string) => number>()
 
 /**
  * Ranking multiplier for a source path: the product of every matching path prior and configured
@@ -40,27 +42,28 @@ export function sourceWeightOf(
     ...config.sourceWeights,
   }
   const key = JSON.stringify(entries)
-  let compiled = compiledWeights.get(key)
-  if (!compiled) {
-    compiled = Object.entries(entries)
+  let weightOf = weightFunctions.get(key)
+  if (!weightOf) {
+    const weights: CompiledWeight[] = Object.entries(entries)
       .filter(([, weight]) => weight !== 1)
       .map(([pattern, weight]) => ({
         matches: picomatch(pattern, { dot: true, nocase: true, basename: !pattern.includes("/") }),
         weight,
       }))
-    compiledWeights.set(key, compiled)
+    // Every chunk of a file, in every query, shares its path: match the patterns once per path.
+    weightOf =
+      weights.length === 0
+        ? () => 1
+        : memoizeByText((relativePath) => {
+            let weight = 1
+            for (const entry of weights) {
+              if (entry.matches(relativePath)) weight *= entry.weight
+            }
+            return weight
+          })
+    weightFunctions.set(key, weightOf)
   }
-  const weights = compiled
-  if (weights.length === 0) {
-    return () => 1
-  }
-  return (relativePath) => {
-    let weight = 1
-    for (const entry of weights) {
-      if (entry.matches(relativePath)) weight *= entry.weight
-    }
-    return weight
-  }
+  return weightOf
 }
 
 const LOCALE_CONTAINERS = new Set([
@@ -211,7 +214,103 @@ const DEFINITION_PATTERNS = [
 // tests and notes that mention it, not enough to outrank prose that answers the question better.
 const DEFINITION_BOOST_PER_PART = 0.07
 const MAX_DEFINITION_BOOST = 0.2
-const MIN_STEM_LENGTH = 5
+
+// A question that names a file ("how is the OpenAPI document titled") usually wants that file, and
+// a heading path names what its section is about: a question word there is stronger evidence than
+// the same word in the body, as field weighting does without a second index. On six real indexes,
+// with and without an embedding model, 10% per matching word, two at most, raised MRR@10 on most
+// of them for file names and on four for headings, without changing a refusal.
+const WORD_MATCH_BOOST = 0.1
+const MAX_MATCHED_WORDS = 2
+const MIN_MATCHED_WORD_LENGTH = 4
+const NAME_SEPARATORS = /[^\p{L}\p{N}]+/u
+
+/** Folded words of a file name: whole, by identifier part and separator, and adjacent parts joined. */
+const fileNameWords = memoizeByText((relativePath: string): ReadonlySet<string> => {
+  const name = path.posix.basename(relativePath, path.posix.extname(relativePath))
+  const folded = normalizeForMatch(name)
+  const parts = identifierParts(name)
+  const words = new Set([folded, ...parts, ...folded.split(NAME_SEPARATORS)])
+  for (let index = 0; index + 1 < parts.length; index += 1) {
+    words.add(`${parts[index]}${parts[index + 1]}`)
+  }
+  words.delete("")
+  return words
+})
+
+/** Folded words of a Markdown heading path or JSONPath. */
+const headingWords = memoizeByText(
+  (contextPath: string): ReadonlySet<string> =>
+    new Set(normalizeForMatch(contextPath).split(NAME_SEPARATORS).filter(Boolean)),
+)
+
+/** A multiplier of 1 to 1.2: 10% per query word sharing a stem with a word of the row's set. */
+function wordMatchBoostOf<Row>(
+  queryTokens: readonly string[],
+  wordsOf: (row: Row) => ReadonlySet<string> | null,
+): (row: Row) => number {
+  const tokens = [...new Set(queryTokens)].filter(
+    (token) => token.length >= MIN_MATCHED_WORD_LENGTH,
+  )
+  if (tokens.length === 0) {
+    return () => 1
+  }
+  return (row) => {
+    const words = wordsOf(row)
+    if (!words) {
+      return 1
+    }
+    let matched = 0
+    for (const token of tokens) {
+      for (const word of words) {
+        if (shareStem(token, word)) {
+          matched += 1
+          break
+        }
+      }
+      if (matched === MAX_MATCHED_WORDS) {
+        break
+      }
+    }
+    return 1 + matched * WORD_MATCH_BOOST
+  }
+}
+
+/**
+ * Boost passages from files whose name holds words of the question, such as `OpenApiConfig.java`
+ * for "how is the OpenAPI document titled".
+ */
+export function fileNameBoostOf(
+  queryTokens: readonly string[],
+): (row: { relativePath: string }) => number {
+  return wordMatchBoostOf(queryTokens, (row: { relativePath: string }) =>
+    fileNameWords(row.relativePath),
+  )
+}
+
+/** Boost passages whose heading path or JSONPath holds words of the question. */
+export function headingBoostOf(
+  queryTokens: readonly string[],
+): (row: { contextPath?: string | null }) => number {
+  return wordMatchBoostOf(queryTokens, (row: { contextPath?: string | null }) =>
+    row.contextPath ? headingWords(row.contextPath) : null,
+  )
+}
+
+/** Folded names, and their identifier parts, that a code passage declares; one scan per text. */
+const definedNameParts = memoizeByText((text: string): ReadonlySet<string> => {
+  const parts = new Set<string>()
+  for (const pattern of DEFINITION_PATTERNS) {
+    pattern.lastIndex = 0
+    for (const match of text.matchAll(pattern)) {
+      const name = match[1]
+      if (!name) continue
+      parts.add(normalizeForMatch(name))
+      for (const part of identifierParts(name)) parts.add(part)
+    }
+  }
+  return parts
+})
 
 /**
  * Boost code passages that define what the question names: "how are permissions checked" should
@@ -220,32 +319,29 @@ const MIN_STEM_LENGTH = 5
  */
 export function definitionBoostOf(
   queryTokens: readonly string[],
-): (row: { relativePath: string; text: string }) => number {
+): (row: { relativePath: string; text: string; searchText: string }) => number {
   const tokens = [...new Set(queryTokens)].filter((token) => token.length >= 3)
   if (tokens.length === 0) {
     return () => 1
   }
+  const prefixes = tokens.map(stemPrefix)
   return (row) => {
     if (!CODE_EXTENSIONS.has(path.posix.extname(row.relativePath).toLowerCase())) {
       return 1
     }
-    const parts = new Set<string>()
-    for (const pattern of DEFINITION_PATTERNS) {
-      pattern.lastIndex = 0
-      for (const match of row.text.matchAll(pattern)) {
-        const name = match[1]
-        if (!name) continue
-        parts.add(normalizeForMatch(name))
-        for (const part of identifierParts(name)) parts.add(part)
-      }
+    // A defined name sharing a stem with a query word puts that word's stem prefix in the folded
+    // keyword text, so a passage without any of them skips the definition patterns.
+    if (!prefixes.some((prefix) => row.searchText.includes(prefix))) {
+      return 1
     }
+    const parts = definedNameParts(row.text)
     if (parts.size === 0) {
       return 1
     }
     let matched = 0
     for (const token of tokens) {
       for (const part of parts) {
-        if (sameStem(token, part)) {
+        if (shareStem(token, part)) {
           matched += 1
           break
         }
@@ -253,17 +349,4 @@ export function definitionBoostOf(
     }
     return 1 + Math.min(MAX_DEFINITION_BOOST, matched * DEFINITION_BOOST_PER_PART)
   }
-}
-
-function sameStem(left: string, right: string): boolean {
-  if (left === right) {
-    return true
-  }
-  const shorter = left.length <= right.length ? left : right
-  const longer = shorter === left ? right : left
-  return (
-    shorter.length >= MIN_STEM_LENGTH &&
-    longer.startsWith(shorter) &&
-    longer.length - shorter.length <= 4
-  )
 }

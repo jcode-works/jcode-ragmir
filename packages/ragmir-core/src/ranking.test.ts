@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  absentShareOf,
   abstentionFilter,
   candidatePassesAbstention,
   effectiveVectorDistances,
@@ -30,7 +31,7 @@ describe("hybrid ranking", () => {
     const alpha = row("alpha.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const beta = row("beta.md", "Shared policy evidence.", { distance: 0.5, score: 3 })
     const policy = rankingPolicyFor("local-hash", "balanced", 1)
-    expect(policy.version).toBe(8)
+    expect(policy.version).toBe(9)
 
     const forward = rankHybridRows("policy evidence", [beta, alpha], [alpha, beta], policy)
     const reversed = rankHybridRows("policy evidence", [alpha, beta], [beta, alpha], policy)
@@ -358,15 +359,108 @@ describe("noise floor abstention", () => {
     expect(weak(row("far.md", "Daily operations.", { distance: 0.4 }))).toBe(true)
   })
 
-  it("should refuse a semantic answer only when every leading result is weak", () => {
+  it("should need half of the question's weight for a passage that only keywords returned", () => {
+    const evidence = queryEvidence("weather forecast tomorrow")
+    const weak = weakEvidenceFilter(evidence, uncalibrated, terms, 0.32)
+    const localHash = rankingPolicyFor("local-hash", "balanced", 1)
+
+    expect(uncalibrated.lexicalOnlyEvidenceCoverage).toBe(0.5)
+    expect(weak(row("keyword.md", "Weather station notes.", {}))).toBe(true)
+    expect(weak(row("vector.md", "Weather station notes.", { distance: 0.4 }))).toBe(false)
+    expect(weak(row("both.md", "Weather forecast notes.", {}))).toBe(false)
+    expect(localHash.lexicalOnlyEvidenceCoverage).toBe(localHash.weakEvidenceCoverage)
+    expect(
+      weakEvidenceFilter(
+        evidence,
+        localHash,
+        terms,
+      )(row("keyword.md", "Weather station notes.", {})),
+    ).toBe(false)
+  })
+
+  it("should credit fuzzy keyword matches and the parts of joined words", () => {
+    const typo = queryEvidence("sceurity")
+    const typoTerms: QueryTermStatistics = {
+      documentCount: 10,
+      documentFrequencies: new Map([["sceurity", 0]]),
+      fuzzyMatchedTerms: new Set(["sceurity"]),
+    }
+    const joined = queryEvidence("compliance abstention")
+    const joinedTerms: QueryTermStatistics = {
+      documentCount: 10,
+      documentFrequencies: new Map([
+        ["compliance", 1],
+        ["abstention", 1],
+      ]),
+    }
+
+    expect(queryTermCoverage(typo, typoTerms)("Security controls require signed evidence.")).toBe(1)
+    expect(queryTermCoverage(typo, typoTerms)("The secretary signs.")).toBe(0)
+    expect(
+      queryTermCoverage(joined, joinedTerms)("$.compliance.description: règles de l'abstention"),
+    ).toBe(1)
+  })
+
+  it("should share one memoized coverage function per query and term statistics", () => {
+    const evidence = queryEvidence("weather forecast tomorrow")
+    const coverage = queryTermCoverage(evidence, terms)
+
+    expect(queryTermCoverage(evidence, terms)).toBe(coverage)
+    expect(queryTermCoverage(queryEvidence("weather forecast tomorrow"), terms)).not.toBe(coverage)
+    expect(coverage("Weather forecast notes.")).toBe(coverage("Weather forecast notes."))
+  })
+
+  it("should refuse local-hash answers when the question's focus is absent from the corpus", () => {
+    const evidence = queryEvidence("pinecone sync index")
+    const absentFocus: QueryTermStatistics = {
+      documentCount: 100,
+      documentFrequencies: new Map([
+        ["pinecone", 0],
+        ["sync", 5],
+        ["index", 40],
+      ]),
+    }
+    const knownFocus: QueryTermStatistics = {
+      ...absentFocus,
+      documentFrequencies: new Map([...absentFocus.documentFrequencies, ["pinecone", 3]]),
+    }
+    const passage = row("notes.md", "Index sync notes.", { distance: 0.5 })
+    const localHash = rankingPolicyFor("local-hash", "balanced", 1)
+
+    expect(absentShareOf(evidence.tokens, absentFocus)).toBeGreaterThan(0.5)
+    expect(abstentionFilter(evidence, localHash, absentFocus)(passage)).toBe(false)
+    expect(abstentionFilter(evidence, localHash, knownFocus)(passage)).toBe(true)
+    // A semantic model keeps its vector evidence unless every word of the question is absent.
+    expect(abstentionFilter(evidence, uncalibrated, absentFocus, 0.31)(passage)).toBe(true)
+    expect(
+      absentShareOf(evidence.tokens, { ...absentFocus, fuzzyMatchedTerms: new Set(["pinecone"]) }),
+    ).toBe(0)
+  })
+
+  it("should not let one unseen word outweigh the rest of a question on a small index", () => {
+    const evidence = queryEvidence("What proves offline text-to-speech is required?")
+    const smallIndex: QueryTermStatistics = {
+      documentCount: 5,
+      documentFrequencies: new Map([
+        ["proves", 0],
+        ["offline", 4],
+        ["text", 2],
+        ["speech", 2],
+        ["required", 4],
+      ]),
+    }
+
+    expect(absentShareOf(evidence.tokens, smallIndex)).toBeCloseTo(0.373, 3)
+  })
+
+  it("should refuse an answer only when every leading result is weak", () => {
     const flags = (values: boolean[]) => values.map((weak, index) => ({ index, weak }))
     const isWeak = (entry: { weak: boolean }) => entry.weak
 
-    expect(isWeakAnswer(flags([true, true, true, true, true, false]), e5, isWeak)).toBe(true)
-    expect(isWeakAnswer(flags([true, false, true]), e5, isWeak)).toBe(false)
-    expect(isWeakAnswer([], e5, isWeak)).toBe(false)
-    const localHash = rankingPolicyFor("local-hash", "balanced", 1)
-    expect(isWeakAnswer(flags([true, true]), localHash, isWeak)).toBe(false)
+    expect(isWeakAnswer(flags([true, true, true, true, true, false]), isWeak)).toBe(true)
+    expect(isWeakAnswer(flags([true, false, true]), isWeak)).toBe(false)
+    expect(isWeakAnswer([], isWeak)).toBe(false)
+    expect(isWeakAnswer(flags([true, true]), isWeak)).toBe(true)
   })
 })
 

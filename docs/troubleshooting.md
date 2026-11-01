@@ -95,8 +95,8 @@ need explicitly configured local extractors.
 
 Results marked `weakEvidence` hold few of the question's distinctive words and have no strong
 semantic match: rephrase with the project's own terms or narrow the search with a `scope`. A
-semantic search returns nothing when its first five results are all weak; a rephrased question
-with the project's vocabulary usually finds the evidence if it exists. When one
+search returns nothing when its first five results are all weak; a rephrased question with the
+project's vocabulary usually finds the evidence if it exists. When one
 export or log dominates results, `rgr audit` reports index concentration; exclude it, lower it
 with `sourceWeights`, or cap it with `maxChunksPerDataFile`.
 
@@ -122,6 +122,9 @@ activates. If the process is interrupted, rerun the command to resume; do not de
 rebuild, then restart or cut over once the upgrade reports `status=current` and `ready=true`. Use
 `rgr doctor --fix` for current-config setup repairs. Retired configuration fields require
 `rgr upgrade` first.
+With configured external extractors (OCR or legacy Word commands), `rgr upgrade` and
+`rgr doctor --fix` end with `action=none`: they never run those commands on their own. Run the
+`rgr ingest` (or `rgr ingest --rebuild`) that their reason names.
 `advisory=...` can accompany `status=current`: retrieval is compatible,
 but a separate local security control still needs review. Run `rgr security-audit` for the exact
 follow-up instead of deleting a healthy index.

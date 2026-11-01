@@ -289,7 +289,13 @@ function nextActions(input: NextActionInput): string[] {
   }
 
   if (input.chunksIndexed === 0 || input.missingFromIndex > 0 || input.staleInIndex > 0) {
-    steps.push(`Run \`${input.run(["doctor", "--fix"])}\` to rebuild stale or missing index data.`)
+    // Setup, repair, and upgrade never ingest on their own while a security warning stands, such as
+    // configured external extractors: only an explicit ingest runs those commands.
+    steps.push(
+      input.warnings > 0
+        ? `Run \`${input.run(["ingest"])}\` to index stale or missing files. \`doctor --fix\` and \`upgrade\` do not ingest while a security warning stands, such as configured external extractors.`
+        : `Run \`${input.run(["doctor", "--fix"])}\` to rebuild stale or missing index data.`,
+    )
     steps.push(`Run \`${input.run(["audit"])}\` to verify missingFromIndex=0 and staleInIndex=0.`)
     if (input.chunksIndexed > 0) {
       steps.push(

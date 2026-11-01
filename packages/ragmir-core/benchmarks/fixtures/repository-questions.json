@@ -510,72 +510,8 @@
       ]
     },
     {
-      "id": "chat-2",
-      "query": "What are the download sizes for lite fast and quality Chat profiles?",
-      "expectedPaths": [
-        "README.md",
-        "llms.txt"
-      ]
-    },
-    {
-      "id": "chat-3",
-      "query": "How does Ragmir Chat validate visible citation markers in a local answer?",
-      "expectedPaths": [
-        "README.md",
-        "llms.txt"
-      ]
-    },
-    {
-      "id": "chat-4",
-      "query": "Which command verifies a Chat model profile is ready for offline generation?",
-      "expectedPaths": [
-        "README.md",
-        "llms.txt"
-      ]
-    },
-    {
       "id": "chat-5",
       "query": "Does installing Ragmir Core require Qwen Gemma or the Chat package?",
-      "expectedPaths": [
-        "README.md",
-        "llms.txt"
-      ]
-    },
-    {
-      "id": "tts-1",
-      "query": "Which languages have an offline Ragmir TTS model?",
-      "expectedPaths": [
-        "README.md",
-        "llms.txt"
-      ]
-    },
-    {
-      "id": "tts-2",
-      "query": "When may narration text be sent to the Edge speech service?",
-      "expectedPaths": [
-        "README.md",
-        "llms.txt"
-      ]
-    },
-    {
-      "id": "tts-3",
-      "query": "How should a TTS model be preloaded with non-sensitive text?",
-      "expectedPaths": [
-        "README.md",
-        "llms.txt"
-      ]
-    },
-    {
-      "id": "tts-4",
-      "query": "Which output format is produced by offline Transformers speech?",
-      "expectedPaths": [
-        "README.md",
-        "llms.txt"
-      ]
-    },
-    {
-      "id": "tts-5",
-      "query": "Does Ragmir TTS retrieve evidence or only render caller-provided text?",
       "expectedPaths": [
         "README.md",
         "llms.txt"
@@ -604,16 +540,6 @@
     {
       "id": "troubleshooting-3",
       "query": "What repairs should doctor fix perform without deleting healthy storage?",
-      "expectedPaths": [
-        "docs/troubleshooting.md",
-        "README.md",
-        "packages/ragmir-core/README.md",
-        "docs/cli-reference.md"
-      ]
-    },
-    {
-      "id": "troubleshooting-4",
-      "query": "How should a missing optional Chat or TTS peer package be diagnosed?",
       "expectedPaths": [
         "docs/troubleshooting.md",
         "README.md",
@@ -694,18 +620,6 @@
     {
       "id": "release-1",
       "query": "What validation gate must pass before a Ragmir release?",
-      "expectedPaths": [
-        "RELEASING.md",
-        "README.md",
-        "package.json",
-        "AGENTS.md",
-        "CLAUDE.md",
-        "scripts/semantic-release-smoke.mjs"
-      ]
-    },
-    {
-      "id": "release-2",
-      "query": "How are Core Chat and TTS package compatibility checked before publishing?",
       "expectedPaths": [
         "RELEASING.md",
         "README.md",
@@ -816,15 +730,11 @@
     },
     {
       "id": "scripts-2",
-      "query": "Which package scripts build Core Chat TTS and the landing?",
+      "query": "Which package scripts build Core and the landing?",
       "expectedPaths": [
         "package.json",
-        "README.md",
-        "AGENTS.md",
-        "CLAUDE.md",
-        "RELEASING.md",
-        "scripts/public-surface-smoke.mjs",
-        "scripts/semantic-release-smoke.mjs"
+        "packages/ragmir-core/package.json",
+        "packages/ragmir-landing/README.md"
       ]
     },
     {
@@ -1167,6 +1077,16 @@
     "How do I configure the Ragmir Chrome extension?",
     "How does Ragmir OCR Arabic right-to-left scans?",
     "How does Ragmir handle Excel macros in .xlsm files?",
-    "How does Ragmir federated search query several remote servers?"
+    "How does Ragmir federated search query several remote servers?",
+    "What are the download sizes for lite fast and quality Chat profiles?",
+    "How does Ragmir Chat validate visible citation markers in a local answer?",
+    "Which command verifies a Chat model profile is ready for offline generation?",
+    "Which languages have an offline Ragmir TTS model?",
+    "When may narration text be sent to the Edge speech service?",
+    "How should a TTS model be preloaded with non-sensitive text?",
+    "Which output format is produced by offline Transformers speech?",
+    "Does Ragmir TTS retrieve evidence or only render caller-provided text?",
+    "How should a missing optional Chat or TTS peer package be diagnosed?",
+    "How are Core Chat and TTS package compatibility checked before publishing?"
   ]
 }

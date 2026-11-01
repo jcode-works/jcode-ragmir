@@ -149,6 +149,11 @@ async function setupSemanticEmbeddings(cwd: string): Promise<SetupSemanticResult
   }
 }
 
+/**
+ * Setup, repair, and upgrade ingest only when no security warning stands: configured external
+ * extractors run local commands, so they run only through an explicit `rgr ingest`, which the
+ * doctor's next steps then recommend.
+ */
 function canAutoIngest(report: DoctorReport): boolean {
   return (
     report.supportedFiles > 0 &&

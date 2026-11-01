@@ -42,12 +42,26 @@ try {
     ((median(disabledProbeMs) - median(baselineProbeMs)) * 1_000_000) / PROBE_ITERATIONS,
   )
   const metrics = ingestion.metrics
+  // Named phases, so removing or adding one fails this gate visibly instead of shifting a count.
+  const phaseNames = [
+    "queueMs",
+    "writeLockWaitMs",
+    "discoveryMs",
+    "hashingMs",
+    "parsingMs",
+    "chunkingMs",
+    "embeddingMs",
+    "storageWriteMs",
+    "maintenanceMs",
+    "totalMs",
+  ]
   const phaseValues = metrics ? Object.values(metrics.phaseDurations) : []
   const serializedDiagnostics = JSON.stringify(events)
   const gates = {
     metricsReturned: metrics !== undefined,
     phaseAttribution:
-      phaseValues.length === 11 &&
+      phaseValues.length === phaseNames.length &&
+      phaseNames.every((name) => Object.hasOwn(metrics?.phaseDurations ?? {}, name)) &&
       phaseValues.every((value) => Number.isFinite(value) && value >= 0) &&
       (metrics?.phaseDurations.hashingMs ?? 0) > 0 &&
       (metrics?.phaseDurations.parsingMs ?? 0) > 0 &&
