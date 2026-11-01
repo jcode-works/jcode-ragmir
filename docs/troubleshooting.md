@@ -94,7 +94,9 @@ need explicitly configured local extractors.
 ## Search is weak
 
 Results marked `weakEvidence` hold few of the question's distinctive words and have no strong
-semantic match: rephrase with the project's own terms or narrow the search with a `scope`. When one
+semantic match: rephrase with the project's own terms or narrow the search with a `scope`. A
+semantic search returns nothing when its first five results are all weak; a rephrased question
+with the project's vocabulary usually finds the evidence if it exists. When one
 export or log dominates results, `rgr audit` reports index concentration; exclude it, lower it
 with `sourceWeights`, or cap it with `maxChunksPerDataFile`.
 
