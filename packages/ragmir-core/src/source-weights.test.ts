@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { definitionBoostOf, localeDocumentKey, sourceWeightOf } from "./source-weights.js"
+import { chunkLexicalText } from "./chunking.js"
+import {
+  definitionBoostOf,
+  fileNameBoostOf,
+  headingBoostOf,
+  localeDocumentKey,
+  sourceWeightOf,
+} from "./source-weights.js"
 
 describe("localeDocumentKey", () => {
   it("collapses translations of one document across common layouts", () => {
@@ -54,17 +61,69 @@ describe("definitionBoostOf", () => {
     const boost = definitionBoostOf(["permissions", "checked"])
 
     expect(
-      boost({
-        relativePath: "src/auth/PermissionService.java",
-        text: "public class PermissionService {\n  public boolean check(Role role) {",
-      }),
+      boost(
+        codeRow(
+          "src/auth/PermissionService.java",
+          "public class PermissionService {\n  public boolean check(Role role) {",
+        ),
+      ),
     ).toBeCloseTo(1.14)
-    expect(
-      boost({
-        relativePath: "docs/permissions.md",
-        text: "class PermissionService checks access.",
-      }),
-    ).toBe(1)
-    expect(boost({ relativePath: "src/util.ts", text: "export function formatDate() {}" })).toBe(1)
+    expect(boost(codeRow("docs/permissions.md", "class PermissionService checks access."))).toBe(1)
+    expect(boost(codeRow("src/util.ts", "export function formatDate() {}"))).toBe(1)
+  })
+
+  it("skips passages whose keyword text holds no stem of a query word", () => {
+    const boost = definitionBoostOf(["permissions"])
+    const row = codeRow("src/auth/PermissionService.java", "public class PermissionService {}")
+
+    expect(boost(row)).toBeCloseTo(1.07)
+    expect(boost({ ...row, searchText: "unrelated keyword text" })).toBe(1)
   })
 })
+
+describe("headingBoostOf", () => {
+  it("boosts passages whose heading path holds words of the question", () => {
+    const boost = headingBoostOf(["authentication", "tokens", "refresh"])
+
+    expect(boost({ contextPath: "Security > Authentication > Refresh tokens" })).toBeCloseTo(1.2)
+    expect(boost({ contextPath: "$.auth.refresh" })).toBeCloseTo(1.1)
+    expect(boost({ contextPath: "" })).toBe(1)
+    expect(boost({})).toBe(1)
+  })
+})
+
+describe("fileNameBoostOf", () => {
+  it("boosts files whose name holds words of the question, two words at most", () => {
+    expect(
+      fileNameBoostOf(["generated", "openapi", "document"])({
+        relativePath: "src/OpenApiConfig.java",
+      }),
+    ).toBeCloseTo(1.1)
+    expect(
+      fileNameBoostOf(["permission", "service"])({ relativePath: "auth/PermissionService.java" }),
+    ).toBeCloseTo(1.2)
+    expect(
+      fileNameBoostOf(["languages", "seeded"])({ relativePath: "sql-data/init_language.sql" }),
+    ).toBeCloseTo(1.1)
+    expect(
+      fileNameBoostOf(["role", "keys", "reference"])({
+        relativePath: "security/RoleProfiles.java",
+      }),
+    ).toBeCloseTo(1.1)
+    expect(
+      fileNameBoostOf(["account", "principal", "profile"])({
+        relativePath: "AccountPrincipalProfile.java",
+      }),
+    ).toBeCloseTo(1.2)
+    expect(fileNameBoostOf(["permissions"])({ relativePath: "docs/overview.md" })).toBe(1)
+    expect(fileNameBoostOf(["id"])({ relativePath: "id.ts" })).toBe(1)
+  })
+})
+
+function codeRow(relativePath: string, text: string) {
+  return {
+    relativePath,
+    text,
+    searchText: chunkLexicalText({ relativePath, text, contextPath: "" }),
+  }
+}

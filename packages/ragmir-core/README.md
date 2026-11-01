@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  93% of real developer questions find the right file in the top 10 · 39 ms median search on a
-  29,778-chunk monorepo · <a href="https://github.com/jcode-works/jcode-ragmir#benchmarks">benchmarks</a>
+  94% of real developer questions find the right file in the top 10 · 36 ms median search on a
+  30,171-chunk monorepo · <a href="https://github.com/jcode-works/jcode-ragmir#benchmarks">benchmarks</a>
 </p>
 
 <p align="center">
@@ -31,11 +31,11 @@ model you choose. Ragmir does not bundle a chat model or host your documents.
 
 - **Code and documents in one index:** hybrid BM25 and vector search that understands paths and
   camelCase identifiers and boosts the code that defines what you ask about.
-- **Fast on real repositories:** 39 ms median search on a 29,778-chunk monorepo, with the right
-  source in the top 10 for 93% of real developer questions
+- **Fast on real repositories:** 36 ms median search on a 30,171-chunk monorepo, with the right
+  source in the top 10 for 94% of real developer questions
   ([benchmarks](https://github.com/jcode-works/jcode-ragmir#benchmarks)).
-- **Ahead of the usual RAG stacks:** the right file reaches the top 3 for 76% of this repository's
-  developer questions, against 56% for a LangChain.js pipeline and 70% for MiniSearch BM25.
+- **Ahead of the usual RAG stacks:** the right file reaches the top 3 for 83% of this repository's
+  developer questions, against 63% for a LangChain.js pipeline and 79% for MiniSearch BM25.
 - **Evidence you can verify:** citations point to source lines or native page, slide, sheet/cell,
   and EPUB coordinates. Results flag changed files (`sourceStatus`) and thin support
   (`weakEvidence`); questions your sources cannot answer return nothing instead of noise.
@@ -113,7 +113,10 @@ scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blo
 Index Markdown, code, JSON, CSV, HTML, PDF, DOCX, XLSX, PPTX, OpenDocument, EPUB, and RTF; scanned
 PDFs, photos, and legacy `.doc` files use local extractors (`rgr ocr setup --images
 --legacy-word`). The default `local-hash` provider needs no model download. For semantic
-embeddings, install `@huggingface/transformers` and run `npx rgr setup --semantic`.
+embeddings, install `@huggingface/transformers` and run `npx rgr setup --semantic`. Use
+`mxbai-embed-xsmall-v1` for English, `multilingual-e5-small` (the default) or `multilingual-e5-base`
+for French and mixed languages; newer models such as Granite R2 or EmbeddingGemma 2 are not
+supported yet. See [choosing an embedding model](https://github.com/jcode-works/jcode-ragmir#choosing-an-embedding-model).
 
 For guided setup, give your agent this prompt:
 

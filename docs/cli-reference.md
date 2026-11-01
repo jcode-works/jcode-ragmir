@@ -119,7 +119,9 @@ instruction instead of reading an untrusted layout. `ready` describes upgrade an
 continuity. Repeated `advisory` lines report separate security follow-ups;
 they do not turn a compatible operational index into `repair-required`.
 
-`upgrade` refreshes managed agent helpers and performs any required ingest or rebuild. Schema,
+`upgrade` refreshes managed agent helpers and performs any required ingest or rebuild. While a
+security advisory stands, such as configured external extractors, it does not ingest on its own and
+its reason names the explicit `rgr ingest` or `rgr ingest --rebuild` to run. Schema,
 embedding, chunking, extraction, and index-policy changes use the staged-generation flow: Ragmir
 never deletes the active index first, and only a replacement that passes row-count, checksum, and
 duplicate-ID validation activates. Failed or interrupted rebuilds never activate a partial table
@@ -295,7 +297,9 @@ rgr destroy-index --yes
   cases. Wrapped files can declare graded `relevanceJudgments`, `answerable: false` hard negatives,
   categories, locales, exact citations, and independent thresholds for Recall@1/3/5/10,
   Precision@5, MRR@10, nDCG@10, citation accuracy, and false-positive rate. One run pins a single
-  index generation and evaluates cases with bounded concurrency while preserving report order.
+  index generation and evaluates cases with bounded concurrency while preserving report order. Its
+  latency percentiles come from an untimed warm-up and up to ten sequential searches, as an agent
+  runs them.
 - A passing suite with at least 100 cases, graded relevance, exact citations, hard negatives, and
   every threshold stores a fingerprint in the active manifest. `rgr doctor --deep` reports retrieval
   quality as verified only while that report still matches the golden file, corpus, model revision,

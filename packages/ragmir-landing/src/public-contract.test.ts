@@ -131,9 +131,9 @@ describe("landing public contract", () => {
   })
 
   it("should back the hero with the measured benchmark numbers of the README", () => {
-    expect([en.hero_proof_recall_value, en.hero_proof_speed_value]).toEqual(["93%", "39 ms"])
-    expect([fr.hero_proof_recall_value, fr.hero_proof_speed_value]).toEqual(["93 %", "39 ms"])
-    expect(en.hero_proof_speed_label).toContain("29,778-chunk monorepo")
+    expect([en.hero_proof_recall_value, en.hero_proof_speed_value]).toEqual(["94%", "36 ms"])
+    expect([fr.hero_proof_recall_value, fr.hero_proof_speed_value]).toEqual(["94 %", "36 ms"])
+    expect(en.hero_proof_speed_label).toContain("30,171-chunk monorepo")
     expect(heroSource).toContain('t("hero_proof_recall_value")')
     expect(PROJECT_LINKS.benchmarks).toBe("https://github.com/jcode-works/jcode-ragmir#benchmarks")
     expect(heroSource).toContain("PROJECT_LINKS.benchmarks")

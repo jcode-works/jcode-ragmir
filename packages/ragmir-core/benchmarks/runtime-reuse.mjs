@@ -247,7 +247,9 @@ async function measureConfigInvalidation(projectRoot) {
   await first.search("signed comet evidence")
   const configPath = path.join(projectRoot, ".ragmir", "config.json")
   const config = JSON.parse(await readFile(configPath, "utf8"))
-  await writeFile(configPath, `${JSON.stringify({ ...config, topK: config.topK + 1 }, null, 2)}\n`)
+  // Setup leaves topK to the retrieval profile, so derive a changed value from the balanced default.
+  const topK = (config.topK ?? 8) + 1
+  await writeFile(configPath, `${JSON.stringify({ ...config, topK }, null, 2)}\n`)
   const events = []
   const onEvent = (event) => events.push(event)
   subscribe("ragmir:index-read", onEvent)

@@ -246,6 +246,32 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
   return evaluateGoldenQueriesWithConfig(options, config)
 }
 
+/** Sequential searches timed for the latency percentiles, after one untimed warm-up. */
+const LATENCY_SAMPLE_SIZE = 10
+
+/**
+ * Cases run concurrently for throughput, so a case's own timing includes the time it waited behind
+ * the others. Report latency the way an agent searches instead: an untimed search loads the model
+ * and opens the index, then a few searches run one at a time.
+ */
+async function sequentialSearchLatencies<Query>(
+  queries: readonly Query[],
+  search: (query: Query) => Promise<unknown>,
+): Promise<number[]> {
+  const [warmUp] = queries
+  if (warmUp === undefined) {
+    return []
+  }
+  await search(warmUp)
+  const latencies: number[] = []
+  for (const query of queries.slice(0, LATENCY_SAMPLE_SIZE)) {
+    const startedAt = performance.now()
+    await search(query)
+    latencies.push(performance.now() - startedAt)
+  }
+  return latencies
+}
+
 async function evaluateGoldenQueriesWithConfig(
   options: EvaluationOptions,
   config: Config,
@@ -280,8 +306,17 @@ async function evaluateGoldenQueriesWithConfig(
     ? fingerprintIndexManifest(initialManifest)
     : "missing-index"
 
+  let latencySample: number[] = []
   try {
     throwIfAborted(signal)
+    latencySample = await sequentialSearchLatencies(goldenFile.queries, (goldenQuery) =>
+      evaluationClient.search(goldenQuery.query, {
+        cwd,
+        topK: boundedTopK(goldenQuery.topK ?? defaultTopK, options.maxTopK),
+        contextRadius: 0,
+        ...(signal === undefined ? {} : { signal }),
+      }),
+    )
     for (let offset = 0; offset < goldenFile.queries.length; offset += evaluationConcurrency) {
       throwIfAborted(signal)
       const batch = goldenFile.queries.slice(offset, offset + evaluationConcurrency)
@@ -366,7 +401,9 @@ async function evaluateGoldenQueriesWithConfig(
       : null
 
   const hits = cases.filter((result) => result.hit).length
-  const latencies = cases.map((result) => result.latencyMs).sort((a, b) => a - b)
+  const latencies = (
+    latencySample.length > 0 ? latencySample : cases.map((result) => result.latencyMs)
+  ).sort((a, b) => a - b)
   const recall = mean(answerableCases.map((result) => result.recall))
   const precision = mean(answerableCases.map((result) => result.precision))
   const meanReciprocalRank = mean(answerableCases.map((result) => result.reciprocalRank))

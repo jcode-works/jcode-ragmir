@@ -5,6 +5,8 @@ export function normalizeForMatch(text: string): string {
     .replace(/\p{Diacritic}/gu, "")
 }
 
+const MIN_STEM_LENGTH = 5
+const MAX_STEM_SUFFIX_LENGTH = 4
 const wordSegmenters = new Map<string, Intl.Segmenter>()
 const IDENTIFIER_WORD_PATTERN = /[\p{L}\p{N}]+/gu
 const IDENTIFIER_PART_BOUNDARY = /\p{Ll}\p{Lu}|\p{Lu}\p{Lu}\p{Ll}|\p{L}\p{N}|\p{N}\p{L}/u
@@ -25,6 +27,31 @@ export function tokenize(text: string, locale = "und"): string[] {
   }
 
   return tokens
+}
+
+/**
+ * Whether two folded words are one stem with a short ending, such as `permission` and
+ * `permissions`: equal, or the shorter word has at least five letters and starts the longer one,
+ * which adds at most four.
+ */
+export function shareStem(left: string, right: string): boolean {
+  if (left === right) {
+    return true
+  }
+  const shorter = left.length <= right.length ? left : right
+  const longer = shorter === left ? right : left
+  return (
+    shorter.length >= MIN_STEM_LENGTH &&
+    longer.length - shorter.length <= MAX_STEM_SUFFIX_LENGTH &&
+    longer.startsWith(shorter)
+  )
+}
+
+/** The prefix that every word sharing a stem with this word contains. */
+export function stemPrefix(word: string): string {
+  return word.length < MIN_STEM_LENGTH
+    ? word
+    : word.slice(0, Math.max(MIN_STEM_LENGTH, word.length - MAX_STEM_SUFFIX_LENGTH))
 }
 
 function wordSegmenter(locale: string): Intl.Segmenter {
