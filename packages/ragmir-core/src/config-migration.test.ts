@@ -77,6 +77,18 @@ describe("source-preserving migration", { timeout: integrationTimeout(20_000) },
     })
   })
 
+  it("should report retired fields with a typed migration code before an upgrade", async () => {
+    const { root, configPath } = await fixture()
+    await writeFile(configPath, JSON.stringify({ privacyProfile: "private", accessLog: true }))
+
+    await expect(loadConfig(root)).rejects.toMatchObject({
+      name: "RagmirError",
+      code: "CONFIG_MIGRATION_REQUIRED",
+      retryable: false,
+      message: expect.stringContaining("Run `rgr upgrade`"),
+    })
+  })
+
   it("should keep formerly blocked external operations disabled when migrating strict mode", async () => {
     const { root, configPath } = await fixture()
     await writeFile(

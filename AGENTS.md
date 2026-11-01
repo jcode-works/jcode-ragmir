@@ -59,6 +59,7 @@
 ## Validation
 
 - Run the smallest relevant check while editing and `pnpm validate` before a release pull request.
+- Keep `pnpm knip` clean: delete unused files, exports, and dependencies instead of ignoring them.
 - Reconcile `git status` with the intended scope before staging. Never stage secrets or generated local state.
 - Use Conventional Commits. Commit and push only when the user authorizes them.
 - Every commit promoted to `main` that can trigger semantic-release must include these exact body

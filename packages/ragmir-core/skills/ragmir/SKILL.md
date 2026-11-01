@@ -30,6 +30,8 @@ Old redaction/privacy settings require this explicit migration. Source text is n
 3. Expand one selected citation with `ragmir_expand`. Use `compact: false` only when full search
    passages are needed.
 4. Iterate when evidence is incomplete. Separate facts backed by citations from inference.
+   Verify a `weakEvidence` passage before relying on it. An empty answer means the base holds no
+   evidence: rephrase once with the project's own terms, then say so instead of guessing.
 
 | Need | CLI or MCP |
 | --- | --- |

@@ -1,6 +1,12 @@
 ---
 import RagmirLogo from "../ragmir-logo.astro"
 import { RagmirBackground } from "../ragmir-background"
+import {
+  FOOTER_LINK_KEYS,
+  NPM_URL,
+  PROJECT_LINK_LABEL_KEYS,
+  PROJECT_LINKS,
+} from "../../lib/project-links"
 
 interface Props {
   translations: Record<string, string>
@@ -11,15 +17,10 @@ const { translations, localizedHomeUrl } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 const version = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
 
-const footerLinks = [
-  { href: "https://github.com/jcode-works/jcode-ragmir", label: t("nav_github") },
-  { href: "https://www.npmjs.com/package/@jcode.labs/ragmir", label: t("footer_link_npm") },
-  { href: "https://github.com/jcode-works/jcode-ragmir/wiki", label: t("footer_link_docs") },
-  { href: "https://github.com/jcode-works/jcode-ragmir/releases/latest", label: t("footer_link_releases") },
-  { href: "https://github.com/jcode-works/jcode-ragmir/blob/main/CHANGELOG.md", label: t("footer_link_changelog") },
-  { href: "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md", label: t("footer_link_api") },
-  { href: "https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md", label: t("footer_link_commercial_license") },
-]
+const footerLinks = FOOTER_LINK_KEYS.map((key) => ({
+  href: PROJECT_LINKS[key],
+  label: t(PROJECT_LINK_LABEL_KEYS[key]),
+}))
 
 const marqueeCopy =
   "whitespace-nowrap pr-8 font-black text-5xl text-foreground/90 uppercase italic leading-[1.1] tracking-tighter md:pr-14 md:text-7xl"
@@ -76,7 +77,7 @@ const marqueeCopy =
       <p>{t("footer_text")}</p>
       {version && (
         <a
-          href="https://www.npmjs.com/package/@jcode.labs/ragmir"
+          href={NPM_URL}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`${t("footer_version_label")}: v${version}`}

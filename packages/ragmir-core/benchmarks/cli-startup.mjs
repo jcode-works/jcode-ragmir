@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process"
 import path from "node:path"
 import { performance } from "node:perf_hooks"
 import { fileURLToPath } from "node:url"
+import { percentile } from "./lib/metrics.mjs"
 
 const benchmarkRoot = path.dirname(fileURLToPath(import.meta.url))
 const packageRoot = path.resolve(benchmarkRoot, "..")
@@ -86,10 +87,6 @@ function measureCli(arguments_) {
     p95Ms: percentile(latencies, 0.95),
     maxRssBytes: Math.max(...measurements.map((measurement) => measurement.maxRssBytes)),
   }
-}
-
-function percentile(sorted, quantile) {
-  return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * quantile) - 1)]
 }
 
 function positiveInteger(value) {

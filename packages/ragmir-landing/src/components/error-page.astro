@@ -1,0 +1,71 @@
+---
+import { defaultLang, getLocalizedUrl } from "../i18n/utils"
+import Layout from "../layouts/layout.astro"
+import { RagmirBackground } from "./ragmir-background"
+import RagmirLogo from "./ragmir-logo.astro"
+
+interface ErrorCopy {
+  title: string
+  metaDescription: string
+  message: string
+}
+
+interface Props extends ErrorCopy {
+  code: string
+  /** The host serves one error page for every locale, so French is applied from the URL path. */
+  french: ErrorCopy
+}
+
+const { code, title, metaDescription, message, french } = Astro.props
+const homeUrl = getLocalizedUrl("/", defaultLang)
+---
+
+<Layout
+  title={title}
+  description={metaDescription}
+  locale={defaultLang}
+  robots="noindex, follow"
+  availableLocales={[]}
+>
+  <RagmirBackground
+    behindContent={false}
+    className="inset-0 min-h-[110dvh]"
+    client:visible
+    height="100dvh"
+  />
+
+  <main
+    class="relative z-10 flex min-h-dvh flex-col items-center justify-center gap-6 px-5 text-center"
+  >
+    <a aria-label="Ragmir" class="flex items-center transition hover:opacity-80" href={homeUrl}>
+      <RagmirLogo />
+    </a>
+
+    <p class="font-black text-[5rem] text-foreground leading-none md:text-[7rem]">{code}</p>
+    <p class="max-w-md text-lg text-muted-foreground" data-i18n="desc">{message}</p>
+
+    <a
+      class="rounded-full bg-[var(--primary)] px-6 py-3 font-bold text-[var(--primary-foreground)] text-sm transition hover:opacity-90"
+      data-i18n="link"
+      href={homeUrl}
+    >
+      <span data-i18n="btn">Back to Ragmir</span>
+    </a>
+  </main>
+
+  <script is:inline define:vars={{ french }}>
+    ;(() => {
+      if (!/^\/fr(?:\/|$)/i.test(location.pathname)) return
+      const desc = document.querySelector('[data-i18n="desc"]')
+      const btn = document.querySelector('[data-i18n="btn"]')
+      const link = document.querySelector('[data-i18n="link"]')
+      const description = document.querySelector('meta[name="description"]')
+      if (desc) desc.textContent = french.message
+      if (btn) btn.textContent = "Retour à l'accueil"
+      if (link) link.setAttribute("href", "/fr/")
+      if (description) description.setAttribute("content", french.metaDescription)
+      document.title = french.title
+      document.documentElement.setAttribute("lang", "fr")
+    })()
+  </script>
+</Layout>

@@ -97,6 +97,7 @@ const errorCode: RagmirErrorCode = "TIMEOUT"
 const indexErrorCode: RagmirErrorCode = "INDEX_UNAVAILABLE"
 const overloadedErrorCode: RagmirErrorCode = "OVERLOADED"
 const changedEvidenceErrorCode: RagmirErrorCode = "EVIDENCE_CHANGED"
+const migrationErrorCode: RagmirErrorCode = "CONFIG_MIGRATION_REQUIRED"
 
 void semanticResult
 void disposedModels
@@ -106,5 +107,6 @@ void errorCode
 void indexErrorCode
 void overloadedErrorCode
 void changedEvidenceErrorCode
+void migrationErrorCode
 
 void createMcpServer(cwd)

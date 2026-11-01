@@ -50,9 +50,13 @@ Before opening a pull request, run:
 pnpm validate
 ```
 
-`pnpm validate` runs Biome, a dependency security audit, TypeScript checks, coverage-gated Vitest,
-production CLI and MCP smoke tests, the static landing build, public API checks, and npm package and
-release-artifact checks.
+`pnpm validate` runs Biome, Knip, a dependency security audit, TypeScript checks, coverage-gated
+Vitest, production CLI and MCP smoke tests, the static landing build, public API checks, and npm
+package and release-artifact checks.
+
+`pnpm knip` reports unused files, exports, dependencies, and duplicate exports across the workspace.
+Remove what it finds rather than ignoring it. Tag an export `@public` only when a benchmark or
+script imports it from the build, and `@alias` only for a deliberate public alias.
 
 To smoke-test the library API against your local build while developing Ragmir Core, run
 `pnpm example` (see

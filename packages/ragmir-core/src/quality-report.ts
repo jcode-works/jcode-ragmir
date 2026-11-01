@@ -54,7 +54,7 @@ export function summarizeIndexedCorpus(files: Iterable<IndexManifestFile>): {
   return { fileCount, chunkCount, corpusFingerprint: digest.digest("hex") }
 }
 
-export async function fingerprintFile(filePath: string, signal?: AbortSignal): Promise<string> {
+async function fingerprintFile(filePath: string, signal?: AbortSignal): Promise<string> {
   return sha256(await readFile(filePath, signal ? { signal } : undefined))
 }
 

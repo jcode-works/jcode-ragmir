@@ -24,24 +24,24 @@ export function stableJson(value) {
   return JSON.stringify(value)
 }
 
-export function percentile(values, quantile) {
-  if (values.length === 0) {
-    return 0
-  }
-  const sorted = [...values].sort((left, right) => left - right)
-  const index = Math.max(0, Math.ceil(quantile * sorted.length) - 1)
-  return sorted[index] ?? 0
+/**
+ * Nearest-rank percentile of ascending values, the same rule as Core's `percentile`: the smallest
+ * value with at least `quantile` of the values at or below it. Empty input gives 0.
+ */
+export function percentile(sortedValues, quantile) {
+  return sortedValues[Math.max(0, Math.ceil(quantile * sortedValues.length) - 1)] ?? 0
 }
 
-export function summarizeSamples(values) {
+function summarizeSamples(values) {
   const total = values.reduce((sum, value) => sum + value, 0)
+  const sorted = [...values].sort((left, right) => left - right)
   return {
     count: values.length,
     minMs: values.length === 0 ? 0 : Math.min(...values),
     meanMs: values.length === 0 ? 0 : total / values.length,
-    p50Ms: percentile(values, 0.5),
-    p95Ms: percentile(values, 0.95),
-    p99Ms: percentile(values, 0.99),
+    p50Ms: percentile(sorted, 0.5),
+    p95Ms: percentile(sorted, 0.95),
+    p99Ms: percentile(sorted, 0.99),
     maxMs: values.length === 0 ? 0 : Math.max(...values),
   }
 }

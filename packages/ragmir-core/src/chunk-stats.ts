@@ -1,3 +1,4 @@
+import { percentile } from "./statistics.js"
 import type { ChunkStats } from "./types.js"
 
 interface ChunkShape {
@@ -32,9 +33,4 @@ export function summarizeChunkStats(chunks: readonly ChunkShape[]): ChunkStats {
     contextualChunks,
     contextualRatio: contextualChunks / chunks.length,
   }
-}
-
-function percentile(sortedValues: number[], quantile: number): number {
-  const index = Math.ceil(quantile * sortedValues.length) - 1
-  return sortedValues[Math.max(0, index)] ?? 0
 }

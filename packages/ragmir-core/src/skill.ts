@@ -96,7 +96,7 @@ const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]+$/u
 const MANAGED_SKILL_METADATA_FILENAME = ".ragmir-managed.json"
 export const SKILL_NAMES = [PRIMARY_SKILL_NAME] as const
 /** Skills of retired commands (audio, reports, legal dossiers); their instructions now fail. */
-export const RETIRED_SKILL_NAMES = [
+const RETIRED_SKILL_NAMES = [
   "ragmir-audio-summary",
   "ragmir-legal-dossier",
   "ragmir-markdown-report",

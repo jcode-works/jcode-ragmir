@@ -20,6 +20,7 @@ import {
   environmentMetadata,
   measureOperation,
   measureSeries,
+  percentile,
   settleMeasurement,
 } from "./lib/metrics.mjs"
 
@@ -507,9 +508,9 @@ async function measureConcurrency({ client, queries, concurrency, total }) {
     total,
     wallMs,
     throughputPerSecond: wallMs === 0 ? 0 : (total * 1_000) / wallMs,
-    p50Ms: percentileFromSorted(durations, 0.5),
-    p95Ms: percentileFromSorted(durations, 0.95),
-    p99Ms: percentileFromSorted(durations, 0.99),
+    p50Ms: percentile(durations, 0.5),
+    p95Ms: percentile(durations, 0.95),
+    p99Ms: percentile(durations, 0.99),
   }
 }
 
@@ -629,13 +630,6 @@ function normalizeProvider(value) {
     throw new Error(`Unknown embedding provider: ${value}`)
   }
   return value
-}
-
-function percentileFromSorted(values, quantile) {
-  if (values.length === 0) {
-    return 0
-  }
-  return values[Math.max(0, Math.ceil(values.length * quantile) - 1)] ?? 0
 }
 
 function parseArguments(values) {

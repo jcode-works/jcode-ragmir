@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  93% of real developer questions find the right file in the top 10 · 40 ms median search on a
-  43,874-chunk monorepo · <a href="https://github.com/jcode-works/jcode-ragmir#benchmarks">benchmarks</a>
+  93% of real developer questions find the right file in the top 10 · 39 ms median search on a
+  29,778-chunk monorepo · <a href="https://github.com/jcode-works/jcode-ragmir#benchmarks">benchmarks</a>
 </p>
 
 <p align="center">
@@ -31,12 +31,14 @@ model you choose. Ragmir does not bundle a chat model or host your documents.
 
 - **Code and documents in one index:** hybrid BM25 and vector search that understands paths and
   camelCase identifiers and boosts the code that defines what you ask about.
-- **Fast on real repositories:** 40 ms median search on a 43,874-chunk monorepo, with the right
+- **Fast on real repositories:** 39 ms median search on a 29,778-chunk monorepo, with the right
   source in the top 10 for 93% of real developer questions
   ([benchmarks](https://github.com/jcode-works/jcode-ragmir#benchmarks)).
+- **Ahead of the usual RAG stacks:** the right file reaches the top 3 for 76% of this repository's
+  developer questions, against 56% for a LangChain.js pipeline and 70% for MiniSearch BM25.
 - **Evidence you can verify:** citations point to source lines or native page, slide, sheet/cell,
   and EPUB coordinates. Results flag changed files (`sourceStatus`) and thin support
-  (`weakEvidence`); unrelated questions return nothing.
+  (`weakEvidence`); questions your sources cannot answer return nothing instead of noise.
 - **Always current:** `rgr doctor` checks the files on disk on every run, and `rgr hooks install`
   refreshes the index after commits, merges, and checkouts.
 - **Private and portable:** offline by default, with no account or telemetry, and the same paths,

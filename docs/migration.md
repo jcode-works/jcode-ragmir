@@ -3,6 +3,22 @@
 This is a breaking surface change. Ragmir now concentrates on local indexing, search, exact
 citations, OCR, and integration with developer agents.
 
+## Index noise floor and weak answers (6.4)
+
+Existing indexes stay searchable after the update; nothing needs deleting.
+
+- **Ranking policy version 8.** Transformers search caps strong vector evidence with each index's
+  noise floor and answers nothing when its first five results are all `weakEvidence`.
+  `mxbai-embed-xsmall-v1` flags a passage as weak below 30% of the question's IDF-weighted words
+  instead of 50%. Rerun `rgr evaluate`: stored quality reports no longer verify the active policy.
+- **Noise floor.** `rgr ingest` stores the floor in the index manifest. An older index measures it
+  once per process on its first search until the next `rgr ingest`.
+- **Typed migration error.** A config with retired fields now throws `CONFIG_MIGRATION_REQUIRED`
+  instead of an internal error. Run `rgr upgrade`.
+- **Fragmented indexes.** `rgr doctor` asks for `rgr storage optimize` when an index is split into
+  many small fragments, which slowed searches up to five times on indexes built before automatic
+  compaction.
+
 ## Canonical paths, live freshness, and calibrated evidence (6.2)
 
 Existing indexes stay searchable after the update; nothing needs deleting.

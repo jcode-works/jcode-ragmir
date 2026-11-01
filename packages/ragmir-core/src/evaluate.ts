@@ -13,6 +13,7 @@ import { fingerprintIndexManifest, fingerprintQualityReport } from "./quality-re
 import { searchWithConfig } from "./query.js"
 import { rankingPolicyFingerprint, rankingPolicyFor } from "./ranking.js"
 import { canonicalUserPath } from "./source-paths.js"
+import { percentile } from "./statistics.js"
 import {
   closeIndexReadSnapshot,
   closeStoreConnection,
@@ -245,7 +246,7 @@ export async function evaluateGoldenQueries(options: EvaluationOptions): Promise
   return evaluateGoldenQueriesWithConfig(options, config)
 }
 
-export async function evaluateGoldenQueriesWithConfig(
+async function evaluateGoldenQueriesWithConfig(
   options: EvaluationOptions,
   config: Config,
 ): Promise<EvaluationResult> {
@@ -972,14 +973,6 @@ function boundedTopK(topK: number, maxTopK: number | undefined): number {
 
 function citationForResult(result: { citation: string }): string {
   return result.citation
-}
-
-function percentile(sortedValues: number[], quantile: number): number {
-  if (sortedValues.length === 0) {
-    return 0
-  }
-  const index = Math.ceil(quantile * sortedValues.length) - 1
-  return sortedValues[Math.max(0, index)] ?? 0
 }
 
 function mean(values: number[]): number {

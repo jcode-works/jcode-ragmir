@@ -71,7 +71,8 @@ It identifies indexed evidence, not the current file on disk. Each result whose 
 disappeared since indexing also carries `sourceStatus: "modified"` or `"missing"`, from one `stat`
 per cited file; `doctor` checks the whole corpus by size and modification time, and `audit` by
 checksum. `weakEvidence: true` marks a passage with few of the question's distinctive words and
-no strong vector match. Compact results retain these fields.
+no strong vector match; a Transformers search whose first five results are all weak returns an
+empty list instead. Compact results retain these fields.
 
 For XLSX tables, full results attach the header as a separate `context` passage with its own cell
 citation, including at `contextRadius: 0`. Expansion also includes it; compact search requires
@@ -119,6 +120,8 @@ it excludes paths, source text, and queries. No telemetry is transmitted.
 Operations accepting `OperationOptions` support `signal` and `timeoutMs`. The library returns
 values or throws errors; it does not write to stdout/stderr. Use `isRagmirError(error)` to inspect
 structured codes such as `TIMEOUT`, `OVERLOADED`, `INDEX_BUSY`, `INDEX_UNAVAILABLE`, and `CLIENT_CLOSED`.
+A config that still holds retired fields throws `CONFIG_MIGRATION_REQUIRED`: run `rgr upgrade` to
+back it up, migrate it, and rebuild the index.
 
 Per-project process-local queues bound search, embeddings, and ingestion. A private writer lock
 serializes index writers across local OS processes. Readers keep generation leases through their

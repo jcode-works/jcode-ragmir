@@ -1,6 +1,6 @@
 import { RagmirError } from "./errors.js"
 
-export const MAX_RETRIEVAL_QUERY_LENGTH = 20_000
+const MAX_RETRIEVAL_QUERY_LENGTH = 20_000
 
 export interface SanitizedQuery {
   query: string

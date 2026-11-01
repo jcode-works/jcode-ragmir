@@ -27,7 +27,7 @@ interface PdfOcrCacheRecord extends PdfOcrCacheIdentity {
   text: string
 }
 
-export function pdfOcrCacheKey(identity: PdfOcrCacheIdentity): string {
+function pdfOcrCacheKey(identity: PdfOcrCacheIdentity): string {
   return createHash("sha256").update(JSON.stringify(identity)).digest("hex")
 }
 

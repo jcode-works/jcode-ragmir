@@ -3,7 +3,7 @@ import type { Config } from "./types.js"
 export const RAGMIR_DIR = ".ragmir"
 export const LEGACY_KB_DIR = ".kb"
 export const LEGACY_PRIVATE_DIR = "private"
-export const RAGMIR_RAW_DIR = `${RAGMIR_DIR}/raw`
+const RAGMIR_RAW_DIR = `${RAGMIR_DIR}/raw`
 export const CONFIG_PATH = `${RAGMIR_DIR}/config.json`
 /** Optional project-level config meant to be committed; `.ragmir/config.json` overrides its keys. */
 export const SHARED_CONFIG_FILENAME = "ragmir.config.json"
@@ -23,6 +23,7 @@ export const MAX_INGEST_CHUNK_WINDOW = 8_192
 export const MAX_INGEST_CHUNKS_PER_FILE = 65_536
 export const MAX_INGEST_VECTOR_BYTES_PER_FILE = 256 * 1_024 * 1_024
 export const MAX_SEARCH_TOP_K = 100
+/** A document can fill at most one full result page. @alias */
 export const MAX_CHUNKS_PER_DOCUMENT = MAX_SEARCH_TOP_K
 export const MAX_HYBRID_TEXT_SCAN_LIMIT = 10_000
 export const MAX_CONFIG_ARRAY_ITEMS = 10_000
@@ -39,9 +40,9 @@ export const MAX_WORKLOAD_QUEUE_TIMEOUT_MS = 900_000
 export const MAX_CONFIG_NAME_CHARACTERS = 120
 export const MAX_SOURCE_WEIGHT = 10
 export const MAX_SEARCH_SCOPES = 64
-export const DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
-export const DEFAULT_EMBEDDING_MODEL_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
-export const KNOWN_EMBEDDING_MODEL_REVISIONS: Readonly<Record<string, string>> = {
+const DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
+const DEFAULT_EMBEDDING_MODEL_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
+const KNOWN_EMBEDDING_MODEL_REVISIONS: Readonly<Record<string, string>> = {
   [DEFAULT_EMBEDDING_MODEL]: DEFAULT_EMBEDDING_MODEL_REVISION,
   "mixedbread-ai/mxbai-embed-xsmall-v1": "e6ac24e5d6efb8782b59de1647b3ececb4ece94e",
 }
@@ -59,7 +60,6 @@ export function defaultEmbeddingModelRevision(model: string): string {
 export const RAGMIR_GITIGNORE_ENTRY = `${RAGMIR_DIR}/`
 export const LEGACY_KB_GITIGNORE_ENTRY = `${LEGACY_KB_DIR}/`
 export const LEGACY_PRIVATE_GITIGNORE_ENTRY = `${LEGACY_PRIVATE_DIR}/`
-export const LEGACY_PRIVATE_GITIGNORE_FALLBACK_ENTRY = `${LEGACY_PRIVATE_DIR}/**`
 
 export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   retrievalProfile: "balanced",
