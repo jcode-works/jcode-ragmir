@@ -42,6 +42,7 @@ does not create a local copy. With both files, CLI changes go to `.ragmir/config
 | `maxFileBytes` | `50000000` | Lower the per-file parser budget; 50 MB is the hard ceiling. |
 | `ingestConcurrency` | `4` | Bound concurrent parsers; values above `8` are rejected. |
 | `embeddingBatchSize` | `32` | Bound one model call; values above `128` are rejected. |
+| `ingestEmbeddingDevice` | `cpu` | Set `webgpu` to embed document batches on the GPU during ingestion. Search keeps embedding short queries on the CPU, where they are faster, and a runtime without WebGPU falls back to the CPU. On an Apple M3 Max, it rebuilt this repository's index in 28 s instead of 59 s with `mxbai-embed-xsmall-v1` and embedded passages 3.7 times faster with `multilingual-e5-base`, with vectors within 4e-7 of the CPU's. |
 | `sourceFingerprintMode` | `fast` | Use `strict` to hash every source on every inventory instead of reusing unchanged private fingerprints. |
 | `incrementalFailurePolicy` | `preserve-last-good` | Use `remove-stale` only when failed changed files must disappear immediately. |
 | `hybridTextScanLimit` | `5000` | Set the batch size for the complete lexical scan used when FTS is unavailable; values above 10,000 are rejected. The fallback scans every matching chunk across as many batches as the corpus requires. |
@@ -124,6 +125,18 @@ adds more work and corpus-dependent ordering, and the current golden benchmark d
 advantage over the simple cap default. It can be evaluated later as an explicit opt-in strategy
 without changing this predictable default.
 
+The keyword query weights function words such as "what", "which", "de", or "les" at 0.3: the
+analyzer keeps question words and French function words, and a rare one would otherwise rank
+passages on its own. Passages from a file whose name holds words of the question gain 10% per word,
+up to two, so "how is the OpenAPI document titled" lifts `OpenApiConfig.java`, and passages whose
+Markdown heading path or JSONPath holds them gain the same, as a title field would; a code passage
+that defines what the question names gains up to 20% more. These boosts ignore words that more than
+half of the passages hold: on a small corpus whose headings all start with the same word, they would
+otherwise lift every passage above the one both channels ranked first. On three real corpora with
+and without an embedding model, these rules put the right file first more often on all six indexes,
+raised top-3 hits on three and kept the three others, from 46% to 63% on a French and Java monorepo
+without a model, and refused no correct answer.
+
 Hybrid ranking uses deterministic reciprocal-rank fusion with `k = 60`. Transformers vectors and
 full-text results have equal weights. The `local-hash` vector is a hashed lexical signal without
 inverse document frequency, so it receives a weight of 0.01: BM25 evidence leads, and hashed
@@ -142,7 +155,12 @@ distinctive word counts more than a common one:
   questions then return nothing instead of the nearest noise. Words in scripts written without
   spaces (Thai, Chinese, Japanese, Korean) are not measured this way.
 - `local-hash` otherwise requires lexical evidence and gives query identifiers precedence over
-  coincidental section numbers.
+  coincidental section numbers. It also answers nothing when the words found nowhere in the index
+  carry half of the question's IDF weight, as in "How does it sync with Pinecone?" on a corpus
+  that never mentions Pinecone. A missing word weighs as if one passage held it, so on a small
+  corpus one unusual verb does not pass for the question's focus. Semantic models keep their vector
+  evidence until every word is absent: the same rule at 40% refused 17 more answerable questions
+  when each held one unknown word.
 - Calibrated Transformers models need a normalized L2 distance within the model's limit, or
   passages holding at least 30% of the question's IDF-weighted words. `multilingual-e5-small`
   packs every text into a narrow distance band and uses a limit of 0.4;
@@ -157,12 +175,18 @@ match, and a question with no known word needs one. An index built before this r
 the floor once per process on its first search; the next `rgr ingest` stores it.
 
 Each result whose passage holds few of the question's distinctive words and has no strong vector
-match carries `weakEvidence: true`. When the first five results of a Transformers search are all
-weak, the answer holds no real evidence and search returns nothing. `local-hash` search keeps such
-results. On a Java and TypeScript monorepo, a product documentation base, and this repository
-(260 answerable questions), these rules kept every answer in place while refusing 58 of 90
-off-topic and 24 of 90 near-domain unanswerable questions, against 41 and 1 before, and flagged
-14 correct answers as weak instead of 43. Evaluate your own corpus with `rgr evaluate`.
+match carries `weakEvidence: true`. With a Transformers model, a passage that only the keyword
+search returned, without vector support, needs half of the question's IDF-weighted words: an
+off-topic question often shares one everyday word with many documents. Coverage counts a misspelled
+word through the fuzzy match that found it, and the parts of JSONPath, dotted identifiers, and
+elided words (`l'abstention`). When the first five results of a search are all weak, the answer
+holds no real evidence and search returns nothing; with `local-hash`, weak means under 30% of the
+question's IDF-weighted words. On a Java and TypeScript monorepo, a product documentation base,
+and this repository (250 answerable questions), these rules kept every answer and ranking in place
+while refusing 68 of 90 off-topic and 26 of 110 near-domain unanswerable questions with
+Transformers models, against 54 and 23 with the 6.4 rules. `local-hash` refused 65 and 27 instead
+of 12 and 1.
+Evaluate your own corpus with `rgr evaluate`.
 
 Changing an embedding provider, model, revision, digest, or chunking field requires
 `rgr ingest --rebuild`. Revision and artifact digest participate in the index, vector-index, and

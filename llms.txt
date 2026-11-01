@@ -15,6 +15,9 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
   first, including source paths and camelCase identifier parts, and uses hashed vectors for ties.
 - Semantic retrieval requires the optional `@huggingface/transformers` peer and a local model.
   Use `rgr setup --semantic` to configure and preload one. Default installs exclude that runtime.
+  `ingestEmbeddingDevice: "webgpu"` embeds ingestion batches on the GPU, with a CPU fallback.
+  Supported models: `mxbai-embed-xsmall-v1` (English), `multilingual-e5-small` (default) and
+  `multilingual-e5-base`. Granite R2, EmbeddingGemma 2, and Qwen3-Embedding are not supported yet.
 - Text, Markdown, structured files, PDF, Office, EPUB, and configured local extractors are supported.
   `rgr audit --unsupported` reports gaps. Do not claim universal binary support.
 - Paths are stored and cited with forward slashes and in Unicode NFC on every platform, so
@@ -31,7 +34,7 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
   session as short stubs. Instructions name the base; unrelated workspaces get a scope notice, or
   a refusal with `mcpAllowedRoots`. Register Ragmir per project, not for every project.
 - Results carry `sourceStatus` when the cited file changed after indexing and `weakEvidence` when
-  support is thin. An empty semantic answer means the base holds no evidence for the question.
+  support is thin. An empty answer means the base holds no evidence for the question.
   `rgr doctor` checks freshness on every run; `rgr hooks install` refreshes the index after Git
   operations.
 - Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.

@@ -37,9 +37,9 @@ and explicit reranker, compression, hashing, and content-dedup experiments.
   The gate covers exact references, long-query preservation, and spreadsheet header retrieval.
   Other outcomes are reported, not presented as representative developer-task success rates.
 - `bench:competitors` indexes the tracked documentation and source of this repository at the
-  current commit and asks the questions in `fixtures/repository-questions.json`: 99 developer
-  questions with every file that answers them, 30 off-topic questions, and 30 near-domain
-  questions about features Ragmir does not have. The other stacks read the same files split by
+  current commit and asks the questions in `fixtures/repository-questions.json`: 89 developer
+  questions with every file that answers them, 30 off-topic questions, and 40 near-domain
+  questions about features Ragmir does not have, including the retired Chat and TTS packages. The other stacks read the same files split by
   LangChain's `RecursiveCharacterTextSplitter` (1,000 characters, 200 overlap), and every vector
   side uses Ragmir's embedding function, so models, prefixes, and vectors are identical. Orama
   runs with its default 0.8 hybrid similarity and with 0.1, which lets its vector side rank. A
