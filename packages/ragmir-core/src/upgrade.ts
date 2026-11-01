@@ -62,13 +62,21 @@ export async function inspectUpgrade(cwd = process.cwd()): Promise<UpgradeInspec
     readIndexManifestHeader(config),
   ])
   const status = upgradeStatus(report, manifest !== null)
+  // Upgrade ingests through setup, which does not ingest while a security warning stands, such as
+  // configured external extractors: only an explicit ingest runs those commands.
+  const explicitIngest =
+    status === "current" || report.securityWarnings.length === 0
+      ? null
+      : status === "rebuild-required"
+        ? "rgr ingest --rebuild"
+        : "rgr ingest"
   return {
     status,
     runtimeRagmirVersion: VERSION,
     indexedWithRagmirVersion: manifest?.ragmirVersion ?? null,
     ready: status === "current",
     advisories: report.securityWarnings,
-    reason: upgradeReason(report, status),
+    reason: upgradeReason(report, status, explicitIngest),
     recommendedCommand: "rgr upgrade",
     safeActivation: true,
   }
@@ -119,22 +127,28 @@ function upgradeStatus(report: DoctorReport, manifestFound: boolean): UpgradeSta
   return "current"
 }
 
-function upgradeReason(report: DoctorReport, status: UpgradeStatus): string | null {
+function upgradeReason(
+  report: DoctorReport,
+  status: UpgradeStatus,
+  explicitIngest: string | null,
+): string | null {
   if (status === "current") {
     return null
   }
-  if (status === "index-required") {
-    return "No compatible active index manifest is available. Upgrade will stage a fresh index from the configured sources."
+  // The doctor's first step already names the explicit ingest when repair cannot ingest.
+  if (status === "repair-required") {
+    return report.nextSteps[0] ?? "The active index needs repair before retrieval is ready."
   }
-  if (status === "rebuild-required") {
-    return (
-      report.indexFreshness.warning ??
-      (report.readiness.lexicalIndexCurrent
-        ? "The active index policy differs from this Ragmir runtime and requires a staged rebuild."
-        : "The active index predates the current keyword terms. Search keeps working while upgrade stages the rebuild.")
-    )
-  }
-  return report.nextSteps[0] ?? "The active index needs repair before retrieval is ready."
+  const reason =
+    status === "index-required"
+      ? "No compatible active index manifest is available. Upgrade will stage a fresh index from the configured sources."
+      : (report.indexFreshness.warning ??
+        (report.readiness.lexicalIndexCurrent
+          ? "The active index policy differs from this Ragmir runtime and requires a staged rebuild."
+          : "The active index predates the current keyword terms. Search keeps working while upgrade stages the rebuild."))
+  return explicitIngest === null
+    ? reason
+    : `${reason} Upgrade does not ingest while a security warning stands, such as configured external extractors: run \`${explicitIngest}\`.`
 }
 
 function upgradeAction(

@@ -74,6 +74,26 @@ describe("doctor", { timeout: integrationTimeout(30_000) }, () => {
     )
   })
 
+  it("recommends an explicit ingest when external extractors keep repair from ingesting", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-extractors-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await writeFile(path.join(root, ".ragmir", "raw", "evidence.md"), "Local evidence.\n", "utf8")
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      JSON.stringify({ imageOcrCommand: ["./ocr.sh", "{input}"] }),
+      "utf8",
+    )
+
+    const report = await doctor(root, { deep: true })
+
+    expect(report.securityWarnings.length).toBeGreaterThan(0)
+    expect(report.nextSteps[0]).toMatch(
+      /^Run `pnpm exec rgr ingest` to index stale or missing files\./,
+    )
+    expect(report.nextSteps.join("\n")).not.toContain("doctor --fix` to rebuild")
+  })
+
   it("reports files added or edited after ingestion instead of trusting the ingest snapshot", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-freshness-"))
     tempDirs.push(root)
