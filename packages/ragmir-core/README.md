@@ -7,7 +7,7 @@
 <h1 align="center">@jcode.labs/ragmir</h1>
 
 <p align="center">
-  <strong>Cited project context for coding agents. Local, fast, and offline by default.</strong>
+  <strong>Cited retrieval for coding agents and the RAG systems you ship. Local, fast, and offline by default.</strong>
 </p>
 
 <p align="center">
@@ -43,6 +43,10 @@ model you choose. Ragmir does not bundle a chat model or host your documents.
   refreshes the index after commits, merges, and checkouts.
 - **Private and portable:** offline by default, with no account or telemetry, and the same paths,
   exclusions, and citations on Linux, macOS, and Windows.
+- **Ready for the customer's server:** parsing, embeddings, the index, and search run in one Node.js
+  process, so forward deployed engineers and AI-native teams can ship RAG on a VPS, an on-premise
+  server, or a container without network access
+  ([server guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)).
 
 ## Install and search
 
@@ -163,6 +167,7 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 
 Read the [full documentation](https://github.com/jcode-works/jcode-ragmir#readme),
 [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md),
+[server guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md),
 [migration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md), and
 [troubleshooting guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md).
 Ask questions and report bugs in
@@ -172,4 +177,5 @@ Ragmir saves your agents time, [star the repository](https://github.com/jcode-wo
 so other teams find it.
 
 Ragmir is open source under [AGPL-3.0-only](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
-JCode Works also offers a [commercial license](https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md).
+JCode Works also offers a [commercial license](https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md)
+for proprietary software or hosted services that the AGPL does not fit.
