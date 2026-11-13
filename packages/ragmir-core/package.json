@@ -1,7 +1,7 @@
 {
   "name": "@jcode.labs/ragmir",
   "version": "0.4.12",
-  "description": "Open-source retrieval for agentic RAG: local document search, exact citations, OCR, CLI, MCP, and TypeScript.",
+  "description": "Open-source retrieval for agentic RAG: document search with exact citations on your laptop or servers, with OCR, CLI, MCP, and TypeScript.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": {
@@ -26,7 +26,11 @@
     "typescript",
     "transformers",
     "semantic-search",
-    "lancedb"
+    "lancedb",
+    "self-hosted",
+    "on-premise",
+    "hybrid-search",
+    "rag-pipeline"
   ],
   "repository": {
     "type": "git",
