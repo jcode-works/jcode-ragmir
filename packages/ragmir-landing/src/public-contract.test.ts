@@ -65,6 +65,10 @@ const footerSource = readFileSync(
   fileURLToPath(new URL("./components/sections/footer.astro", import.meta.url)),
   "utf8",
 )
+const deploySource = readFileSync(
+  fileURLToPath(new URL("./components/sections/deploy.astro", import.meta.url)),
+  "utf8",
+)
 const navbarSource = readFileSync(
   fileURLToPath(new URL("./components/landing-navbar.tsx", import.meta.url)),
   "utf8",
@@ -109,17 +113,17 @@ describe("landing public contract", () => {
   })
 
   it("should keep a prominent outlined headline on three localized lines", () => {
-    expect(en.hero_title).toBe("Agentic RAG. For developers. With your sources.")
-    expect(fr.hero_title).toBe("RAG agentique. Pour développeurs. Avec vos sources.")
+    expect(en.hero_title).toBe("Agentic RAG. Your infrastructure. Exact citations.")
+    expect(fr.hero_title).toBe("RAG agentique. Votre infrastructure. Citations exactes.")
     expect([en.hero_title_line_1, en.hero_title_line_2, en.hero_title_line_3]).toEqual([
       "Agentic RAG.",
-      "For developers.",
-      "With your sources.",
+      "Your infrastructure.",
+      "Exact citations.",
     ])
     expect([fr.hero_title_line_1, fr.hero_title_line_2, fr.hero_title_line_3]).toEqual([
       "RAG agentique.",
-      "Pour développeurs.",
-      "Avec vos sources.",
+      "Votre infrastructure.",
+      "Citations exactes.",
     ])
     expect(en.hero_description).toContain("Ragmir indexes locally")
     expect(fr.hero_description).toContain("Ragmir indexe en local")
@@ -165,8 +169,10 @@ describe("landing public contract", () => {
   })
 
   it("should position Ragmir as the evidence layer for agentic RAG workflows", () => {
-    expect(en.seo_home_title).toContain("Agentic RAG for developers")
-    expect(fr.seo_home_title).toContain("RAG agentique pour développeurs")
+    expect(en.seo_home_title).toContain("Self-hosted agentic RAG")
+    expect(fr.seo_home_title).toContain("RAG agentique auto-hébergé")
+    expect(en.seo_home_title.length).toBeLessThanOrEqual(60)
+    expect(en.seo_home_description.length).toBeLessThanOrEqual(160)
     expect(en.seo_home_description).toContain("exact citations")
     expect(fr.seo_home_description).toContain("citations précises")
     for (const source of [llmsSource, aiSource]) {
@@ -189,6 +195,26 @@ describe("landing public contract", () => {
     expect(agentsSource).toContain('t("agents_full_local_name")')
     expect(agentsSource).toContain('t("agents_self_hosted_name")')
     expect(agentsSource).toContain('t("agents_connected_name")')
+  })
+
+  it("should show teams shipping RAG how to deploy on their own servers", () => {
+    expect(homePageSource.indexOf("<Agents translations={translations} />")).toBeLessThan(
+      homePageSource.indexOf("<Deploy translations={translations} />"),
+    )
+    expect(homePageSource.indexOf("<Deploy translations={translations} />")).toBeLessThan(
+      homePageSource.indexOf("<Features translations={translations} />"),
+    )
+    expect(deploySource).toContain('id="deploy"')
+    expect(deploySource).toContain("PROJECT_LINKS.serverGuide")
+    expect(PROJECT_LINKS.serverGuide).toBe(
+      "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md",
+    )
+    expect(navbarSource).toContain('t("nav_deploy")')
+    expect(en.deploy_text).toContain("Forward deployed engineers")
+    expect(fr.deploy_text).toContain("forward deployed engineers")
+    for (const source of [rootReadmeSource, coreReadmeSource, llmsSource, aiSource]) {
+      expect(source).toContain("docs/server-deployment.md")
+    }
   })
 
   it("should present the bounded agent setup prompt before manual package-manager tabs", () => {
@@ -393,8 +419,8 @@ describe("landing public contract", () => {
   })
 
   it("should keep visible localized FAQs without FAQPage structured data", () => {
-    expect(getFaqItems(en)).toHaveLength(10)
-    expect(getFaqItems(fr)).toHaveLength(10)
+    expect(getFaqItems(en)).toHaveLength(11)
+    expect(getFaqItems(fr)).toHaveLength(11)
     expect(homePageSource).toContain("<Faq translations={translations} />")
     expect(homePageSource).not.toContain('"@type": "FAQPage"')
     expect(homePageSource).not.toContain("mainEntity: faqItems.map")

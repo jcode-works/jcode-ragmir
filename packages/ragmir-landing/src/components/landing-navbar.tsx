@@ -14,7 +14,9 @@ import {
   Layers,
   type LucideIcon,
   Menu,
+  Rocket,
   Scale,
+  Server,
   Sparkles,
   Tag,
   Users,
@@ -48,6 +50,7 @@ interface LandingNavbarProps {
   localizedLibraryUrl: string
   localizedFeaturesUrl: string
   localizedAgentsUrl: string
+  localizedDeployUrl: string
   localizedFaqUrl: string
   localizedTeamUrl: string
   /** Path of the page on screen, so the drawer can light its own row. */
@@ -76,6 +79,7 @@ const DRAWER_SECTIONS: ReadonlyArray<{
     links: [
       { key: "docs", icon: BookOpen },
       { key: "apiReference", icon: FileCode },
+      { key: "serverGuide", icon: Server },
       { key: "benchmarks", icon: Gauge },
     ],
   },
@@ -247,6 +251,7 @@ export function LandingNavbar({
   localizedLibraryUrl,
   localizedFeaturesUrl,
   localizedAgentsUrl,
+  localizedDeployUrl,
   localizedFaqUrl,
   localizedTeamUrl,
   currentPath,
@@ -264,6 +269,7 @@ export function LandingNavbar({
     { href: localizedUseCasesUrl, label: t("nav_use_cases") },
     { href: localizedLibraryUrl, label: t("nav_library") },
     { href: localizedAgentsUrl, label: t("nav_agents") },
+    { href: localizedDeployUrl, label: t("nav_deploy") },
     { href: localizedFeaturesUrl, label: t("nav_features") },
     { href: localizedTeamUrl, label: t("nav_team") },
   ]
@@ -272,6 +278,7 @@ export function LandingNavbar({
     { href: localizedUseCasesUrl, label: t("nav_use_cases"), icon: Layers },
     { href: localizedLibraryUrl, label: t("nav_library"), icon: Download },
     { href: localizedAgentsUrl, label: t("nav_agents"), icon: Bot },
+    { href: localizedDeployUrl, label: t("nav_deploy"), icon: Rocket },
     { href: localizedFeaturesUrl, label: t("nav_features"), icon: Sparkles },
     { href: localizedFaqUrl, label: t("nav_faq"), icon: CircleHelp },
     { href: localizedTeamUrl, label: t("nav_team"), icon: Users },

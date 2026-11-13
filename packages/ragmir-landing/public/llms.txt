@@ -4,6 +4,8 @@ Ragmir is the open-source local retrieval and evidence layer for agentic RAG wor
 Developer agents, scripts, and TypeScript applications consume precise project citations through
 its library, CLI, or MCP server. The agent decides when to search, expand a citation, and refine
 the query. It owns reasoning, generation, and actions, with the model chosen by the developer.
+Forward deployed engineers and AI-native teams use it to ship RAG inside the environment that owns
+the documents: a laptop for the first demo, then a VPS, an on-premise server, or an offline network.
 
 ## Core facts
 
@@ -11,9 +13,13 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
   Linux, macOS, and Windows are tested on every release.
 - Set up with `rgr setup --no-ingest`, add selected source directories with `rgr sources add`,
   then run `rgr ingest` and `rgr search "query" --compact`.
-- Default local-hash retrieval needs no model, API key, or network. It is lexical/hash retrieval.
+- Default local-hash retrieval needs no model, API key, or network. It ranks BM25 keyword evidence
+  first, including source paths and camelCase identifier parts, and uses hashed vectors for ties.
 - Semantic retrieval requires the optional `@huggingface/transformers` peer and a local model.
   Use `rgr setup --semantic` to configure and preload one. Default installs exclude that runtime.
+  `ingestEmbeddingDevice: "webgpu"` embeds ingestion batches on the GPU, with a CPU fallback.
+  Supported models: `mxbai-embed-xsmall-v1` (English), `multilingual-e5-small` (default) and
+  `multilingual-e5-base`. Granite R2, EmbeddingGemma 2, and Qwen3-Embedding are not supported yet.
 - Text, Markdown, structured files, PDF, Office, EPUB, and configured local extractors are supported.
   `rgr audit --unsupported` reports gaps. Do not claim universal binary support.
 - Paths are stored and cited with forward slashes and in Unicode NFC on every platform, so
@@ -30,17 +36,26 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
   session as short stubs. Instructions name the base; unrelated workspaces get a scope notice, or
   a refusal with `mcpAllowedRoots`. Register Ragmir per project, not for every project.
 - Results carry `sourceStatus` when the cited file changed after indexing and `weakEvidence` when
-  support is thin. `rgr doctor` checks freshness on every run; `rgr hooks install` refreshes the
-  index after Git operations.
+  support is thin. An empty answer means the base holds no evidence for the question.
+  `rgr doctor` checks freshness on every run; `rgr hooks install` refreshes the index after Git
+  operations.
 - Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.
-- Show four workflow examples: build a feature, diagnose an incident, and plan a migration with
-  Claude Code or Codex; make a confidential architecture decision with a local or self-hosted chat.
+- Present four workflow examples: build a feature, diagnose an incident, and plan a migration with
+  Claude Code or Codex using cited project evidence; then make a confidential architecture decision
+  with a local or self-hosted chat. Local and self-hosted are model deployment choices within the
+  confidential workflow.
 - Use one `createRagmirClient()` per project root in a long-running process and close it at shutdown.
   Top-level functions serve one-shot scripts. Ragmir opens no HTTP port.
+- Servers: Ragmir runs on a VPS, an on-premise server, a CI runner, or a Debian or Alpine container
+  as a non-root user with a read-only root filesystem and no network. Point `storageDir` (or
+  `RAGMIR_STORAGE_DIR`) at a persistent volume and run `rgr ingest` from a scheduled job. The host
+  service owns TLS, authentication, per-user authorization, and rate limits; Ragmir does not filter
+  results per user. Writers are serialized per machine, not across machines.
 - Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
   target one explicitly. Data resolves from the caller's project, never the installation directory.
 - Ingestion is bounded and resumable. Rebuilds stage a replacement and activate it atomically only
-  after validation, preserving the last valid index on failure.
+  after validation, preserving the last valid index on failure. An index built before the keyword
+  terms stays searchable until the next `rgr ingest` or `rgr upgrade` rebuilds it.
 - After updating, run `rgr upgrade --check`, then `rgr upgrade` when needed. Retired configuration
   keys are explicitly migrated with a private backup; old masking-policy indexes need rebuilding.
 - `rgr preview`, `rgr evaluate`, `rgr doctor --deep`, `rgr audit`, and `rgr storage optimize` support
@@ -61,5 +76,6 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
 - [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 - [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
+- [Run on a server or in a container](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)
 - [Migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)

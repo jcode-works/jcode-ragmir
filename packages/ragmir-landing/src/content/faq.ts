@@ -9,6 +9,7 @@ const FAQ_ITEM_KEYS = [
   ["faq_role_question", "faq_role_answer"],
   ["faq_formats_question", "faq_formats_answer"],
   ["faq_server_question", "faq_server_answer"],
+  ["faq_license_question", "faq_license_answer"],
 ] as const
 
 export interface FaqItem {
