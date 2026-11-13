@@ -7,7 +7,7 @@
 <h1 align="center">Ragmir</h1>
 
 <p align="center">
-  <strong>Cited project context for coding agents. Local, fast, and offline by default.</strong>
+  <strong>Cited retrieval for coding agents and the RAG systems you ship. Local, fast, and offline by default.</strong>
 </p>
 
 <p align="center">
@@ -30,13 +30,16 @@
   <a href="#what-your-agent-sees">What your agent sees</a> ·
   <a href="#benchmarks">Benchmarks</a> ·
   <a href="./docs/agent-integration.md">Agents and MCP</a> ·
+  <a href="./docs/server-deployment.md">Run on a server</a> ·
   <a href="https://ragmir.com">ragmir.com</a>
 </p>
 
 Ragmir turns your code, specifications, and office documents into a local search index. Claude
 Code, Codex, or your own application queries it through MCP, the `rgr` CLI, or a TypeScript API,
 and every passage comes back with a citation the agent can open and check. Your agent plans,
-reasons, and writes with the model you choose; Ragmir finds the evidence.
+reasons, and writes with the model you choose; Ragmir finds the evidence. The same index runs on a
+laptop for the first demo, then on a VPS, an on-premise server, or a network without internet
+access.
 
 ```bash
 npm install -D @jcode.labs/ragmir
@@ -79,6 +82,24 @@ npx rgr search "how are permissions checked?" --compact
 
 Open source under [AGPL-3.0-only](./LICENSE). JCode Works also offers a
 [commercial license](./COMMERCIAL-LICENSE.md).
+
+## Ship RAG where the documents live
+
+Forward deployed engineers and AI-native teams use Ragmir to stand up retrieval inside the
+environment that owns the documents: a laptop for the first cited demo, then the customer's server.
+
+- **A data path you can sign.** Parsing, embeddings, the index, and search run in one Node.js
+  process. There is no embedding API, telemetry, or hosted store to declare in a security review.
+- **Proof on their own documents.** `rgr evaluate` scores retrieval on the customer's questions,
+  checks exact citations, and counts hard negatives that must return nothing.
+- **Any server.** Linux, macOS, and Windows are tested on every release, and Debian or Alpine
+  containers run it as a non-root user with a read-only root filesystem and no network. The
+  [server guide](./docs/server-deployment.md) has a working Dockerfile.
+- **A clean handoff.** One committed `ragmir.config.json`, `rgr doctor` for diagnosis, and upgrades
+  that keep the last validated index until its replacement passes.
+
+Your service keeps TLS, authentication, per-user access, rate limits, and the model. Ragmir is a
+library behind it, not a platform beside it.
 
 ## Quick start
 
@@ -282,6 +303,7 @@ and `expandCitation` are available for one-shot scripts. See the [API reference]
 | --- | --- | --- |
 | Local chat with a local model | On your machine | On your machine |
 | Self-hosted chat and model | On your machine | Your servers receive the selected excerpts |
+| Your service on a VPS or on-premise server | On that server | Wherever your service sends the selected excerpts |
 | Cloud coding agent (Claude Code, Codex, ...) | On your machine | The agent's provider receives the selected excerpts |
 
 Ragmir has no telemetry or hosted storage. It does not host documents, bundle a model, or open an
@@ -380,6 +402,7 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 - [TypeScript API](./docs/api-reference.md)
 - [Configuration, sources, and ranking](./docs/configuration.md)
 - [Agents, MCP, and four workflows](./docs/agent-integration.md)
+- [Run on a server or in a container](./docs/server-deployment.md)
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Synthetic examples](./packages/ragmir-core/examples/sovereign-rag-demo/README.md)
@@ -403,4 +426,5 @@ bilingual site in `packages/ragmir-landing`; `pnpm validate` runs every check, a
 ## License
 
 Ragmir is open source under [AGPL-3.0-only](./LICENSE). A [commercial license](./COMMERCIAL-LICENSE.md)
-is available from JCode Works for uses that the AGPL does not fit.
+is available from JCode Works for uses that the AGPL does not fit, such as integrating Ragmir into
+proprietary software or a hosted service without the AGPL obligations.

@@ -5,6 +5,7 @@ import { LandingNavbar } from "../../components/landing-navbar"
 import { RagmirBackground } from "../../components/ragmir-background"
 import Agents from "../../components/sections/agents.astro"
 import ClosingCta from "../../components/sections/closing-cta.astro"
+import Deploy from "../../components/sections/deploy.astro"
 import Faq from "../../components/sections/faq.astro"
 import Features from "../../components/sections/features.astro"
 import Footer from "../../components/sections/footer.astro"
@@ -33,7 +34,7 @@ const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
 const sourceDescription =
-  "The open-source retrieval layer for agentic RAG: local document search and exact citations through TypeScript, CLI, and MCP. Your agent reasons and acts with your choice of model."
+  "The open-source retrieval layer for agentic RAG: document search with exact citations on a laptop, a VPS, or an offline server, through TypeScript, CLI, and MCP. Your agent reasons and acts with your choice of model."
 const structuredData = [
   {
     "@context": "https://schema.org",
@@ -55,6 +56,7 @@ const structuredData = [
       "Model Context Protocol",
       "AI agent tooling",
       "Node.js RAG library",
+      "self-hosted RAG deployment",
     ],
     sameAs: ["https://github.com/jcode-works"],
   },
@@ -79,9 +81,18 @@ const structuredData = [
     inLanguage: ["en", "fr"],
     codeRepository: PROJECT_LINKS.github,
     codeSampleType: "full solution",
-    runtimePlatform: "Node.js 22 on Linux x64 or macOS ARM64",
+    runtimePlatform: "Node.js 22.12 or later on Linux (x64 or ARM64, glibc or musl), macOS, and Windows",
     programmingLanguage: "TypeScript",
-    keywords: ["agentic RAG", "local RAG", "coding agents", "cited retrieval", "MCP", "TypeScript", "AGPL open source"],
+    keywords: [
+      "agentic RAG",
+      "local RAG",
+      "self-hosted RAG",
+      "coding agents",
+      "cited retrieval",
+      "MCP",
+      "TypeScript",
+      "AGPL open source",
+    ],
     license: PROJECT_LINKS.license,
     usageInfo: PROJECT_LINKS.commercialLicense,
     isAccessibleForFree: true,
@@ -121,6 +132,7 @@ const localizedLibraryUrl = `${getLocalizedUrl("/", locale)}#library`
 const localizedFeaturesUrl = `${getLocalizedUrl("/", locale)}#features`
 const localizedUseCasesUrl = `${getLocalizedUrl("/", locale)}#use-cases`
 const localizedAgentsUrl = `${getLocalizedUrl("/", locale)}#agents`
+const localizedDeployUrl = `${getLocalizedUrl("/", locale)}#deploy`
 const localizedFaqUrl = `${getLocalizedUrl("/", locale)}#faq`
 const localizedTeamUrl = getLocalizedUrl("/team", locale)
 ---
@@ -142,6 +154,7 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       locale={locale}
       currentPath={Astro.url.pathname}
       localizedAgentsUrl={localizedAgentsUrl}
+      localizedDeployUrl={localizedDeployUrl}
       localizedFaqUrl={localizedFaqUrl}
       localizedFeaturesUrl={localizedFeaturesUrl}
       localizedHomeUrl={localizedHomeUrl}
@@ -168,6 +181,8 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       </div>
       <Agents translations={translations} />
     </div>
+
+    <Deploy translations={translations} />
 
     <Features translations={translations} />
 
