@@ -28,7 +28,7 @@ jobs:
         run: test "${GITHUB_REF}" = "refs/heads/main"
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
