@@ -76,7 +76,8 @@ serves, and it warns or refuses agents working in unrelated projects. See
 for connection steps and local or self-hosted model examples. Python agents built with the MCP
 SDK, LangChain, or LlamaIndex use the same server
 ([Python guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)), and
-`ghcr.io/jcode-works/ragmir` runs it without Node.js.
+`ghcr.io/jcode-works/ragmir` runs it without Node.js. LangChain.js chains use `RagmirRetriever`
+from `@jcode.labs/ragmir/langchain` with the optional peer `@langchain/core`.
 
 ## TypeScript API
 

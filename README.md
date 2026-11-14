@@ -186,6 +186,7 @@ come back as stubs, so the second search spends its budget on new evidence.
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
 | Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
 | Python: MCP SDK, LangChain, LlamaIndex | [Use Ragmir from Python](./docs/python.md) |
+| LangChain.js | `RagmirRetriever` from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever)) |
 | Without Node.js | `docker run -v "$PWD:/workspace" ghcr.io/jcode-works/ragmir` |
 | Your own application | `createRagmirClient()` from the TypeScript API |
 

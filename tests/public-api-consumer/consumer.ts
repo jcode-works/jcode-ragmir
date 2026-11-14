@@ -31,6 +31,12 @@ import {
   type RagmirErrorCode,
   type SearchOptions,
 } from "@jcode.labs/ragmir"
+import {
+  RagmirRetriever,
+  type RagmirDocumentMetadata,
+  type RagmirRetrieverInput,
+  ragmirResultToDocument,
+} from "@jcode.labs/ragmir/langchain"
 
 const cwd = process.cwd()
 const ingestOptions = { cwd, rebuild: false, collectMetrics: true } satisfies IngestOptions
@@ -110,3 +116,11 @@ void changedEvidenceErrorCode
 void migrationErrorCode
 
 void createMcpServer(cwd)
+
+const retrieverInput: RagmirRetrieverInput = { projectRoot: cwd, topK: 3, includePaths: ["docs"] }
+const retriever = new RagmirRetriever(retrieverInput)
+const retrievedDocuments: Promise<{ pageContent: string; metadata: RagmirDocumentMetadata }[]> =
+  retriever.invoke("release policy")
+void retrievedDocuments
+void ragmirResultToDocument
+void retriever.close()

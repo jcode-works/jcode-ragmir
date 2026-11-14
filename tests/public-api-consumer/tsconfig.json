@@ -6,6 +6,9 @@
     "paths": {
       "@jcode.labs/ragmir": [
         "../../packages/ragmir-core/dist/index.d.ts"
+      ],
+      "@jcode.labs/ragmir/langchain": [
+        "../../packages/ragmir-core/dist/langchain.d.ts"
       ]
     },
     "skipLibCheck": false,
