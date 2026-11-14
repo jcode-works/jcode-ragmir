@@ -113,9 +113,9 @@ before indexing, and builds the index with the same pinned release. With the oth
 the commands yourself from the project root:
 
 ```bash
-npx --yes @jcode.labs/ragmir@6.7.1 init
-npx --yes @jcode.labs/ragmir@6.7.1 sources add "docs/**/*.md" "specs/**/*.pdf" "src/**/*.ts"
-npx --yes @jcode.labs/ragmir@6.7.1 ingest
+npx --yes @jcode.labs/ragmir@6.8.0 init
+npx --yes @jcode.labs/ragmir@6.8.0 sources add "docs/**/*.md" "specs/**/*.pdf" "src/**/*.ts"
+npx --yes @jcode.labs/ragmir@6.8.0 ingest
 ```
 
 The Claude Code server receives the open project as `CLAUDE_PROJECT_DIR`; Codex, Gemini CLI, and
