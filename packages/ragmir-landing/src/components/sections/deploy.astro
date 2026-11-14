@@ -20,7 +20,7 @@ const deployItems = [
 <section
   id="deploy"
   aria-labelledby="deploy-heading"
-  class="container-wide relative z-10 px-5 py-24 md:px-8 md:py-36"
+  class="container-wide relative z-10 px-5 py-16 md:px-8 md:py-36"
 >
   <div class="grid gap-5 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
     <div>
@@ -36,9 +36,13 @@ const deployItems = [
     </p>
   </div>
 
-  <ol class="mt-10 grid gap-px overflow-hidden rounded-xl border border-border bg-border shadow-xl shadow-black/20 sm:grid-cols-2 lg:grid-cols-4">
+  <ol
+    class="-mx-5 mt-8 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 scroll-px-5 overscroll-x-contain [scrollbar-width:none] sm:mx-0 sm:mt-10 sm:grid sm:grid-cols-2 sm:gap-px sm:overflow-hidden sm:rounded-xl sm:border sm:border-border sm:bg-border sm:px-0 sm:pb-0 sm:shadow-xl sm:shadow-black/20 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden"
+    aria-label={t("deploy_title")}
+    tabindex="0"
+  >
     {deployItems.map((item, index) => (
-      <li class="flex flex-col bg-card p-5 md:p-6">
+      <li class="flex w-[78vw] max-w-[20rem] shrink-0 snap-start flex-col rounded-xl border border-border bg-card p-5 sm:w-auto sm:max-w-none sm:rounded-none sm:border-0 md:p-6">
         <div class="flex items-center justify-between">
           <item.icon class="size-5 text-[var(--accent-title)]" aria-hidden="true" />
           <span class="font-mono text-muted-foreground text-xs">0{index + 1}</span>
