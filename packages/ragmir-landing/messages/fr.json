@@ -93,7 +93,7 @@
   "agents_command": "npx rgr install-agent --agents claude,codex,kimi,opencode,cline",
   "agents_plugin_label": "Ou installer le plugin Claude Code",
   "agents_plugin_command": "/plugin install ragmir --marketplace jcode-works/jcode-ragmir",
-  "agents_plugin_more": "Plugins pour Codex, Cursor, Gemini CLI et Qwen Code",
+  "agents_plugin_more": "Plugins pour les autres agents",
   "agents_targets_title": "Choisissez votre mode de fonctionnement",
   "agents_targets_text": "La même recherche sourcée, quelle que soit l’application qui l’utilise.",
   "integrations_eyebrow": "Intégrations",
