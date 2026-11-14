@@ -64,8 +64,9 @@ and omits the production sitemap.
 
 - Lead with agentic RAG for developers: cited project evidence through a TypeScript library, CLI,
   and MCP. The consuming agent chooses searches, expands citations, refines queries, and generates.
-- Show four distinct workflows in the hero and examples: feature delivery, incident diagnosis, and
-  migration planning with Claude Code or Codex, plus a confidential decision with a local or
+- Show four distinct workflows in the hero and examples: feature delivery and incident diagnosis
+  with Claude Code or Codex, an AI product grounded in customer documents with LangChain.js, plus a
+  confidential decision with a local or
   self-hosted chat and model. Keep each development example agentic, with source refinement and a
   concrete code outcome. Keep the confidential example focused on a cited decision with an explicit
   model destination. Do not turn the development examples into Ollama demos.

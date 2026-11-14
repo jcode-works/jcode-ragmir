@@ -44,7 +44,9 @@ access.
 
 ```bash
 npm install -D @jcode.labs/ragmir
-npx rgr setup --agents claude,codex   # index the project, connect your agents
+npx rgr setup --agents claude,codex   # connect your agents
+npx rgr sources add "docs/**/*.md" "src/**/*.ts"
+npx rgr ingest
 npx rgr search "how are permissions checked?" --compact
 ```
 
@@ -70,7 +72,7 @@ npx rgr search "how are permissions checked?" --compact
 - **Evidence you can verify.** Citations point to source lines, PDF pages, slides, sheet cells, or
   EPUB sections. Results say when their file changed after indexing (`sourceStatus`) and when
   their support is thin (`weakEvidence`). Questions your sources cannot answer return nothing
-  instead of noise: 68 of 90 off-topic and 26 of 110 near-domain questions on three real bases, up
+  instead of noise: 68 of 90 off-topic and 26 of 100 near-domain questions on three real bases, up
   from 54 and 23 in 6.4, and 65 and 27 without any model, up from 12 and 1, with no correct answer
   refused.
 - **Always current.** `rgr doctor` compares the files on disk with the index on every run, and
@@ -221,6 +223,11 @@ application calls. A local index does not make either conversation local.
 local or self-hosted chat client. Ragmir does not bundle a chat or a generation model; scripts can
 use the same retrieval API without one.
 
+The same retrieval works on personal corpora: the research and past transcripts behind a YouTube
+script, a lifetime of paperwork such as bank statements and payslips, or a whole career history
+matched against job offers. Pair it with a local model such as Ollama to keep every passage on the
+machine.
+
 ## Benchmarks
 
 ### Real projects
@@ -236,7 +243,7 @@ in one process.
 | Java/TypeScript monorepo with Office files and scans: 2,325 files, 30,171 chunks, 101 developer questions | multilingual-e5-base | 44% → **54%** | 73% → **77%** | 93% → **94%** | 16 → **22** of 30 | 11 → **11** of 30 | 8 of 94 → **10** of 95 | 39 → **36 ms** |
 | French and English product documentation: 299 files, 21,011 chunks, 60 questions | mxbai-embed-xsmall | 97% → **100%** | 100% → **100%** | 100% → **100%** | 17 → **23** of 30 | 6 → **9** of 30 | 0 → **0** of 60 | 29 → **26 ms** |
 | This repository: 237 files, 2,541 chunks, 89 developer questions | mxbai-embed-xsmall | 51% → **54%** | 81% → **83%** | 100% → **100%** | 21 → **23** of 30 | 6 → **6** of 40 | 6 → **4** of 89 | 23 → **17 ms** |
-| The same three corpora with `local-hash`, the monorepo without OCR text | none | 28 to 83% → **35 to 88%** | 46 to 90% → **63 to 90%** | 79 to 99% → **84 to 98%** | 12 → **65** of 90 | 1 → **27** of 110 | 15 of 222 → **9** of 226 | 20 to 31 → **16 to 30 ms** |
+| The same three corpora with `local-hash`, the monorepo without OCR text | none | 28 to 83% → **35 to 88%** | 46 to 90% → **63 to 90%** | 79 to 99% → **84 to 98%** | 12 → **65** of 90 | 1 → **27** of 100 | 15 of 222 → **9** of 226 | 20 to 31 → **16 to 30 ms** |
 
 Measured on November 1, 2026 on an Apple M3 Max with Node.js 24 and LanceDB 0.30, with the
 `quality` profile these projects use. Near-domain questions pair the project's own vocabulary with
@@ -295,7 +302,7 @@ import { createRagmirClient } from "@jcode.labs/ragmir"
 const ragmir = await createRagmirClient({ cwd: process.cwd() })
 try {
   await ragmir.ingest()
-  const passages = await ragmir.search("authentication contract", { topK: 3, scope: "docs" })
+  const passages = await ragmir.search("authentication contract", { topK: 3 })
   for (const passage of passages) {
     console.log(passage.citation, passage.weakEvidence ? "(verify)" : "", passage.text)
   }

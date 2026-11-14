@@ -184,7 +184,7 @@ elided words (`l'abstention`). When the first five results of a search are all w
 holds no real evidence and search returns nothing; with `local-hash`, weak means under 30% of the
 question's IDF-weighted words. On a Java and TypeScript monorepo, a product documentation base,
 and this repository (250 answerable questions), these rules kept every answer and ranking in place
-while refusing 68 of 90 off-topic and 26 of 110 near-domain unanswerable questions with
+while refusing 68 of 90 off-topic and 26 of 100 near-domain unanswerable questions with
 Transformers models, against 54 and 23 with the 6.4 rules. `local-hash` refused 65 and 27 instead
 of 12 and 1.
 Evaluate your own corpus with `rgr evaluate`.
@@ -306,8 +306,8 @@ or an enabled semantic provider); otherwise it installs the model recommended fo
 (`rgr models list` shows the options, their download, the memory indexing needs, and the fit) and
 writes it to the project config. Commit `ragmir.config.json` so teammates index with the same model.
 Pass `--embedding-model <id>` to choose. Setup preloads the model once and leaves normal remote model
-loading disabled. Use `rgr models pull --enable`, or `rgr models pull --model <id> --enable`, for
-the same change after initial setup. Both commands download the
+loading disabled. Use `rgr models pull --model <id> --enable` to switch models after initial setup; without
+`--model`, `rgr models pull` reinstalls the configured model. Both forms download the
 pinned revision into a private cache, install it under `embeddingModelPath` as the offline snapshot
 that local loading reads, and persist the resolved immutable revision and artifact digest. Bundled
 model profiles use pinned commits. Pin a custom model to a 40-character commit before relying on

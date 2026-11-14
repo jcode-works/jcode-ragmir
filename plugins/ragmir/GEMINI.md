@@ -6,7 +6,7 @@ server. Its four read-only tools are `ragmir_search`, `ragmir_expand`, `ragmir_s
 
 ## Answer from the project
 
-1. Call `ragmir_search` with a focused query. It returns at most three compact citations.
+1. Call `ragmir_search` with a focused query. It returns three compact citations by default.
 2. Expand the one citation you need with `ragmir_expand`.
 3. Refine the query when the evidence is incomplete. An empty result means the sources hold no
    evidence: rephrase once with the project's own terms, then say so instead of guessing.

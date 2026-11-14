@@ -9,8 +9,9 @@ rgr audit --unsupported
 rgr security-audit
 ```
 
-The first command reads the last successful manifest health snapshot. Use `--deep` only when you
-need a live O(corpus) inventory and executable security probes. `rgr audit` is also O(corpus).
+The first command checks live freshness by size and modification time (`O(files)`); its other
+counts come from the last ingestion's health snapshot. Use `--deep` only when you need a live
+O(corpus) inventory and executable security probes. `rgr audit` is also O(corpus).
 
 ## The project is not initialized
 
@@ -100,7 +101,7 @@ project's vocabulary usually finds the evidence if it exists. When one
 export or log dominates results, `rgr audit` reports index concentration; exclude it, lower it
 with `sourceWeights`, or cap it with `maxChunksPerDataFile`.
 
-First confirm source coverage with `rgr audit`. Then try a specific query, `--context-radius 1`, or a higher `--top-k`. For semantic retrieval, install optional `@huggingface/transformers`, then run `rgr models pull --enable` followed by `rgr ingest --rebuild`.
+First confirm source coverage with `rgr audit`. Then try a specific query, `--context-radius 1`, or a higher `--top-k`. For semantic retrieval, install optional `@huggingface/transformers`, then run `rgr setup --semantic` (or `rgr models pull --model <id> --enable`) followed by `rgr ingest --rebuild`.
 
 ## Semantic ingestion fails after `rgr models pull`
 
