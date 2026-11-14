@@ -289,6 +289,7 @@ const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".tex",
   ".text",
   ".toml",
+  ".tpl",
   ".ts",
   ".tsv",
   ".tsx",

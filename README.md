@@ -405,7 +405,11 @@ model for its own retrieval:
 ## Supported documents
 
 Text and code, Markdown, JSON/JSONL, YAML, CSV, HTML, PDF, DOCX, XLSX, PPTX, OpenDocument, EPUB,
-RTF, images and legacy `.doc` with local extractors, and configured custom text extensions.
+RTF, images and legacy `.doc` with local extractors, and configured custom text extensions. Charts in
+Word, PowerPoint, and Excel files are indexed with their title, axes, series, and values; Helm chart
+templates (`.tpl` and YAML with `{{ }}` actions) are indexed as text with line citations. Semantic
+retrieval runs a local model or, opt-in, any OpenAI-compatible embeddings endpoint such as Ollama or
+vLLM.
 Transformed formats use native coordinates instead of invented source lines. Unsupported,
 sensitive, oversized, and empty-text files are reported.
 

@@ -11,6 +11,8 @@ import { tokenize } from "./text.js"
 import type { Config, IngestEmbeddingDevice, IngestionEmbeddingModelState } from "./types.js"
 import { runWorkload, type WorkloadAdmission } from "./workload.js"
 
+// Bounds one OpenAI-compatible embedding request; a stalled endpoint must not hang ingestion.
+const OPENAI_COMPATIBLE_TIMEOUT_MS = 120_000
 const LOCAL_HASH_DIMENSIONS = 384
 const LONG_TOKEN_MIN_LENGTH = 6
 const LONG_TOKEN_WEIGHT = 1.4
@@ -98,6 +100,9 @@ export async function embedTexts(
       const featureCache = new Map<string, LocalHashFeatureLocation>()
       return texts.map((text) => localHashEmbedding(text, featureCache))
     }
+    if (config.embeddingProvider === "openai-compatible") {
+      return embedWithOpenAiCompatible(texts, config, inputType, signal)
+    }
 
     const embeddings = await embedWithTransformers(texts, config, inputType, signal)
     throwIfAborted(signal)
@@ -178,7 +183,7 @@ export async function embedText(
 export function embeddingModelState(
   config: Config,
 ): Exclude<IngestionEmbeddingModelState, "mixed" | "unused"> {
-  if (config.embeddingProvider === "local-hash") {
+  if (config.embeddingProvider !== "transformers") {
     return "stateless"
   }
   return transformersPipelines.has(
@@ -284,7 +289,87 @@ export function prepareEmbeddingText(
   if (inputType === "query" && /(^|\/)mxbai-embed/iu.test(model)) {
     return `Represent this sentence for searching relevant passages: ${text}`
   }
+  if (/(^|\/)nomic-embed-text/iu.test(model)) {
+    return `${inputType === "query" ? "search_query" : "search_document"}: ${text}`
+  }
   return text
+}
+
+/**
+ * Embeds through an OpenAI-compatible `/embeddings` endpoint: Ollama, vLLM, LM Studio, LocalAI, or a
+ * hosted API. Passage text leaves the process, so the provider is opt-in and its endpoint explicit.
+ * Vectors are normalized like the local models', so distances and abstention keep their meaning.
+ */
+async function embedWithOpenAiCompatible(
+  texts: string[],
+  config: Config,
+  inputType: EmbeddingInputType,
+  signal: AbortSignal | undefined,
+): Promise<number[][]> {
+  if (!config.embeddingEndpoint) {
+    throw new Error(
+      'embeddingProvider "openai-compatible" needs embeddingEndpoint, for example "http://localhost:11434/v1" for Ollama.',
+    )
+  }
+  const headers: Record<string, string> = { "content-type": "application/json" }
+  if (config.embeddingApiKeyEnv) {
+    const key = process.env[config.embeddingApiKeyEnv]
+    if (!key) {
+      throw new Error(
+        `Set the ${config.embeddingApiKeyEnv} environment variable to the embedding endpoint's API key.`,
+      )
+    }
+    headers.authorization = `Bearer ${key}`
+  }
+  const base = config.embeddingEndpoint.endsWith("/")
+    ? config.embeddingEndpoint
+    : `${config.embeddingEndpoint}/`
+  const timeout = AbortSignal.timeout(OPENAI_COMPATIBLE_TIMEOUT_MS)
+  const response = await fetch(new URL("embeddings", base), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: config.embeddingModel,
+      input: texts.map((text) => prepareEmbeddingText(text, config.embeddingModel, inputType)),
+    }),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  })
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => "")).slice(0, 300)
+    throw new Error(
+      `Embedding endpoint ${new URL(base).origin} answered HTTP ${response.status}${detail ? `: ${detail}` : ""}`,
+    )
+  }
+  const payload = (await response.json()) as {
+    data?: Array<{ embedding?: unknown; index?: unknown }>
+  }
+  const rows = [...(payload.data ?? [])].sort(
+    (left, right) => Number(left.index ?? 0) - Number(right.index ?? 0),
+  )
+  if (rows.length !== texts.length) {
+    throw new Error(`Embedding endpoint returned ${rows.length} vectors for ${texts.length} texts.`)
+  }
+  let dimensions: number | null = null
+  return rows.map((row) => {
+    const vector = row.embedding
+    if (
+      !Array.isArray(vector) ||
+      vector.length === 0 ||
+      !vector.every((value) => typeof value === "number" && Number.isFinite(value))
+    ) {
+      throw new Error("Embedding endpoint returned a vector that is not a list of finite numbers.")
+    }
+    if (dimensions !== null && vector.length !== dimensions) {
+      throw new Error("Embedding endpoint returned vectors of different lengths.")
+    }
+    dimensions = vector.length
+    return normalizeVector(vector as number[])
+  })
+}
+
+function normalizeVector(vector: number[]): number[] {
+  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0))
+  return norm > 0 ? vector.map((value) => value / norm) : vector
 }
 
 async function acquireTransformersPipeline(

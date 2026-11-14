@@ -125,7 +125,9 @@ export function isIndexQualityReport(value: unknown): value is IndexQualityRepor
     typeof value.goldenFingerprint === "string" &&
     typeof value.indexFingerprint === "string" &&
     typeof value.indexPolicyFingerprint === "string" &&
-    (value.embeddingProvider === "local-hash" || value.embeddingProvider === "transformers") &&
+    (value.embeddingProvider === "local-hash" ||
+      value.embeddingProvider === "transformers" ||
+      value.embeddingProvider === "openai-compatible") &&
     typeof value.embeddingModel === "string" &&
     typeof value.embeddingModelRevision === "string" &&
     (value.embeddingModelDigest === null || typeof value.embeddingModelDigest === "string") &&
