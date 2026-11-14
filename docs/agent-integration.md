@@ -85,7 +85,9 @@ The generated runner resolves the project's installed Ragmir package the way Nod
 project folder upward, so moving or upgrading the install never strands it. It runs the CLI in
 process and never spawns Windows `.cmd` shims without a shell; only when no local package exists
 does it fall back to `npx --prefer-offline`, which `rgr doctor` reports. It requires Node.js
-22.12+. You can also launch `pnpm exec rgr serve-mcp` from the owning project directory. Ragmir has
+22.12+. You can also launch `pnpm exec rgr serve-mcp` from the owning project directory. The MCP
+Registry lists the server as `io.github.jcode-works/ragmir`, and Python clients connect as shown
+in [Use Ragmir from Python](./python.md). Ragmir has
 no built-in HTTP server. A remote-only chat needs its own supported connector or an application
 that calls the library; an Ollama or other model endpoint does not itself attach to an MCP server.
 

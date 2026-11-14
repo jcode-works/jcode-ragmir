@@ -73,7 +73,10 @@ budget, with named scopes), `ragmir_expand`, `ragmir_status`, and `ragmir_audit`
 already returned in a session come back as one-line stubs. Its instructions name the base it
 serves, and it warns or refuses agents working in unrelated projects. See
 [agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
-for connection steps and local or self-hosted model examples.
+for connection steps and local or self-hosted model examples. Python agents built with the MCP
+SDK, LangChain, or LlamaIndex use the same server
+([Python guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)), and
+`ghcr.io/jcode-works/ragmir` runs it without Node.js.
 
 ## TypeScript API
 
@@ -168,6 +171,7 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 Read the [full documentation](https://github.com/jcode-works/jcode-ragmir#readme),
 [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md),
 [server guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md),
+[Python guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md),
 [migration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md), and
 [troubleshooting guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md).
 Ask questions and report bugs in

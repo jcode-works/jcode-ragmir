@@ -31,6 +31,7 @@
   <a href="#benchmarks">Benchmarks</a> ·
   <a href="./docs/agent-integration.md">Agents and MCP</a> ·
   <a href="./docs/server-deployment.md">Run on a server</a> ·
+  <a href="./docs/python.md">Python</a> ·
   <a href="https://ragmir.com">ragmir.com</a>
 </p>
 
@@ -183,7 +184,9 @@ come back as stubs, so the second search spends its budget on new evidence.
 | Claude Code | `rgr setup --agents claude`: skill plus project MCP server |
 | Codex | `rgr setup --agents codex`: skill plus `.codex/config.toml` helper |
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
-| Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp` |
+| Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
+| Python: MCP SDK, LangChain, LlamaIndex | [Use Ragmir from Python](./docs/python.md) |
+| Without Node.js | `docker run -v "$PWD:/workspace" ghcr.io/jcode-works/ragmir` |
 | Your own application | `createRagmirClient()` from the TypeScript API |
 
 The MCP server exposes four read-only tools: `ragmir_search` (one question or up to five related
@@ -403,6 +406,7 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 - [Configuration, sources, and ranking](./docs/configuration.md)
 - [Agents, MCP, and four workflows](./docs/agent-integration.md)
 - [Run on a server or in a container](./docs/server-deployment.md)
+- [Use Ragmir from Python](./docs/python.md)
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Synthetic examples](./packages/ragmir-core/examples/sovereign-rag-demo/README.md)

@@ -1,5 +1,6 @@
 {
   "name": "@jcode.labs/ragmir",
+  "mcpName": "io.github.jcode-works/ragmir",
   "version": "0.4.12",
   "description": "Open-source retrieval for agentic RAG: document search with exact citations on your laptop or servers, with OCR, CLI, MCP, and TypeScript.",
   "type": "module",
