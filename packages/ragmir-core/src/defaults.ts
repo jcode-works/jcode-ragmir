@@ -78,6 +78,8 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   embeddingModelRevision: DEFAULT_EMBEDDING_MODEL_REVISION,
   embeddingModelDigest: null,
   transformersAllowRemoteModels: false,
+  embeddingEndpoint: null,
+  embeddingApiKeyEnv: null,
   mcpMaxTopK: 10,
   mcpMaxOutputBytes: 32_768,
   topK: 8,

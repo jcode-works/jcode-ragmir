@@ -55,7 +55,7 @@ export async function measureAbstentionCalibration(
   embed: ProbeEmbedder,
   signal?: AbortSignal,
 ): Promise<AbstentionCalibration | null> {
-  if (config.embeddingProvider !== "transformers") {
+  if (config.embeddingProvider === "local-hash") {
     return null
   }
   const vectors = await embed([...ABSTENTION_PROBES], config, "query", signal)
@@ -95,7 +95,7 @@ export function indexNoiseFloor(
   generationKey: string,
   embed: ProbeEmbedder,
 ): Promise<number | null> {
-  if (config.embeddingProvider !== "transformers" || !manifest?.chunkCount) {
+  if (config.embeddingProvider === "local-hash" || !manifest?.chunkCount) {
     return Promise.resolve(null)
   }
   const stored = manifestNoiseFloor(manifest, config)
@@ -127,7 +127,7 @@ export function noiseFloorAdvice(
   run: (args: string[]) => string,
 ): string | null {
   if (
-    config.embeddingProvider !== "transformers" ||
+    config.embeddingProvider === "local-hash" ||
     !manifest?.chunkCount ||
     manifestNoiseFloor(manifest, config) !== null
   ) {
@@ -140,7 +140,7 @@ export function noiseFloorAdvice(
 export function manifestNoiseFloor(manifest: IndexManifest | null, config: Config): number | null {
   const calibration = manifest?.abstentionCalibration
   if (
-    config.embeddingProvider !== "transformers" ||
+    config.embeddingProvider === "local-hash" ||
     calibration?.schemaVersion !== 1 ||
     calibration.embeddingModel !== config.embeddingModel
   ) {

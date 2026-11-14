@@ -21,8 +21,11 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `rgr models list` shows the known models and their fit for the machine; setup installs the
   recommended one (multilingual Granite R2 97M on most machines) unless the config names a model.
   Also supported: `mxbai-embed-xsmall-v1` (English), `multilingual-e5-small`, and
-  `multilingual-e5-base`. EmbeddingGemma 2 and Qwen3-Embedding are not supported yet.
-- Text, Markdown, structured files, PDF, Office, EPUB, and configured local extractors are supported.
+  `multilingual-e5-base`. EmbeddingGemma 2 and Qwen3-Embedding are not supported yet as local
+  models; `embeddingProvider: "openai-compatible"` with `embeddingEndpoint` embeds through Ollama,
+  vLLM, or any OpenAI-compatible endpoint instead (opt-in: passage text goes to that endpoint).
+- Text, Markdown, structured files, PDF, Office (with chart titles, series, and values), EPUB, Helm
+  templates, and configured local extractors are supported.
   `rgr audit --unsupported` reports gaps. Do not claim universal binary support.
 - Paths are stored and cited with forward slashes and in Unicode NFC on every platform, so
   exclusions also match accented names stored decomposed. `rgr audit` reports source rules that
