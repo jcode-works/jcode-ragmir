@@ -72,7 +72,10 @@ export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): Rea
         {highlightCommand(command)}
       </code>
       {copied ? (
-        <Check aria-hidden="true" className="size-4 shrink-0 text-[var(--accent-title)]" />
+        <Check
+          aria-hidden="true"
+          className="copy-confirm size-4 shrink-0 text-[var(--accent-title)]"
+        />
       ) : (
         <Copy
           aria-hidden="true"
@@ -114,7 +117,7 @@ export function TextCopyButton({
       type="button"
     >
       {copied ? (
-        <Check aria-hidden="true" className="size-4" />
+        <Check aria-hidden="true" className="copy-confirm size-4" />
       ) : (
         <Copy aria-hidden="true" className="size-4" />
       )}
@@ -145,7 +148,7 @@ export function CommandCopyButton({
       {copied ? (
         <Check
           aria-hidden="true"
-          className={cn("size-3.5 text-[var(--accent-title)]", iconClassName)}
+          className={cn("copy-confirm size-3.5 text-[var(--accent-title)]", iconClassName)}
         />
       ) : (
         <Copy aria-hidden="true" className={cn("size-3.5", iconClassName)} />

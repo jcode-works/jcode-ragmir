@@ -10,6 +10,7 @@ import {
   type TerminalLineKind,
   type TerminalScriptLine,
 } from "./hero-demo-script"
+import { TabIndicator } from "./tab-indicator"
 
 interface HeroDemoProps {
   translations: Record<string, string>
@@ -308,7 +309,8 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
           ref={tabScrollRef}
           role="tablist"
         >
-          <div className="flex min-w-max gap-1">
+          <div className="group/scenario-tabs relative flex min-w-max gap-1">
+            <TabIndicator activeSelector='[aria-selected="true"]' />
             {HERO_DEMO_SCENARIOS.map((scenario) => {
               const isActive = scenario.id === activeScenario.id
 
@@ -316,9 +318,9 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
                 <button
                   aria-selected={isActive}
                   className={cn(
-                    "h-8 shrink-0 rounded-full px-3 font-semibold text-xs transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "relative h-8 shrink-0 rounded-full px-3 font-semibold text-xs transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     isActive
-                      ? "bg-foreground text-background"
+                      ? "bg-foreground text-background group-data-[indicator=ready]/scenario-tabs:bg-transparent"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                   data-scenario-id={scenario.id}
@@ -418,7 +420,7 @@ function renderTerminalLine(input: {
     <div
       className={cn(
         "terminal-line-in mb-0.5",
-        line.kind === "citation" && "citation-flash -mx-1 px-1",
+        line.kind === "citation" && "citation-mark -mx-1 px-1",
         lineClass[line.kind],
       )}
       key={key}

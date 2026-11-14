@@ -81,7 +81,7 @@ const marqueeCopy =
       </div>
     </nav>
 
-    <div aria-hidden="true" class="relative z-10 my-10 overflow-hidden py-3">
+    <div aria-hidden="true" class="relative z-10 my-10 overflow-hidden py-3" data-marquee>
       <div class="flex w-max animate-marquee-text">
         <span class={marqueeCopy}>{t("footer_marquee")}</span>
         <span class={marqueeCopy}>{t("footer_marquee")}</span>
@@ -134,3 +134,12 @@ const marqueeCopy =
     </div>
   </div>
 </footer>
+
+<script>
+  // The marquee loops forever: pause it whenever it is off screen.
+  for (const marquee of document.querySelectorAll<HTMLElement>("[data-marquee]")) {
+    new IntersectionObserver(([entry]) => {
+      marquee.toggleAttribute("data-paused", !entry?.isIntersecting)
+    }).observe(marquee)
+  }
+</script>

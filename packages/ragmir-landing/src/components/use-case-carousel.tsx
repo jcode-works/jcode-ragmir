@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "../lib/utils"
+import { TabIndicator } from "./tab-indicator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
 type UseCaseId = "feature" | "incident" | "product" | "local"
@@ -171,7 +172,11 @@ function WorkflowStep({
   title: string
 }): React.JSX.Element {
   return (
-    <li className="relative flex min-h-28 flex-col rounded-xl bg-background p-4 md:p-5 lg:min-h-36">
+    <li
+      className="relative flex min-h-28 flex-col rounded-xl bg-background p-4 transition-[opacity,transform] duration-300 ease-[var(--ease-out-expo)] group-data-[state=active]/panel:delay-[calc(var(--step)*50ms)] group-data-[state=inactive]/panel:translate-y-1.5 group-data-[state=inactive]/panel:opacity-0 group-data-[state=inactive]/panel:duration-150 md:p-5 lg:min-h-36"
+      data-motion="step"
+      style={{ "--step": position - 1 } as React.CSSProperties}
+    >
       <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em]">
         <span className="tnum text-muted-foreground">{String(position).padStart(2, "0")}</span>
         <span
@@ -230,9 +235,10 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
     >
       <TabsList
         aria-label={t("use_cases_tabs_label")}
-        className="flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain rounded-full bg-background p-1 [scrollbar-width:none] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:hidden"
+        className="relative flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain rounded-full bg-background p-1 [scrollbar-width:none] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:hidden"
         onWheel={handleTabsWheel}
       >
+        <TabIndicator activeSelector='[data-state="active"]' />
         {USE_CASES.map((useCase) => {
           const Icon = useCase.icon
           return (
@@ -252,7 +258,7 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
       <div className="mt-6 grid w-full min-w-0 md:mt-8">
         {USE_CASES.map((useCase) => (
           <TabsContent
-            className="col-start-1 row-start-1 mt-0 w-full min-w-0 data-[state=inactive]:pointer-events-none data-[state=inactive]:invisible"
+            className="group/panel col-start-1 row-start-1 mt-0 w-full min-w-0 transition-[opacity,visibility] duration-300 ease-[var(--ease-out-expo)] data-[state=inactive]:pointer-events-none data-[state=inactive]:invisible data-[state=inactive]:opacity-0 data-[state=inactive]:duration-150"
             forceMount
             key={useCase.id}
             value={useCase.id}

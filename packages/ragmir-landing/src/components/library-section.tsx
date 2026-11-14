@@ -1,6 +1,7 @@
 import { RAGMIR_SETUP_PROMPT } from "../content/setup-prompt"
 import { CommandCopyBox, TextCopyButton } from "./command-copy"
 import { SectionHeader } from "./section-header"
+import { TabIndicator } from "./tab-indicator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 import { Textarea } from "./ui/textarea"
@@ -89,7 +90,8 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
         <CardContent className="grid min-w-0 gap-4 p-5 md:p-6">
           <Tabs className="min-w-0 gap-4" defaultValue="prompt">
             <div className="-mx-1 min-w-0 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <TabsList className="flex w-max min-w-full rounded-full bg-background p-1">
+              <TabsList className="relative flex w-max min-w-full rounded-full bg-background p-1">
+                <TabIndicator activeSelector='[data-state="active"]' />
                 <TabsTrigger
                   className="min-w-20 flex-1 justify-center rounded-full px-3 py-1.5 text-center font-semibold text-xs"
                   value="prompt"

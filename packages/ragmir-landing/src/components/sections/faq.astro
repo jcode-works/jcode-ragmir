@@ -30,7 +30,7 @@ const faqItems = getFaqItems(translations)
 
     <div class="mx-auto grid max-w-3xl gap-3">
       {faqItems.map((item) => (
-        <details class="group rounded-xl bg-card px-5 py-4 transition-colors hover:bg-[#1a1a1a] open:hover:bg-card">
+        <details class="faq-item group rounded-xl bg-card px-5 py-4 transition-colors hover:bg-[#1a1a1a] open:hover:bg-card">
           <summary class="flex min-h-8 cursor-pointer list-none items-center justify-between gap-4 font-bold text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
             {item.question}
             <svg

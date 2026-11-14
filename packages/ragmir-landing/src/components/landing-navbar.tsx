@@ -258,6 +258,7 @@ export function LandingNavbar({
       if (currentScrollY < scrollThreshold) {
         if (isHidden.current) {
           header.style.transform = "translateY(0)"
+          header.removeAttribute("data-hidden")
           isHidden.current = false
         }
         lastScrollY.current = currentScrollY
@@ -267,10 +268,12 @@ export function LandingNavbar({
       const scrollDelta = currentScrollY - lastScrollY.current
       if (scrollDelta > 5 && !isHidden.current) {
         header.style.transform = "translateY(-100%)"
+        header.setAttribute("data-hidden", "")
         isHidden.current = true
         lastScrollY.current = currentScrollY
       } else if (scrollDelta < -5 && isHidden.current) {
         header.style.transform = "translateY(0)"
+        header.removeAttribute("data-hidden")
         isHidden.current = false
         lastScrollY.current = currentScrollY
       } else if ((scrollDelta > 0 && isHidden.current) || (scrollDelta < 0 && !isHidden.current)) {
@@ -373,8 +376,8 @@ export function LandingNavbar({
         <button
           aria-label={t("nav_menu_close")}
           className={cn(
-            "absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity duration-300",
-            menuOpen ? "opacity-100" : "opacity-0",
+            "absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity",
+            menuOpen ? "opacity-100 duration-300" : "opacity-0 duration-200",
           )}
           onClick={closeMenu}
           tabIndex={menuOpen ? 0 : -1}
@@ -382,8 +385,11 @@ export function LandingNavbar({
         />
         <div
           className={cn(
-            "absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col bg-background shadow-2xl shadow-black/60 transition-transform duration-300 ease-out",
-            menuOpen ? "translate-x-0" : "translate-x-full",
+            "absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col border-border border-l bg-background shadow-2xl shadow-black/60 transition-[transform,opacity]",
+            // Opens on a long deceleration, closes faster; reduced motion fades it in place.
+            menuOpen
+              ? "translate-x-0 opacity-100 duration-300 ease-[var(--ease-out-expo)]"
+              : "translate-x-full duration-200 ease-in motion-reduce:translate-x-0 motion-reduce:opacity-0",
           )}
         >
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -431,7 +437,7 @@ export function LandingNavbar({
               </div>
             </div>
 
-            <nav aria-label={t("nav_aria_label")} className="px-5 pb-6">
+            <nav aria-label={t("nav_aria_label")} className="px-5 pt-4 pb-6">
               <DrawerLinkList
                 currentPath={currentPath}
                 links={drawerPageLinks}
