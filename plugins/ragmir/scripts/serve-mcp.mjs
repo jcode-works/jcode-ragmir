@@ -10,7 +10,7 @@ import { mkdirSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-const RAGMIR_VERSION = "6.5.2"
+const RAGMIR_VERSION = "6.7.0"
 
 const projectRoot = path.resolve(
   process.env.RAGMIR_PROJECT_ROOT || process.env.CLAUDE_PROJECT_DIR || process.cwd(),
@@ -24,7 +24,8 @@ const child = spawn(
   ["--yes", `@jcode.labs/ragmir@${RAGMIR_VERSION}`, "serve-mcp"],
   {
     cwd: workDir,
-    env: { ...process.env, RAGMIR_PROJECT_ROOT: projectRoot },
+    // RAGMIR_AGENT_PLUGIN makes status and doctor suggest the pinned npx commands this plugin uses.
+    env: { ...process.env, RAGMIR_PROJECT_ROOT: projectRoot, RAGMIR_AGENT_PLUGIN: "1" },
     stdio: "inherit",
     // Windows only starts .cmd launchers through a shell; every argument above is a constant.
     shell: isWindows,

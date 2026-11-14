@@ -115,30 +115,26 @@ const pinnedVersion = pluginLauncher.match(/const RAGMIR_VERSION = "(\d+\.\d+\.\
 if (!pinnedVersion) {
   failures.push("plugins/ragmir/scripts/serve-mcp.mjs must pin an exact Ragmir version")
 } else {
-  // The indexing command must build the index with the release the server reads it with.
-  const indexCommand = await readFile(
-    path.join(repoRoot, "plugins/ragmir/commands/index.md"),
-    "utf8",
-  )
-  const commandVersions = new Set(
-    [...indexCommand.matchAll(/@jcode\.labs\/ragmir@([^\s:`)]+)/gu)].map((match) => match[1]),
-  )
-  if (commandVersions.size !== 1 || !commandVersions.has(pinnedVersion)) {
-    failures.push(
-      `plugins/ragmir/commands/index.md must use @jcode.labs/ragmir@${pinnedVersion} like the launcher`,
-    )
+  // Every launcher, indexing instruction, and install guide must build and read the index with
+  // the release the plugin's MCP server runs.
+  const pinnedFiles = [
+    ...trackedOrNewFiles("plugins/ragmir").filter((file) => /\.(md|json|mjs)$/u.test(file)),
+    "docs/agent-integration.md",
+  ]
+  let pinnedMentions = 0
+  for (const file of pinnedFiles) {
+    const content = await readFile(path.join(repoRoot, file), "utf8")
+    for (const match of content.matchAll(/@jcode\.labs\/ragmir@(\d[^\s`"':)]*)/gu)) {
+      pinnedMentions += 1
+      if (match[1] !== pinnedVersion) {
+        failures.push(
+          `${file}: uses @jcode.labs/ragmir@${match[1]}; the launcher pins ${pinnedVersion}`,
+        )
+      }
+    }
   }
-  // Codex launches its server from the project folder without plugin path placeholders.
-  const codexMcp = await readFile(path.join(repoRoot, "plugins/ragmir/codex.mcp.json"), "utf8")
-  if (!codexMcp.includes(`@jcode.labs/ragmir@${pinnedVersion}`)) {
-    failures.push(`plugins/ragmir/codex.mcp.json must run @jcode.labs/ragmir@${pinnedVersion}`)
-  }
-  const integrationGuide = await readFile(path.join(repoRoot, "docs/agent-integration.md"), "utf8")
-  const guideVersions = new Set(
-    [...integrationGuide.matchAll(/@jcode\.labs\/ragmir@(\d[^\s`"]*)/gu)].map((match) => match[1]),
-  )
-  if (guideVersions.size !== 1 || !guideVersions.has(pinnedVersion)) {
-    failures.push(`docs/agent-integration.md must index with @jcode.labs/ragmir@${pinnedVersion}`)
+  if (pinnedMentions === 0) {
+    failures.push("no pinned @jcode.labs/ragmir release found in the plugin files")
   }
 }
 const pluginVersions = new Set()
@@ -170,6 +166,15 @@ if (failures.length > 0) {
 }
 
 console.log("Public surface smoke passed.")
+
+function trackedOrNewFiles(directory) {
+  return [
+    ...new Set([
+      ...gitLines(["ls-files", "--", directory]),
+      ...gitLines(["ls-files", "--others", "--exclude-standard", "--", directory]),
+    ]),
+  ]
+}
 
 function gitLines(args) {
   const result = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8", shell: false })

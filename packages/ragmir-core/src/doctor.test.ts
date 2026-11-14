@@ -2,12 +2,13 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { INDEX_MANIFEST_FILENAME } from "./defaults.js"
+import { INDEX_MANIFEST_FILENAME, RAGMIR_AGENT_PLUGIN_ENV } from "./defaults.js"
 import { doctor } from "./doctor.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { installAgentSkills, installSkill } from "./skill.js"
 import { integrationTimeout } from "./test-support/timeouts.js"
+import { VERSION } from "./version.js"
 
 const tempDirs: string[] = []
 
@@ -26,6 +27,29 @@ describe("doctor", { timeout: integrationTimeout(30_000) }, () => {
       code: "ABORTED",
       retryable: true,
     })
+  })
+
+  it("names the pinned npx release when an agent plugin starts the server", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-doctor-plugin-"))
+    tempDirs.push(root)
+    const previous = process.env[RAGMIR_AGENT_PLUGIN_ENV]
+    process.env[RAGMIR_AGENT_PLUGIN_ENV] = "1"
+    try {
+      const report = await doctor(root)
+      const command = `npx --yes @jcode.labs/ragmir@${VERSION}`
+
+      expect(report.initialized).toBe(false)
+      expect(report.runCommand).toBe(command)
+      expect(report.nextSteps).toEqual([
+        `Index this project with the plugin: run \`${command} init\`, then \`${command} sources add "docs/**/*.md"\` with the source globs to cite, then \`${command} ingest\`. In Claude Code, /ragmir:index runs these steps.`,
+      ])
+    } finally {
+      if (previous === undefined) {
+        delete process.env[RAGMIR_AGENT_PLUGIN_ENV]
+      } else {
+        process.env[RAGMIR_AGENT_PLUGIN_ENV] = previous
+      }
+    }
   })
 
   it("reports setup state and actionable next steps", async () => {
