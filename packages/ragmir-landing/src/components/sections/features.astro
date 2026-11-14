@@ -68,7 +68,7 @@ const featureGroups = [
 <section
   id="features"
   aria-labelledby="features-heading"
-  class="relative z-10 w-full overflow-hidden py-24 md:py-36"
+  class="relative z-10 w-full overflow-hidden py-16 md:py-36"
 >
   <RagmirBackground client:visible behindContent className="inset-0" height="100%" />
 
@@ -85,9 +85,14 @@ const featureGroups = [
       </p>
     </div>
 
-    <div class="grid auto-rows-fr gap-4 lg:grid-cols-3">
+    <div
+      class="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 scroll-px-5 overscroll-x-contain [scrollbar-width:none] md:-mx-8 md:px-8 md:scroll-px-8 lg:mx-0 lg:grid lg:auto-rows-fr lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden"
+      role="region"
+      aria-label={t("features_title")}
+      tabindex="0"
+    >
       {featureGroups.map((group) => (
-        <article class="grid h-full grid-rows-[auto_auto_auto_auto_1fr] rounded-xl border border-border bg-card/82 p-5 text-card-foreground shadow-xl shadow-black/20 backdrop-blur-xl md:p-6">
+        <article class="grid h-full w-[86vw] max-w-[24rem] shrink-0 snap-start grid-rows-[auto_auto_auto_auto_1fr] rounded-xl lg:w-auto lg:max-w-none border border-border bg-card/82 p-5 text-card-foreground shadow-xl shadow-black/20 backdrop-blur-xl md:p-6">
           <div class="flex items-center justify-between gap-3">
             <div class="flex size-11 items-center justify-center rounded-lg border border-border bg-muted/60">
               <group.icon class="size-5 text-[var(--accent-title)]" aria-hidden="true" />

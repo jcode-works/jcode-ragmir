@@ -67,7 +67,7 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
 
   return (
     <section
-      className="container-default relative z-10 grid gap-8 px-5 py-24 md:px-8 md:py-40 lg:grid-cols-[0.82fr_1.18fr] lg:items-center"
+      className="container-default relative z-10 grid gap-8 px-5 py-16 md:px-8 md:py-40 lg:grid-cols-[0.82fr_1.18fr] lg:items-center"
       id="library"
       aria-labelledby="library-heading"
     >
