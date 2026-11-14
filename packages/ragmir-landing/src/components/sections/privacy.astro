@@ -17,7 +17,7 @@ const privacyControls = [
 ---
 
 <section class="container-default relative z-10" aria-labelledby="privacy-heading">
-  <div class="mx-auto grid gap-8 px-5 py-24 md:px-8 md:py-40 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
+  <div class="mx-auto grid gap-8 px-5 py-16 md:px-8 md:py-40 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
     <div class="lg:order-2">
       <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
         {t("privacy_eyebrow")}
@@ -27,9 +27,14 @@ const privacyControls = [
       </h2>
       <p class="mt-4 text-muted-foreground text-sm leading-6">{t("privacy_text")}</p>
     </div>
-    <div class="grid gap-3 sm:grid-cols-2 lg:order-1">
+    <div
+      class="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 scroll-px-5 overscroll-x-contain [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:order-1 [&::-webkit-scrollbar]:hidden"
+      role="region"
+      aria-label={t("privacy_title")}
+      tabindex="0"
+    >
       {privacyControls.map((control) => (
-        <div class="rounded-lg border border-border bg-card/72 p-5 shadow-xl shadow-black/20">
+        <div class="w-[78vw] max-w-[20rem] shrink-0 snap-start rounded-lg sm:w-auto sm:max-w-none border border-border bg-card/72 p-5 shadow-xl shadow-black/20">
           <control.icon class="size-5 text-muted-foreground" aria-hidden="true" />
           <h3 class="mt-4 font-bold text-base">{control.title}</h3>
           <p class="mt-2 text-muted-foreground text-sm leading-6">{control.text}</p>

@@ -1,5 +1,6 @@
 ---
 import { CommandCopyToast } from "../../components/command-copy-toast"
+import { FloatingCta } from "../../components/floating-cta"
 import { LibrarySection } from "../../components/library-section"
 import { LandingNavbar } from "../../components/landing-navbar"
 import { RagmirBackground } from "../../components/ragmir-background"
@@ -200,5 +201,7 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
     />
 
     <CommandCopyToast client:idle message={t("command_copied")} />
+
+    <FloatingCta client:idle href={localizedLibraryUrl} label={t("hero_primary_cta")} />
   </main>
 </Layout>
