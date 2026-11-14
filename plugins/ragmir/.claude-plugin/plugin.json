@@ -1,0 +1,20 @@
+{
+  "name": "ragmir",
+  "version": "1.0.0",
+  "description": "Cited local retrieval for Claude Code: search a project's code, specs, PDFs, and Office files and get passages cited to lines, pages, slides, or cells.",
+  "author": {
+    "name": "Jean-Baptiste Thery",
+    "url": "https://github.com/jb-thery"
+  },
+  "homepage": "https://ragmir.com",
+  "repository": "https://github.com/jcode-works/jcode-ragmir",
+  "license": "AGPL-3.0-only",
+  "keywords": [
+    "rag",
+    "retrieval",
+    "citations",
+    "mcp",
+    "local-first",
+    "documents"
+  ]
+}
