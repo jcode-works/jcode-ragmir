@@ -16,7 +16,7 @@ Existing indexes stay searchable after the update; nothing needs rebuilding.
 - **`local-hash` refuses unsupported answers.** Without a model, search now also answers nothing
   when none of its first five passages holds 30% of the question's IDF-weighted words, or when
   words found nowhere in the index carry half of the question's IDF weight. The same bases refused
-  65 of 90 off-topic and 27 of 110 near-domain questions instead of 12 and 1, and none of 250
+  65 of 90 off-topic and 27 of 100 near-domain questions instead of 12 and 1, and none of 250
   answerable ones.
 - **Coverage follows the keyword index.** A misspelled word counts through the fuzzy match that
   found it, and JSONPath, dotted identifiers, and elided words (`l'abstention`) count by part.

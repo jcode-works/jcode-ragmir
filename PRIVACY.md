@@ -1,7 +1,8 @@
 # Privacy policy
 
 This policy covers the Ragmir library, the `rgr` CLI, the MCP server, the Docker image, and the
-Ragmir plugin for Claude Code. All of them run on your own machine or server.
+Ragmir plugins and extensions for Claude Code, Codex, Cursor, Gemini CLI, and Qwen Code. All of
+them run on your own machine or server.
 
 ## What the maintainers collect
 
@@ -19,7 +20,7 @@ your files, queries, index, or usage data to the maintainers or to any service t
 
 ## Network access
 
-- Installing Ragmir, or starting the Claude Code plugin's server, downloads the published package
+- Installing Ragmir, or starting an agent plugin's server, downloads the published package
   from the npm registry. That request carries no project data.
 - Semantic retrieval downloads an embedding model from Hugging Face only after you enable it
   explicitly. The default `local-hash` retrieval works without a model or a network connection.

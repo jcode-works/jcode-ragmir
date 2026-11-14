@@ -27,5 +27,11 @@ registers a second, project-level server.
 The plugin works in Claude Code, where the project files live on your machine. The Claude web,
 desktop chat, and mobile apps cannot reach local files, so they cannot use it.
 
+The same folder also installs in OpenAI Codex (`codex plugin marketplace add
+jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir`), Cursor (copy it to
+`~/.cursor/plugins/local/ragmir`), Gemini CLI, and Qwen Code; the
+[agent integration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents)
+lists every command.
+
 Ragmir is open source under AGPL-3.0, with a commercial license available. Documentation:
 <https://github.com/jcode-works/jcode-ragmir>.

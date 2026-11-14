@@ -61,9 +61,10 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - Python: LangChain (`langchain-mcp-adapters`), LlamaIndex (`llama-index-tools-mcp`), and the
   MCP Python SDK launch `rgr serve-mcp` over stdio; scripts can parse `rgr search --json`. No
   Python package is needed. Without Node.js, use the image `ghcr.io/jcode-works/ragmir`.
-- Agent plugins from this repository, each with the retrieval skill and the MCP server: Claude Code
-  (`/plugin install ragmir --marketplace jcode-works/jcode-ragmir`, then `/ragmir:index`), OpenAI
-  Codex (`codex plugin marketplace add jcode-works/jcode-ragmir`), Cursor (`plugins/ragmir`),
+- Agent plugins from this repository, each with the MCP server (Claude Code, Codex, and Cursor also
+  bundle the retrieval and indexing skills): Claude Code (`/plugin install ragmir --marketplace
+  jcode-works/jcode-ragmir`, then `/ragmir:index`), OpenAI Codex (`codex plugin marketplace add
+  jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir`), Cursor (`plugins/ragmir`),
   Gemini CLI (`gemini extensions install https://github.com/jcode-works/jcode-ragmir`), and Qwen
   Code (`qwen extensions install jcode-works/jcode-ragmir`). Plugins need local files, so they run
   in coding agents, not in web or mobile chat apps.
