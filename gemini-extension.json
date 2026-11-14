@@ -1,6 +1,6 @@
 {
   "name": "ragmir",
-  "version": "6.8.1",
+  "version": "6.8.2",
   "description": "Cited local retrieval: search a project's code, specs, PDFs, and Office files and get passages cited to lines, pages, slides, or cells.",
   "contextFileName": "plugins/ragmir/GEMINI.md",
   "mcpServers": {

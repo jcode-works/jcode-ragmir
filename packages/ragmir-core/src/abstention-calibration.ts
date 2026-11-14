@@ -61,10 +61,11 @@ export async function measureAbstentionCalibration(
   const vectors = await embed([...ABSTENTION_PROBES], config, "query", signal)
   const distances: number[] = []
   for (const vector of vectors) {
+    // Select the distance explicitly: LanceDB is phasing out projecting it implicitly.
     const [nearest] = await table
       .vectorSearch(vector)
       .bypassVectorIndex()
-      .select(["id"])
+      .select(["id", "_distance"])
       .limit(1)
       .toArray()
     if (typeof nearest?._distance === "number" && Number.isFinite(nearest._distance)) {
