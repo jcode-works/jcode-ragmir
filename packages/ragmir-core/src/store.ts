@@ -508,7 +508,9 @@ function isIndexManifest(
     typeof value.schemaVersion === "number" &&
     typeof value.createdAt === "string" &&
     typeof value.ragmirVersion === "string" &&
-    (value.embeddingProvider === "local-hash" || value.embeddingProvider === "transformers") &&
+    (value.embeddingProvider === "local-hash" ||
+      value.embeddingProvider === "transformers" ||
+      value.embeddingProvider === "openai-compatible") &&
     typeof value.embeddingModel === "string" &&
     (!("embeddingModelRevision" in value) || typeof value.embeddingModelRevision === "string") &&
     (!("embeddingModelDigest" in value) ||

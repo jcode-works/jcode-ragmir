@@ -45,7 +45,7 @@ export interface ConfigLoadDiagnosticsEvent {
 
 const configLoadDiagnostics = channel(CONFIG_LOAD_DIAGNOSTICS_CHANNEL)
 
-const embeddingProviderSchema = z.enum(["local-hash", "transformers"])
+const embeddingProviderSchema = z.enum(["local-hash", "transformers", "openai-compatible"])
 const embeddingModelDigestSchema = z
   .string()
   .regex(/^sha256:[0-9a-f]{64}$/u)
@@ -106,6 +106,17 @@ const rawConfigSchema = z
     transformersAllowRemoteModels: z
       .boolean()
       .default(DEFAULT_CONFIG.transformersAllowRemoteModels),
+    embeddingEndpoint: z
+      .string()
+      .url()
+      .refine((value) => /^https?:\/\//iu.test(value), "Use an http or https URL.")
+      .nullable()
+      .default(DEFAULT_CONFIG.embeddingEndpoint),
+    embeddingApiKeyEnv: z
+      .string()
+      .regex(/^[A-Za-z_][A-Za-z0-9_]*$/u, "Use an environment variable name, not the key itself.")
+      .nullable()
+      .default(DEFAULT_CONFIG.embeddingApiKeyEnv),
     mcpMaxTopK: z.number().int().positive().default(DEFAULT_CONFIG.mcpMaxTopK),
     mcpMaxOutputBytes: z
       .number()
@@ -349,6 +360,8 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     embeddingModelRevision: effective.embeddingModelRevision,
     embeddingModelDigest: effective.embeddingModelDigest,
     transformersAllowRemoteModels: effective.transformersAllowRemoteModels,
+    embeddingEndpoint: effective.embeddingEndpoint,
+    embeddingApiKeyEnv: effective.embeddingApiKeyEnv,
     mcpMaxTopK: effective.mcpMaxTopK,
     mcpMaxOutputBytes: effective.mcpMaxOutputBytes,
     topK: effective.topK,
@@ -655,7 +668,11 @@ function readEmbeddingProviderEnv(
   }
   const parsed = embeddingProviderSchema.safeParse(raw)
   if (!parsed.success) {
-    throw invalidEnvironmentValue(name, legacyName, '"local-hash" or "transformers"')
+    throw invalidEnvironmentValue(
+      name,
+      legacyName,
+      '"local-hash", "transformers", or "openai-compatible"',
+    )
   }
   return parsed.data
 }

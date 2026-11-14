@@ -103,6 +103,12 @@ export async function securityAuditWithConfig(
       "Transformers remote model loading is enabled; model files can be downloaded from Hugging Face.",
     )
   }
+  const embeddingOrigin = remoteEmbeddingOrigin(config)
+  if (embeddingOrigin) {
+    warnings.push(
+      `Embeddings use ${embeddingOrigin}: indexed passage text and search queries are sent to that endpoint.`,
+    )
+  }
   if (!ragmirIgnored) {
     warnings.push(`${RAGMIR_GITIGNORE_ENTRY} is not ignored by Git.`)
   }
@@ -581,4 +587,20 @@ function isOutsideProject(relativePath: string): boolean {
 
 function normalizeRelativePath(projectRoot: string, filePath: string): string {
   return path.relative(projectRoot, filePath).split(path.sep).join("/")
+}
+
+/** Origin of an OpenAI-compatible embedding endpoint outside this machine, or null. */
+function remoteEmbeddingOrigin(config: Config): string | null {
+  if (config.embeddingProvider !== "openai-compatible" || !config.embeddingEndpoint) {
+    return null
+  }
+  try {
+    const url = new URL(config.embeddingEndpoint)
+    const host = url.hostname.replace(/^\[|\]$/gu, "").toLowerCase()
+    const loopback =
+      host === "localhost" || host.endsWith(".localhost") || host === "::1" || /^127\./u.test(host)
+    return loopback ? null : url.origin
+  } catch {
+    return config.embeddingEndpoint
+  }
 }
