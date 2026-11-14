@@ -14,17 +14,29 @@ const semanticConfig = {
   embeddingModel: "intfloat/multilingual-e5-base",
 } as Config
 
-/** A table whose exact nearest distance for probe vector [i] is distances[i]. */
+/**
+ * A table whose exact nearest distance for probe vector [i] is distances[i]. Like LanceDB without
+ * implicit projection, it returns `_distance` only when the query selects it.
+ */
 function tableWithNearest(distances: Array<number | undefined>): Table {
   return {
     vectorSearch: (vector: number[]) => {
+      let columns: string[] = []
       const query = {
         bypassVectorIndex: () => query,
-        select: () => query,
+        select: (selected: string[]) => {
+          columns = selected
+          return query
+        },
         limit: () => query,
         toArray: async () => {
           const distance = distances[vector[0] ?? 0]
-          return distance === undefined ? [] : [{ id: "row", _distance: distance }]
+          if (distance === undefined) {
+            return []
+          }
+          return [
+            columns.includes("_distance") ? { id: "row", _distance: distance } : { id: "row" },
+          ]
         },
       }
       return query
@@ -36,7 +48,9 @@ const embedByIndex = async (texts: string[]) => texts.map((_, index) => [index])
 
 describe("abstention calibration", () => {
   it("should keep the nearest off-topic distance as the index noise floor", async () => {
-    const distances = ABSTENTION_PROBES.map((_, index) => 0.5 - index * 0.001)
+    const distances: Array<number | undefined> = ABSTENTION_PROBES.map(
+      (_, index) => 0.5 - index * 0.001,
+    )
     distances[3] = 0.31
     distances[7] = undefined
 
