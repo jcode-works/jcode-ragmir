@@ -3,17 +3,16 @@ import {
   BookOpen,
   Bot,
   Briefcase,
-  ChevronDown,
   ChevronRight,
   CircleHelp,
   Download,
   FileCode,
   Gauge,
-  Globe2,
   History,
   Layers,
   type LucideIcon,
   Menu,
+  Puzzle,
   Rocket,
   Scale,
   Server,
@@ -98,6 +97,10 @@ const DRAWER_SECTIONS: ReadonlyArray<{
 /** One drawer row: a grey icon, the label, then a chevron, or an arrow for a link that leaves the site. */
 const DRAWER_ROW_CLASS_NAME =
   "flex min-h-11 items-center gap-3 px-4 font-semibold text-foreground text-sm transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-foreground/10"
+
+/** GitHub and npm in the bar: bare icons, like the social icons of the WorkoutGen bar. */
+const HEADER_ICON_CLASS_NAME =
+  "flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
 const DRAWER_SECTION_TITLE_CLASS_NAME =
   "mb-2 font-black text-foreground text-sm uppercase tracking-tight"
@@ -190,59 +193,6 @@ export function RagmirLogo(): React.JSX.Element {
   )
 }
 
-export function LanguageSwitcher({
-  alternateLocales,
-  currentLocale,
-  label,
-}: {
-  alternateLocales: AlternateLocale[]
-  currentLocale: string
-  label: string
-}): React.JSX.Element {
-  const currentLabel =
-    alternateLocales.find((entry) => entry.locale === currentLocale)?.label ?? currentLocale
-
-  function handleLocaleClick(href: string, event: React.MouseEvent<HTMLAnchorElement>) {
-    // Preserve the current query string and hash when switching locale.
-    const suffix = `${window.location.search}${window.location.hash}`
-    if (!suffix) return
-
-    event.preventDefault()
-    const url = new URL(href, window.location.origin)
-    url.search = window.location.search
-    url.hash = window.location.hash
-    window.location.href = url.toString()
-  }
-
-  return (
-    <details className="group relative">
-      <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-full border border-border px-3 font-bold text-foreground text-xs outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-        <Globe2 aria-hidden="true" className="size-4 text-muted-foreground" />
-        <span className="sr-only">{label}</span>
-        <span className="hidden sm:inline">{currentLabel}</span>
-        <span className="uppercase sm:hidden">{currentLocale}</span>
-        <ChevronDown
-          aria-hidden="true"
-          className="size-3.5 text-muted-foreground transition group-open:rotate-180"
-        />
-      </summary>
-      <div className="absolute right-0 mt-2 grid min-w-36 gap-1 rounded-lg border border-border bg-card p-1.5 shadow-2xl shadow-black/50">
-        {alternateLocales.map((entry) => (
-          <a
-            aria-current={entry.locale === currentLocale ? "page" : undefined}
-            className="rounded-md px-3 py-2 font-semibold text-muted-foreground text-sm transition hover:bg-muted hover:text-foreground aria-[current=page]:bg-muted aria-[current=page]:text-foreground"
-            href={entry.href}
-            key={entry.locale}
-            onClick={(event) => handleLocaleClick(entry.href, event)}
-          >
-            {entry.label}
-          </a>
-        ))}
-      </div>
-    </details>
-  )
-}
-
 export function LandingNavbar({
   translations,
   locale,
@@ -266,18 +216,11 @@ export function LandingNavbar({
   const lastScrollY = useRef(0)
   const isHidden = useRef(false)
 
-  const navLinks = [
-    { href: localizedUseCasesUrl, label: t("nav_use_cases") },
-    { href: localizedLibraryUrl, label: t("nav_library") },
-    { href: localizedAgentsUrl, label: t("nav_agents") },
-    { href: localizedDeployUrl, label: t("nav_deploy") },
-    { href: localizedFeaturesUrl, label: t("nav_features") },
-    { href: localizedTeamUrl, label: t("nav_team") },
-  ]
-
+  const localizedIntegrationsUrl = localizedLibraryUrl.replace(/#library$/u, "#integrations")
   const drawerPageLinks: DrawerLink[] = [
     { href: localizedUseCasesUrl, label: t("nav_use_cases"), icon: Layers },
     { href: localizedLibraryUrl, label: t("nav_library"), icon: Download },
+    { href: localizedIntegrationsUrl, label: t("nav_integrations"), icon: Puzzle },
     { href: localizedAgentsUrl, label: t("nav_agents"), icon: Bot },
     { href: localizedDeployUrl, label: t("nav_deploy"), icon: Rocket },
     { href: localizedFeaturesUrl, label: t("nav_features"), icon: Sparkles },
@@ -315,6 +258,7 @@ export function LandingNavbar({
       if (currentScrollY < scrollThreshold) {
         if (isHidden.current) {
           header.style.transform = "translateY(0)"
+          header.removeAttribute("data-hidden")
           isHidden.current = false
         }
         lastScrollY.current = currentScrollY
@@ -324,10 +268,12 @@ export function LandingNavbar({
       const scrollDelta = currentScrollY - lastScrollY.current
       if (scrollDelta > 5 && !isHidden.current) {
         header.style.transform = "translateY(-100%)"
+        header.setAttribute("data-hidden", "")
         isHidden.current = true
         lastScrollY.current = currentScrollY
       } else if (scrollDelta < -5 && isHidden.current) {
         header.style.transform = "translateY(0)"
+        header.removeAttribute("data-hidden")
         isHidden.current = false
         lastScrollY.current = currentScrollY
       } else if ((scrollDelta > 0 && isHidden.current) || (scrollDelta < 0 && !isHidden.current)) {
@@ -386,48 +332,35 @@ export function LandingNavbar({
             )}
           </div>
 
-          <div className="hidden items-center gap-7 md:flex">
-            <nav aria-label={t("nav_aria_label")} className="flex items-center gap-7">
-              {navLinks.map((link) => (
-                <a
-                  className="whitespace-nowrap font-bold text-muted-foreground text-sm transition hover:text-foreground"
-                  href={link.href}
-                  key={link.href}
-                >
-                  {link.label}
-                </a>
-              ))}
-            </nav>
-
-            <LanguageSwitcher
-              alternateLocales={alternateLocales}
-              currentLocale={locale}
-              label={t("language_label")}
-            />
-
-            <Button asChild size="sm" variant="ghost">
-              <a href={GITHUB_URL} {...externalLinkProps}>
-                <GithubIcon data-icon="inline-start" />
-                {t("nav_github")}
-              </a>
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2 md:hidden">
-            <LanguageSwitcher
-              alternateLocales={alternateLocales}
-              currentLocale={locale}
-              label={t("language_label")}
-            />
+          <div className="flex items-center gap-1">
+            <a
+              aria-label={t("hero_github_cta")}
+              className={HEADER_ICON_CLASS_NAME}
+              href={GITHUB_URL}
+              {...externalLinkProps}
+            >
+              <GithubIcon className="size-[18px]" />
+            </a>
+            <a
+              aria-label={t("hero_npm_cta")}
+              className={HEADER_ICON_CLASS_NAME}
+              href={NPM_URL}
+              {...externalLinkProps}
+            >
+              <NpmIcon className="size-[18px]" />
+            </a>
             <button
               aria-expanded={menuOpen}
               aria-label={t("nav_menu")}
-              className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              className="ml-1 flex h-10 items-center gap-2 rounded-full bg-card px-3 font-bold text-foreground text-sm transition-colors hover:bg-[#1f1f1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] sm:px-4"
               onClick={() => setMenuOpen(true)}
               ref={menuTriggerRef}
               type="button"
             >
               <Menu aria-hidden="true" className="size-5" />
+              <span aria-hidden="true" className="hidden sm:inline">
+                {t("nav_menu")}
+              </span>
             </button>
           </div>
         </div>
@@ -436,15 +369,15 @@ export function LandingNavbar({
       <div
         aria-hidden={!menuOpen}
         className={cn(
-          "fixed inset-0 z-50 md:hidden",
+          "fixed inset-0 z-50",
           menuOpen ? "pointer-events-auto" : "pointer-events-none",
         )}
       >
         <button
           aria-label={t("nav_menu_close")}
           className={cn(
-            "absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity duration-300",
-            menuOpen ? "opacity-100" : "opacity-0",
+            "absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity",
+            menuOpen ? "opacity-100 duration-300" : "opacity-0 duration-200",
           )}
           onClick={closeMenu}
           tabIndex={menuOpen ? 0 : -1}
@@ -452,8 +385,11 @@ export function LandingNavbar({
         />
         <div
           className={cn(
-            "absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col border-border border-l bg-background shadow-2xl shadow-black/60 transition-transform duration-300 ease-out",
-            menuOpen ? "translate-x-0" : "translate-x-full",
+            "absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col border-border border-l bg-background shadow-2xl shadow-black/60 transition-[transform,opacity]",
+            // Opens on a long deceleration, closes faster; reduced motion fades it in place.
+            menuOpen
+              ? "translate-x-0 opacity-100 duration-300 ease-[var(--ease-out-expo)]"
+              : "translate-x-full duration-200 ease-in motion-reduce:translate-x-0 motion-reduce:opacity-0",
           )}
         >
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -471,18 +407,37 @@ export function LandingNavbar({
               >
                 <RagmirLogo />
               </a>
-              <button
-                aria-label={t("nav_menu_close")}
-                className="flex size-10 items-center justify-center rounded-full text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={closeMenu}
-                tabIndex={drawerTabIndex}
-                type="button"
-              >
-                <X aria-hidden="true" className="size-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <nav
+                  aria-label={t("language_label")}
+                  className="flex items-center gap-1 rounded-full bg-card p-1"
+                >
+                  {alternateLocales.map((entry) => (
+                    <a
+                      aria-current={entry.locale === locale ? "page" : undefined}
+                      className="rounded-full px-3 py-1.5 font-bold text-muted-foreground text-xs uppercase transition-colors hover:text-foreground aria-[current=page]:bg-foreground aria-[current=page]:text-background"
+                      href={entry.href}
+                      hrefLang={entry.locale}
+                      key={entry.locale}
+                      tabIndex={drawerTabIndex}
+                    >
+                      {entry.locale}
+                    </a>
+                  ))}
+                </nav>
+                <button
+                  aria-label={t("nav_menu_close")}
+                  className="flex size-10 items-center justify-center rounded-full text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={closeMenu}
+                  tabIndex={drawerTabIndex}
+                  type="button"
+                >
+                  <X aria-hidden="true" className="size-5" />
+                </button>
+              </div>
             </div>
 
-            <nav aria-label={t("nav_aria_label")} className="px-5 pb-6">
+            <nav aria-label={t("nav_aria_label")} className="px-5 pt-4 pb-6">
               <DrawerLinkList
                 currentPath={currentPath}
                 links={drawerPageLinks}
@@ -501,24 +456,7 @@ export function LandingNavbar({
                 />
               ))}
 
-              <div className="mt-7 flex items-center justify-between gap-3">
-                <nav
-                  aria-label={t("language_label")}
-                  className="flex items-center gap-1 rounded-full bg-card p-1"
-                >
-                  {alternateLocales.map((entry) => (
-                    <a
-                      aria-current={entry.locale === locale ? "page" : undefined}
-                      className="rounded-full px-3 py-1.5 font-bold text-muted-foreground text-xs uppercase transition hover:text-foreground aria-[current=page]:bg-muted aria-[current=page]:text-foreground"
-                      href={entry.href}
-                      hrefLang={entry.locale}
-                      key={entry.locale}
-                      tabIndex={drawerTabIndex}
-                    >
-                      {entry.locale}
-                    </a>
-                  ))}
-                </nav>
+              <div className="mt-7 flex items-center justify-end gap-3">
                 {version && (
                   <a
                     className="font-medium text-muted-foreground text-xs no-underline transition hover:text-foreground"

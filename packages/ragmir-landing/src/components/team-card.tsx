@@ -24,7 +24,7 @@ export function TeamCard({
 }: TeamCardProps): React.JSX.Element {
   return (
     <div className={cn("flex flex-col items-center text-center", className)}>
-      <div className="size-28 overflow-hidden rounded-full border border-border">
+      <div className="size-28 overflow-hidden rounded-full bg-card">
         <img
           alt={title}
           className="size-full object-cover"
@@ -41,7 +41,7 @@ export function TeamCard({
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         {links.map((link) => (
           <a
-            className="rounded-full border border-border px-3 py-1 font-semibold text-muted-foreground text-xs transition hover:border-[var(--accent-title)] hover:text-foreground"
+            className="rounded-full bg-card px-3 py-1 font-semibold text-muted-foreground text-xs transition-colors hover:bg-[#1f1f1f] hover:text-foreground"
             href={link.href}
             key={link.href}
             rel="nofollow noreferrer noopener"

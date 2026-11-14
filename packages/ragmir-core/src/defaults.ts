@@ -12,6 +12,8 @@ export const DEFAULT_SKILL_TARGET_DIR = `${RAGMIR_DIR}/skills`
 export const INDEX_MANIFEST_FILENAME = "index-manifest.json"
 
 export const RAGMIR_PROJECT_ROOT_ENV = "RAGMIR_PROJECT_ROOT"
+/** Set to "1" by the agent plugin launcher, whose users run Ragmir through pinned npx commands. */
+export const RAGMIR_AGENT_PLUGIN_ENV = "RAGMIR_AGENT_PLUGIN"
 export const VECTOR_DISTANCE_METRIC = "l2"
 
 export const MAX_CONFIGURED_FILE_BYTES = 50_000_000

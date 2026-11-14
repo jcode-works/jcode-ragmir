@@ -24,8 +24,9 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - MCP exposes `ragmir_status`, `ragmir_search`, `ragmir_expand`, and `ragmir_audit`, plus bounded
   `ragmir://context` and `ragmir://sources` resources. Search starts with three compact citations.
 - Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.
-- Show four workflow examples: build a feature, diagnose an incident, and plan a migration with
-  Claude Code or Codex; make a confidential architecture decision with a local or self-hosted chat.
+- Show four workflow examples: build a feature and diagnose an incident with Claude Code or Codex;
+  ground an AI product in customer documents with the LangChain.js retriever; make a confidential
+  architecture decision with a local or self-hosted chat.
 - Use one `createRagmirClient()` per project root in a long-running process and close it at shutdown.
   Top-level functions serve one-shot scripts. Ragmir opens no HTTP port.
 - Servers: Ragmir runs on a VPS, an on-premise server, a CI runner, or a Debian or Alpine container

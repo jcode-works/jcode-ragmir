@@ -1,23 +1,26 @@
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowRight,
   Bot,
   Bug,
   FileCheck2,
-  FileInput,
-  GitBranch,
   type LucideIcon,
-  MessageSquareQuote,
-  Search,
-  ServerCog,
+  PackageCheck,
 } from "lucide-react"
-import { Fragment, useState } from "react"
-import { Button } from "./ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
+import { useState } from "react"
+import { cn } from "../lib/utils"
+import { TabIndicator } from "./tab-indicator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
-type UseCaseId = "feature" | "incident" | "migration" | "local"
+type UseCaseId = "feature" | "incident" | "product" | "local"
+
+interface UseCaseStep {
+  id: string
+  labelKey: string
+  titleKey: string
+  /** `ragmir` marks the retrieval step, `result` the step that returns the cited outcome. */
+  accent?: "ragmir" | "result"
+}
 
 interface UseCaseDefinition {
   id: UseCaseId
@@ -25,49 +28,14 @@ interface UseCaseDefinition {
   tabKey: string
   titleKey: string
   descriptionKey: string
-  evidence?: WorkflowEvidenceDefinition
-  steps: readonly WorkflowStepDefinition[]
-}
-
-interface WorkflowEvidenceDefinition {
-  targetStepId: string
-  titleKey: string
-}
-
-interface WorkflowStepDefinition {
-  accent?: "primary" | "success"
-  icon: LucideIcon
-  id: string
-  labelKey: string
-  titleKey: string
+  steps: readonly UseCaseStep[]
 }
 
 interface UseCaseCarouselProps {
   translations: Record<string, string>
 }
 
-interface WorkflowNodeProps {
-  accent?: "primary" | "success"
-  icon: LucideIcon
-  label: string
-  nodeId?: string
-  ports?: readonly WorkflowPort[]
-  title: string
-}
-
-type WorkflowPort = "top" | "right" | "bottom" | "left"
-
-const PORT_CLASS_NAMES: Record<WorkflowPort, string> = {
-  top: "-top-1.5 left-1/2 -translate-x-1/2",
-  right: "top-1/2 -right-1.5 -translate-y-1/2",
-  bottom: "-bottom-1.5 left-1/2 -translate-x-1/2",
-  left: "top-1/2 -left-1.5 -translate-y-1/2",
-}
-
-const DESKTOP_NODE_MIN_WIDTH_REM = 11.75
-const DESKTOP_CONNECTOR_WIDTH_REM = 2
-const DESKTOP_CANVAS_HORIZONTAL_PADDING_REM = 3
-
+/** The same four stories as the hero terminal: two coding-agent tasks, an AI product, a local chat. */
 export const USE_CASES: readonly UseCaseDefinition[] = [
   {
     id: "feature",
@@ -75,30 +43,24 @@ export const USE_CASES: readonly UseCaseDefinition[] = [
     tabKey: "use_case_feature_tab",
     titleKey: "use_case_feature_title",
     descriptionKey: "use_case_feature_description",
-    evidence: {
-      targetStepId: "retrieval",
-      titleKey: "use_case_feature_evidence",
-    },
     steps: [
+      { id: "request", labelKey: "use_cases_trigger_label", titleKey: "use_case_feature_request" },
       {
-        icon: MessageSquareQuote,
-        id: "request",
-        labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_feature_request",
+        id: "evidence",
+        labelKey: "use_cases_evidence_label",
+        titleKey: "use_case_feature_evidence",
       },
       {
-        accent: "primary",
-        icon: ServerCog,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
         titleKey: "use_case_feature_retrieval",
+        accent: "ragmir",
       },
       {
-        accent: "success",
-        icon: FileCheck2,
         id: "result",
         labelKey: "use_cases_result_label",
         titleKey: "use_case_feature_result",
+        accent: "result",
       },
     ],
   },
@@ -108,63 +70,51 @@ export const USE_CASES: readonly UseCaseDefinition[] = [
     tabKey: "use_case_incident_tab",
     titleKey: "use_case_incident_title",
     descriptionKey: "use_case_incident_description",
-    evidence: {
-      targetStepId: "retrieval",
-      titleKey: "use_case_incident_evidence",
-    },
     steps: [
+      { id: "request", labelKey: "use_cases_trigger_label", titleKey: "use_case_incident_request" },
       {
-        icon: MessageSquareQuote,
-        id: "request",
-        labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_incident_request",
+        id: "evidence",
+        labelKey: "use_cases_evidence_label",
+        titleKey: "use_case_incident_evidence",
       },
       {
-        accent: "primary",
-        icon: ServerCog,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
         titleKey: "use_case_incident_retrieval",
+        accent: "ragmir",
       },
       {
-        accent: "success",
-        icon: FileCheck2,
         id: "result",
         labelKey: "use_cases_result_label",
         titleKey: "use_case_incident_result",
+        accent: "result",
       },
     ],
   },
   {
-    id: "migration",
-    icon: GitBranch,
-    tabKey: "use_case_migration_tab",
-    titleKey: "use_case_migration_title",
-    descriptionKey: "use_case_migration_description",
-    evidence: {
-      targetStepId: "retrieval",
-      titleKey: "use_case_migration_evidence",
-    },
+    id: "product",
+    icon: PackageCheck,
+    tabKey: "use_case_product_tab",
+    titleKey: "use_case_product_title",
+    descriptionKey: "use_case_product_description",
     steps: [
+      { id: "request", labelKey: "use_cases_trigger_label", titleKey: "use_case_product_request" },
       {
-        icon: MessageSquareQuote,
-        id: "request",
-        labelKey: "use_cases_trigger_label",
-        titleKey: "use_case_migration_request",
+        id: "evidence",
+        labelKey: "use_cases_evidence_label",
+        titleKey: "use_case_product_evidence",
       },
       {
-        accent: "primary",
-        icon: ServerCog,
         id: "retrieval",
         labelKey: "use_cases_retrieval_step_label",
-        titleKey: "use_case_migration_retrieval",
+        titleKey: "use_case_product_retrieval",
+        accent: "ragmir",
       },
       {
-        accent: "success",
-        icon: FileCheck2,
         id: "result",
         labelKey: "use_cases_result_label",
-        titleKey: "use_case_migration_result",
+        titleKey: "use_case_product_result",
+        accent: "result",
       },
     ],
   },
@@ -174,288 +124,91 @@ export const USE_CASES: readonly UseCaseDefinition[] = [
     tabKey: "use_case_local_tab",
     titleKey: "use_case_local_title",
     descriptionKey: "use_case_local_description",
-    evidence: { targetStepId: "retrieval", titleKey: "use_case_local_evidence" },
     steps: [
+      { id: "evidence", labelKey: "use_cases_evidence_label", titleKey: "use_case_local_evidence" },
       {
-        icon: Search,
         id: "retrieval",
-        accent: "primary",
         labelKey: "use_cases_retrieval_step_label",
         titleKey: "use_case_local_retrieval",
+        accent: "ragmir",
       },
+      { id: "model", labelKey: "use_cases_model_label", titleKey: "use_case_local_model" },
       {
-        icon: ServerCog,
-        id: "model",
-        labelKey: "use_cases_consumer_label",
-        titleKey: "use_case_local_model",
-      },
-      {
-        icon: FileCheck2,
         id: "answer",
-        accent: "success",
         labelKey: "use_cases_result_label",
         titleKey: "use_case_local_answer",
+        accent: "result",
       },
     ],
   },
 ]
 
+const ACCENT_DOT_CLASS_NAMES = {
+  ragmir: "bg-[var(--syntax-program)]",
+  result: "bg-emerald-400",
+} as const
+
+const ACCENT_LABEL_CLASS_NAMES = {
+  ragmir: "text-[var(--syntax-program)]",
+  result: "text-emerald-300",
+} as const
+
 function isUseCaseId(value: string): value is UseCaseId {
   return USE_CASES.some((useCase) => useCase.id === value)
 }
 
-function WorkflowNode({
-  accent,
-  icon: Icon,
+/** One numbered step on the darker inset, with the arrow to the next step in the gap after it. */
+function WorkflowStep({
+  isLast,
   label,
-  nodeId,
-  ports = ["left", "right"],
+  position,
+  step,
   title,
-}: WorkflowNodeProps): React.JSX.Element {
+}: {
+  isLast: boolean
+  label: string
+  position: number
+  step: UseCaseStep
+  title: string
+}): React.JSX.Element {
   return (
-    <article
-      data-workflow-node={nodeId}
-      className={`relative flex h-full min-h-36 flex-col rounded-xl border bg-card/95 p-4 shadow-xl shadow-black/20 ${
-        accent === "primary"
-          ? "border-primary/70 ring-1 ring-primary/20"
-          : accent === "success"
-            ? "border-emerald-400/50 ring-1 ring-emerald-400/10"
-            : "border-border"
-      }`}
+    <li
+      className="relative flex min-h-28 flex-col rounded-xl bg-background p-4 transition-[opacity,transform] duration-300 ease-[var(--ease-out-expo)] group-data-[state=active]/panel:delay-[calc(var(--step)*50ms)] group-data-[state=inactive]/panel:translate-y-1.5 group-data-[state=inactive]/panel:opacity-0 group-data-[state=inactive]/panel:duration-150 md:p-5 lg:min-h-36"
+      data-motion="step"
+      style={{ "--step": position - 1 } as React.CSSProperties}
     >
-      {ports.map((port) => (
+      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em]">
+        <span className="tnum text-muted-foreground">{String(position).padStart(2, "0")}</span>
         <span
           aria-hidden="true"
-          className={`absolute z-20 size-3 rounded-full border border-border bg-background ${PORT_CLASS_NAMES[port]}`}
-          data-workflow-port={`${nodeId ?? "node"}-${port}`}
-          key={port}
+          className={cn(
+            "size-1.5 rounded-full",
+            step.accent ? ACCENT_DOT_CLASS_NAMES[step.accent] : "bg-foreground/30",
+          )}
         />
-      ))}
-
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/55">
-          <Icon className="size-4" aria-hidden="true" />
+        <span
+          className={step.accent ? ACCENT_LABEL_CLASS_NAMES[step.accent] : "text-muted-foreground"}
+        >
+          {label}
         </span>
-        <p className="text-[0.65rem] font-bold uppercase tracking-[0.14em]">{label}</p>
       </div>
-      <h4 className="mt-4 text-sm font-bold leading-5 text-foreground">{title}</h4>
-    </article>
-  )
-}
-
-function HorizontalConnector({ id }: { id: string }): React.JSX.Element {
-  return (
-    <div
-      aria-hidden="true"
-      className="relative flex h-full items-center text-muted-foreground/75"
-      data-workflow-connector={id}
-    >
-      <span className="h-px w-full bg-current" />
-      <span className="absolute left-1/2 top-1/2 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-background">
-        <ArrowRight className="size-4" />
-      </span>
-    </div>
-  )
-}
-
-function VerticalConnector({ id }: { id: string }): React.JSX.Element {
-  return (
-    <div
-      aria-hidden="true"
-      className="relative flex h-full justify-center text-muted-foreground/75"
-      data-workflow-connector={id}
-    >
-      <span className="h-full w-px bg-current" />
-      <span className="absolute left-1/2 top-1/2 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-background">
-        <ArrowDown className="size-4" />
-      </span>
-    </div>
-  )
-}
-
-function DesktopWorkflow({
-  translations,
-  useCase,
-}: {
-  translations: Record<string, string>
-  useCase: UseCaseDefinition
-}): React.JSX.Element {
-  const t = (key: string): string => translations[key] ?? key
-  const trackTemplate = useCase.steps
-    .flatMap((_, index) =>
-      index === useCase.steps.length - 1
-        ? [`${DESKTOP_NODE_MIN_WIDTH_REM}rem`]
-        : [`${DESKTOP_NODE_MIN_WIDTH_REM}rem`, `${DESKTOP_CONNECTOR_WIDTH_REM}rem`],
-    )
-    .join(" ")
-  const canvasMinWidth = `${
-    useCase.steps.length * DESKTOP_NODE_MIN_WIDTH_REM +
-    (useCase.steps.length - 1) * DESKTOP_CONNECTOR_WIDTH_REM +
-    DESKTOP_CANVAS_HORIZONTAL_PADDING_REM
-  }rem`
-  const evidenceTargetIndex = useCase.evidence
-    ? useCase.steps.findIndex((step) => step.id === useCase.evidence?.targetStepId)
-    : -1
-  const evidenceNodeColumn = evidenceTargetIndex * 2 + 1
-  const evidenceColumnStart = Math.max(1, evidenceNodeColumn - 1)
-
-  const flowRow = (
-    <div
-      className="grid min-h-[10.5rem] w-full items-stretch justify-center"
-      style={{ gridTemplateColumns: trackTemplate }}
-    >
-      {useCase.steps.map((step, index) => {
-        const ports: WorkflowPort[] = []
-        if (index > 0) ports.push("left")
-        if (index < useCase.steps.length - 1) ports.push("right")
-        if (index === evidenceTargetIndex) ports.push("top")
-
-        return (
-          <Fragment key={step.id}>
-            <div style={{ gridColumn: index * 2 + 1 }}>
-              <WorkflowNode
-                accent={step.accent}
-                icon={step.icon}
-                label={`${String(index + 1).padStart(2, "0")} · ${t(step.labelKey)}`}
-                nodeId={step.id}
-                ports={ports}
-                title={t(step.titleKey)}
-              />
-            </div>
-            {index < useCase.steps.length - 1 ? (
-              <div style={{ gridColumn: index * 2 + 2 }}>
-                <HorizontalConnector id={`${step.id}-to-${useCase.steps[index + 1]?.id}`} />
-              </div>
-            ) : null}
-          </Fragment>
-        )
-      })}
-    </div>
-  )
-
-  return (
-    <section
-      aria-label={t(useCase.titleKey)}
-      className="relative hidden h-[29rem] w-full min-w-0 max-w-full overflow-auto bg-background/75 [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent lg:block"
-      data-workflow-canvas={useCase.id}
-      data-workflow-scroll-region="true"
-      /* biome-ignore lint/a11y/noNoninteractiveTabindex: The overflow canvas must be keyboard-scrollable. */
-      tabIndex={0}
-    >
-      <div
-        className="relative h-full"
-        style={{ minWidth: canvasMinWidth, width: `max(100%, ${canvasMinWidth})` }}
-      >
-        <div
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, color-mix(in oklab, var(--border) 75%, transparent) 1px, transparent 1px)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,var(--background)_88%)] opacity-75" />
-
-        {useCase.evidence && evidenceTargetIndex >= 0 ? (
-          <div
-            className="relative z-10 grid h-full w-full content-center p-6 xl:p-8"
-            style={{ gridTemplateRows: "10.5rem 2.5rem 10.5rem" }}
-          >
-            <div className="grid justify-center" style={{ gridTemplateColumns: trackTemplate }}>
-              <div
-                style={{
-                  gridColumn: `${evidenceColumnStart} / span 3`,
-                }}
-              >
-                <WorkflowNode
-                  icon={FileInput}
-                  label={t("use_cases_evidence_label")}
-                  nodeId="evidence"
-                  ports={["bottom"]}
-                  title={t(useCase.evidence.titleKey)}
-                />
-              </div>
-            </div>
-            <div className="grid justify-center" style={{ gridTemplateColumns: trackTemplate }}>
-              <div style={{ gridColumn: evidenceNodeColumn }}>
-                <VerticalConnector id={`evidence-to-${useCase.evidence.targetStepId}`} />
-              </div>
-            </div>
-            {flowRow}
-          </div>
-        ) : (
-          <div className="relative z-10 flex h-full w-full items-center justify-center p-6 xl:p-8">
-            {flowRow}
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
-
-function MobileWorkflow({
-  translations,
-  useCase,
-}: {
-  translations: Record<string, string>
-  useCase: UseCaseDefinition
-}): React.JSX.Element {
-  const t = (key: string): string => translations[key] ?? key
-  const nodes: (WorkflowNodeProps & { nodeId: string })[] = useCase.steps.map((step, index) => ({
-    accent: step.accent,
-    icon: step.icon,
-    label: `${String(index + 1).padStart(2, "0")} · ${t(step.labelKey)}`,
-    nodeId: step.id,
-    title: t(step.titleKey),
-  }))
-
-  if (useCase.evidence) {
-    const targetIndex = useCase.steps.findIndex(
-      (step) => step.id === useCase.evidence?.targetStepId,
-    )
-    if (targetIndex >= 0) {
-      nodes.splice(targetIndex, 0, {
-        icon: FileInput,
-        label: t("use_cases_evidence_label"),
-        nodeId: "evidence",
-        title: t(useCase.evidence.titleKey),
-      })
-    }
-  }
-
-  return (
-    <div
-      className="h-full overflow-y-auto overscroll-y-contain bg-background/50 [scrollbar-width:thin] lg:hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent"
-      data-workflow-canvas={useCase.id}
-      data-workflow-scroll-region="true"
-    >
-      <ol className="flex min-h-full w-full flex-col justify-center p-4">
-        {nodes.map((node, index) => {
-          const ports: readonly WorkflowPort[] =
-            index === 0 ? ["bottom"] : index === nodes.length - 1 ? ["top"] : ["top", "bottom"]
-
-          return (
-            <li className="flex flex-col" key={`${useCase.id}-${node.label}`}>
-              <WorkflowNode {...node} ports={ports} />
-              {index < nodes.length - 1 ? (
-                <div className="h-10">
-                  <VerticalConnector
-                    id={`${node.nodeId}-to-${nodes[index + 1]?.nodeId ?? "next"}`}
-                  />
-                </div>
-              ) : null}
-            </li>
-          )
-        })}
-      </ol>
-    </div>
+      <p className="mt-3 font-semibold text-foreground text-sm leading-6 lg:mt-5">{title}</p>
+      {!isLast && (
+        <span
+          aria-hidden="true"
+          className="absolute -bottom-5 left-1/2 flex size-4 -translate-x-1/2 items-center justify-center text-muted-foreground/70 lg:top-1/2 lg:-right-5 lg:bottom-auto lg:left-auto lg:translate-x-0 lg:-translate-y-1/2"
+        >
+          <ArrowDown className="size-4 lg:hidden" />
+          <ArrowRight className="hidden size-4 lg:block" />
+        </span>
+      )}
+    </li>
   )
 }
 
 export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.JSX.Element {
   const t = (key: string): string => translations[key] ?? key
   const [activeId, setActiveId] = useState<UseCaseId>(USE_CASES[0]?.id ?? "feature")
-  const activeIndex = USE_CASES.findIndex((useCase) => useCase.id === activeId)
 
   const handleTabsWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
     const tabList = event.currentTarget
@@ -470,28 +223,27 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
     tabList.scrollLeft = nextScrollLeft
   }
 
-  const move = (offset: number): void => {
-    const nextIndex = (activeIndex + offset + USE_CASES.length) % USE_CASES.length
-    const nextCase = USE_CASES[nextIndex]
-    if (nextCase) setActiveId(nextCase.id)
-  }
-
   const handleValueChange = (value: string): void => {
     if (isUseCaseId(value)) setActiveId(value)
   }
 
   return (
-    <Tabs className="w-full min-w-0 gap-5" value={activeId} onValueChange={handleValueChange}>
+    <Tabs
+      className="w-full min-w-0 gap-0 rounded-xl bg-card p-3 sm:p-4 md:p-6"
+      onValueChange={handleValueChange}
+      value={activeId}
+    >
       <TabsList
-        className="flex h-auto w-full snap-x snap-mandatory touch-pan-x flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain scroll-smooth rounded-xl border border-border bg-card/80 p-1.5 [scrollbar-width:thin] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent"
         aria-label={t("use_cases_tabs_label")}
+        className="relative flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain rounded-full bg-background p-1 [scrollbar-width:none] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:hidden"
         onWheel={handleTabsWheel}
       >
+        <TabIndicator activeSelector='[data-state="active"]' />
         {USE_CASES.map((useCase) => {
           const Icon = useCase.icon
           return (
             <TabsTrigger
-              className="min-w-max shrink-0 snap-start rounded-md px-4 py-2.5 text-xs lg:min-w-0 lg:flex-1 lg:px-2"
+              className="h-9 min-w-max shrink-0 px-4 font-semibold text-xs lg:min-w-0 lg:flex-1"
               key={useCase.id}
               value={useCase.id}
             >
@@ -502,64 +254,37 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
         })}
       </TabsList>
 
-      <div className="grid w-full min-w-0">
-        {USE_CASES.map((useCase, index) => {
-          return (
-            <TabsContent
-              className="col-start-1 row-start-1 mt-0 w-full min-w-0 data-[state=inactive]:hidden data-[state=inactive]:pointer-events-none lg:data-[state=inactive]:block lg:data-[state=inactive]:invisible"
-              forceMount
-              key={useCase.id}
-              value={useCase.id}
-            >
-              <Card className="flex h-[55rem] w-full min-w-0 flex-col overflow-hidden bg-card/90 md:h-[49rem] lg:h-full">
-                <CardHeader className="min-h-48 shrink-0 gap-4 border-b border-border md:grid md:min-h-[7.5rem] md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:min-h-[5.5rem] lg:py-4">
-                  <div className="flex min-w-0 flex-col gap-2">
-                    <CardTitle className="max-w-2xl text-lg leading-tight">
-                      {t(useCase.titleKey)}
-                    </CardTitle>
-                    <CardDescription className="max-w-2xl text-xs leading-5">
-                      {t(useCase.descriptionKey)}
-                    </CardDescription>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      aria-label={t("use_cases_previous")}
-                      onClick={() => move(-1)}
-                      size="icon"
-                      type="button"
-                      variant="outline"
-                    >
-                      <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-                    </Button>
-                    <p
-                      className="min-w-14 text-center text-muted-foreground text-xs"
-                      aria-live="polite"
-                    >
-                      {t("use_cases_counter")
-                        .replace("{current}", String(index + 1))
-                        .replace("{total}", String(USE_CASES.length))}
-                    </p>
-                    <Button
-                      aria-label={t("use_cases_next")}
-                      onClick={() => move(1)}
-                      size="icon"
-                      type="button"
-                      variant="outline"
-                    >
-                      <ArrowRight data-icon="inline-end" aria-hidden="true" />
-                    </Button>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="flex min-h-0 w-full min-w-0 flex-1 flex-col pt-5 lg:px-0">
-                  <DesktopWorkflow translations={translations} useCase={useCase} />
-                  <MobileWorkflow translations={translations} useCase={useCase} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )
-        })}
+      {/* Every panel stays mounted in one grid cell, so switching tabs never shifts the page. */}
+      <div className="mt-6 grid w-full min-w-0 md:mt-8">
+        {USE_CASES.map((useCase) => (
+          <TabsContent
+            className="group/panel col-start-1 row-start-1 mt-0 w-full min-w-0 transition-[opacity,visibility] duration-300 ease-[var(--ease-out-expo)] data-[state=inactive]:pointer-events-none data-[state=inactive]:invisible data-[state=inactive]:opacity-0 data-[state=inactive]:duration-150"
+            forceMount
+            key={useCase.id}
+            value={useCase.id}
+          >
+            <div className="px-1 md:px-2">
+              <h3 className="text-balance font-black text-xl leading-tight md:text-2xl">
+                {t(useCase.titleKey)}
+              </h3>
+              <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-6">
+                {t(useCase.descriptionKey)}
+              </p>
+            </div>
+            <ol className="mt-6 grid gap-6 lg:grid-cols-4">
+              {useCase.steps.map((step, index) => (
+                <WorkflowStep
+                  isLast={index === useCase.steps.length - 1}
+                  key={step.id}
+                  label={t(step.labelKey)}
+                  position={index + 1}
+                  step={step}
+                  title={t(step.titleKey)}
+                />
+              ))}
+            </ol>
+          </TabsContent>
+        ))}
       </div>
     </Tabs>
   )
