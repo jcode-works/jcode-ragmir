@@ -138,7 +138,7 @@ export function CommandCopyButton({
     <button
       aria-label={`${copyLabel}: ${command}`}
       className={cn(
-        "inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground transition hover:bg-[#1f1f1f] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground transition hover:bg-[var(--card-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       onClick={() => void handleCopy()}

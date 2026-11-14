@@ -36,17 +36,19 @@
   color-scheme: dark;
   --background: #000000;
   --foreground: #ffffff;
-  --card: #161616;
+  /* Surfaces match the WorkoutGen dark theme: cards, muted and secondary share one grey. */
+  --card: #0f0f0f;
   --card-foreground: #ffffff;
   --primary: #8b47ff;
   /* Hover colours stay opaque: a translucent button lets the dot animation show through it. */
   --primary-hover: #9d62ff;
   --foreground-hover: #e4e4e4;
-  --inset-hover: #0e0e0e;
+  --card-hover: #1f1f1f;
+  --inset-hover: #1a1a1a;
   --primary-foreground: #ffffff;
-  --secondary: #171717;
+  --secondary: #0f0f0f;
   --secondary-foreground: #ffffff;
-  --muted: #161616;
+  --muted: #0f0f0f;
   --muted-foreground: rgba(255, 255, 255, 0.62);
   --accent: #f1f5f9;
   --accent-foreground: #000000;

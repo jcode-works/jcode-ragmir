@@ -210,19 +210,6 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
   const t = (key: string): string => translations[key] ?? key
   const [activeId, setActiveId] = useState<UseCaseId>(USE_CASES[0]?.id ?? "feature")
 
-  const handleTabsWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
-    const tabList = event.currentTarget
-    const maxScrollLeft = tabList.scrollWidth - tabList.clientWidth
-    if (maxScrollLeft <= 0) return
-
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, tabList.scrollLeft + delta))
-    if (nextScrollLeft === tabList.scrollLeft) return
-
-    event.preventDefault()
-    tabList.scrollLeft = nextScrollLeft
-  }
-
   const handleValueChange = (value: string): void => {
     if (isUseCaseId(value)) setActiveId(value)
   }
@@ -235,15 +222,16 @@ export function UseCaseCarousel({ translations }: UseCaseCarouselProps): React.J
     >
       <TabsList
         aria-label={t("use_cases_tabs_label")}
-        className="relative flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain rounded-full bg-background p-1 [scrollbar-width:none] group-data-[orientation=horizontal]/tabs:h-auto [&::-webkit-scrollbar]:hidden"
-        onWheel={handleTabsWheel}
+        // Phones get a two-column grid: every workflow stays visible and no tab is clipped by a
+        // rounded scrolling strip. Wide screens keep one pill row.
+        className="relative grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-background p-1 group-data-[orientation=horizontal]/tabs:h-auto lg:flex lg:rounded-full"
       >
         <TabIndicator activeSelector='[data-state="active"]' />
         {USE_CASES.map((useCase) => {
           const Icon = useCase.icon
           return (
             <TabsTrigger
-              className="h-9 min-w-max shrink-0 px-4 font-semibold text-xs lg:min-w-0 lg:flex-1"
+              className="h-9 min-w-0 px-3 font-semibold text-xs lg:flex-1 lg:px-4"
               key={useCase.id}
               value={useCase.id}
             >

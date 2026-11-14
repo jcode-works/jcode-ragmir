@@ -348,7 +348,7 @@ export function LandingNavbar({
             <button
               aria-expanded={menuOpen}
               aria-label={t("nav_menu")}
-              className="ml-1 flex h-10 items-center gap-2 rounded-full bg-card px-3 font-bold text-foreground text-sm transition-colors hover:bg-[#1f1f1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] sm:px-4"
+              className="ml-1 flex h-10 items-center gap-2 rounded-full bg-card px-3 font-bold text-foreground text-sm transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] sm:px-4"
               onClick={() => setMenuOpen(true)}
               ref={menuTriggerRef}
               type="button"
