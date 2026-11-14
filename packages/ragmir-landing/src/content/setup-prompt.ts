@@ -8,7 +8,7 @@ Outcome: Ragmir installed with the repository's package manager; useful sources 
 - For an existing installation, inspect version, sources, status, and rgr upgrade --check.
 
 2. Configure:
-- Install @jcode.labs/ragmir with the detected manager. Default to offline local-hash. Semantic retrieval additionally requires @huggingface/transformers and an explicitly approved model download; use rgr setup --semantic only after that approval.
+- Install @jcode.labs/ragmir with the detected manager. Default to offline local-hash. Semantic retrieval additionally requires @huggingface/transformers and an approved model download: present rgr models list --json (recommended model, download, memory, fit for this machine), then run rgr setup --semantic, with --embedding-model <id> for another choice, only after approval.
 - Run rgr setup --no-ingest --agents <selected> with the detected manager. Keep project scope. Review an unmanaged same-name skill before using --force-agent-skills.
 - Select narrow relative source globs in ragmir.config.json (committed) or .ragmir/config.json: guidance, docs/specs/ADRs, package READMEs, useful config, source, and tests. Set name and description so agents know which project the base serves. Scope nested bases separately and keep shared knowledge at the root.
 - Exclude .env*, credentials, keys, unapproved private data, dependencies, generated/build/cache/coverage/log folders, vendored files, and Ragmir storage/models. Review external folders before including them.

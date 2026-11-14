@@ -129,10 +129,10 @@ scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blo
 Index Markdown, code, JSON, CSV, HTML, PDF, DOCX, XLSX, PPTX, OpenDocument, EPUB, and RTF; scanned
 PDFs, photos, and legacy `.doc` files use local extractors (`rgr ocr setup --images
 --legacy-word`). The default `local-hash` provider needs no model download. For semantic
-embeddings, install `@huggingface/transformers` and run `npx rgr setup --semantic`. Use
-`mxbai-embed-xsmall-v1` for English, `multilingual-e5-small` (the default) or `multilingual-e5-base`
-for French and mixed languages; newer models such as Granite R2 or EmbeddingGemma 2 are not
-supported yet. See [choosing an embedding model](https://github.com/jcode-works/jcode-ragmir#choosing-an-embedding-model).
+embeddings, install `@huggingface/transformers` and run `npx rgr setup --semantic`: it installs the
+model this machine suits (multilingual Granite R2 on most) and records it in the project config, and
+`npx rgr models list` compares the options. `mxbai-embed-xsmall-v1` stays the lightest for English,
+and `multilingual-e5-small` remains supported for existing indexes. See [choosing an embedding model](https://github.com/jcode-works/jcode-ragmir#choosing-an-embedding-model).
 
 For guided setup, give your agent this prompt:
 
@@ -151,7 +151,7 @@ Outcome: Ragmir installed with the repository's package manager; useful sources 
 - For an existing installation, inspect version, sources, status, and rgr upgrade --check.
 
 2. Configure:
-- Install @jcode.labs/ragmir with the detected manager. Default to offline local-hash. Semantic retrieval additionally requires @huggingface/transformers and an explicitly approved model download; use rgr setup --semantic only after that approval.
+- Install @jcode.labs/ragmir with the detected manager. Default to offline local-hash. Semantic retrieval additionally requires @huggingface/transformers and an approved model download: present rgr models list --json (recommended model, download, memory, fit for this machine), then run rgr setup --semantic, with --embedding-model <id> for another choice, only after approval.
 - Run rgr setup --no-ingest --agents <selected> with the detected manager. Keep project scope. Review an unmanaged same-name skill before using --force-agent-skills.
 - Select narrow relative source globs in ragmir.config.json (committed) or .ragmir/config.json: guidance, docs/specs/ADRs, package READMEs, useful config, source, and tests. Set name and description so agents know which project the base serves. Scope nested bases separately and keep shared knowledge at the root.
 - Exclude .env*, credentials, keys, unapproved private data, dependencies, generated/build/cache/coverage/log folders, vendored files, and Ragmir storage/models. Review external folders before including them.

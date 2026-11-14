@@ -3,6 +3,7 @@ import { createReadStream } from "node:fs"
 import { mkdir, mkdtemp, readdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { MAX_EMBEDDING_BATCH_SIZE } from "./defaults.js"
+import { type EmbeddingPooling, embeddingDtype, embeddingPooling } from "./embedding-models.js"
 import { removeTree, renameWithRetry } from "./fs-retry.js"
 import { throwIfAborted } from "./operation.js"
 import { ensurePrivateDirectory } from "./permissions.js"
@@ -35,7 +36,7 @@ declare global {
 }
 
 interface TransformersExtractor {
-  (texts: string[], options: { pooling: "mean"; normalize: true }): Promise<unknown>
+  (texts: string[], options: { pooling: EmbeddingPooling; normalize: true }): Promise<unknown>
   dispose?: () => Promise<void>
   tokenizer?: unknown
 }
@@ -122,7 +123,10 @@ export async function pullEmbeddingModel(config: Config): Promise<PullEmbeddingM
       { cacheDir: downloadRoot, allowLocalModels: false },
     )
     try {
-      await extractor(MODEL_BOOTSTRAP_TEXTS, { pooling: "mean", normalize: true })
+      await extractor(MODEL_BOOTSTRAP_TEXTS, {
+        pooling: embeddingPooling(config.embeddingModel),
+        normalize: true,
+      })
     } finally {
       await extractor.dispose?.()
     }
@@ -222,7 +226,10 @@ async function embedWithTransformers(
       const preparedTexts = texts
         .slice(offset, offset + batchSize)
         .map((text) => prepareEmbeddingText(text, config.embeddingModel, inputType))
-      const output = await lease.extractor(preparedTexts, { pooling: "mean", normalize: true })
+      const output = await lease.extractor(preparedTexts, {
+        pooling: embeddingPooling(config.embeddingModel),
+        normalize: true,
+      })
       throwIfAborted(signal)
       const rows = tensorToEmbeddingRows(output)
       if (rows.length !== preparedTexts.length) {
@@ -386,9 +393,12 @@ async function createTransformersExtractor(
     transformers.env.allowLocalModels = files.allowLocalModels
     transformers.env.allowRemoteModels = config.transformersAllowRemoteModels
     try {
+      const dtype = embeddingDtype(config.embeddingModel)
       const extractor = (await transformers.pipeline("feature-extraction", config.embeddingModel, {
         revision: config.embeddingModelRevision,
         ...(device === "cpu" ? {} : { device }),
+        // Models that predate profiles keep Transformers.js's default precision unchanged.
+        ...(dtype === undefined ? {} : { dtype }),
       })) as TransformersExtractor
       if ("tokenizer" in extractor && extractor.tokenizer == null) {
         await extractor.dispose?.()
