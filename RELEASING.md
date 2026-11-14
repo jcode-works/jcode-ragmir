@@ -19,7 +19,8 @@ For every release, verify that npm metadata declares `AGPL-3.0-only` and that ea
 `LICENSE`, `COMMERCIAL-LICENSE.md`, and `NOTICE`. The protected validation gate enforces this policy.
 
 The workflow runs `pnpm validate`, then semantic-release derives the next version from
-Conventional Commits. It prepares and publishes `@jcode.labs/ragmir` with npm provenance.
+Conventional Commits. It prepares and publishes `@jcode.labs/ragmir` with npm provenance, then pushes the GHCR image
+and publishes `server.json` to the MCP Registry; verify all three after each release.
 The landing is private and is not published to npm.
 
 Publishing uses npm trusted publishing: `pnpm publish` exchanges the release job's GitHub OIDC

@@ -48,8 +48,8 @@ rgr search "migration" --exact-vector-search
 
 Text output marks a result whose file changed or disappeared after indexing
 (`source modified since indexing`) and a result with thin support (`weak evidence`). JSON results
-carry the same information as `sourceStatus` and `weakEvidence`. A semantic search whose first five
-results are all weak prints no result: the base holds no evidence for the question. `--scope`
+carry the same information as `sourceStatus` and `weakEvidence`. A search whose first five results are
+all weak prints no result, with any provider: the base holds no evidence for the question. `--scope`
 applies a named scope from the config; `--include-path` accepts backslashes on every platform.
 
 `sources add` accepts paths, globs, and `!` exclusions. Search accepts `--top-k`,
@@ -189,7 +189,8 @@ Repairing the source replaces those rows once; deleting the source removes them.
 `--incremental-failure-policy preserve-last-good`. Select `remove-stale` explicitly when a failed
 changed file must have no searchable rows.
 
-`rgr status --json` reads only compact manifest and durable progress metadata. It exposes readiness
+`rgr status --json` reads compact manifest and durable progress metadata, and checks source sizes
+and modification times (`sourceFreshness`, O(files)). It exposes readiness
 (security advisories are reported by `rgr security-audit` and do not change it),
 `corpusFingerprint`, manifest freshness, persisted source-health and maintenance counts, plus the run
 ID, mode, status, resume flag, last activity, batch size, chunk count, and file counts for `pending`,
@@ -200,8 +201,8 @@ The value is `null` in JSON and `unavailable` in human output before a successfu
 the active manifest predates corpus fingerprints. Run `rgr ingest` to populate it. Status does not
 open LanceDB or read chunk text. The human output shows the same progress in a compact form.
 
-`rgr doctor` is constant-cost by default and reports the last health snapshot persisted by a
-successful ingestion. Run `rgr doctor --deep` when current filesystem coverage, permissions, Git
+`rgr doctor` checks live freshness by size and modification time (`cost=O(files)`) and reports
+the other counts from the last health snapshot persisted by a successful ingestion. Run `rgr doctor --deep` when current filesystem coverage, permissions, Git
 ignore behavior, executable probes, or compatible quality evidence must be verified live. Deep
 doctor and `rgr audit` label their O(corpus) cost in text and JSON output. A missing or invalid
 manifest always yields `ready=false`, including legacy tables that predate manifest activation.
@@ -329,7 +330,7 @@ rgr destroy-index --yes
 ```bash
 pnpm add -D @huggingface/transformers
 rgr models list
-rgr models pull --enable
+rgr setup --semantic --no-ingest   # installs the model this machine suits
 rgr models pull --model mixedbread-ai/mxbai-embed-xsmall-v1 --enable
 rgr ingest --rebuild
 rgr ocr doctor

@@ -341,13 +341,17 @@ describe("landing public contract", () => {
     const agenticScenarioIds = ["feature", "incident"]
     const workflowIds = [...agenticScenarioIds, "product", "local"]
 
-    // The hero adds a customer deployment and a scans story to the four use cases.
+    // The hero adds a customer deployment, a scans story, and three personal corpora (a YouTube
+    // script, paperwork, a job search) to the four use cases.
     expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual([
       ...agenticScenarioIds,
       "product",
       "deploy",
       "scans",
       "local",
+      "youtube",
+      "paperwork",
+      "jobs",
     ])
     expect(USE_CASES.map((useCase) => useCase.id)).toEqual(workflowIds)
     for (const scenarioId of agenticScenarioIds) {
@@ -496,8 +500,8 @@ describe("landing public contract", () => {
   })
 
   it("should keep visible localized FAQs without FAQPage structured data", () => {
-    expect(getFaqItems(en)).toHaveLength(11)
-    expect(getFaqItems(fr)).toHaveLength(11)
+    expect(getFaqItems(en)).toHaveLength(12)
+    expect(getFaqItems(fr)).toHaveLength(12)
     expect(homePageSource).toContain("<Faq translations={translations} />")
     expect(homePageSource).not.toContain('"@type": "FAQPage"')
     expect(homePageSource).not.toContain("mainEntity: faqItems.map")

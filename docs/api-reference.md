@@ -103,8 +103,8 @@ It identifies indexed evidence, not the current file on disk. Each result whose 
 disappeared since indexing also carries `sourceStatus: "modified"` or `"missing"`, from one `stat`
 per cited file; `doctor` checks the whole corpus by size and modification time, and `audit` by
 checksum. `weakEvidence: true` marks a passage with few of the question's distinctive words and
-no strong vector match; a Transformers search whose first five results are all weak returns an
-empty list instead. Compact results retain these fields.
+no strong vector match; a search whose first five results are all weak returns an empty list
+instead, with any provider. Compact results retain these fields.
 
 For XLSX tables, full results attach the header as a separate `context` passage with its own cell
 citation, including at `contextRadius: 0`. Expansion also includes it; compact search requires

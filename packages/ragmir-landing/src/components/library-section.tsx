@@ -89,18 +89,19 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
         </CardHeader>
         <CardContent className="grid min-w-0 gap-4 p-5 md:p-6">
           <Tabs className="min-w-0 gap-4" defaultValue="prompt">
-            <div className="-mx-1 min-w-0 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <TabsList className="relative flex w-max min-w-full rounded-full bg-background p-1">
+            <div className="min-w-0">
+              {/* Three columns on phones, one pill row from small screens up: no clipped tab. */}
+              <TabsList className="relative grid w-full grid-cols-3 gap-1 rounded-xl bg-background p-1 group-data-[orientation=horizontal]/tabs:h-auto sm:flex sm:rounded-full">
                 <TabIndicator activeSelector='[data-state="active"]' />
                 <TabsTrigger
-                  className="min-w-20 flex-1 justify-center rounded-full px-3 py-1.5 text-center font-semibold text-xs"
+                  className="min-w-0 justify-center rounded-full px-2 py-1.5 text-center font-semibold text-xs sm:min-w-20 sm:flex-1 sm:px-3"
                   value="prompt"
                 >
                   {t("quickstart_prompt_tab")}
                 </TabsTrigger>
                 {packageManagers.map((manager) => (
                   <TabsTrigger
-                    className="min-w-16 flex-1 justify-center rounded-full px-2 py-1.5 text-center font-semibold text-xs"
+                    className="min-w-0 justify-center rounded-full px-2 py-1.5 text-center font-semibold text-xs sm:min-w-16 sm:flex-1"
                     key={manager.id}
                     value={manager.id}
                   >

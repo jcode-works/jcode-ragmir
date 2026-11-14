@@ -1,6 +1,6 @@
 ---
 import { pickTranslations, USE_CASE_TRANSLATIONS } from "../../lib/island-translations"
-import { SectionHeader } from "../section-header"
+import { cardTag, SectionHeader } from "../section-header"
 import { UseCaseCarousel } from "../use-case-carousel"
 
 interface Props {
@@ -9,6 +9,28 @@ interface Props {
 
 const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
+
+// Personal corpora: the hero terminal plays the same three stories.
+const personalCases = [
+  {
+    badge: t("demo_badge_youtube"),
+    title: t("personal_cases_youtube_title"),
+    text: t("personal_cases_youtube_text"),
+    citation: "[1] research/hybrid-search-paper.pdf:p4#2",
+  },
+  {
+    badge: t("demo_badge_paperwork"),
+    title: t("personal_cases_paperwork_title"),
+    text: t("personal_cases_paperwork_text"),
+    citation: "[1] payslips/2026-09.pdf:p1#0",
+  },
+  {
+    badge: t("demo_badge_jobs"),
+    title: t("personal_cases_jobs_title"),
+    text: t("personal_cases_jobs_text"),
+    citation: "[1] reviews/2024-annual-review.pdf:p2#1",
+  },
+]
 
 ---
 
@@ -31,4 +53,30 @@ const t = (key: string): string => translations[key] ?? key
     client:visible
     translations={pickTranslations(translations, USE_CASE_TRANSLATIONS)}
   />
+
+  <div class="mt-14 md:mt-20">
+    <h3 class="font-black text-2xl leading-tight md:text-3xl">{t("personal_cases_title")}</h3>
+    <p class="mt-3 max-w-2xl text-muted-foreground text-sm leading-6 md:text-base md:leading-7">
+      {t("personal_cases_text")}
+    </p>
+    <ul class="mt-8 grid gap-3 md:grid-cols-3 md:gap-4">
+      {personalCases.map((item, index) => (
+        <li class="flex flex-col rounded-xl bg-card p-5 text-card-foreground md:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <span class="tnum font-mono text-[10px] text-muted-foreground tracking-[0.25em]">
+              {cardTag(index + 1, personalCases.length)}
+            </span>
+            <span class="rounded-full bg-background px-3 py-1 font-semibold text-muted-foreground text-xs">
+              {item.badge}
+            </span>
+          </div>
+          <h4 class="mt-8 font-black text-lg leading-tight">{item.title}</h4>
+          <p class="mt-3 flex-1 text-muted-foreground text-sm leading-6">{item.text}</p>
+          <p class="mt-5 rounded-xl bg-background px-3 py-2.5 font-mono text-[0.68rem] font-semibold text-yellow-300 break-all">
+            {item.citation}
+          </p>
+        </li>
+      ))}
+    </ul>
+  </div>
 </section>

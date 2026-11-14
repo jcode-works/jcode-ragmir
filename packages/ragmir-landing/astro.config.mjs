@@ -27,6 +27,8 @@ export default defineConfig({
     ...(isProduction
       ? [
           sitemap({
+            // Crawlers use lastmod to schedule recrawls; each deploy ships changed content.
+            lastmod: new Date(),
             i18n: {
               defaultLocale,
               locales: {
