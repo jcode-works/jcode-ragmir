@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react"
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { highlightCall, highlightCode, highlightCommand } from "../lib/command-syntax"
 import { cn } from "../lib/utils"
@@ -186,6 +186,64 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
     return () => clearTimeout(timeout)
   }, [playback.isComplete, activeScenario.id])
 
+  // The story tabs slide in one row, like a streaming catalogue row: swipe on touch, arrows on
+  // wider screens, and edges that fade only where more stories wait.
+  const tabScrollRef = useRef<HTMLDivElement>(null)
+  const [tabEdges, setTabEdges] = useState({ start: false, end: false })
+
+  const updateTabEdges = useCallback(() => {
+    const element = tabScrollRef.current
+    if (!element) return
+    const start = element.scrollLeft > 4
+    const end = element.scrollLeft + element.clientWidth < element.scrollWidth - 4
+    setTabEdges((current) =>
+      current.start === start && current.end === end ? current : { start, end },
+    )
+  }, [])
+
+  useEffect(() => {
+    const element = tabScrollRef.current
+    if (!element) return
+    updateTabEdges()
+    element.addEventListener("scroll", updateTabEdges, { passive: true })
+    const resizes = new ResizeObserver(updateTabEdges)
+    resizes.observe(element)
+    return () => {
+      element.removeEventListener("scroll", updateTabEdges)
+      resizes.disconnect()
+    }
+  }, [updateTabEdges])
+
+  useEffect(() => {
+    // Keep the active story in view inside the row, without ever scrolling the page.
+    const container = tabScrollRef.current
+    const active = container?.querySelector<HTMLElement>(
+      `[data-scenario-id="${activeScenario.id}"]`,
+    )
+    if (!container || !active) return
+    const containerRect = container.getBoundingClientRect()
+    const activeRect = active.getBoundingClientRect()
+    const margin = 32
+    if (
+      activeRect.left < containerRect.left + margin ||
+      activeRect.right > containerRect.right - margin
+    ) {
+      container.scrollTo({
+        left: container.scrollLeft + activeRect.left - containerRect.left - margin,
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      })
+    }
+  }, [activeScenario.id])
+
+  const scrollTabs = useCallback((direction: 1 | -1) => {
+    const element = tabScrollRef.current
+    if (!element) return
+    element.scrollBy({
+      left: direction * element.clientWidth * 0.7,
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    })
+  }, [])
+
   const handleReplay = useCallback(() => {
     userInteractedRef.current = true
     startSequence()
@@ -252,7 +310,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
 
   return (
     <div
-      className="mx-auto flex h-[38rem] min-h-[38rem] max-h-[38rem] min-w-0 w-full max-w-full shrink-0 flex-col overflow-hidden rounded-xl bg-card sm:h-[36rem] sm:min-h-[36rem] sm:max-h-[36rem] sm:max-w-xl lg:max-w-none"
+      className="mx-auto flex h-[34rem] min-h-[34rem] max-h-[34rem] min-w-0 w-full max-w-full shrink-0 flex-col overflow-hidden rounded-xl bg-card sm:max-w-xl lg:max-w-none"
       ref={containerRef}
     >
       <div className="flex shrink-0 items-center gap-3 px-4 pt-3 pb-2.5">
@@ -275,34 +333,59 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
         </button>
       </div>
 
-      {/* A grid keeps every story visible: no tab is cut by a scrolling, rounded strip. */}
-      <div
-        className="group/scenario-tabs relative mx-3 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-background p-1 sm:grid-cols-5"
-        role="tablist"
-      >
-        <TabIndicator activeSelector='[aria-selected="true"]' />
-        {HERO_DEMO_SCENARIOS.map((scenario) => {
-          const isActive = scenario.id === activeScenario.id
+      <div className="relative mx-3 shrink-0">
+        <div
+          className="overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          ref={tabScrollRef}
+          role="tablist"
+          style={tabEdgeMask(tabEdges)}
+        >
+          <div className="group/scenario-tabs relative flex w-max gap-1.5">
+            <TabIndicator activeSelector='[aria-selected="true"]' className="z-[1]" />
+            {HERO_DEMO_SCENARIOS.map((scenario) => {
+              const isActive = scenario.id === activeScenario.id
 
-          return (
-            <button
-              aria-selected={isActive}
-              className={cn(
-                "relative h-8 min-w-0 truncate rounded-full px-2 font-semibold text-xs transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                isActive
-                  ? "bg-foreground text-background group-data-[indicator=ready]/scenario-tabs:bg-transparent"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              data-scenario-id={scenario.id}
-              key={scenario.id}
-              onClick={() => handleScenarioSelect(scenario.id)}
-              role="tab"
-              type="button"
-            >
-              {t(scenario.titleKey)}
-            </button>
-          )
-        })}
+              return (
+                <button
+                  aria-selected={isActive}
+                  className={cn(
+                    "relative h-8 shrink-0 rounded-full px-3.5 font-semibold text-xs transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isActive
+                      ? "bg-foreground text-background group-data-[indicator=ready]/scenario-tabs:bg-background"
+                      : "bg-background text-muted-foreground hover:text-foreground",
+                  )}
+                  data-scenario-id={scenario.id}
+                  key={scenario.id}
+                  onClick={() => handleScenarioSelect(scenario.id)}
+                  role="tab"
+                  type="button"
+                >
+                  <span className="relative z-[2]">{t(scenario.titleKey)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        {tabEdges.start && (
+          <button
+            aria-label={t("demo_tabs_previous")}
+            className="absolute top-1/2 left-0 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--card-hover)] text-foreground transition-colors hover:bg-[#2a2a2a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+            onClick={() => scrollTabs(-1)}
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" className="size-4" />
+          </button>
+        )}
+        {tabEdges.end && (
+          <button
+            aria-label={t("demo_tabs_next")}
+            className="absolute top-1/2 right-0 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--card-hover)] text-foreground transition-colors hover:bg-[#2a2a2a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+            onClick={() => scrollTabs(1)}
+            type="button"
+          >
+            <ChevronRight aria-hidden="true" className="size-4" />
+          </button>
+        )}
       </div>
 
       <p className="min-h-16 px-4 pt-3 pb-2 text-xs leading-5 text-muted-foreground">
@@ -398,4 +481,20 @@ function defaultLineHoldMs(kind: TerminalLineKind): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  )
+}
+
+/** Fades the row only on the sides where more stories are hidden. */
+function tabEdgeMask(edges: { start: boolean; end: boolean }): React.CSSProperties | undefined {
+  if (!edges.start && !edges.end) return undefined
+  const fade = 40
+  const start = edges.start ? `transparent 0, #000 ${fade}px` : "#000 0"
+  const end = edges.end ? `#000 calc(100% - ${fade}px), transparent 100%` : "#000 100%"
+  const mask = `linear-gradient(to right, ${start}, ${end})`
+  return { maskImage: mask, WebkitMaskImage: mask }
 }

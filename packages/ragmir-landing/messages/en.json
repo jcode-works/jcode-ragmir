@@ -48,6 +48,8 @@
   "demo_product_out_refusal": "[] No passage returned: the app answers “not in the documents” instead of guessing.",
   "demo_product_out_done": "Every answer carries a page citation, and nothing is sent to a third-party index.",
   "demo_replay_label": "Replay the story",
+  "demo_tabs_previous": "Previous stories",
+  "demo_tabs_next": "More stories",
   "demo_badge_feature": "Agentic RAG",
   "demo_badge_incident": "Agentic RAG",
   "demo_script_prefix": "Private chat",
