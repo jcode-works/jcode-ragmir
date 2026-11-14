@@ -152,7 +152,7 @@
   "faq_private_question": "Ragmir envoie-t-il mon code ou mes documents confidentiels ?",
   "faq_private_answer": "Ragmir n’a ni télémétrie ni stockage documentaire hébergé. Il indexe sur la machine où il fonctionne et renvoie les passages sans masquage. Votre chat ou agent peut les transmettre à un fournisseur de modèles. Pour un usage confidentiel, maîtrisez tout le parcours : client, modèle local ou auto-hébergé, connexion, accès et journaux. Le mode sémantique télécharge explicitement les poids du modèle.",
   "faq_agents_question": "Avec quels agents IA et outils Ragmir fonctionne-t-il ?",
-  "faq_agents_answer": "Ragmir Core est indépendant du modèle. Les intégrations couvrent Claude Code, Codex, Kimi, OpenCode et Cline. Les autres clients MCP, scripts locaux, outils de bureau et tâches CI utilisent les mêmes résultats cités. Enregistrez Ragmir par projet : chaque serveur nomme sa base et avertit ou refuse les espaces de travail sans rapport.",
+  "faq_agents_answer": "Ragmir Core est indépendant du modèle. Les intégrations couvrent Claude Code, Codex, Kimi, OpenCode et Cline. Les agents Python construits avec LangChain, LlamaIndex ou le SDK MCP utilisent le même serveur MCP, et l'image Docker officielle le lance sans Node.js. Les autres clients MCP, scripts locaux, outils de bureau et tâches CI utilisent les mêmes résultats cités. Enregistrez Ragmir par projet : chaque serveur nomme sa base et avertit ou refuse les espaces de travail sans rapport.",
   "faq_team_question": "Comment une équipe partage-t-elle la même base documentaire ?",
   "faq_team_answer": "Versionnez un ragmir.config.json partagé et partagez les documents relus via votre fonctionnement Git ou vos outils de partage habituels, puis lancez rgr ingest sur chaque poste, ou laissez rgr hooks install rafraîchir l’index après chaque pull. Chaque développeur garde son index local. Ragmir ne gère ni les branches ni la synchronisation entre postes.",
   "faq_offline_question": "Ragmir nécessite-t-il une clé API, un téléchargement de modèle ou une connexion internet ?",
@@ -295,5 +295,6 @@
   "deploy_owns_label": "Votre service garde",
   "deploy_owns_items": "TLS · authentification · droits par utilisateur · limites de débit · le modèle",
   "deploy_guide_link": "Lire le guide serveur",
-  "footer_link_server_guide": "Guide serveur"
+  "footer_link_server_guide": "Guide serveur",
+  "footer_link_python_guide": "Guide Python"
 }

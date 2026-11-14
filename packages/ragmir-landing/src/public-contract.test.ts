@@ -215,6 +215,12 @@ describe("landing public contract", () => {
     for (const source of [rootReadmeSource, coreReadmeSource, llmsSource, aiSource]) {
       expect(source).toContain("docs/server-deployment.md")
     }
+    for (const source of [rootReadmeSource, coreReadmeSource, llmsSource, aiSource]) {
+      expect(source).toContain("docs/python.md")
+    }
+    expect(PROJECT_LINKS.pythonGuide).toBe(
+      "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md",
+    )
   })
 
   it("should present the bounded agent setup prompt before manual package-manager tabs", () => {

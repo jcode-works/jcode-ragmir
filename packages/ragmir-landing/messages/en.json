@@ -152,7 +152,7 @@
   "faq_private_question": "Does Ragmir send my confidential code or documents?",
   "faq_private_answer": "Ragmir has no telemetry or hosted document store. It indexes on the machine where it runs and returns unmasked passages. Your chat or agent can forward those passages to a model provider. For confidential work, control the whole path: client, local or self-hosted model, connection, access, and logs. Optional semantic setup explicitly downloads model weights.",
   "faq_agents_question": "Which AI agents and tools does Ragmir work with?",
-  "faq_agents_answer": "Ragmir Core is model-agnostic. Integrations cover Claude Code, Codex, Kimi, OpenCode, and Cline. Other MCP clients, local scripts, desktop tools, and CI jobs use the same cited results. Register Ragmir per project: each server names its base and warns or refuses unrelated workspaces.",
+  "faq_agents_answer": "Ragmir Core is model-agnostic. Integrations cover Claude Code, Codex, Kimi, OpenCode, and Cline. Python agents built with LangChain, LlamaIndex, or the MCP SDK use the same MCP server, and the official Docker image runs it without Node.js. Other MCP clients, local scripts, desktop tools, and CI jobs use the same cited results. Register Ragmir per project: each server names its base and warns or refuses unrelated workspaces.",
   "faq_team_question": "How does a team share the same knowledge base?",
   "faq_team_answer": "Commit a shared ragmir.config.json and share reviewed source documents through your normal Git or file-sharing workflow, then run rgr ingest on each workstation, or let rgr hooks install refresh the index after each pull. Each developer keeps a local index. Ragmir does not manage branches or synchronize peers.",
   "faq_offline_question": "Does Ragmir require an API key, a model download, or an internet connection?",
@@ -295,5 +295,6 @@
   "deploy_owns_label": "Your service keeps",
   "deploy_owns_items": "TLS · authentication · per-user access · rate limits · the model",
   "deploy_guide_link": "Read the server guide",
-  "footer_link_server_guide": "Server guide"
+  "footer_link_server_guide": "Server guide",
+  "footer_link_python_guide": "Python guide"
 }
