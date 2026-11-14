@@ -55,7 +55,7 @@ const heroTitleLines = [
       </p>
       <div class="mt-7 flex flex-col gap-3 sm:flex-row">
         <a
-          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground transition hover:bg-[var(--primary-hover)]"
           href={localizedLibraryUrl}
         >
           {t("hero_primary_cta")}
@@ -84,7 +84,7 @@ const heroTitleLines = [
         <strong class="font-black text-white">{t("hero_proof_speed_value")}</strong>
         {` ${t("hero_proof_speed_label")}. `}
         <a
-          class="font-semibold text-white underline underline-offset-2 hover:text-white/80"
+          class="font-semibold text-white underline underline-offset-2 transition-colors hover:text-[var(--accent-title)]"
           href={PROJECT_LINKS.benchmarks}
         >
           {t("hero_proof_link")}

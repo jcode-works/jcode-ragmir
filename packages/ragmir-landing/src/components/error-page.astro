@@ -37,7 +37,7 @@ const homeUrl = getLocalizedUrl("/", defaultLang)
   <main
     class="relative z-10 flex min-h-dvh flex-col items-center justify-center gap-6 px-5 text-center"
   >
-    <a aria-label="Ragmir" class="flex items-center transition hover:opacity-80" href={homeUrl}>
+    <a aria-label="Ragmir" class="flex items-center" href={homeUrl}>
       <RagmirLogo />
     </a>
 
@@ -45,7 +45,7 @@ const homeUrl = getLocalizedUrl("/", defaultLang)
     <p class="max-w-md text-lg text-muted-foreground" data-i18n="desc">{message}</p>
 
     <a
-      class="rounded-full bg-[var(--primary)] px-6 py-3 font-bold text-[var(--primary-foreground)] text-sm transition hover:opacity-90"
+      class="rounded-full bg-[var(--primary)] px-6 py-3 font-bold text-[var(--primary-foreground)] text-sm transition-colors hover:bg-[var(--primary-hover)]"
       data-i18n="link"
       href={homeUrl}
     >
