@@ -74,47 +74,102 @@ const SEARCH_TOOL_ANNOTATIONS = {
 
 const pathListSchema = z.array(z.string().min(1).max(MAX_MCP_PATH_CHARACTERS)).max(20)
 const looseNumberSchema = z.number()
+const outputBudgetSchema = looseNumberSchema
+  .optional()
+  .describe("Output budget in bytes for this call; the server caps it at its configured maximum.")
 
 // Objects stay loose and numbers unbounded: handlers map common aliases and clamp out-of-range
 // values, and report each adjustment, instead of failing the call.
 const searchToolInputSchema = z
   .object({
-    query: z.string().trim().min(1).max(MAX_MCP_INPUT_CHARACTERS).optional(),
+    query: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_MCP_INPUT_CHARACTERS)
+      .optional()
+      .describe("One question, in natural language or with exact identifiers."),
     queries: z
       .array(z.string().trim().min(1).max(MAX_MCP_INPUT_CHARACTERS))
       .min(1)
       .max(MAX_MCP_BATCH_QUERIES)
-      .optional(),
-    topK: z.number().optional(),
-    maxChunksPerDocument: looseNumberSchema.optional(),
-    contextRadius: looseNumberSchema.optional(),
-    maxBytes: looseNumberSchema.optional(),
-    includePaths: pathListSchema.optional(),
-    excludePaths: pathListSchema.optional(),
-    contextPaths: pathListSchema.optional(),
-    scope: z.string().min(1).max(64).optional(),
-    seen: z.enum(["collapse", "include", "exclude"]).optional(),
-    compact: z.boolean().optional(),
-    explain: z.boolean().optional(),
+      .optional()
+      .describe(
+        `Instead of query: up to ${MAX_MCP_BATCH_QUERIES} related questions answered together in one output budget.`,
+      ),
+    topK: z
+      .number()
+      .optional()
+      .describe(`Passages per question. Default ${DEFAULT_MCP_TOP_K}; the server caps it.`),
+    maxChunksPerDocument: looseNumberSchema
+      .optional()
+      .describe("Most passages returned from one file. Default 1."),
+    contextRadius: looseNumberSchema
+      .optional()
+      .describe(`Neighbouring chunks added on each side of a hit, 0 to ${MAX_MCP_CONTEXT_RADIUS}.`),
+    maxBytes: outputBudgetSchema,
+    includePaths: pathListSchema
+      .optional()
+      .describe("Search only files under these project-relative paths or globs."),
+    excludePaths: pathListSchema
+      .optional()
+      .describe("Skip files under these project-relative paths or globs."),
+    contextPaths: pathListSchema
+      .optional()
+      .describe('Limit hits to these heading paths, such as "Guide > Migration".'),
+    scope: z
+      .string()
+      .min(1)
+      .max(64)
+      .optional()
+      .describe("A named source scope from the config; ragmir_status lists them."),
+    seen: z
+      .enum(["collapse", "include", "exclude"])
+      .optional()
+      .describe(
+        "Passages already returned in this session: collapse (default) to short stubs, include them in full again, or exclude them.",
+      ),
+    compact: z
+      .boolean()
+      .optional()
+      .describe("Default true: citations with short excerpts. false returns full passage text."),
+    explain: z
+      .boolean()
+      .optional()
+      .describe("Adds the retrieval query and ranking signals; signals, not confidence."),
   })
   .loose()
 
 const auditToolInputSchema = z
   .object({
-    maxBytes: looseNumberSchema.optional(),
-    detail: z.boolean().optional(),
+    maxBytes: outputBudgetSchema,
+    detail: z
+      .boolean()
+      .optional()
+      .describe("true lists every affected path instead of counts and the first examples."),
   })
   .loose()
 
 const expandToolInputSchema = z
   .object({
-    citation: z.string().min(1).max(2_000),
+    citation: z
+      .string()
+      .min(1)
+      .max(2_000)
+      .describe(
+        "A citation from ragmir_search, such as docs/runbook.md:L12-L18#4 or specs/brief.pdf:p3#2.",
+      ),
     expectedEvidenceId: z
       .string()
       .regex(/^[a-f0-9]{64}$/u)
-      .optional(),
-    contextRadius: looseNumberSchema.optional(),
-    maxBytes: looseNumberSchema.optional(),
+      .optional()
+      .describe(
+        "The evidence id ragmir_search returned with that citation. If the indexed passage has changed since, the call fails with EVIDENCE_CHANGED instead of returning other text.",
+      ),
+    contextRadius: looseNumberSchema
+      .optional()
+      .describe(`Neighbouring chunks to include on each side, 0 to ${MAX_MCP_CONTEXT_RADIUS}.`),
+    maxBytes: outputBudgetSchema,
   })
   .loose()
 
@@ -376,7 +431,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_status",
     {
       title: `Ragmir status: ${profile.name}`,
-      description: `Identity, readiness, live freshness, and scopes of the "${profile.name}" knowledge base (${profile.projectRoot}).`,
+      description: `Quick health check of the "${profile.name}" knowledge base (${profile.projectRoot}): whether it is ready to search, index freshness, the embedding model, the named scopes ragmir_search accepts, and next steps. Call it first when unsure the base is indexed; use ragmir_audit to find which files are missing or stale.`,
       inputSchema: z.object({}).loose(),
       annotations: READ_ONLY_TOOL_ANNOTATIONS,
     },
@@ -439,7 +494,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         profile.scopes.length > 0
           ? ` scope selects a named subset: ${profile.scopes.map((scope) => scope.name).join(", ")}.`
           : ""
-      } Expand one citation, or set compact:false, only when full text is needed.`,
+      } Each result has a citation (path, lines or page, chunk), an excerpt, and weakEvidence when support is thin; an empty result means the base holds no evidence, so say so instead of guessing. Expand one citation, or set compact:false, only when full text is needed.`,
       inputSchema: searchToolInputSchema,
       annotations: SEARCH_TOOL_ANNOTATIONS,
     },
@@ -572,7 +627,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_expand",
     {
       title: `Ragmir expand: ${profile.name}`,
-      description: `Read the exact passage window around one citation from the "${profile.name}" knowledge base.`,
+      description: `Read the full indexed text of one citation from the "${profile.name}" knowledge base: the cited chunk plus up to ${MAX_MCP_CONTEXT_RADIUS} neighbouring chunks on each side, within the output budget. Use it after ragmir_search to quote or verify a passage before relying on it. Read-only; reports found:false when the citation is no longer in the index.`,
       inputSchema: expandToolInputSchema,
       annotations: READ_ONLY_TOOL_ANNOTATIONS,
     },
@@ -641,7 +696,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_audit",
     {
       title: `Ragmir audit: ${profile.name}`,
-      description: `Compare the "${profile.name}" sources on disk with the index: coverage, drift, source rules that match nothing, and index concentration. Returns a summary unless detail:true.`,
+      description: `Diagnose the "${profile.name}" sources rather than search them: compare files on disk with the index for coverage, missing or stale files, source rules that match nothing, and index concentration. Use it when results look incomplete; ragmir_status is the quicker readiness check. Returns a summary unless detail:true.`,
       inputSchema: auditToolInputSchema,
       annotations: READ_ONLY_TOOL_ANNOTATIONS,
     },

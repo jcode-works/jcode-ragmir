@@ -380,8 +380,8 @@ describe("landing public contract", () => {
     expect(coreCliSource).toContain('.option("--no-ingest"')
     expect(coreCliSource).toContain('.option("--compact"')
     expect(coreMcpSource).toContain('"ragmir_search"')
-    expect(coreMcpSource).toContain("topK: z.number()")
-    expect(coreMcpSource).toContain("compact: z.boolean().optional()")
+    expect(coreMcpSource).toMatch(/topK: z\s*\.number\(\)/u)
+    expect(coreMcpSource).toMatch(/compact: z\s*\.boolean\(\)\s*\.optional\(\)/u)
     expect(coreMcpSource).toContain("const DEFAULT_MCP_TOP_K = 3")
     expect(coreMcpSource).toContain("compact !== false")
     expect(
