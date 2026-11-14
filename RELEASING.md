@@ -77,6 +77,13 @@ For breaking CLI/API releases, make the migration explicit in the Conventional C
 footer and link to `docs/migration.md`. Removed commands and exports require a major release.
 Only the `rgr` executable is published.
 
+The Claude Code plugin in `plugins/ragmir/` is installed from this repository, not from npm. Its
+launcher pins the npm release it runs (`RAGMIR_VERSION` in `scripts/serve-mcp.mjs`), because the
+plugin directory refuses unpinned `npx` commands. After a release that the plugin should serve,
+update that pin and bump `version` in `plugins/ragmir/.claude-plugin/plugin.json` in the same
+change; installed plugins only update when that version changes. Keep the plugin's
+`skills/ragmir/SKILL.md` identical to the Core skill; `pnpm public:smoke` enforces it.
+
 ## Required Local Checks
 
 Run the full gate before opening or updating a release pull request:

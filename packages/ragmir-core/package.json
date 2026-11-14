@@ -49,6 +49,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./langchain": {
+      "types": "./dist/langchain.d.ts",
+      "import": "./dist/langchain.js"
     }
   },
   "bin": {
@@ -115,10 +119,14 @@
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@huggingface/transformers": "^4.3.0"
+    "@huggingface/transformers": "^4.3.0",
+    "@langchain/core": "^1.0.0"
   },
   "peerDependenciesMeta": {
     "@huggingface/transformers": {
+      "optional": true
+    },
+    "@langchain/core": {
       "optional": true
     }
   },

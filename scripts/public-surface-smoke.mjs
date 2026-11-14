@@ -84,6 +84,45 @@ for (const file of ["README.md", "docs/quick-start.md", "packages/ragmir-core/RE
   }
 }
 
+// The Claude Code plugin ships its own copy of the retrieval skill and pins the npm release its
+// MCP launcher runs, because the plugin directory refuses unpinned npx commands.
+const coreSkill = await readFile(
+  path.join(repoRoot, "packages/ragmir-core/skills/ragmir/SKILL.md"),
+  "utf8",
+)
+const pluginSkill = await readFile(
+  path.join(repoRoot, "plugins/ragmir/skills/ragmir/SKILL.md"),
+  "utf8",
+)
+if (pluginSkill !== coreSkill) {
+  failures.push("plugins/ragmir/skills/ragmir/SKILL.md differs from the Core retrieval skill")
+}
+const pluginManifest = JSON.parse(
+  await readFile(path.join(repoRoot, "plugins/ragmir/.claude-plugin/plugin.json"), "utf8"),
+)
+const marketplace = JSON.parse(
+  await readFile(path.join(repoRoot, ".claude-plugin/marketplace.json"), "utf8"),
+)
+const marketplaceEntry = marketplace.plugins?.find((entry) => entry.source === "./plugins/ragmir")
+if (!marketplaceEntry || marketplaceEntry.name !== pluginManifest.name) {
+  failures.push(".claude-plugin/marketplace.json must list plugins/ragmir under its plugin name")
+}
+const pluginLauncher = await readFile(
+  path.join(repoRoot, "plugins/ragmir/scripts/serve-mcp.mjs"),
+  "utf8",
+)
+if (!/const RAGMIR_VERSION = "\d+\.\d+\.\d+"/u.test(pluginLauncher)) {
+  failures.push("plugins/ragmir/scripts/serve-mcp.mjs must pin an exact Ragmir version")
+}
+const rootLlms = await readFile(path.join(repoRoot, "llms.txt"), "utf8")
+const landingLlms = await readFile(
+  path.join(repoRoot, "packages/ragmir-landing/public/llms.txt"),
+  "utf8",
+)
+if (landingLlms !== rootLlms) {
+  failures.push("packages/ragmir-landing/public/llms.txt differs from the root llms.txt")
+}
+
 if (failures.length > 0) {
   throw new Error(`Public surface smoke failed:\n${failures.join("\n")}`)
 }
