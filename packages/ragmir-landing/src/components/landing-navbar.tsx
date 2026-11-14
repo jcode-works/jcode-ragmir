@@ -80,6 +80,7 @@ const DRAWER_SECTIONS: ReadonlyArray<{
       { key: "docs", icon: BookOpen },
       { key: "apiReference", icon: FileCode },
       { key: "serverGuide", icon: Server },
+      { key: "pythonGuide", icon: FileCode },
       { key: "benchmarks", icon: Gauge },
     ],
   },

@@ -33,6 +33,10 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `RAGMIR_STORAGE_DIR`) at a persistent volume and run `rgr ingest` from a scheduled job. The host
   service owns TLS, authentication, per-user authorization, and rate limits; Ragmir does not filter
   results per user. Writers are serialized per machine, not across machines.
+- Python: LangChain (`langchain-mcp-adapters`), LlamaIndex (`llama-index-tools-mcp`), and the
+  MCP Python SDK launch `rgr serve-mcp` over stdio; scripts can parse `rgr search --json`. No
+  Python package is needed. Without Node.js, use the image `ghcr.io/jcode-works/ragmir`.
+- The MCP Registry lists the server as `io.github.jcode-works/ragmir`.
 - Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
   target one explicitly. Data resolves from the caller's project, never the installation directory.
 - Ingestion is bounded and resumable. Rebuilds stage a replacement and activate it atomically only
@@ -58,5 +62,6 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
 - [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
 - [Run on a server or in a container](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)
+- [Use Ragmir from Python](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)
 - [Migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
