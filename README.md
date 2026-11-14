@@ -211,11 +211,12 @@ registered for every project answers unrelated workspaces too, and `rgr doctor` 
 | --- | --- | --- |
 | Build a feature with Claude Code or Codex | "Implement account recovery from the specification and authentication ADR. Cite your sources." | The rules, the exceptions, and the code that defines them. |
 | Diagnose an incident with Claude Code or Codex | "Investigate the checkout timeout from the runbook, incident report, and retry code." | Operational guidance first, then the implementation to change. |
-| Plan an API migration with Claude Code or Codex | "Prepare the API v2 migration from the compatibility, rollback, and versioning rules." | The plan and ADR constraints before any caller changes. |
+| Ground an AI product in customer documents with LangChain.js | "What is the termination notice period in the Acme contract?" | The exact clause with its page, or no passage when the documents are silent. |
 | Decide confidentially with a local or self-hosted chat | "Should attachments go in PostgreSQL or object storage? Show the supporting passages." | Cited evidence for a model you run on your machine or servers. |
 
-The first three use your coding agent's normal model connection: with a cloud-backed agent,
-selected passages go to its provider. A local index does not make that conversation local.
+The two coding-agent workflows use your agent's normal model connection: with a cloud-backed
+agent, selected passages go to its provider. The AI product sends passages to the model your
+application calls. A local index does not make either conversation local.
 [Agent integration](./docs/agent-integration.md) covers all four workflows, MCP setup, and a small
 local or self-hosted chat client. Ragmir does not bundle a chat or a generation model; scripts can
 use the same retrieval API without one.
