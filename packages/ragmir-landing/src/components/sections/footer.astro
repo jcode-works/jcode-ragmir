@@ -38,7 +38,7 @@ const sections = FOOTER_SECTIONS.map((section) => ({
 }))
 
 const linkClass =
-  "flex min-h-11 items-center justify-center rounded-sm py-1 text-sm font-medium leading-5 text-foreground transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8 lg:justify-start"
+  "flex min-h-11 items-center justify-center rounded-sm py-1 text-sm font-medium leading-5 text-foreground transition-colors hover:text-[var(--accent-title)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8 lg:justify-start"
 const iconLinkClass =
   "flex size-10 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-[#1f1f1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 const marqueeCopy =
@@ -93,7 +93,7 @@ const marqueeCopy =
         class="mx-auto flex max-w-6xl flex-col items-center gap-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-start"
       >
         <div class="flex flex-col items-center gap-3 sm:flex-row sm:items-center">
-          <a aria-label="Ragmir" class="flex shrink-0 items-center transition hover:opacity-80" href={localizedHomeUrl}>
+          <a aria-label="Ragmir" class="flex shrink-0 items-center" href={localizedHomeUrl}>
             <RagmirLogo />
           </a>
           <p class="max-w-xl text-foreground/80 text-xs leading-5">{t("footer_text")}</p>
@@ -124,7 +124,7 @@ const marqueeCopy =
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`${t("footer_version_label")}: v${version}`}
-              class="ml-1 font-semibold text-foreground text-xs no-underline transition hover:opacity-80"
+              class="ml-1 font-semibold text-foreground text-xs no-underline transition-colors hover:text-[var(--accent-title)]"
             >
               v{version}
             </a>

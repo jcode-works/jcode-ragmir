@@ -313,11 +313,7 @@ export function LandingNavbar({
       >
         <div className="container-navbar flex h-16 items-center justify-between px-5 md:px-8">
           <div className="flex items-center">
-            <a
-              aria-label="Ragmir"
-              className="flex items-center transition hover:opacity-80"
-              href={localizedHomeUrl}
-            >
+            <a aria-label="Ragmir" className="flex items-center" href={localizedHomeUrl}>
               <RagmirLogo />
             </a>
             {version && (
@@ -400,7 +396,7 @@ export function LandingNavbar({
               />
               <a
                 aria-label="Ragmir"
-                className="flex items-center transition hover:opacity-80"
+                className="flex items-center"
                 href={localizedHomeUrl}
                 onClick={closeMenu}
                 tabIndex={drawerTabIndex}

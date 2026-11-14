@@ -86,15 +86,19 @@ describe("setupProject", { timeout: integrationTimeout(15_000) }, () => {
       await readFile(path.join(root, ".ragmir", "config.json"), "utf8"),
     ) as {
       embeddingProvider: string
+      embeddingModel: string
       embeddingModelRevision: string
       embeddingModelDigest: string | null
       embeddingModelPath: string
       transformersAllowRemoteModels: boolean
     }
 
+    // A fresh project has not chosen a model, so setup installs the one this machine suits.
+    const chosen = result.semantic?.choice.embeddingModel
+    expect(result.semantic?.choice.source).toBe("recommended")
     expect(result.semantic).toMatchObject({
       model: {
-        embeddingModel: "intfloat/multilingual-e5-small",
+        embeddingModel: chosen,
         embeddingModelRevision: expect.stringMatching(/^[0-9a-f]{40}$/u),
         embeddingModelDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
         embeddingModelPath: path.join(root, ".ragmir/models"),
@@ -108,6 +112,7 @@ describe("setupProject", { timeout: integrationTimeout(15_000) }, () => {
       },
     })
     expect(config.embeddingProvider).toBe("transformers")
+    expect(config.embeddingModel).toBe(chosen)
     expect(config.embeddingModelRevision).toMatch(/^[0-9a-f]{40}$/u)
     expect(config.embeddingModelDigest).toMatch(/^sha256:[0-9a-f]{64}$/u)
     expect(config.embeddingModelPath).toBe(".ragmir/models")

@@ -3,6 +3,7 @@ import path from "node:path"
 import { findProjectConfig, loadConfig } from "./config.js"
 import { RAGMIR_DIR } from "./defaults.js"
 import { doctor } from "./doctor.js"
+import { chooseEmbeddingModel, type EmbeddingModelChoice } from "./embedding-model-choice.js"
 import { type PullEmbeddingModelResult, pullEmbeddingModel } from "./embeddings.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
@@ -24,6 +25,8 @@ export interface SetupOptions {
   targetDir?: string
   ingest?: boolean
   semantic?: boolean
+  /** Semantic model to install; by default the configured one, else the one this machine suits. */
+  embeddingModel?: string
   agents?: readonly AgentTarget[]
   mcpServerName?: string
   mcpCommand?: string
@@ -32,6 +35,7 @@ export interface SetupOptions {
 }
 
 export interface SetupSemanticResult {
+  choice: EmbeddingModelChoice
   model: PullEmbeddingModelResult
   config: EnableSemanticEmbeddingsResult
 }
@@ -110,7 +114,9 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
   }
   const agentSkills = await installAgentSkills(installOptions)
   const agentKit = agentSkills.projectKit
-  const semantic = options.semantic ? await setupSemanticEmbeddings(cwd) : null
+  const semantic = options.semantic
+    ? await setupSemanticEmbeddings(cwd, options.embeddingModel)
+    : null
   let report = await doctor(cwd, { deep: true })
   let ingested: IngestResult | null = null
 
@@ -136,14 +142,27 @@ export async function setupProject(options: SetupOptions = {}): Promise<SetupRes
   }
 }
 
-async function setupSemanticEmbeddings(cwd: string): Promise<SetupSemanticResult> {
+async function setupSemanticEmbeddings(
+  cwd: string,
+  requestedModel?: string,
+): Promise<SetupSemanticResult> {
   const config = await loadConfig(cwd)
-  const model = await pullEmbeddingModel(config)
+  const choice = await chooseEmbeddingModel(cwd, config, requestedModel)
+  const sameModel = choice.embeddingModel === config.embeddingModel
+  const model = await pullEmbeddingModel({
+    ...config,
+    embeddingModel: choice.embeddingModel,
+    embeddingModelRevision: choice.embeddingModelRevision,
+    // A digest recorded for another model would reject this one's files.
+    embeddingModelDigest: sameModel ? config.embeddingModelDigest : null,
+  })
   const semanticConfig = await enableSemanticEmbeddings(cwd, {
+    embeddingModel: choice.embeddingModel,
     embeddingModelRevision: model.embeddingModelRevision,
     embeddingModelDigest: model.embeddingModelDigest,
   })
   return {
+    choice,
     model,
     config: semanticConfig,
   }

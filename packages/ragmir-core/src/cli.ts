@@ -14,6 +14,12 @@ import { loadConfig } from "./config.js"
 import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js"
 import { destroyIndex } from "./destroy.js"
 import { doctor } from "./doctor.js"
+import { chooseEmbeddingModel } from "./embedding-model-choice.js"
+import {
+  assessEmbeddingModel,
+  EMBEDDING_MODELS,
+  recommendEmbeddingModel,
+} from "./embedding-models.js"
 import { pullEmbeddingModel } from "./embeddings.js"
 import { evaluateGoldenQueries } from "./evaluate.js"
 import { countSkippedByReason } from "./files.js"
@@ -25,6 +31,7 @@ import {
   installGitHooks,
   uninstallGitHooks,
 } from "./git-hooks.js"
+import { detectHardware, formatMemory } from "./hardware.js"
 import { indexFreshnessWarning, manifestReady } from "./index-diagnostics.js"
 import { audit, ingest } from "./ingest.js"
 import { getIngestionProgress } from "./ingestion-state.js"
@@ -85,45 +92,133 @@ program
 const modelsCommand = program.command("models").description("Manage local embedding models.")
 
 modelsCommand
-  .command("pull")
-  .description("Download the configured Transformers.js embedding model into embeddingModelPath.")
-  .option("--enable", "Switch Ragmir config to Transformers embeddings after the model is ready.")
+  .command("list")
+  .description(
+    "List the semantic models Ragmir knows, with download size, memory, and fit for this machine.",
+  )
   .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { enable?: boolean; json?: boolean }, command: Command) => {
+  .action(async (options: { json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
     const config = await loadConfig(cwd)
-    const result = await pullEmbeddingModel(config)
-    const semanticConfig = options.enable
-      ? await enableSemanticEmbeddings(cwd, {
-          embeddingModelRevision: result.embeddingModelRevision,
-          embeddingModelDigest: result.embeddingModelDigest,
-        })
-      : null
+    const hardware = await detectHardware()
+    const recommended = recommendEmbeddingModel(hardware)
+    const models = EMBEDDING_MODELS.map((model) => {
+      const assessment = assessEmbeddingModel(model, hardware)
+      return {
+        ...model,
+        fit: assessment.fit,
+        reason: assessment.reason,
+        recommended: recommended?.model.id === model.id,
+        configured:
+          config.embeddingProvider === "transformers" && config.embeddingModel === model.id,
+      }
+    })
     if (options.json) {
-      console.log(JSON.stringify(semanticConfig ? { ...result, semanticConfig } : result, null, 2))
+      console.log(
+        JSON.stringify(
+          {
+            hardware,
+            embeddingProvider: config.embeddingProvider,
+            configuredModel: config.embeddingModel,
+            recommendedModel: recommended?.model.id ?? null,
+            models,
+          },
+          null,
+          2,
+        ),
+      )
       return
     }
 
-    console.log(pc.green("Embedding model ready."))
-    console.log(`embeddingModel=${result.embeddingModel}`)
-    console.log(`embeddingModelRevision=${result.embeddingModelRevision}`)
-    console.log(`embeddingModelDigest=${result.embeddingModelDigest}`)
-    console.log(`embeddingModelPath=${result.embeddingModelPath}`)
-    if (semanticConfig) {
-      console.log(`semanticConfig=${semanticConfig.configPath}`)
-      console.log(`embeddingProvider=${semanticConfig.embeddingProvider}`)
-      console.log(`transformersAllowRemoteModels=${semanticConfig.transformersAllowRemoteModels}`)
+    console.log(
+      `This machine: ${formatMemory(hardware.memoryBytes)}${hardware.memorySource === "container" ? " (container limit)" : ""}, ${hardware.logicalCpus} CPUs, ${hardware.platform} ${hardware.architecture}${hardware.appleSilicon ? " (Apple Silicon)" : ""}.`,
+    )
+    if (hardware.rosetta) {
+      console.log(
+        pc.yellow("Node.js runs under Rosetta: install the arm64 build for faster inference."),
+      )
+    }
+    console.log(`Retrieval now: ${config.embeddingProvider} (${config.embeddingModel}).`)
+    console.log("")
+    for (const model of models) {
+      const marks = [
+        model.recommended ? pc.green("recommended") : null,
+        model.configured ? pc.cyan("configured") : null,
+      ].filter(Boolean)
+      console.log(`${pc.bold(model.id)}${marks.length > 0 ? `  ${marks.join(", ")}` : ""}`)
+      console.log(
+        `  ${model.languages}, ${model.parameters} parameters, ${model.dimensions} dimensions, ${model.maxTokens.toLocaleString("en-US")} tokens, ${model.license}`,
+      )
+      console.log(
+        `  download ${model.downloadMegabytes} MB, needs about ${formatMemory(model.memoryBytes)}: ${model.fit} (${model.reason})`,
+      )
+      console.log(`  ${model.summary}`)
     }
     console.log("")
-    console.log("Next steps:")
-    if (semanticConfig) {
-      console.log("  1. Run `rgr ingest --rebuild` so existing vectors use the semantic model.")
-      console.log("  2. Run `rgr doctor` to confirm readiness.")
-    } else {
-      console.log("  1. Re-run `rgr models pull --enable` to switch Ragmir config safely.")
-      console.log("  2. Run `rgr ingest --rebuild` so existing vectors use the semantic model.")
-    }
+    console.log(
+      "Install one with `rgr setup --semantic --embedding-model <id>`, then `rgr ingest`.",
+    )
   })
+
+modelsCommand
+  .command("pull")
+  .description(
+    "Download a Transformers.js embedding model into embeddingModelPath: the configured one, or --model.",
+  )
+  .option("--model <id>", "Model to install instead of the configured one; see `rgr models list`.")
+  .option("--enable", "Switch Ragmir config to Transformers embeddings after the model is ready.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (options: { model?: string; enable?: boolean; json?: boolean }, command: Command) => {
+      const cwd = projectRoot(command)
+      const config = await loadConfig(cwd)
+      const choice = options.model ? await chooseEmbeddingModel(cwd, config, options.model) : null
+      const sameModel = !choice || choice.embeddingModel === config.embeddingModel
+      const result = await pullEmbeddingModel(
+        choice
+          ? {
+              ...config,
+              embeddingModel: choice.embeddingModel,
+              embeddingModelRevision: choice.embeddingModelRevision,
+              embeddingModelDigest: sameModel ? config.embeddingModelDigest : null,
+            }
+          : config,
+      )
+      const semanticConfig = options.enable
+        ? await enableSemanticEmbeddings(cwd, {
+            embeddingModel: result.embeddingModel,
+            embeddingModelRevision: result.embeddingModelRevision,
+            embeddingModelDigest: result.embeddingModelDigest,
+          })
+        : null
+      if (options.json) {
+        console.log(
+          JSON.stringify(semanticConfig ? { ...result, semanticConfig } : result, null, 2),
+        )
+        return
+      }
+
+      console.log(pc.green("Embedding model ready."))
+      console.log(`embeddingModel=${result.embeddingModel}`)
+      console.log(`embeddingModelRevision=${result.embeddingModelRevision}`)
+      console.log(`embeddingModelDigest=${result.embeddingModelDigest}`)
+      console.log(`embeddingModelPath=${result.embeddingModelPath}`)
+      if (semanticConfig) {
+        console.log(`semanticConfig=${semanticConfig.configPath}`)
+        console.log(`embeddingProvider=${semanticConfig.embeddingProvider}`)
+        console.log(`transformersAllowRemoteModels=${semanticConfig.transformersAllowRemoteModels}`)
+      }
+      console.log("")
+      console.log("Next steps:")
+      if (semanticConfig) {
+        console.log("  1. Run `rgr ingest --rebuild` so existing vectors use the semantic model.")
+        console.log("  2. Run `rgr doctor` to confirm readiness.")
+      } else {
+        console.log("  1. Re-run `rgr models pull --enable` to switch Ragmir config safely.")
+        console.log("  2. Run `rgr ingest --rebuild` so existing vectors use the semantic model.")
+      }
+    },
+  )
 
 const ocrCommand = program
   .command("ocr")
@@ -445,7 +540,11 @@ program
   )
   .option(
     "--semantic",
-    "Download the configured Transformers.js embedding model and enable higher-quality semantic retrieval.",
+    "Download a semantic embedding model and enable it: the configured one, or the one this machine suits.",
+  )
+  .option(
+    "--embedding-model <id>",
+    "Semantic model for --semantic instead of the default choice; see `rgr models list`.",
   )
   .option("--no-ingest", "Skip automatic indexing even when supported files are present.")
   .option(
@@ -462,6 +561,7 @@ program
         mcpCommand?: string
         mcpArg: string[]
         semantic?: boolean
+        embeddingModel?: string
         ingest?: boolean
         forceAgentSkills?: boolean
         json?: boolean
@@ -476,6 +576,7 @@ program
       }
       addOption(setupOptions, "mcpServerName", options.mcpName)
       addOption(setupOptions, "semantic", options.semantic)
+      addOption(setupOptions, "embeddingModel", options.embeddingModel)
       addOption(setupOptions, "ingest", options.ingest)
       addOption(setupOptions, "mcpCommand", options.mcpCommand)
       addOption(setupOptions, "forceAgentSkills", options.forceAgentSkills)
@@ -1786,6 +1887,16 @@ function printSetup(result: Awaited<ReturnType<typeof setupProject>>, title: str
     console.log(pc.cyan("Semantic retrieval:"))
     console.log("  - enabled for higher-quality natural-language retrieval")
     console.log(`  - embedding model: ${result.semantic.model.embeddingModel}`)
+    const choice = result.semantic.choice
+    const why = {
+      requested: "requested",
+      configured: "kept from the project config",
+      recommended: "recommended for this machine",
+      default: "default",
+    }[choice.source]
+    console.log(
+      `  - choice: ${why}${choice.assessment ? `; ${choice.assessment.fit}, ${choice.assessment.reason}` : ""}`,
+    )
     console.log(`  - model path: ${result.semantic.model.embeddingModelPath}`)
     console.log("  - remote model loading after setup: false")
   } else {

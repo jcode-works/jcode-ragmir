@@ -14,6 +14,8 @@ export interface EnableSemanticEmbeddingsResult {
 }
 
 export interface SemanticEmbeddingArtifact {
+  /** The model the artifact belongs to; omitted, the config keeps the model it names. */
+  embeddingModel?: string
   embeddingModelRevision: string
   embeddingModelDigest: string
 }
@@ -36,9 +38,10 @@ export async function enableSemanticEmbeddings(
   const { embeddingModel, embeddingModelRevision, embeddingModelDigest, embeddingModelPath } =
     await mutateProjectConfig(projectConfig, (rawConfig) => {
       const embeddingModel =
-        typeof rawConfig.embeddingModel === "string"
+        artifact?.embeddingModel ??
+        (typeof rawConfig.embeddingModel === "string"
           ? rawConfig.embeddingModel
-          : DEFAULT_CONFIG.embeddingModel
+          : DEFAULT_CONFIG.embeddingModel)
       const embeddingModelPath =
         typeof rawConfig.embeddingModelPath === "string"
           ? rawConfig.embeddingModelPath
