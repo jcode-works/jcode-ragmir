@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "--yes",
-        "@jcode.labs/ragmir@6.7.1",
+        "@jcode.labs/ragmir@6.8.0",
         "serve-mcp"
       ],
       "env": {
