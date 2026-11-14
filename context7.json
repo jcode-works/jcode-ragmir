@@ -1,7 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "Ragmir",
-  "description": "Open-source retrieval for agentic RAG: local document search and exact citations through TypeScript, CLI, and MCP. Your agent plans and generates with a local, self-hosted, or cloud model.",
+  "description": "Open-source retrieval for agentic RAG: document search with exact citations on a laptop, a VPS, or an offline server, through TypeScript, CLI, MCP, Python via MCP, and Docker.",
   "excludeFolders": [
     "node_modules",
     "packages/ragmir-core/dist",
@@ -24,10 +24,11 @@
     "The only executable is rgr. MCP exposes ragmir_status, ragmir_search, ragmir_expand, and ragmir_audit plus ragmir://context and ragmir://sources.",
     "Search returns three compact citations by default over MCP. Expand selected citations and refine queries in the host agent.",
     "Local-hash needs no model or API key. Semantic retrieval explicitly installs the optional @huggingface/transformers peer and preloads a pinned local model.",
-    "Ragmir preserves selected source text without masking. The consumer decides whether excerpts go to a local model, a self-hosted server, or a cloud provider. Confidentiality also depends on the client, access, network, and logs. Keep credentials excluded at source selection.",
+    "Ragmir keeps source text unmasked. The consumer decides whether excerpts reach a local model, a self-hosted server, or a cloud provider; confidentiality also depends on client, access, network, and logs. Exclude credentials at source selection.",
     "Keep .ragmir state private and ignored. Resolve data from the caller project. In monorepos use rgr bases and --project-root to verify routing.",
     "Use one createRagmirClient per project in a long-running process and close it at shutdown. Top-level functions suit one-shot scripts.",
     "Ragmir has no HTTP server. Hosts own transport security, authentication, authorization, and rate limits.",
+    "Run on servers with docs/server-deployment.md or the ghcr.io/jcode-works/ragmir image. Python agents use the MCP server as shown in docs/python.md. The MCP Registry name is io.github.jcode-works/ragmir.",
     "Ingestion is bounded and resumable. Rebuilds stage validated replacements and activate atomically while preserving the previous index on failure.",
     "Use rgr upgrade --check after updating, then rgr upgrade. Retired keys are explicitly migrated with a private backup; changed policies require a staged rebuild.",
     "Keep local PDF OCR: configured executables process blank pages only, with bounded batches and private content-addressed caching. No cloud OCR.",
