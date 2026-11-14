@@ -177,17 +177,26 @@ Recovery code and tests updated using the specification [1] and ADR [2].
 The agent searches, expands the one passage it needs, and refines. Passages it already received
 come back as stubs, so the second search spends its budget on new evidence.
 
-## Works with your agent
+## Works with your agent and framework
 
-| Agent or client | Setup |
+[![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=flat-square&logo=claude&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-111111?style=flat-square)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Cursor](https://img.shields.io/badge/Cursor-111111?style=flat-square&logo=cursor&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Qwen Code](https://img.shields.io/badge/Qwen_Code-6950EF?style=flat-square&logo=qwen&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![LangChain.js](https://img.shields.io/badge/LangChain.js-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](./docs/api-reference.md#langchainjs-retriever) [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](./docs/python.md#langchain) [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-6D28D9?style=flat-square)](./docs/python.md#llamaindex) [![MCP](https://img.shields.io/badge/MCP-111111?style=flat-square&logo=modelcontextprotocol&logoColor=white)](./docs/agent-integration.md#connect-an-agent-through-mcp) [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](./docs/python.md) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](./docs/api-reference.md) [![Ollama](https://img.shields.io/badge/Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](./docs/agent-integration.md#confidential-chat-local-model-example)
+
+The same local index and the same citations serve every integration: a plugin for Claude Code,
+OpenAI Codex, or Cursor, an extension for Gemini CLI or Qwen Code, a LangChain.js retriever, the
+MCP server for any client, or the TypeScript API.
+
+| Agent or framework | Setup |
 | --- | --- |
-| Claude Code | `rgr setup --agents claude`: skill plus project MCP server |
-| Claude Code plugin | `/plugin install ragmir --marketplace jcode-works/jcode-ragmir`, then index each project ([plugin guide](./docs/agent-integration.md#claude-code-plugin)) |
-| Codex | `rgr setup --agents codex`: skill plus `.codex/config.toml` helper |
+| Claude Code | `/plugin install ragmir --marketplace jcode-works/jcode-ragmir`, then `/ragmir:index` ([plugins](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents)); or `rgr setup --agents claude` for a project MCP server |
+| OpenAI Codex | `codex plugin marketplace add jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir`; or `rgr setup --agents codex` |
+| Cursor | Cursor plugin in [`plugins/ragmir`](./plugins/ragmir) ([plugins](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents)) |
+| Gemini CLI | `gemini extensions install https://github.com/jcode-works/jcode-ragmir` |
+| Qwen Code | `qwen extensions install jcode-works/jcode-ragmir` |
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
 | Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
-| Python: MCP SDK, LangChain, LlamaIndex | [Use Ragmir from Python](./docs/python.md) |
 | LangChain.js | `RagmirRetriever` from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever)) |
+| Python: MCP SDK, LangChain, LlamaIndex | [Use Ragmir from Python](./docs/python.md) |
+| Local models such as Ollama | [Local model example](./docs/agent-integration.md#confidential-chat-local-model-example) |
 | Without Node.js | `docker run -v "$PWD:/workspace" ghcr.io/jcode-works/ragmir` |
 | Your own application | `createRagmirClient()` from the TypeScript API |
 
@@ -417,7 +426,8 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 
 Ask questions, propose ideas, and report bugs in
 [GitHub Issues](https://github.com/jcode-works/jcode-ragmir/issues); report vulnerabilities
-privately through [SECURITY](./SECURITY.md). Follow releases on
+privately through [SECURITY](./SECURITY.md). Ragmir collects no data; the
+[privacy policy](./PRIVACY.md) describes what stays on your machine. Follow releases on
 [GitHub](https://github.com/jcode-works/jcode-ragmir/releases), and if Ragmir saves your agents
 time, [star the repository](https://github.com/jcode-works/jcode-ragmir) so other teams find it.
 
