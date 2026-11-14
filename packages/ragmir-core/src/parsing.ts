@@ -39,6 +39,11 @@ import type {
 const EXTERNAL_COMMAND_KILL_GRACE_MS = 2_000
 const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu
 const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm|opf)$/iu
+const CHART_PART_PATTERN = /\/charts\/chart\d+\.xml$/u
+// Points listed per chart series; larger series keep a count of the rest.
+const MAX_CHART_POINTS = 200
+// Go template actions mark a Helm chart template, which is YAML only once rendered.
+const HELM_TEMPLATE_MARKER = /\{\{-?\s*[^}]*\}\}/u
 const NATURAL_PATH_ORDER = new Intl.Collator("en", { numeric: true, sensitivity: "base" })
 const HTML_TO_TEXT_OPTIONS = {
   wordwrap: false,
@@ -118,12 +123,17 @@ export async function parseFile(
     }
     case ".yaml":
     case ".yml": {
-      const documents = YAML.parseAllDocuments(await readFile(file.absolutePath, "utf8"))
-      for (const document of documents) {
-        const [error] = document.errors
-        if (error) {
-          throw error
-        }
+      const source = await readFile(file.absolutePath, "utf8")
+      const documents = YAML.parseAllDocuments(source)
+      const error = documents.flatMap((document) => document.errors)[0]
+      if (error && HELM_TEMPLATE_MARKER.test(source)) {
+        // A Helm template is YAML only once rendered: index the template itself, with line citations.
+        text = source
+        sourceLineCoordinates = true
+        break
+      }
+      if (error) {
+        throw error
       }
       text = documents
         .flatMap((document) => {
@@ -162,10 +172,14 @@ export async function parseFile(
 async function parseDocx(filePath: string, signal: AbortSignal | undefined): Promise<string> {
   const buffer = await readFile(filePath)
   throwIfAborted(signal)
-  validateOfficeArchive(buffer, signal)
+  const entries = unzipOfficeFile(buffer, signal)
   const result = await mammoth.extractRawText({ buffer })
   throwIfAborted(signal)
-  return result.value
+  // Mammoth skips charts: append their titles, series, and values after the body text.
+  const charts = relatedParts(entries, "word/document.xml", CHART_PART_PATTERN).map((part) =>
+    chartXmlToText(entries.get(part) ?? ""),
+  )
+  return [result.value, ...charts].filter(Boolean).join("\n\n")
 }
 
 async function parsePptx(
@@ -183,7 +197,12 @@ async function parsePptx(
   for (const [index, slide] of slides.entries()) {
     throwIfAborted(signal)
     const noteText = presentationSlideNotes(entries, slide.number) ?? notes.get(slide.number) ?? ""
-    const text = [slide.text, noteText].filter(Boolean).join("\n\n")
+    const charts = relatedParts(
+      entries,
+      `ppt/slides/slide${slide.number}.xml`,
+      CHART_PART_PATTERN,
+    ).map((part) => chartXmlToText(entries.get(part) ?? ""))
+    const text = [slide.text, ...charts, noteText].filter(Boolean).join("\n\n")
     const slideNumber = index + 1
     if (text) {
       parts.push({
@@ -229,7 +248,7 @@ async function parseXlsx(
 ): Promise<{ text: string; regions: ParsedRegion[] }> {
   const buffer = await readFile(filePath)
   throwIfAborted(signal)
-  validateOfficeArchive(buffer, signal)
+  const entries = unzipOfficeFile(buffer, signal)
   const workbook = await readExcelFile(buffer, { trim: false })
   throwIfAborted(signal)
   const parts: Array<{
@@ -278,7 +297,150 @@ async function parseXlsx(
     }
   }
 
+  // Charts live in drawings attached to a sheet: cite them by sheet, without a cell range.
+  for (const sheet of workbookSheetParts(entries)) {
+    throwIfAborted(signal)
+    const drawings = relatedParts(entries, sheet.part, /^xl\/drawings\/drawing\d+\.xml$/u)
+    for (const drawing of drawings) {
+      for (const chart of relatedParts(entries, drawing, CHART_PART_PATTERN)) {
+        const text = chartXmlToText(entries.get(chart) ?? "")
+        parts.push({
+          text: `# ${sheet.name}\n${text}`,
+          contextPath: `Sheet: ${sheet.name}`,
+          location: {
+            kind: "sheet",
+            start: sheet.position,
+            end: sheet.position,
+            label: sheet.name,
+          },
+        })
+      }
+    }
+  }
+
   return joinLocatedParts(parts, signal)
+}
+
+/** Workbook sheets in tab order, with the package part that holds each one. */
+function workbookSheetParts(
+  entries: Map<string, string>,
+): Array<{ name: string; part: string; position: number }> {
+  const workbook = entries.get("xl/workbook.xml")
+  const relationships = entries.get("xl/_rels/workbook.xml.rels")
+  if (!workbook || !relationships) {
+    return []
+  }
+  const targets = new Map<string, string>()
+  for (const relationship of xmlStartTags(relationships, "Relationship")) {
+    const id = xmlAttribute(relationship, "Id")
+    const target = xmlAttribute(relationship, "Target")
+    if (id && target) {
+      targets.set(id, resolvePartTarget("xl", target))
+    }
+  }
+  return xmlStartTags(workbook, "sheet").flatMap((sheet, index) => {
+    const name = xmlAttribute(sheet, "name")
+    const id = xmlAttribute(sheet, "r:id")
+    const part = id ? targets.get(id) : undefined
+    return name && part ? [{ name, part, position: index + 1 }] : []
+  })
+}
+
+/** Parts a package part points to through its relationships file, filtered by name. */
+function relatedParts(entries: Map<string, string>, part: string, pattern: RegExp): string[] {
+  const directory = path.posix.dirname(part)
+  const relationships = entries.get(`${directory}/_rels/${path.posix.basename(part)}.rels`)
+  if (!relationships) {
+    return []
+  }
+  const parts: string[] = []
+  for (const relationship of xmlStartTags(relationships, "Relationship")) {
+    const target = xmlAttribute(relationship, "Target")
+    if (!target || xmlAttribute(relationship, "TargetMode") === "External") {
+      continue
+    }
+    const resolved = resolvePartTarget(directory, target)
+    if (pattern.test(resolved) && entries.has(resolved) && !parts.includes(resolved)) {
+      parts.push(resolved)
+    }
+  }
+  return parts.sort(NATURAL_PATH_ORDER.compare)
+}
+
+function resolvePartTarget(directory: string, target: string): string {
+  return target.startsWith("/")
+    ? path.posix.normalize(target.slice(1))
+    : path.posix.normalize(path.posix.join(directory, target))
+}
+
+/**
+ * Text of an Office chart part: its title, axis titles, and each series with its points, so a
+ * question about a figure in a chart finds the deck, document, or sheet that shows it.
+ */
+function chartXmlToText(xml: string): string {
+  if (!xml) {
+    return ""
+  }
+  const plotStart = xml.search(/<(?:\w+:)?plotArea\b/u)
+  const header = plotStart < 0 ? xml : xml.slice(0, plotStart)
+  const plotArea = plotStart < 0 ? "" : xml.slice(plotStart)
+  const title = xmlTextValues(xmlBlocks(header, "title")[0] ?? "").join(" ")
+  const lines = [title ? `Chart: ${title}` : "Chart"]
+  const axes = ["catAx", "valAx", "dateAx", "serAx"]
+    .flatMap((axis) => xmlBlocks(plotArea, axis))
+    .map((axis) => xmlTextValues(xmlBlocks(axis, "title")[0] ?? "").join(" "))
+    .filter(Boolean)
+  if (axes.length > 0) {
+    lines.push(`Axes: ${axes.join(" / ")}`)
+  }
+  for (const series of xmlBlocks(plotArea, "ser")) {
+    const name = xmlTextValues(xmlBlocks(series, "tx")[0] ?? "").join(" ") || "Series"
+    const categories = chartPoints(
+      xmlBlocks(series, "cat")[0] ?? xmlBlocks(series, "xVal")[0] ?? "",
+    )
+    const values = chartPoints(xmlBlocks(series, "val")[0] ?? xmlBlocks(series, "yVal")[0] ?? "")
+    const points = values
+      .slice(0, MAX_CHART_POINTS)
+      .map((value, index) => (categories[index] ? `${categories[index]}: ${value}` : value))
+    const more =
+      values.length > MAX_CHART_POINTS ? `; and ${values.length - MAX_CHART_POINTS} more` : ""
+    lines.push(`${name}: ${points.join("; ")}${more}`)
+  }
+  return lines.join("\n")
+}
+
+/** Inner XML of each element with this local name, in document order (charts do not nest them). */
+function xmlBlocks(xml: string, localName: string): string[] {
+  return [
+    ...xml.matchAll(
+      new RegExp(
+        `<(?:[A-Za-z_][\\w.-]*:)?${localName}\\b[^>]*>([\\s\\S]*?)</(?:[A-Za-z_][\\w.-]*:)?${localName}>`,
+        "gu",
+      ),
+    ),
+  ].map((match) => match[1] ?? "")
+}
+
+/** Rich text runs and cached cell values of a chart element. */
+function xmlTextValues(xml: string): string[] {
+  return [...xml.matchAll(/<(?:\w+:)?(?:t|v)>([^<]*)<\/(?:\w+:)?(?:t|v)>/gu)]
+    .map((match) => decodeXmlEntities(match[1] ?? "").trim())
+    .filter(Boolean)
+}
+
+/** Cached points of a category or value reference, ordered by their index. */
+function chartPoints(xml: string): string[] {
+  const points: string[] = []
+  for (const match of xml.matchAll(
+    /<(?:\w+:)?pt\b[^>]*\bidx\s*=\s*"(\d+)"[^>]*>([\s\S]*?)<\/(?:\w+:)?pt>/gu,
+  )) {
+    const index = Number(match[1])
+    const value = xmlTextValues(match[2] ?? "").join(" ")
+    if (Number.isSafeInteger(index) && index < MAX_CHART_POINTS * 4) {
+      points[index] = value
+    }
+  }
+  return Array.from(points, (value) => value ?? "")
 }
 
 async function parseImage(
@@ -517,18 +679,6 @@ interface OfficeArchiveLimitsState {
   textEntryCount: number
   totalTextBytes: number
   rejected: boolean
-}
-
-function validateOfficeArchive(buffer: Buffer, signal: AbortSignal | undefined): void {
-  const state = officeArchiveLimitsState()
-  unzipSync(new Uint8Array(buffer), {
-    filter: (file) => {
-      throwIfAborted(signal)
-      includeOfficeTextEntry(file, state)
-      return false
-    },
-  })
-  assertOfficeArchiveLimits(state)
 }
 
 function unzipOfficeFile(buffer: Buffer, signal: AbortSignal | undefined): Map<string, string> {

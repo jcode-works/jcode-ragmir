@@ -30,7 +30,9 @@ does not create a local copy. With both files, CLI changes go to `.ragmir/config
 | --- | --- | --- |
 | `sources` | `[]` | Add project paths, globs, and `!` exclusions. |
 | `retrievalProfile` | `balanced` | Use `fast`, `quality`, or `custom` for different search budgets. |
-| `embeddingProvider` | `local-hash` | Set `transformers` only after an explicit preload. |
+| `embeddingProvider` | `local-hash` | Set `transformers` only after an explicit preload, or `openai-compatible` to embed through Ollama, vLLM, or another OpenAI-compatible endpoint. |
+| `embeddingEndpoint` | `null` | Base URL of the OpenAI-compatible embeddings API, such as `http://localhost:11434/v1`. Required with `openai-compatible`. |
+| `embeddingApiKeyEnv` | `null` | Name of the environment variable that holds the endpoint's API key. The key itself never goes in the config. |
 | `embeddingModel` | `intfloat/multilingual-e5-small` | Select the local Transformers embedding model. Rebuild after changing it. |
 | `embeddingModelRevision` | Pinned commit for bundled profiles | Use an immutable 40-character commit for reproducible model artifacts. Unknown custom models default to the mutable `main` revision until explicitly pinned. |
 | `embeddingModelDigest` | `null` | `rgr models pull --enable` records a SHA-256 identity for the resolved local artifact tree. Do not set it by hand unless the local files were verified independently. |
@@ -321,6 +323,25 @@ Repeated single-query embeddings use a project-scoped, in-memory LRU cache tied 
 identity, capped at 128 entries and 65,536 vector values. The cache retains hashed query keys and
 vectors, never search results; each search still reads the current index generation. Every semantic
 model call respects `embeddingBatchSize`, including callers that supply a larger input array.
+
+### OpenAI-compatible endpoints: Ollama, vLLM, LM Studio
+
+To embed with a model you already serve, point Ragmir at its OpenAI-compatible API:
+
+```json
+{
+  "embeddingProvider": "openai-compatible",
+  "embeddingEndpoint": "http://localhost:11434/v1",
+  "embeddingModel": "nomic-embed-text"
+}
+```
+
+Ragmir posts `{ model, input }` to `<embeddingEndpoint>/embeddings` in `embeddingBatchSize`
+batches, normalizes the returned vectors, and uses the semantic ranking and abstention rules. Run
+`rgr ingest --rebuild` after switching. With a hosted API, set `embeddingApiKeyEnv` to the name of
+the variable that holds its key. Passage text and queries go to the endpoint: keep it on the machine
+or your own server for confidential sources. `rgr security-audit` warns when the endpoint is not
+local. `nomic-embed-text` receives its `search_query:` and `search_document:` prefixes.
 
 ## Local extractors
 

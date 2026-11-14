@@ -47,6 +47,13 @@ export interface Config {
   embeddingModelRevision: string
   embeddingModelDigest: string | null
   transformersAllowRemoteModels: boolean
+  /**
+   * Base URL of an OpenAI-compatible embeddings API, such as `http://localhost:11434/v1` for Ollama.
+   * Used only with `embeddingProvider: "openai-compatible"`: passage text is sent to it.
+   */
+  embeddingEndpoint: string | null
+  /** Name of the environment variable holding the endpoint's API key; the key never enters config. */
+  embeddingApiKeyEnv: string | null
   mcpMaxTopK: number
   mcpMaxOutputBytes: number
   topK: number
@@ -140,7 +147,7 @@ export interface IngestionLimitsReport {
   notes: string[]
 }
 
-export type EmbeddingProvider = "local-hash" | "transformers"
+export type EmbeddingProvider = "local-hash" | "transformers" | "openai-compatible"
 
 export type VectorIndexStrategy = "exact" | "ivf-pq" | "hnsw-sq"
 

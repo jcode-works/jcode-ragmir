@@ -186,7 +186,8 @@ export function rankingPolicyFor(
   maxChunksPerDocument: number,
   embeddingModel?: string,
 ): RankingPolicy {
-  const semantic = embeddingProvider === "transformers"
+  // Any dense provider ranks with the semantic profile; only local-hash vectors are not semantic.
+  const semantic = embeddingProvider !== "local-hash"
   const profile = semantic
     ? ((embeddingModel === undefined ? undefined : MODEL_EVIDENCE_PROFILES[embeddingModel]) ??
       DEFAULT_TRANSFORMERS_PROFILE)

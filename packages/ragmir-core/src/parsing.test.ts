@@ -327,6 +327,132 @@ describe("parseFile", () => {
     ).rejects.toMatchObject({ code: "ABORTED" })
   })
 
+  it("indexes the title, series, and values of a chart on a slide", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pptx-chart-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "deck.pptx")
+    await writeFile(
+      filePath,
+      zipSync({
+        "ppt/slides/slide1.xml": strToU8(
+          '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Results</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>',
+        ),
+        "ppt/slides/_rels/slide1.xml.rels": strToU8(
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/></Relationships>',
+        ),
+        "ppt/charts/chart1.xml": strToU8(
+          chartXml("Quarterly revenue", "Revenue", ["Q1", "Q2"], [120, 140]),
+        ),
+      }),
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".pptx"))
+
+    expect(parsed.text).toContain("Chart: Quarterly revenue")
+    expect(parsed.text).toContain("Axes: Quarter / EUR thousands")
+    expect(parsed.text).toContain("Revenue: Q1: 120; Q2: 140")
+    expect(parsed.regions?.[0]?.location).toEqual(
+      expect.objectContaining({ kind: "slide", start: 1 }),
+    )
+  })
+
+  it("appends the charts of a Word document after its text", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-docx-chart-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "report.docx")
+    await writeFile(
+      filePath,
+      createDocxPackage(
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Annual report</w:t></w:r></w:p></w:body></w:document>',
+        {
+          "word/_rels/document.xml.rels": strToU8(
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/chart1.xml"/></Relationships>',
+          ),
+          "word/charts/chart1.xml": strToU8(
+            chartXml("Headcount", "Staff", ["2025", "2026"], [12, 18]),
+          ),
+        },
+      ),
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".docx"))
+
+    expect(parsed.text).toContain("Annual report")
+    expect(parsed.text).toContain("Chart: Headcount")
+    expect(parsed.text).toContain("Staff: 2025: 12; 2026: 18")
+  })
+
+  it("cites a spreadsheet chart by its sheet, without a cell range", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-xlsx-chart-"))
+    tempDirs.push(root)
+    const filePath = path.join(root, "sales.xlsx")
+    await writeFile(
+      filePath,
+      createXlsxPackage(
+        [
+          {
+            name: "Sales",
+            rows: [
+              ["Month", "Units"],
+              ["Jan", 40],
+            ],
+          },
+        ],
+        {
+          "xl/worksheets/_rels/sheet1.xml.rels": strToU8(
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>',
+          ),
+          "xl/drawings/drawing1.xml": strToU8("<xdr:wsDr/>"),
+          "xl/drawings/_rels/drawing1.xml.rels": strToU8(
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/></Relationships>',
+          ),
+          "xl/charts/chart1.xml": strToU8(
+            chartXml("Units sold", "Units", ["Jan", "Feb"], [40, 55]),
+          ),
+        },
+      ),
+    )
+
+    const parsed = await parseFile(sourceFile(root, filePath, ".xlsx"))
+    const chart = parsed.regions?.find((region) =>
+      parsed.text.slice(region.charStart, region.charEnd).includes("Chart: Units sold"),
+    )
+    const chartText = chart ? parsed.text.slice(chart.charStart, chart.charEnd) : ""
+
+    expect(chartText).toContain("Units: Jan: 40; Feb: 55")
+    expect(chart?.location).toEqual({ kind: "sheet", start: 1, end: 1, label: "Sales" })
+    expect(
+      citationForCoordinates({
+        relativePath: "sales.xlsx",
+        chunkIndex: 1,
+        locationKind: "sheet",
+        locationStart: 1,
+        locationLabel: "Sales",
+      }),
+    ).toBe("sales.xlsx:sheet=Sales#1")
+  })
+
+  it("indexes Helm templates as text with line citations", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-helm-"))
+    tempDirs.push(root)
+    const template = path.join(root, "deployment.yaml")
+    await writeFile(
+      template,
+      "apiVersion: apps/v1\nkind: Deployment\nspec:\n  replicas: {{ .Values.replicaCount }}\n  {{- if .Values.autoscaling.enabled }}\n  strategy: {}\n  {{- end }}\n",
+      "utf8",
+    )
+    const helpers = path.join(root, "_helpers.tpl")
+    await writeFile(helpers, '{{- define "app.name" -}}\n{{ .Chart.Name }}\n{{- end }}\n', "utf8")
+
+    const parsedTemplate = await parseFile(sourceFile(root, template, ".yaml"))
+    const parsedHelpers = await parseFile(sourceFile(root, helpers, ".tpl"))
+
+    expect(parsedTemplate.text).toContain("replicas: {{ .Values.replicaCount }}")
+    expect(parsedTemplate.sourceLineCoordinates).toBe(true)
+    expect(parsedHelpers.text).toContain('define "app.name"')
+    expect(parsedHelpers.sourceLineCoordinates).toBe(true)
+  })
+
   it("extracts text from pptx slides and speaker notes", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-pptx-"))
     tempDirs.push(root)
@@ -706,6 +832,24 @@ describe("parseFile", () => {
   })
 })
 
+function chartXml(title: string, series: string, categories: string[], values: number[]): string {
+  const points = (items: Array<string | number>) =>
+    items.map((item, index) => `<c:pt idx="${index}"><c:v>${item}</c:v></c:pt>`).join("")
+  const axisTitle = (text: string) =>
+    `<c:title><c:tx><c:rich><a:p><a:r><a:t>${text}</a:t></a:r></a:p></c:rich></c:tx></c:title>`
+  return [
+    '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart>',
+    `<c:title><c:tx><c:rich><a:p><a:r><a:t>${title}</a:t></a:r></a:p></c:rich></c:tx></c:title>`,
+    "<c:plotArea><c:barChart>",
+    `<c:ser><c:idx val="0"/><c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>${series}</c:v></c:pt></c:strCache></c:strRef></c:tx>`,
+    `<c:cat><c:strRef><c:strCache>${points(categories)}</c:strCache></c:strRef></c:cat>`,
+    `<c:val><c:numRef><c:numCache>${points(values)}</c:numCache></c:numRef></c:val></c:ser>`,
+    "</c:barChart>",
+    `<c:catAx>${axisTitle("Quarter")}</c:catAx><c:valAx>${axisTitle("EUR thousands")}</c:valAx>`,
+    "</c:plotArea></c:chart></c:chartSpace>",
+  ].join("")
+}
+
 function sourceFile(root: string, absolutePath: string, extension: string): SourceFile {
   return {
     absolutePath,
@@ -735,8 +879,12 @@ function abortAfterChecks(checksBeforeAbort: number): AbortSignal {
   })
 }
 
-function createDocxPackage(documentXml: string): Uint8Array {
+function createDocxPackage(
+  documentXml: string,
+  extraEntries: Record<string, Uint8Array> = {},
+): Uint8Array {
   return zipSync({
+    ...extraEntries,
     "[Content_Types].xml": strToU8(
       [
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
@@ -759,7 +907,10 @@ function createDocxPackage(documentXml: string): Uint8Array {
   })
 }
 
-function createXlsxPackage(sheets: Array<{ name: string; rows: Array<Array<string | number>> }>) {
+function createXlsxPackage(
+  sheets: Array<{ name: string; rows: Array<Array<string | number>> }>,
+  extraEntries: Record<string, Uint8Array> = {},
+) {
   const workbookRelationships = sheets
     .map(
       (_sheet, index) =>
@@ -823,6 +974,7 @@ function createXlsxPackage(sheets: Array<{ name: string; rows: Array<Array<strin
       ].join(""),
     ),
     ...worksheetFiles,
+    ...extraEntries,
   })
 }
 

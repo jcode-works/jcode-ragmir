@@ -497,7 +497,7 @@ async function measureIndexCalibration(
   connection: Connection | undefined,
   signal: AbortSignal | undefined,
 ): Promise<AbstentionCalibration | null> {
-  if (config.embeddingProvider !== "transformers") {
+  if (config.embeddingProvider === "local-hash") {
     return null
   }
   const table = await openRowsTableByName(tableName, config, connection)
