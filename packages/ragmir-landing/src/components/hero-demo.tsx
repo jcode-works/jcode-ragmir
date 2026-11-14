@@ -42,7 +42,6 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
   const [playback, setPlayback] = useState<PlaybackState>(INITIAL_PLAYBACK_STATE)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const tabScrollRef = useRef<HTMLDivElement>(null)
   const isVisible = useRef(false)
   const hasPlayedRef = useRef(false)
   // Once a visitor picks a tab or replays, the demo stops moving on by itself.
@@ -187,23 +186,6 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
     return () => clearTimeout(timeout)
   }, [playback.isComplete, activeScenario.id])
 
-  useEffect(() => {
-    // Keep the active tab visible inside the horizontal tab strip without scrolling the page.
-    const container = tabScrollRef.current
-    const active = container?.querySelector<HTMLElement>(
-      `[data-scenario-id="${activeScenario.id}"]`,
-    )
-    if (!container || !active) return
-    const containerRect = container.getBoundingClientRect()
-    const activeRect = active.getBoundingClientRect()
-    if (activeRect.left < containerRect.left || activeRect.right > containerRect.right) {
-      container.scrollTo({
-        left: container.scrollLeft + activeRect.left - containerRect.left - 8,
-        behavior: "smooth",
-      })
-    }
-  }, [activeScenario.id])
-
   const handleReplay = useCallback(() => {
     userInteractedRef.current = true
     startSequence()
@@ -221,25 +203,6 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
     },
     [activeScenario.id, startSequence],
   )
-
-  const handleTabWheel = useCallback((event: WheelEvent) => {
-    const element = tabScrollRef.current
-    if (!element || element.scrollWidth <= element.clientWidth) return
-
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-    if (delta === 0) return
-
-    event.preventDefault()
-    element.scrollLeft += delta
-  }, [])
-
-  useEffect(() => {
-    const element = tabScrollRef.current
-    if (!element) return
-
-    element.addEventListener("wheel", handleTabWheel, { passive: false })
-    return () => element.removeEventListener("wheel", handleTabWheel)
-  }, [handleTabWheel])
 
   const lineClass: Record<TerminalLineKind, string> = {
     shell: "",
@@ -289,61 +252,57 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
 
   return (
     <div
-      className="mx-auto flex h-[34rem] min-h-[34rem] max-h-[34rem] min-w-0 w-full max-w-full shrink-0 flex-col overflow-hidden rounded-xl bg-card sm:max-w-xl lg:max-w-none"
+      className="mx-auto flex h-[38rem] min-h-[38rem] max-h-[38rem] min-w-0 w-full max-w-full shrink-0 flex-col overflow-hidden rounded-xl bg-card sm:h-[36rem] sm:min-h-[36rem] sm:max-h-[36rem] sm:max-w-xl lg:max-w-none"
       ref={containerRef}
     >
-      <div className="flex shrink-0 items-center gap-3 px-4 pt-3.5 pb-2.5">
+      <div className="flex shrink-0 items-center gap-3 px-4 pt-3 pb-2.5">
         <div aria-hidden="true" className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-full bg-[#ff5f57]" />
           <span className="size-2.5 rounded-full bg-[#febc2e]" />
           <span className="size-2.5 rounded-full bg-[#28c840]" />
         </div>
-        <span className="truncate font-mono text-[0.68rem] text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate font-mono text-[0.68rem] text-muted-foreground">
           {activeScenario.terminalTitle}
         </span>
-      </div>
-
-      <div className="mx-3 flex shrink-0 items-center gap-1 rounded-full bg-background p-1">
-        <div
-          className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          ref={tabScrollRef}
-          role="tablist"
-        >
-          <div className="group/scenario-tabs relative flex min-w-max gap-1">
-            <TabIndicator activeSelector='[aria-selected="true"]' />
-            {HERO_DEMO_SCENARIOS.map((scenario) => {
-              const isActive = scenario.id === activeScenario.id
-
-              return (
-                <button
-                  aria-selected={isActive}
-                  className={cn(
-                    "relative h-8 shrink-0 rounded-full px-3 font-semibold text-xs transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isActive
-                      ? "bg-foreground text-background group-data-[indicator=ready]/scenario-tabs:bg-transparent"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                  data-scenario-id={scenario.id}
-                  key={scenario.id}
-                  onClick={() => handleScenarioSelect(scenario.id)}
-                  role="tab"
-                  type="button"
-                >
-                  {t(scenario.titleKey)}
-                </button>
-              )
-            })}
-          </div>
-        </div>
         <button
           aria-label={t("demo_replay_label")}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="-my-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={handleReplay}
           title={t("demo_replay_label")}
           type="button"
         >
           <RotateCcw aria-hidden="true" className="size-3.5" />
         </button>
+      </div>
+
+      {/* A grid keeps every story visible: no tab is cut by a scrolling, rounded strip. */}
+      <div
+        className="group/scenario-tabs relative mx-3 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-background p-1 sm:grid-cols-5"
+        role="tablist"
+      >
+        <TabIndicator activeSelector='[aria-selected="true"]' />
+        {HERO_DEMO_SCENARIOS.map((scenario) => {
+          const isActive = scenario.id === activeScenario.id
+
+          return (
+            <button
+              aria-selected={isActive}
+              className={cn(
+                "relative h-8 min-w-0 truncate rounded-full px-2 font-semibold text-xs transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                isActive
+                  ? "bg-foreground text-background group-data-[indicator=ready]/scenario-tabs:bg-transparent"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              data-scenario-id={scenario.id}
+              key={scenario.id}
+              onClick={() => handleScenarioSelect(scenario.id)}
+              role="tab"
+              type="button"
+            >
+              {t(scenario.titleKey)}
+            </button>
+          )
+        })}
       </div>
 
       <p className="min-h-16 px-4 pt-3 pb-2 text-xs leading-5 text-muted-foreground">
