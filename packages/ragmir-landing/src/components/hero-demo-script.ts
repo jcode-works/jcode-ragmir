@@ -13,6 +13,8 @@ export type TerminalLineKind =
 type TerminalLineBase = {
   kind: TerminalLineKind
   holdMs?: number
+  /** Label above the line when the default one for its kind does not fit, such as a runtime name. */
+  prefix?: string
 }
 
 type LiteralTerminalLine = TerminalLineBase & {
@@ -90,29 +92,31 @@ export const HERO_DEMO_SCENARIOS: readonly HeroDemoScenario[] = [
     ],
   },
   {
-    id: "migration",
-    titleKey: "demo_scenario_migration_title",
-    descriptionKey: "demo_scenario_migration_description",
-    terminalTitle: "Claude Code / Codex | ~/projects/api-migration",
-    badgeKey: "demo_badge_migration",
+    id: "product",
+    titleKey: "demo_scenario_product_title",
+    descriptionKey: "demo_scenario_product_description",
+    terminalTitle: "Node.js app | ~/apps/contract-assistant",
+    badgeKey: "demo_badge_product",
     lines: [
-      { kind: "output", textKey: "demo_migration_step_index" },
-      {
-        kind: "shell",
-        text: 'npx rgr sources add "docs/migrations/**/*.md" "docs/adr/**/*.md" "src/**/*.ts"',
-      },
+      { kind: "output", textKey: "demo_product_step_index" },
+      { kind: "shell", text: 'npx rgr sources add "contracts/**/*.pdf" "policies/**/*.docx"' },
       { kind: "shell", text: "npx rgr ingest" },
-      { kind: "output", textKey: "demo_migration_step_search" },
-      { kind: "codex", textKey: "demo_migration_prompt" },
-      { kind: "mcp", textKey: "demo_migration_search_command" },
-      { kind: "citation", text: "[1] docs/migrations/api-v2.md:L9-L24#1" },
-      { kind: "mcp", text: 'ragmir_expand({ citation: "docs/migrations/api-v2.md:L9-L24#1" })' },
-      { kind: "insight", textKey: "demo_migration_out_rule", holdMs: 1700 },
-      { kind: "output", textKey: "demo_migration_step_refine" },
-      { kind: "mcp", textKey: "demo_migration_versioning_search" },
-      { kind: "citation", text: "[2] docs/adr/0021-api-versioning.md:L31-L42#2" },
-      { kind: "codex", textKey: "demo_migration_implement" },
-      { kind: "success", textKey: "demo_migration_out_done", holdMs: 1700 },
+      { kind: "output", textKey: "demo_product_step_answer" },
+      {
+        kind: "script",
+        prefix: "LangChain.js",
+        text: 'await retriever.invoke("termination notice period")',
+      },
+      { kind: "citation", text: "[1] contracts/msa-acme-2026.pdf:p7#3" },
+      { kind: "insight", textKey: "demo_product_out_rule", holdMs: 1500 },
+      { kind: "output", textKey: "demo_product_step_refusal" },
+      {
+        kind: "script",
+        prefix: "LangChain.js",
+        text: 'await retriever.invoke("CEO mobile phone number")',
+      },
+      { kind: "insight", textKey: "demo_product_out_refusal", holdMs: 1500 },
+      { kind: "success", textKey: "demo_product_out_done", holdMs: 1700 },
     ],
   },
   {

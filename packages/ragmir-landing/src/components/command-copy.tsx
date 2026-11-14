@@ -1,5 +1,6 @@
 import { Check, Copy } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { highlightCommand } from "../lib/command-syntax"
 import { cn } from "../lib/utils"
 import { emitCopyToast } from "./command-copy-toast"
 
@@ -63,17 +64,22 @@ export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): Rea
   return (
     <button
       aria-label={`${copyLabel}: ${command}`}
-      className="group flex w-full items-center justify-between gap-3 rounded-sm border border-border bg-background p-3 text-left transition hover:border-foreground/30 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group flex w-full items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-3 text-left transition-colors hover:bg-black/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.995]"
       onClick={() => void handleCopy()}
       type="button"
     >
-      <code className="overflow-x-auto font-mono text-foreground/78 text-xs">{command}</code>
+      <code className="overflow-x-auto font-mono text-xs leading-5">
+        {highlightCommand(command)}
+      </code>
       {copied ? (
-        <Check aria-hidden="true" className="size-4 shrink-0 text-[var(--accent-title)]" />
+        <Check
+          aria-hidden="true"
+          className="copy-confirm size-4 shrink-0 text-[var(--accent-title)]"
+        />
       ) : (
         <Copy
           aria-hidden="true"
-          className="size-4 shrink-0 text-muted-foreground transition group-hover:text-foreground"
+          className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
         />
       )}
     </button>
@@ -111,7 +117,7 @@ export function TextCopyButton({
       type="button"
     >
       {copied ? (
-        <Check aria-hidden="true" className="size-4" />
+        <Check aria-hidden="true" className="copy-confirm size-4" />
       ) : (
         <Copy aria-hidden="true" className="size-4" />
       )}
@@ -132,7 +138,7 @@ export function CommandCopyButton({
     <button
       aria-label={`${copyLabel}: ${command}`}
       className={cn(
-        "inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-background/70 text-muted-foreground opacity-80 transition hover:border-foreground/30 hover:bg-muted hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground opacity-80 transition hover:bg-[#1f1f1f] hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       onClick={() => void handleCopy()}
@@ -142,7 +148,7 @@ export function CommandCopyButton({
       {copied ? (
         <Check
           aria-hidden="true"
-          className={cn("size-3.5 text-[var(--accent-title)]", iconClassName)}
+          className={cn("copy-confirm size-3.5 text-[var(--accent-title)]", iconClassName)}
         />
       ) : (
         <Copy aria-hidden="true" className={cn("size-3.5", iconClassName)} />

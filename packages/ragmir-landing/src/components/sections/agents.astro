@@ -1,6 +1,7 @@
 ---
-import { BookOpen, Cloud, Cpu, Server } from "@lucide/astro"
+import { ArrowUp } from "@lucide/astro"
 import { CommandCopyBox } from "../command-copy"
+import { cardTag, SectionHeader } from "../section-header"
 import { GITHUB_URL } from "../../lib/project-links"
 
 interface Props {
@@ -11,74 +12,78 @@ const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 
 const operatingModes = [
-  { icon: Cpu, name: t("agents_full_local_name"), text: t("agents_full_local_text") },
-  { icon: Server, name: t("agents_self_hosted_name"), text: t("agents_self_hosted_text") },
-  { icon: Cloud, name: t("agents_connected_name"), text: t("agents_connected_text") },
+  { name: t("agents_full_local_name"), text: t("agents_full_local_text") },
+  { name: t("agents_self_hosted_name"), text: t("agents_self_hosted_text") },
+  { name: t("agents_connected_name"), text: t("agents_connected_text") },
 ]
 ---
 
 <section
   id="agents"
   aria-labelledby="agents-heading"
-  class="container-default relative z-10 grid gap-8 px-5 py-16 md:px-8 md:py-40 lg:grid-cols-[1.1fr_0.9fr] lg:items-center"
+  class="container-default relative z-10 px-5 py-16 md:px-8 md:py-40"
 >
-  <div class="lg:order-2">
-    <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-      {t("agents_eyebrow")}
-    </p>
-    <h2 id="agents-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
-      {t("agents_title")}
-    </h2>
-    <p class="mt-4 text-muted-foreground text-sm leading-6">{t("agents_text")}</p>
-    <div class="mt-6">
-      <div class="rounded-lg border border-border bg-muted/45 p-4">
-        <p class="font-bold text-sm">{t("agents_command_label")}</p>
-        <div class="mt-3">
-          <CommandCopyBox
-            client:visible
-            command={t("agents_command")}
-            copyLabel={t("copy_command")}
-          />
-        </div>
-        <p class="mt-4 text-muted-foreground text-xs font-semibold">{t("agents_plugin_label")}</p>
-        <div class="mt-2">
-          <CommandCopyBox
-            client:visible
-            command={t("agents_plugin_command")}
-            copyLabel={t("copy_command")}
-          />
-        </div>
+  <div class="mb-10 md:mb-14">
+    <SectionHeader
+      num="004"
+      label={t("agents_eyebrow")}
+      title={t("agents_title")}
+      text={t("agents_text")}
+      id="agents-heading"
+    />
+  </div>
+
+  <div class="grid gap-3 lg:grid-cols-2 lg:gap-4">
+    <div class="rounded-xl bg-card p-5 md:p-6">
+      <h3 class="font-black text-lg">{t("agents_command_label")}</h3>
+      <div class="mt-4">
+        <CommandCopyBox client:visible command={t("agents_command")} copyLabel={t("copy_command")} />
       </div>
-      <div class="mt-3 rounded-lg border border-border bg-muted/45 p-4">
-        <div class="flex items-center gap-3">
-          <BookOpen class="size-5 text-muted-foreground" aria-hidden="true" />
-          <p class="font-bold text-sm">{t("agents_model_title")}</p>
-        </div>
-        <p class="mt-2 text-muted-foreground text-sm leading-6">{t("agents_model_text")}</p>
-        <a class="mt-3 inline-block text-sm font-semibold underline underline-offset-4" href={`${GITHUB_URL}/blob/main/docs/agent-integration.md`}>
-          {t("agents_model_link")}
-        </a>
+      <p class="mt-5 text-muted-foreground text-sm">{t("agents_plugin_label")}</p>
+      <div class="mt-2">
+        <CommandCopyBox
+          client:visible
+          command={t("agents_plugin_command")}
+          copyLabel={t("copy_command")}
+        />
       </div>
+      <a
+        class="mt-4 inline-flex items-center gap-1 text-sm font-semibold underline underline-offset-4 transition-opacity hover:opacity-70"
+        href="#integrations"
+      >
+        {t("agents_plugin_more")}
+        <ArrowUp class="size-4" aria-hidden="true" />
+      </a>
+    </div>
+
+    <div class="flex flex-col rounded-xl bg-card p-5 md:p-6">
+      <h3 class="font-black text-lg">{t("agents_model_title")}</h3>
+      <p class="mt-3 text-muted-foreground text-sm leading-6">{t("agents_model_text")}</p>
+      <a
+        class="mt-auto inline-flex w-fit items-center gap-1 pt-5 text-sm font-semibold underline underline-offset-4 transition-opacity hover:opacity-70"
+        href={`${GITHUB_URL}/blob/main/docs/agent-integration.md`}
+      >
+        {t("agents_model_link")}
+      </a>
     </div>
   </div>
 
-  <div
-    class="overflow-hidden rounded-xl border border-border bg-card/82 text-card-foreground shadow-2xl shadow-black/30 backdrop-blur-xl lg:order-1"
-  >
-    <div class="flex flex-col gap-3 border-b border-border p-5 md:p-6">
-      <h3 class="font-black text-xl">{t("agents_targets_title")}</h3>
-      <p class="text-sm text-muted-foreground leading-6">{t("agents_targets_text")}</p>
-    </div>
-    <div class="grid gap-3 p-5 md:p-6">
-      {operatingModes.map((mode) => (
-        <div class="rounded-lg border border-border bg-muted/45 p-4">
-          <div class="flex items-center gap-3">
-            <mode.icon class="size-5 text-muted-foreground" aria-hidden="true" />
-            <p class="font-bold text-sm">{mode.name}</p>
+  <div class="mt-12 md:mt-16">
+    <h3 class="font-black text-xl md:text-2xl">{t("agents_targets_title")}</h3>
+    <p class="mt-2 max-w-2xl text-muted-foreground text-sm leading-6">{t("agents_targets_text")}</p>
+    <ol class="mt-6 grid gap-3 md:grid-cols-3 md:gap-4">
+      {operatingModes.map((mode, index) => (
+        <li class="flex flex-col rounded-xl bg-card p-5 md:p-6">
+          <div class="flex items-start justify-between">
+            <span class="tnum font-mono text-[10px] text-muted-foreground tracking-[0.25em]">
+              {cardTag(index + 1, operatingModes.length)}
+            </span>
+            <span aria-hidden="true" class="size-1.5 rounded-full bg-foreground/30" />
           </div>
+          <h4 class="mt-8 font-black text-lg">{mode.name}</h4>
           <p class="mt-2 text-muted-foreground text-sm leading-6">{mode.text}</p>
-        </div>
+        </li>
       ))}
-    </div>
+    </ol>
   </div>
 </section>

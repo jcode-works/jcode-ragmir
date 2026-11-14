@@ -1,6 +1,7 @@
-import { Code2 } from "lucide-react"
 import { RAGMIR_SETUP_PROMPT } from "../content/setup-prompt"
 import { CommandCopyBox, TextCopyButton } from "./command-copy"
+import { SectionHeader } from "./section-header"
+import { TabIndicator } from "./tab-indicator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 import { Textarea } from "./ui/textarea"
@@ -67,41 +68,39 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
 
   return (
     <section
-      className="container-default relative z-10 grid gap-8 px-5 py-16 md:px-8 md:py-40 lg:grid-cols-[0.82fr_1.18fr] lg:items-center"
+      className="container-default relative z-10 px-5 py-16 md:px-8 md:py-40"
       id="library"
       aria-labelledby="library-heading"
     >
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-          {t("library_eyebrow")}
-        </p>
-        <h2 id="library-heading" className="mt-4 font-black text-2xl leading-tight md:text-3xl">
-          {t("library_title")}
-        </h2>
-        <p className="mt-4 text-muted-foreground text-sm leading-6">{t("library_text")}</p>
+      <div className="mb-10 md:mb-14">
+        <SectionHeader
+          id="library-heading"
+          label={t("library_eyebrow")}
+          num="002"
+          text={t("library_text")}
+          title={t("library_title")}
+        />
       </div>
 
-      <Card className="min-w-0 overflow-hidden bg-card/88 shadow-2xl shadow-black/35 backdrop-blur-xl">
-        <CardHeader className="gap-3 border-b border-border p-5 md:p-6">
-          <div className="flex items-center gap-3">
-            <Code2 aria-hidden="true" className="size-5 text-muted-foreground" />
-            <CardTitle className="font-black text-xl">{t("quickstart_title")}</CardTitle>
-          </div>
+      <Card className="mx-auto min-w-0 max-w-3xl overflow-hidden">
+        <CardHeader className="gap-2 p-5 pb-0 md:p-6 md:pb-0">
+          <CardTitle className="font-black text-xl">{t("quickstart_title")}</CardTitle>
           <CardDescription className="leading-6">{t("quickstart_text")}</CardDescription>
         </CardHeader>
         <CardContent className="grid min-w-0 gap-4 p-5 md:p-6">
           <Tabs className="min-w-0 gap-4" defaultValue="prompt">
             <div className="-mx-1 min-w-0 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <TabsList className="flex w-max min-w-full rounded-lg border border-border bg-card/82 p-1">
+              <TabsList className="relative flex w-max min-w-full rounded-full bg-background p-1">
+                <TabIndicator activeSelector='[data-state="active"]' />
                 <TabsTrigger
-                  className="min-w-20 flex-1 justify-center rounded-md px-3 py-2 text-center text-[0.625rem] uppercase tracking-[0.08em]"
+                  className="min-w-20 flex-1 justify-center rounded-full px-3 py-1.5 text-center font-semibold text-xs"
                   value="prompt"
                 >
                   {t("quickstart_prompt_tab")}
                 </TabsTrigger>
                 {packageManagers.map((manager) => (
                   <TabsTrigger
-                    className="min-w-16 flex-1 justify-center rounded-md px-2 py-2 text-center text-[0.625rem] uppercase tracking-[0.08em]"
+                    className="min-w-16 flex-1 justify-center rounded-full px-2 py-1.5 text-center font-semibold text-xs"
                     key={manager.id}
                     value={manager.id}
                   >
@@ -119,7 +118,7 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
               </div>
               <Textarea
                 aria-label={t("quickstart_prompt_label")}
-                className="h-[4.125rem] min-h-[4.125rem] min-w-0 resize-none overflow-y-auto whitespace-pre-wrap border-foreground/35 bg-background/72 font-mono text-[0.625rem] text-foreground/78 leading-4 outline-1 outline-border/70 outline-solid"
+                className="h-[5.5rem] min-h-[5.5rem] min-w-0 resize-none overflow-y-auto whitespace-pre-wrap rounded-xl border-0 bg-background px-3.5 py-3 font-mono text-[0.68rem] text-foreground/80 leading-5"
                 id="ragmir-setup-prompt"
                 readOnly
                 spellCheck={false}

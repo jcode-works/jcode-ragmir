@@ -1,4 +1,6 @@
 ---
+import { pickTranslations, USE_CASE_TRANSLATIONS } from "../../lib/island-translations"
+import { SectionHeader } from "../section-header"
 import { UseCaseCarousel } from "../use-case-carousel"
 
 interface Props {
@@ -15,15 +17,18 @@ const t = (key: string): string => translations[key] ?? key
   aria-labelledby="use-cases-heading"
   class="container-default relative z-10 px-5 py-16 md:px-8 md:py-40"
 >
-  <div class="mb-8 max-w-3xl">
-    <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-      {t("use_cases_eyebrow")}
-    </p>
-    <h2 id="use-cases-heading" class="mt-4 font-black text-2xl leading-tight md:text-3xl">
-      {t("use_cases_title")}
-    </h2>
-    <p class="mt-4 text-muted-foreground text-sm leading-6">{t("use_cases_text")}</p>
+  <div class="mb-10 md:mb-14">
+    <SectionHeader
+      num="001"
+      label={t("use_cases_eyebrow")}
+      title={t("use_cases_title")}
+      text={t("use_cases_text")}
+      id="use-cases-heading"
+    />
   </div>
 
-  <UseCaseCarousel client:visible translations={translations} />
+  <UseCaseCarousel
+    client:visible
+    translations={pickTranslations(translations, USE_CASE_TRANSLATIONS)}
+  />
 </section>

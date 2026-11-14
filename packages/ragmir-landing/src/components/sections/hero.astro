@@ -1,11 +1,11 @@
 ---
-import { ArrowDown, ArrowRight } from "@lucide/astro"
-import { GithubIcon } from "../github-icon"
+import { ArrowDown, ArrowRight, SquareTerminal } from "@lucide/astro"
 import { HeroDemo } from "../hero-demo"
 import { NpmDownloadCounter } from "../npm-download-counter"
-import { NpmIcon } from "../npm-icon"
 import { RagmirBackground } from "../ragmir-background"
-import { GITHUB_URL, NPM_URL, PROJECT_LINKS } from "../../lib/project-links"
+import { INTEGRATION_LOGOS, type IntegrationLogoKey } from "../../content/integration-logos"
+import { HERO_DEMO_TRANSLATIONS, pickTranslations } from "../../lib/island-translations"
+import { PROJECT_LINKS } from "../../lib/project-links"
 import { getMonthlyNpmDownloads } from "../../services/npm-downloads"
 
 interface Props {
@@ -19,11 +19,13 @@ const { translations, locale, localizedLibraryUrl, localizedUseCasesUrl } = Astr
 const t = (key: string): string => translations[key] ?? key
 const monthlyNpmDownloads = await getMonthlyNpmDownloads()
 
-const heroMetrics = [
-  { value: t("hero_metric_private_value"), label: t("hero_metric_private_label") },
-  { value: t("hero_metric_precision_value"), label: t("hero_metric_precision_label") },
-  { value: t("hero_metric_agents_value"), label: t("hero_metric_agents_label") },
-  { value: t("hero_metric_mcp_value"), label: t("hero_metric_mcp_label") },
+const worksWith: { name: string; logo?: IntegrationLogoKey }[] = [
+  { name: "Claude Code", logo: "claude" },
+  { name: "Codex" },
+  { name: "Cursor", logo: "cursor" },
+  { name: "Gemini CLI", logo: "gemini" },
+  { name: "LangChain", logo: "langchain" },
+  { name: "MCP", logo: "mcp" },
 ]
 const heroTitleLines = [
   t("hero_title_line_1"),
@@ -39,7 +41,7 @@ const heroTitleLines = [
 >
   <RagmirBackground client:load behindContent className="inset-0" height="100%" />
 
-  <div class="container-default relative z-10 grid min-h-dvh w-full items-center gap-10 px-5 pt-24 pb-28 md:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)] md:gap-10 md:px-8 lg:content-center lg:grid-cols-[1fr_0.9fr] lg:gap-20 lg:py-20">
+  <div class="container-wide relative z-10 grid min-h-dvh w-full items-center gap-10 px-5 pt-24 pb-28 md:grid-cols-[minmax(0,1fr)_minmax(20rem,1fr)] md:gap-10 md:px-8 lg:content-center lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14 lg:py-20">
     <div class="min-w-0 max-w-4xl">
       <h1
         id="hero-heading"
@@ -48,7 +50,7 @@ const heroTitleLines = [
       >
         {heroTitleLines.map((line) => <span class="block">{line}</span>)}
       </h1>
-      <p class="mt-5 max-w-xl text-xs font-medium leading-5 text-white sm:text-sm sm:leading-6">
+      <p class="text-shadow-hero mt-5 max-w-xl text-xs font-medium leading-5 text-white sm:text-sm sm:leading-6">
         {t("hero_description")}
       </p>
       <div class="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -60,14 +62,14 @@ const heroTitleLines = [
           <ArrowRight class="size-4" />
         </a>
         <a
-          class="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-black bg-black px-8 text-sm font-bold text-white outline outline-1 outline-offset-2 outline-white/20 transition hover:bg-black/90 hover:outline-white/35"
+          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-card px-8 text-sm font-bold text-white transition-colors hover:bg-[#1f1f1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           href={localizedUseCasesUrl}
         >
           {t("hero_secondary_cta")}
         </a>
       </div>
       {monthlyNpmDownloads !== null && (
-        <div class="mt-3">
+        <div class="text-shadow-hero mt-3">
           <NpmDownloadCounter
             client:idle
             downloads={monthlyNpmDownloads}
@@ -76,7 +78,7 @@ const heroTitleLines = [
           />
         </div>
       )}
-      <p class="mt-3 max-w-xl text-xs leading-5 text-white/85">
+      <p class="text-shadow-hero mt-3 max-w-xl text-xs leading-5 text-white/85">
         <strong class="font-black text-white">{t("hero_proof_recall_value")}</strong>
         {` ${t("hero_proof_recall_label")} · `}
         <strong class="font-black text-white">{t("hero_proof_speed_value")}</strong>
@@ -88,40 +90,38 @@ const heroTitleLines = [
           {t("hero_proof_link")}
         </a>
       </p>
-      <div class="mt-8 grid max-w-xl grid-cols-2 gap-2">
-        {heroMetrics.map((metric) => (
-          <div class="rounded-xl bg-muted px-3 py-2.5">
-            <span class="block text-xs font-semibold">{metric.value}</span>
-            <span class="mt-0.5 block text-[11px] leading-4 text-muted-foreground">
-              {metric.label}
-            </span>
-          </div>
-        ))}
+      <div class="text-shadow-hero mt-8 max-w-xl">
+        <p class="text-white/70 text-xs font-semibold">{t("hero_works_with")}</p>
+        <ul class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3" role="list">
+          {worksWith.map((item) => {
+            const logo = item.logo ? INTEGRATION_LOGOS[item.logo] : undefined
+            return (
+              <li>
+                <a
+                  class="inline-flex items-center gap-2 text-sm font-semibold text-white/90 transition-colors hover:text-white"
+                  href="#integrations"
+                >
+                  {logo ? (
+                    <svg class="size-4" viewBox="0 0 24 24" fill={logo.color ?? "currentColor"} aria-hidden="true">
+                      <path d={logo.path} />
+                    </svg>
+                  ) : (
+                    <SquareTerminal class="size-4" aria-hidden="true" />
+                  )}
+                  {item.name}
+                </a>
+              </li>
+            )
+          })}
+        </ul>
       </div>
     </div>
 
     <div class="flex min-w-0 w-full flex-col gap-3 md:justify-self-end">
-      <HeroDemo client:visible translations={translations} />
-      <div class="flex flex-wrap justify-end gap-2">
-        <a
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/25 bg-white/5 px-4 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/15 sm:text-sm"
-          href={GITHUB_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <GithubIcon className="size-4" />
-          {t("hero_github_cta")}
-        </a>
-        <a
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/25 bg-white/5 px-4 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/15 sm:text-sm"
-          href={NPM_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <NpmIcon className="size-4" />
-          {t("hero_npm_cta")}
-        </a>
-      </div>
+      <HeroDemo
+        client:visible
+        translations={pickTranslations(translations, HERO_DEMO_TRANSLATIONS)}
+      />
     </div>
 
     <nav
@@ -133,7 +133,7 @@ const heroTitleLines = [
         href="#use-cases"
         aria-label={t("hero_scroll_aria_link")}
       >
-        <ArrowDown class="size-3.5 animate-bounce motion-reduce:animate-none" />
+        <ArrowDown class="scroll-hint size-3.5" />
       </a>
     </nav>
   </div>

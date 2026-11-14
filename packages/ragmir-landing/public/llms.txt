@@ -40,10 +40,11 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `rgr doctor` checks freshness on every run; `rgr hooks install` refreshes the index after Git
   operations.
 - Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.
-- Present four workflow examples: build a feature, diagnose an incident, and plan a migration with
-  Claude Code or Codex using cited project evidence; then make a confidential architecture decision
-  with a local or self-hosted chat. Local and self-hosted are model deployment choices within the
-  confidential workflow.
+- Present four workflow examples: build a feature and diagnose an incident with Claude Code or Codex
+  using cited project evidence; ground an AI product in customer documents with the LangChain.js
+  retriever, which returns no passage when the documents are silent; then make a confidential
+  architecture decision with a local or self-hosted chat. Local and self-hosted are model
+  deployment choices within the confidential workflow.
 - Use one `createRagmirClient()` per project root in a long-running process and close it at shutdown.
   Top-level functions serve one-shot scripts. Ragmir opens no HTTP port.
 - Servers: Ragmir runs on a VPS, an on-premise server, a CI runner, or a Debian or Alpine container
