@@ -17,7 +17,9 @@ rgr search "release decision"
 
 | Command | Purpose |
 | --- | --- |
-| `setup [--semantic]` | Initialize `.ragmir/`, agent helpers, and optionally preload embeddings. |
+| `setup [--semantic] [--embedding-model ID]` | Initialize `.ragmir/`, agent helpers, and optionally preload the semantic model this machine suits. |
+| `models list [--json]` | Compare known semantic models: download, memory, and fit for this machine. |
+| `models pull [--model ID] [--enable]` | Download the configured or named model and optionally switch the config to it. |
 | `init` | Create basic local configuration only. |
 | `doctor [--fix] [--deep]` | Check setup, live source freshness, agent registrations, and safe repairs. |
 | `preview` | Parse and chunk selected sources without writing the index. |
@@ -326,7 +328,9 @@ rgr destroy-index --yes
 
 ```bash
 pnpm add -D @huggingface/transformers
+rgr models list
 rgr models pull --enable
+rgr models pull --model mixedbread-ai/mxbai-embed-xsmall-v1 --enable
 rgr ingest --rebuild
 rgr ocr doctor
 rgr ocr setup --language eng+fra --images --legacy-word

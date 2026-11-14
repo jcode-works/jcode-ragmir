@@ -133,7 +133,7 @@ Outcome: Ragmir installed with the repository's package manager; useful sources 
 - For an existing installation, inspect version, sources, status, and rgr upgrade --check.
 
 2. Configure:
-- Install @jcode.labs/ragmir with the detected manager. Default to offline local-hash. Semantic retrieval additionally requires @huggingface/transformers and an explicitly approved model download; use rgr setup --semantic only after that approval.
+- Install @jcode.labs/ragmir with the detected manager. Default to offline local-hash. Semantic retrieval additionally requires @huggingface/transformers and an approved model download: present rgr models list --json (recommended model, download, memory, fit for this machine), then run rgr setup --semantic, with --embedding-model <id> for another choice, only after approval.
 - Run rgr setup --no-ingest --agents <selected> with the detected manager. Keep project scope. Review an unmanaged same-name skill before using --force-agent-skills.
 - Select narrow relative source globs in ragmir.config.json (committed) or .ragmir/config.json: guidance, docs/specs/ADRs, package READMEs, useful config, source, and tests. Set name and description so agents know which project the base serves. Scope nested bases separately and keep shared knowledge at the root.
 - Exclude .env*, credentials, keys, unapproved private data, dependencies, generated/build/cache/coverage/log folders, vendored files, and Ragmir storage/models. Review external folders before including them.
@@ -357,15 +357,23 @@ of this repository's developer questions. Add a model when questions use words y
 
 | Your sources | Model | Why |
 | --- | --- | --- |
+| French, English, or mixed | `onnx-community/granite-embedding-97m-multilingual-r2-ONNX`, what `rgr setup --semantic` picks on most machines | IBM Granite R2: multilingual, 32k-token context, a 124 MB download (a quarter of e5-small), ahead on public retrieval and code benchmarks; pinned revision and calibrated abstention bundled. |
 | English code and documentation | `mixedbread-ai/mxbai-embed-xsmall-v1` | Smallest and fastest; pinned revision and calibrated abstention bundled. |
-| French, English, or mixed | `intfloat/multilingual-e5-small`, the `rgr setup --semantic` default | Multilingual; pinned revision and calibrated abstention bundled. |
+| Existing e5 indexes | `intfloat/multilingual-e5-small`, the previous default | Multilingual with 512-token passages; still supported, pinned and calibrated. |
 | Large mixed-language monorepo | `intfloat/multilingual-e5-base` | On a 30,171-chunk French and Java monorepo it ranked answers above e5-small, while e5-large scored lower. Pin its revision and digest yourself. |
 
-Newer open models score higher on public benchmarks, and Ragmir is evaluating them before it
-supports them: IBM's Granite Embedding Multilingual R2 (97M and 311M, Apache-2.0, ONNX signed by
-IBM), Google's EmbeddingGemma 2 (Apache-2.0), and Qwen3-Embedding-0.6B (Apache-2.0). Do not
-configure them yet: they need a different pooling or task prompts than the mean pooling Ragmir
-applies today, so their vectors would be degraded. Jina embeddings use a non-commercial license.
+`rgr models list` shows each known model with its download, the memory indexing needs, and how it
+fits this machine (memory, container limit, CPUs, Apple Silicon or Rosetta). `rgr setup --semantic`
+keeps a model the project already chose; otherwise it installs the recommendation for this machine
+and records it in the project config. In a project that commits `ragmir.config.json`, the choice
+lands there, so every workstation indexes with the same model. `--embedding-model <id>` overrides. Peak memory while indexing on Apple Silicon:
+Granite R2 0.66 GB, e5-small 1.06 GB, mxbai 0.49 GB.
+
+Granite R2 runs with the CLS pooling it was trained for, from the Transformers.js export quantized
+to 8 bits. On Ragmir's developer-evidence set it matches e5-small: 13 of 17 answers complete in the
+top 5 and 4 of 5 unanswerable questions refused. Google's EmbeddingGemma 2 and Qwen3-Embedding-0.6B
+(Apache-2.0) score higher still, but need task prompts or last-token pooling that Ragmir does not
+apply yet: do not configure them. Jina embeddings use a non-commercial license.
 
 A model is code you run on your sources, so treat it as a dependency. Ragmir loads only ONNX
 weights through Transformers.js (no pickled objects, no remote code), pins a 40-character revision,

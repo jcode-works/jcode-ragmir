@@ -164,8 +164,9 @@ distinctive word counts more than a common one:
 - Calibrated Transformers models need a normalized L2 distance within the model's limit, or
   passages holding at least 30% of the question's IDF-weighted words. `multilingual-e5-small`
   packs every text into a narrow distance band and uses a limit of 0.4;
-  `mxbai-embed-xsmall-v1` uses 1.1. Other models keep the previous rule: any related query word,
-  or a distance up to 1.1.
+  `mxbai-embed-xsmall-v1` uses 1.1; Granite R2 (`onnx-community/granite-embedding-97m-multilingual-r2-ONNX`) uses 0.42,
+  with 0.28 as its strong-evidence distance. Other models keep the previous rule: any related query
+  word, or a distance up to 1.1.
 
 Every Transformers index also measures its own noise floor: `rgr ingest` embeds 24 fixed off-topic
 probe questions (sports, cooking, geography, nonsense, in English and French) and stores the
@@ -300,8 +301,13 @@ rgr setup --semantic
 rgr ingest --rebuild
 ```
 
-This preloads the configured Transformers model once and leaves normal remote model loading disabled.
-Use `rgr models pull --enable` for the same change after initial setup. Both commands download the
+`rgr setup --semantic` keeps a model the project already chose (one named in `ragmir.config.json`,
+or an enabled semantic provider); otherwise it installs the model recommended for this machine
+(`rgr models list` shows the options, their download, the memory indexing needs, and the fit) and
+writes it to the project config. Commit `ragmir.config.json` so teammates index with the same model.
+Pass `--embedding-model <id>` to choose. Setup preloads the model once and leaves normal remote model
+loading disabled. Use `rgr models pull --enable`, or `rgr models pull --model <id> --enable`, for
+the same change after initial setup. Both commands download the
 pinned revision into a private cache, install it under `embeddingModelPath` as the offline snapshot
 that local loading reads, and persist the resolved immutable revision and artifact digest. Bundled
 model profiles use pinned commits. Pin a custom model to a 40-character commit before relying on

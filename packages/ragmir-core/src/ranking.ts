@@ -117,6 +117,17 @@ const MODEL_EVIDENCE_PROFILES: Readonly<Record<string, EvidenceProfile>> = {
     minimumLexicalCoverage: 0.3,
     weakEvidenceCoverage: 0.3,
   },
+  // Granite R2 places relevant passages from 0.13 to 0.41 and the nearest passage of an unanswerable
+  // question from 0.29 (near-domain) to 0.67 (unrelated) on the developer-evidence set. A strong
+  // distance of 0.28 matches e5's outcome there (13 of 17 complete, 4 of 5 empty); 0.34 recovers
+  // two paraphrases but answers one more unanswerable question.
+  "onnx-community/granite-embedding-97m-multilingual-r2-ONNX": {
+    maximumVectorDistance: 0.42,
+    strongVectorDistance: 0.28,
+    vocabularyFreeDistance: 0.28,
+    minimumLexicalCoverage: 0.3,
+    weakEvidenceCoverage: 0.3,
+  },
 }
 // Uncalibrated models keep the historical rule: any related query word, or a distance up to 1.1.
 // The index's noise floor then decides which of their passages count as strong evidence.

@@ -11,7 +11,7 @@ Generated corpora, model caches, and raw results stay outside Git.
 | `pnpm bench:smoke` | Fast functional calibration, not product-claim evidence |
 | `pnpm bench:quality` | Recall@10, false positives, citations, and deterministic fingerprints |
 | `pnpm bench:quality -- --size XS --profile fast` | Focused quality profile |
-| `pnpm bench:developer-evidence [local-hash\|mixedbread\|e5]` | Required facts, exceptions, table headers, and natural unanswered questions |
+| `pnpm bench:developer-evidence [local-hash\|mixedbread\|e5\|granite]` | Required facts, exceptions, table headers, and natural unanswered questions |
 | `pnpm bench:scale -- --size M` | S/M/L ingestion and retrieval scale |
 | `pnpm bench:vector-index -- --sizes S,M,L` | Exact, IVF-PQ, HNSW-SQ, and path-index tradeoffs |
 | `pnpm bench:observability` | Diagnostic completeness, privacy, and disabled-path cost |
