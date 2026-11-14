@@ -182,10 +182,12 @@ come back as stubs, so the second search spends its budget on new evidence.
 | Agent or client | Setup |
 | --- | --- |
 | Claude Code | `rgr setup --agents claude`: skill plus project MCP server |
+| Claude Code plugin | `/plugin install ragmir --marketplace jcode-works/jcode-ragmir`, then index each project ([plugin guide](./docs/agent-integration.md#claude-code-plugin)) |
 | Codex | `rgr setup --agents codex`: skill plus `.codex/config.toml` helper |
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
 | Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
 | Python: MCP SDK, LangChain, LlamaIndex | [Use Ragmir from Python](./docs/python.md) |
+| LangChain.js | `RagmirRetriever` from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever)) |
 | Without Node.js | `docker run -v "$PWD:/workspace" ghcr.io/jcode-works/ragmir` |
 | Your own application | `createRagmirClient()` from the TypeScript API |
 

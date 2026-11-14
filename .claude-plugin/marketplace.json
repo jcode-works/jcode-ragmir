@@ -1,0 +1,20 @@
+{
+  "name": "ragmir",
+  "owner": {
+    "name": "Jean-Baptiste Thery",
+    "url": "https://github.com/jb-thery"
+  },
+  "metadata": {
+    "description": "Ragmir plugins for Claude Code: cited local retrieval over a project's code and documents."
+  },
+  "plugins": [
+    {
+      "name": "ragmir",
+      "source": "./plugins/ragmir",
+      "description": "Search a project's code, specs, PDFs, and Office files and get passages cited to lines, pages, slides, or cells.",
+      "category": "development",
+      "homepage": "https://ragmir.com",
+      "license": "AGPL-3.0-only"
+    }
+  ]
+}
