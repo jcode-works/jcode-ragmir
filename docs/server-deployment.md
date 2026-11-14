@@ -16,6 +16,12 @@ service decides who may search and where the returned passages go.
 
 ## A container layout
 
+To try Ragmir without building anything, the official image `ghcr.io/jcode-works/ragmir` runs the
+same CLI and MCP server on `node:22-bookworm-slim` for `linux/amd64` and `linux/arm64`: mount the
+project at `/workspace`, for example
+`docker run --rm -v "$PWD:/workspace" --user "$(id -u):$(id -g)" ghcr.io/jcode-works/ragmir ingest`.
+Build your own image, as below, to bake in a configuration and pin dependencies with a lockfile.
+
 The layout below was checked in `node:22-bookworm-slim` and `node:22-alpine` containers, as a
 non-root user, with a read-only root filesystem and no network access. Install and index size depend
 on your corpus; with the default `local-hash` provider, `node_modules` took about 200 MB on Debian

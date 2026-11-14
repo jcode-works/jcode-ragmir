@@ -1,0 +1,39 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.jcode-works/ragmir",
+  "title": "Ragmir",
+  "description": "Cited local retrieval for agents: search code, PDFs, and Office files with exact citations.",
+  "websiteUrl": "https://ragmir.com",
+  "repository": {
+    "url": "https://github.com/jcode-works/jcode-ragmir",
+    "source": "github",
+    "subfolder": "packages/ragmir-core"
+  },
+  "version": "6.5.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@jcode.labs/ragmir",
+      "version": "6.5.1",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "serve-mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "RAGMIR_PROJECT_ROOT",
+          "description": "Absolute path of the project whose Ragmir base the server reads",
+          "isRequired": true,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}
