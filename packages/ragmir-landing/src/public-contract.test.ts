@@ -341,7 +341,14 @@ describe("landing public contract", () => {
     const agenticScenarioIds = ["feature", "incident"]
     const workflowIds = [...agenticScenarioIds, "product", "local"]
 
-    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual(workflowIds)
+    // The hero adds a customer deployment and a scans story to the four use cases.
+    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual([
+      ...agenticScenarioIds,
+      "product",
+      "deploy",
+      "scans",
+      "local",
+    ])
     expect(USE_CASES.map((useCase) => useCase.id)).toEqual(workflowIds)
     for (const scenarioId of agenticScenarioIds) {
       const scenario = findHeroDemoScenario(scenarioId)
