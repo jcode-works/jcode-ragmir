@@ -9,6 +9,14 @@ import { USE_CASES } from "./components/use-case-carousel.js"
 import { getFaqItems } from "./content/faq.js"
 import { RAGMIR_SETUP_PROMPT } from "./content/setup-prompt.js"
 import { getLocalizedUrl, loadTranslations, useTranslations } from "./i18n/utils.js"
+import {
+  HERO_DEMO_TRANSLATIONS,
+  LIBRARY_TRANSLATIONS,
+  NAVBAR_TRANSLATIONS,
+  pickTranslations,
+  type TranslationSelection,
+  USE_CASE_TRANSLATIONS,
+} from "./lib/island-translations.js"
 import { FOOTER_LINK_KEYS, PROJECT_LINK_LABEL_KEYS, PROJECT_LINKS } from "./lib/project-links.js"
 import { cn } from "./lib/utils.js"
 
@@ -35,6 +43,14 @@ const teamPageSource = readFileSync(
 )
 const heroSource = readFileSync(
   fileURLToPath(new URL("./components/sections/hero.astro", import.meta.url)),
+  "utf8",
+)
+const heroDemoSource = readFileSync(
+  fileURLToPath(new URL("./components/hero-demo.tsx", import.meta.url)),
+  "utf8",
+)
+const useCaseSource = readFileSync(
+  fileURLToPath(new URL("./components/use-case-carousel.tsx", import.meta.url)),
   "utf8",
 )
 const librarySource = readFileSync(
@@ -83,6 +99,10 @@ const coreCliSource = readFileSync(
 )
 const coreMcpSource = readFileSync(
   fileURLToPath(new URL("../../ragmir-core/src/mcp.ts", import.meta.url)),
+  "utf8",
+)
+const coreLangchainSource = readFileSync(
+  fileURLToPath(new URL("../../ragmir-core/src/langchain.ts", import.meta.url)),
   "utf8",
 )
 const rootReadmeSource = readFileSync(
@@ -143,10 +163,10 @@ describe("landing public contract", () => {
     expect(heroSource).toContain("PROJECT_LINKS.benchmarks")
   })
 
-  it("should send visitors to GitHub and npm from the hero and the mobile drawer", () => {
+  it("should send visitors to GitHub and npm from the navbar, its drawer, and the footer", () => {
     expect(PROJECT_LINKS.github).toBe("https://github.com/jcode-works/jcode-ragmir")
     expect(PROJECT_LINKS.npm).toBe("https://www.npmjs.com/package/@jcode.labs/ragmir")
-    for (const source of [heroSource, navbarSource]) {
+    for (const source of [navbarSource, footerSource]) {
       expect(source).toContain('t("hero_github_cta")')
       expect(source).toContain('t("hero_npm_cta")')
     }
@@ -156,13 +176,20 @@ describe("landing public contract", () => {
 
   it("should list every project link in the footer and label it in both locales", () => {
     expect([...FOOTER_LINK_KEYS].sort()).toEqual(Object.keys(PROJECT_LINKS).sort())
-    expect(footerSource).toContain("FOOTER_LINK_KEYS.map")
+    expect(footerSource).toContain("FOOTER_SECTIONS.map")
     expect(navbarSource).toContain("PROJECT_LINKS[key]")
     for (const key of Object.values(PROJECT_LINK_LABEL_KEYS)) {
       expect(en).toHaveProperty(key)
       expect(fr).toHaveProperty(key)
     }
-    for (const key of ["nav_faq", "nav_section_docs", "nav_section_project"]) {
+    for (const key of [
+      "nav_faq",
+      "nav_integrations",
+      "nav_section_docs",
+      "nav_section_project",
+      "footer_section_product",
+      "footer_section_integrations",
+    ]) {
       expect(en).toHaveProperty(key)
       expect(fr).toHaveProperty(key)
     }
@@ -180,8 +207,6 @@ describe("landing public contract", () => {
       expect(source).toContain("The agent decides when to search")
       expect(source).toContain("It owns reasoning, generation, and actions")
     }
-    expect(en.hero_metric_mcp_value).toBe("Library + CLI + MCP")
-    expect(fr.hero_metric_mcp_value).toBe("Bibliothèque + CLI + MCP")
     expect(en.seo_home_keywords).not.toContain("local RAG API")
     expect(fr.seo_home_keywords).not.toContain("API RAG locale")
   })
@@ -235,8 +260,8 @@ describe("landing public contract", () => {
     expect(librarySource).toContain("<Textarea")
     expect(librarySource).toContain("readOnly")
     expect(librarySource).toContain("overflow-y-auto")
-    expect(librarySource).toContain('className="h-[4.125rem] min-h-[4.125rem]')
-    expect(librarySource).toContain("outline-1 outline-border/70 outline-solid")
+    expect(librarySource).toContain('className="h-[5.5rem] min-h-[5.5rem]')
+    expect(librarySource).toContain("rounded-xl border-0 bg-background")
   })
 
   it("should round actions and cards while keeping copy inputs compact", () => {
@@ -255,9 +280,12 @@ describe("landing public contract", () => {
     )
 
     expect(buttonSource).toContain("rounded-full")
-    expect(cardSource).toContain("rounded-lg")
-    expect(heroSource).toContain("rounded-xl bg-muted")
-    expect(commandCopySource).toContain("rounded-sm border border-border bg-background")
+    // Borderless grey cards; nested surfaces share the darker inset and the card radius.
+    expect(cardSource).toContain("rounded-xl bg-card")
+    expect(cardSource).not.toContain("border")
+    expect(commandCopySource).toContain("rounded-xl bg-background")
+    expect(useCaseSource).toContain("rounded-xl bg-card")
+    expect(useCaseSource).toContain("rounded-xl bg-background")
     expect(textareaSource).toContain("rounded-sm border border-input")
     expect(purpleCtaViolations).toEqual([])
   })
@@ -309,19 +337,21 @@ describe("landing public contract", () => {
     expect(referencedKeys.every((key) => key in en && key in fr)).toBe(true)
   })
 
-  it("should distinguish three agentic workflows from one confidential chat workflow", () => {
-    const agenticScenarioIds = ["feature", "incident", "migration"]
+  it("should pair two coding-agent workflows with an AI product and a confidential chat", () => {
+    const agenticScenarioIds = ["feature", "incident"]
+    const workflowIds = [...agenticScenarioIds, "product", "local"]
 
-    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual([
-      ...agenticScenarioIds,
-      "local",
-    ])
-    expect(USE_CASES.map((useCase) => useCase.id)).toEqual([...agenticScenarioIds, "local"])
+    expect(HERO_DEMO_SCENARIOS.map((scenario) => scenario.id)).toEqual(workflowIds)
+    expect(USE_CASES.map((useCase) => useCase.id)).toEqual(workflowIds)
     for (const scenarioId of agenticScenarioIds) {
       const scenario = findHeroDemoScenario(scenarioId)
       expect(scenario.terminalTitle).toContain("Claude Code / Codex")
       expect(scenario.lines.some((line) => line.kind === "codex")).toBe(true)
     }
+    const product = findHeroDemoScenario("product")
+    expect(product.lines.some((line) => line.kind === "codex")).toBe(false)
+    expect(product.lines.some((line) => line.text?.includes("retriever.invoke("))).toBe(true)
+    expect(coreLangchainSource).toContain("class RagmirRetriever")
     expect(findHeroDemoScenario("local").lines.some((line) => line.kind === "codex")).toBe(false)
     expect(en.demo_chat_model_options).toContain("self-hosted")
     expect(fr.demo_chat_model_options).toContain("auto-hébergé")
@@ -390,6 +420,40 @@ describe("landing public contract", () => {
       expect(source).not.toMatch(
         /\b(?:Ragmir Chat|rgr chat|Ragmir TTS|rgr audio|rgr ask|rgr research|team sync|privacy profiles)\b/iu,
       )
+    }
+  })
+
+  it("should pass each React island the translations it reads and nothing more", () => {
+    const keysReadBy = (source: string): string[] =>
+      Array.from(source.matchAll(/\bt\("([a-z0-9_]+)"\)/gu), (match) => match[1] ?? "")
+    const heroScenarioKeys = HERO_DEMO_SCENARIOS.flatMap((scenario) => [
+      scenario.titleKey,
+      scenario.descriptionKey,
+      scenario.badgeKey,
+      ...scenario.lines.flatMap((line) => (line.textKey ? [line.textKey] : [])),
+    ])
+    const useCaseKeys = USE_CASES.flatMap((useCase) => [
+      useCase.tabKey,
+      useCase.titleKey,
+      useCase.descriptionKey,
+      ...useCase.steps.flatMap((step) => [step.labelKey, step.titleKey]),
+    ])
+    const islands: [TranslationSelection, string[]][] = [
+      [
+        NAVBAR_TRANSLATIONS,
+        [...keysReadBy(navbarSource), ...Object.values(PROJECT_LINK_LABEL_KEYS)],
+      ],
+      [HERO_DEMO_TRANSLATIONS, [...keysReadBy(heroDemoSource), ...heroScenarioKeys]],
+      [USE_CASE_TRANSLATIONS, [...keysReadBy(useCaseSource), ...useCaseKeys]],
+      [LIBRARY_TRANSLATIONS, keysReadBy(librarySource)],
+    ]
+
+    for (const [selection, keys] of islands) {
+      for (const dictionary of [en, fr]) {
+        const picked = pickTranslations(dictionary, selection)
+        expect(keys.filter((key) => !(key in picked))).toEqual([])
+        expect(Object.keys(picked).length).toBeLessThan(Object.keys(dictionary).length / 3)
+      }
     }
   })
 

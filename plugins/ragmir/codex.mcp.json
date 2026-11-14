@@ -2,7 +2,14 @@
   "mcpServers": {
     "ragmir": {
       "command": "npx",
-      "args": ["--yes", "@jcode.labs/ragmir@6.5.2", "serve-mcp"]
+      "args": [
+        "--yes",
+        "@jcode.labs/ragmir@6.7.0",
+        "serve-mcp"
+      ],
+      "env": {
+        "RAGMIR_AGENT_PLUGIN": "1"
+      }
     }
   }
 }

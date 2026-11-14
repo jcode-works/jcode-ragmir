@@ -5,6 +5,7 @@ import { LandingNavbar } from "../../components/landing-navbar"
 import { TeamCard } from "../../components/team-card"
 import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
+import { NAVBAR_TRANSLATIONS, pickTranslations } from "../../lib/island-translations"
 
 export function getStaticPaths() {
   return locales.map((locale) => ({
@@ -101,7 +102,7 @@ const structuredData = [
     localizedLibraryUrl={`${homeUrl}#library`}
     localizedTeamUrl={getLocalizedUrl("/team", locale)}
     localizedUseCasesUrl={`${homeUrl}#use-cases`}
-    translations={translations}
+    translations={pickTranslations(translations, NAVBAR_TRANSLATIONS)}
   />
 
   <div class="relative overflow-hidden">

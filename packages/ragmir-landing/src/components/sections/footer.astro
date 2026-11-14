@@ -1,8 +1,11 @@
 ---
+import { GithubIcon } from "../github-icon"
+import { NpmIcon } from "../npm-icon"
 import RagmirLogo from "../ragmir-logo.astro"
 import { RagmirBackground } from "../ragmir-background"
 import {
-  FOOTER_LINK_KEYS,
+  FOOTER_SECTIONS,
+  GITHUB_URL,
   NPM_URL,
   PROJECT_LINK_LABEL_KEYS,
   PROJECT_LINKS,
@@ -16,12 +19,28 @@ interface Props {
 const { translations, localizedHomeUrl } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 const version = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
+const homePath = localizedHomeUrl.replace(/#.*$/u, "")
 
-const footerLinks = FOOTER_LINK_KEYS.map((key) => ({
-  href: PROJECT_LINKS[key],
-  label: t(PROJECT_LINK_LABEL_KEYS[key]),
+const sections = FOOTER_SECTIONS.map((section) => ({
+  title: t(section.titleKey),
+  links: [
+    ...(section.anchors ?? []).map((anchor) => ({
+      href: `${homePath}#${anchor.hash}`,
+      label: t(anchor.labelKey),
+      external: false,
+    })),
+    ...section.links.map((key) => ({
+      href: PROJECT_LINKS[key],
+      label: t(PROJECT_LINK_LABEL_KEYS[key]),
+      external: true,
+    })),
+  ],
 }))
 
+const linkClass =
+  "flex min-h-11 items-center justify-center rounded-sm py-1 text-sm font-medium leading-5 text-foreground transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8 lg:justify-start"
+const iconLinkClass =
+  "flex size-10 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-[#1f1f1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 const marqueeCopy =
   "whitespace-nowrap pr-8 font-black text-5xl text-foreground/90 uppercase italic leading-[1.1] tracking-tighter md:pr-14 md:text-7xl"
 ---
@@ -35,57 +54,92 @@ const marqueeCopy =
       height="100%"
     />
 
-    <div class="relative z-10 mx-auto flex max-w-7xl flex-col items-center gap-6 px-5 text-center md:px-8">
-      <a
-        aria-label="Ragmir"
-        class="flex items-center transition hover:opacity-80"
-        href={localizedHomeUrl}
+    <nav aria-label={t("footer_nav_label")} class="relative z-10 px-5 md:px-8">
+      <div
+        class="mx-auto grid max-w-6xl grid-cols-1 gap-y-10 text-center sm:grid-cols-2 sm:gap-x-8 lg:grid-cols-4 lg:text-start"
       >
-        <RagmirLogo />
-      </a>
-      <nav aria-label={t("footer_nav_label")}>
-        <ul class="grid grid-cols-2 items-center justify-center gap-x-8 gap-y-3 sm:flex sm:flex-wrap">
-          {footerLinks.map((link) => (
-            <li>
-              <a
-                class="font-semibold text-foreground text-sm transition hover:opacity-80"
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {link.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </div>
+        {sections.map((section) => (
+          <section class="flex flex-col items-center gap-3 lg:items-start">
+            <h2 class="font-black text-foreground text-sm uppercase tracking-tight">
+              {section.title}
+            </h2>
+            <ul class="flex w-full flex-col" role="list">
+              {section.links.map((link) => (
+                <li>
+                  <a
+                    class={linkClass}
+                    href={link.href}
+                    {...(link.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </nav>
 
-    <div
-      aria-hidden="true"
-      class="relative z-10 my-10 overflow-hidden py-3"
-    >
+    <div aria-hidden="true" class="relative z-10 my-10 overflow-hidden py-3" data-marquee>
       <div class="flex w-max animate-marquee-text">
         <span class={marqueeCopy}>{t("footer_marquee")}</span>
         <span class={marqueeCopy}>{t("footer_marquee")}</span>
       </div>
     </div>
 
-    <div
-      class="relative z-10 mx-auto flex max-w-3xl flex-col items-center justify-center gap-3 px-5 text-center text-foreground/90 text-xs leading-5 md:px-8"
-    >
-      <p>{t("footer_text")}</p>
-      {version && (
-        <a
-          href={NPM_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`${t("footer_version_label")}: v${version}`}
-          class="font-semibold text-foreground no-underline transition hover:opacity-80"
-        >
-          v{version}
-        </a>
-      )}
+    <div class="relative z-10 px-5 md:px-8">
+      <div
+        class="mx-auto flex max-w-6xl flex-col items-center gap-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-start"
+      >
+        <div class="flex flex-col items-center gap-3 sm:flex-row sm:items-center">
+          <a aria-label="Ragmir" class="flex shrink-0 items-center transition hover:opacity-80" href={localizedHomeUrl}>
+            <RagmirLogo />
+          </a>
+          <p class="max-w-xl text-foreground/80 text-xs leading-5">{t("footer_text")}</p>
+        </div>
+
+        <div class="flex shrink-0 items-center gap-2" role="group" aria-label={t("footer_social_label")}>
+          <a
+            class={iconLinkClass}
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t("hero_github_cta")}
+          >
+            <GithubIcon className="size-4" />
+          </a>
+          <a
+            class={iconLinkClass}
+            href={NPM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t("hero_npm_cta")}
+          >
+            <NpmIcon className="size-4" />
+          </a>
+          {version && (
+            <a
+              href={NPM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${t("footer_version_label")}: v${version}`}
+              class="ml-1 font-semibold text-foreground text-xs no-underline transition hover:opacity-80"
+            >
+              v{version}
+            </a>
+          )}
+        </div>
+      </div>
     </div>
   </div>
 </footer>
+
+<script>
+  // The marquee loops forever: pause it whenever it is off screen.
+  for (const marquee of document.querySelectorAll<HTMLElement>("[data-marquee]")) {
+    new IntersectionObserver(([entry]) => {
+      marquee.toggleAttribute("data-paused", !entry?.isIntersecting)
+    }).observe(marquee)
+  }
+</script>

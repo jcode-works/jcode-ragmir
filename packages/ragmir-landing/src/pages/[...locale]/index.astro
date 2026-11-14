@@ -13,10 +13,14 @@ import Footer from "../../components/sections/footer.astro"
 import Hero from "../../components/sections/hero.astro"
 import Integrations from "../../components/sections/integrations.astro"
 import Privacy from "../../components/sections/privacy.astro"
-import Strengths from "../../components/sections/strengths.astro"
 import UseCases from "../../components/sections/use-cases.astro"
 import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
+import {
+  LIBRARY_TRANSLATIONS,
+  NAVBAR_TRANSLATIONS,
+  pickTranslations,
+} from "../../lib/island-translations"
 import { PROJECT_LINKS } from "../../lib/project-links"
 
 export function getStaticPaths() {
@@ -170,7 +174,7 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       localizedLibraryUrl={localizedLibraryUrl}
       localizedTeamUrl={localizedTeamUrl}
       localizedUseCasesUrl={localizedUseCasesUrl}
-      translations={translations}
+      translations={pickTranslations(translations, NAVBAR_TRANSLATIONS)}
     />
 
     <Hero
@@ -182,7 +186,10 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
 
     <UseCases translations={translations} />
 
-    <LibrarySection client:visible translations={translations} />
+    <LibrarySection
+      client:visible
+      translations={pickTranslations(translations, LIBRARY_TRANSLATIONS)}
+    />
 
     <Integrations translations={translations} />
 
@@ -198,8 +205,6 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
     <Features translations={translations} />
 
     <Privacy translations={translations} />
-
-    <Strengths translations={translations} />
 
     <Faq translations={translations} />
 

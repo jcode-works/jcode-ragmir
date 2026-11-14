@@ -36,7 +36,7 @@
   color-scheme: dark;
   --background: #000000;
   --foreground: #ffffff;
-  --card: #090909;
+  --card: #161616;
   --card-foreground: #ffffff;
   --primary: #8b47ff;
   --primary-foreground: #ffffff;
@@ -47,7 +47,9 @@
   --accent: #f1f5f9;
   --accent-foreground: #000000;
   --accent-title: #9a52ff;
-  --border: rgba(255, 255, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.08);
+  --syntax-program: #b892ff;
+  --syntax-string: #7dd3fc;
   --input: rgba(0, 0, 0, 0.14);
   --ring: rgba(255, 255, 255, 0.52);
   --radius: 0.375rem;
@@ -88,7 +90,10 @@ textarea {
 .hero-title-outline {
   -webkit-text-stroke: 1px rgba(154, 82, 255, 0.9);
   paint-order: stroke fill;
-  text-shadow: 0 0 1.25rem rgba(139, 71, 255, 0.2);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 18px rgba(0, 0, 0, 0.85),
+    0 0 1.25rem rgba(139, 71, 255, 0.2);
 }
 
 /* Container widths: 1000px for standard sections, 1320px for wide califourchou sections */
@@ -215,5 +220,180 @@ textarea {
   .logo-stack .logo-text {
     animation: none;
     clip-path: none;
+  }
+}
+
+/* Display titles and tabular figures, as on the WorkoutGen landing. */
+.display {
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keeps hero copy legible over the animated dot field. */
+/* Only on copy that sits straight on the hero dots; buttons and cards carry their own surface. */
+.text-shadow-hero {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 18px rgba(0, 0, 0, 0.9),
+    0 0 36px rgba(0, 0, 0, 0.7);
+}
+
+/*
+ * Motion. One authored moment, the hero terminal: lines arrive and each citation is marked like a
+ * highlighter on the cited span, the product's promise. Everything else explains a state change:
+ * the tab pill slides, panels cross-fade, the drawer slides in faster than it leaves. Arrivals use
+ * one deceleration curve; reduced motion keeps opacity and colour but drops movement.
+ */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Lets <details> content transition to its natural height (progressive enhancement). */
+  interpolate-size: allow-keywords;
+}
+
+@property --mark-alpha {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@keyframes terminal-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The highlighter sweeps across the citation, holds, then fades. */
+@keyframes citation-mark {
+  0% {
+    background-size: 0% 100%;
+    --mark-alpha: 0.26;
+  }
+  28% {
+    background-size: 100% 100%;
+    --mark-alpha: 0.26;
+  }
+  62% {
+    background-size: 100% 100%;
+    --mark-alpha: 0.26;
+  }
+  100% {
+    background-size: 100% 100%;
+    --mark-alpha: 0;
+  }
+}
+
+@keyframes citation-mark-still {
+  0%,
+  55% {
+    --mark-alpha: 0.26;
+  }
+  100% {
+    --mark-alpha: 0;
+  }
+}
+
+.terminal-line-in {
+  animation: terminal-line-in 240ms var(--ease-out-expo) both;
+}
+
+.citation-mark {
+  border-radius: 0.375rem;
+  background-image: linear-gradient(
+    rgb(250 204 21 / var(--mark-alpha)),
+    rgb(250 204 21 / var(--mark-alpha))
+  );
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  animation: citation-mark 1.7s var(--ease-out-expo) both;
+}
+
+/* The scroll hint nudges twice after the hero settles, then rests. */
+@keyframes scroll-hint {
+  0%,
+  100% {
+    transform: none;
+  }
+  45% {
+    transform: translateY(4px);
+  }
+}
+
+.scroll-hint {
+  animation: scroll-hint 1.6s var(--ease-out-expo) 1.4s 2 both;
+}
+
+/* Copy confirmation: the check mark pops in where the copy icon was. */
+@keyframes copy-confirm {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.copy-confirm {
+  animation: copy-confirm 160ms var(--ease-out-expo) both;
+}
+
+/* Loops rest when nobody can see them. */
+[data-marquee][data-paused] .animate-marquee-text,
+header[data-hidden] .logo-stack::before,
+header[data-hidden] .logo-stack::after,
+header[data-hidden] .logo-text {
+  animation-play-state: paused;
+}
+
+/* FAQ answers open to their natural height where the browser supports it. */
+@supports selector(::details-content) {
+  .faq-item::details-content {
+    block-size: 0;
+    overflow-y: clip;
+    transition:
+      block-size 280ms var(--ease-out-expo),
+      content-visibility 280ms allow-discrete;
+  }
+
+  .faq-item[open]::details-content {
+    block-size: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-line-in,
+  .copy-confirm {
+    animation: fade-in 160ms ease-out both;
+  }
+
+  .citation-mark {
+    animation: citation-mark-still 1.4s ease-out both;
+  }
+
+  .scroll-hint {
+    animation: none;
+  }
+
+  [data-motion="step"] {
+    transform: none !important;
+    transition-delay: 0ms !important;
+  }
+
+  .faq-item::details-content {
+    transition: none;
   }
 }

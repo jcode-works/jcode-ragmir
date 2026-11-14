@@ -1,6 +1,7 @@
 ---
 import { ArrowUpRight, Bot, Library, SquareTerminal } from "@lucide/astro"
 import { INTEGRATION_LOGOS, type IntegrationLogoKey } from "../../content/integration-logos"
+import { SectionHeader } from "../section-header"
 import { GITHUB_URL, NPM_URL } from "../../lib/project-links"
 
 interface Props {
@@ -78,22 +79,22 @@ const groups: { title: string; items: Integration[] }[] = [
 <section
   id="integrations"
   aria-labelledby="integrations-heading"
-  class="container-default relative z-10 px-5 py-16 md:px-8 md:py-32"
+  class="container-default relative z-10 px-5 py-16 md:px-8 md:py-40"
 >
-  <div class="mb-10 max-w-3xl">
-    <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-      {t("integrations_eyebrow")}
-    </p>
-    <h2 id="integrations-heading" class="mt-4 text-balance font-black text-2xl leading-tight md:text-3xl">
-      {t("integrations_title")}
-    </h2>
-    <p class="mt-4 text-muted-foreground text-sm leading-6">{t("integrations_text")}</p>
+  <div class="mb-10 md:mb-14">
+    <SectionHeader
+      num="003"
+      label={t("integrations_eyebrow")}
+      title={t("integrations_title")}
+      text={t("integrations_text")}
+      id="integrations-heading"
+    />
   </div>
 
   <div class="grid gap-8 lg:grid-cols-3 lg:gap-6">
     {groups.map((group) => (
       <div>
-        <h3 class="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <h3 class="mb-3 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
           {group.title}
         </h3>
         <ul class="grid grid-cols-2 gap-2 lg:grid-cols-1" role="list">
@@ -102,12 +103,18 @@ const groups: { title: string; items: Integration[] }[] = [
             return (
               <li>
                 <a
-                  class="group flex h-full items-center gap-3 rounded-lg border border-border bg-muted/45 p-3 transition-colors hover:border-foreground/25 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  class="group flex h-full items-center gap-3 rounded-xl bg-card px-4 py-3.5 transition-colors hover:bg-[#1f1f1f] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   href={item.href}
                 >
-                  <span class="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background/60 text-foreground">
+                  <span class="flex size-6 shrink-0 items-center justify-center text-foreground">
                     {logo ? (
-                      <svg class="size-5" viewBox="0 0 24 24" fill="currentColor" role="img" aria-hidden="true">
+                      <svg
+                        class="size-5"
+                        viewBox="0 0 24 24"
+                        fill={logo.color ?? "currentColor"}
+                        role="img"
+                        aria-hidden="true"
+                      >
                         <path d={logo.path} />
                       </svg>
                     ) : item.fallback === "library" ? (
@@ -132,7 +139,7 @@ const groups: { title: string; items: Integration[] }[] = [
   </div>
 
   <a
-    class="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-4"
+    class="mx-auto mt-10 flex w-fit items-center gap-1.5 text-sm font-semibold underline underline-offset-4 transition-opacity hover:opacity-70"
     href={pluginsUrl}
   >
     {t("integrations_all_link")}

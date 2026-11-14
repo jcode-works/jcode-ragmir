@@ -8,7 +8,7 @@ import {
   readMergedProjectConfig,
   retrievalProfileOverrides,
 } from "./config.js"
-import { RAGMIR_DIR } from "./defaults.js"
+import { RAGMIR_AGENT_PLUGIN_ENV, RAGMIR_DIR } from "./defaults.js"
 import { countSkippedByReason } from "./files.js"
 import { checkIndexFreshness } from "./freshness.js"
 import { getLexicalScanWarning, indexFreshnessWarning } from "./index-diagnostics.js"
@@ -29,6 +29,7 @@ import {
 import { fragmentationWarning } from "./storage-maintenance.js"
 import { readIndexManifest, readIndexManifestHeader } from "./store.js"
 import type { Config, DoctorOptions, DoctorReport, IndexMaintenanceSnapshot } from "./types.js"
+import { VERSION } from "./version.js"
 
 export async function doctor(
   cwd = process.cwd(),
@@ -51,6 +52,10 @@ export async function doctorWithConfig(
   throwIfAborted(signal)
   const command = await rgrCommand(config.projectRoot, [])
   throwIfAborted(signal)
+  // Agent plugins run a pinned release through npx and leave no local runner, so their next steps
+  // name that exact command instead of the project's package manager.
+  const agentPlugin = process.env[RAGMIR_AGENT_PLUGIN_ENV] === "1"
+  const commandDisplay = agentPlugin ? `npx --yes @jcode.labs/ragmir@${VERSION}` : command.display
   const agentKitInstalled = isAgentKitInstalled(config.projectRoot)
   const agentIntegration = inspectAgentIntegration(config.projectRoot)
   const operationOptions = signal ? { signal } : {}
@@ -132,9 +137,10 @@ export async function doctorWithConfig(
       )
     : []
   const runCommand = (args: string[]): string =>
-    command.display + (args.length > 0 ? ` ${args.join(" ")}` : "")
+    commandDisplay + (args.length > 0 ? ` ${args.join(" ")}` : "")
   const nextSteps = nextActions({
     initialized,
+    agentPlugin,
     profileOverrides: profileOverrides.map(
       (override) =>
         `${override.field}: ${override.configured} in the config overrides the ${config.retrievalProfile} profile's ${override.profileValue}. Remove it to follow the profile, or set retrievalProfile to "custom" to keep it deliberately.`,
@@ -177,7 +183,7 @@ export async function doctorWithConfig(
     projectRoot: config.projectRoot,
     initialized,
     packageManager: command.packageManager,
-    runCommand: command.display,
+    runCommand: commandDisplay,
     runtime: runtimeInfo(),
     agentKitInstalled,
     agentIntegration,
@@ -245,13 +251,19 @@ interface NextActionInput {
   fragments: IndexMaintenanceSnapshot["fragments"] | undefined
   noiseFloorAdvice: string | null
   run: (args: string[]) => string
+  /** The server was started by an agent plugin, which indexes through `init`, `sources`, `ingest`. */
+  agentPlugin: boolean
 }
 
 function nextActions(input: NextActionInput): string[] {
   const steps: string[] = []
 
   if (!input.initialized) {
-    steps.push(`Run \`${input.run(["setup"])}\` to initialize Ragmir and install the agent kit.`)
+    steps.push(
+      input.agentPlugin
+        ? `Index this project with the plugin: run \`${input.run(["init"])}\`, then \`${input.run(["sources", "add", '"docs/**/*.md"'])}\` with the source globs to cite, then \`${input.run(["ingest"])}\`. In Claude Code, /ragmir:index runs these steps.`
+        : `Run \`${input.run(["setup"])}\` to initialize Ragmir and install the agent kit.`,
+    )
     return steps
   }
 

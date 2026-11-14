@@ -24,8 +24,9 @@ Choose one of four workflow examples:
   and ADR. Use Ragmir to retrieve rules and exceptions, then update code and tests with citations."
 - **Diagnose an incident with Claude Code or Codex:** "Investigate the checkout timeout from the
   runbook, incident report, and retry code. Cite the evidence before fixing it and adding a test."
-- **Plan a migration with Claude Code or Codex:** "Prepare the API v2 migration from its plan and
-  versioning ADR. Find compatibility and rollback rules before changing callers and tests."
+- **Ground an AI product in customer documents:** a TypeScript or LangChain.js app asks "What is
+  the termination notice period in the Acme contract?" and answers with the cited clause and page,
+  or says the documents do not cover it when the retriever returns nothing.
 - **Confidential chat, local or self-hosted:** "According to our internal architecture notes,
   should attachments go in PostgreSQL or object storage? Cite the passages supporting the choice."
   Connect the chat to Ragmir and to a model on your machine or infrastructure you operate.

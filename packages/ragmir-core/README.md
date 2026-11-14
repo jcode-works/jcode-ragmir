@@ -118,8 +118,9 @@ scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blo
    exceptions with Ragmir, opens the cited passages, then changes the code and tests.
 2. **Diagnose an incident with Claude Code or Codex.** It retrieves the runbook, incident report,
    and retry implementation before it changes code and adds a regression test.
-3. **Plan an API migration with Claude Code or Codex.** It retrieves compatibility, rollback, and
-   versioning rules before it updates callers and migration tests.
+3. **Ground an AI product in customer documents.** A TypeScript app or a LangChain.js chain gets
+   the exact clause with its page on the customer's server, and no passage when the documents are
+   silent, so the app can say so instead of guessing.
 4. **Make a confidential architecture decision.** A local or self-hosted chat retrieves cited
    evidence and sends it to a model you run, with remote calls disabled.
 
