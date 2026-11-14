@@ -11,6 +11,7 @@ import Faq from "../../components/sections/faq.astro"
 import Features from "../../components/sections/features.astro"
 import Footer from "../../components/sections/footer.astro"
 import Hero from "../../components/sections/hero.astro"
+import Integrations from "../../components/sections/integrations.astro"
 import Privacy from "../../components/sections/privacy.astro"
 import Strengths from "../../components/sections/strengths.astro"
 import UseCases from "../../components/sections/use-cases.astro"
@@ -91,6 +92,13 @@ const structuredData = [
       "coding agents",
       "cited retrieval",
       "MCP",
+      "MCP server",
+      "Claude Code plugin",
+      "Codex plugin",
+      "Cursor plugin",
+      "Gemini CLI extension",
+      "Qwen Code extension",
+      "LangChain.js retriever",
       "TypeScript",
       "AGPL open source",
     ],
@@ -175,6 +183,8 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
     <UseCases translations={translations} />
 
     <LibrarySection client:visible translations={translations} />
+
+    <Integrations translations={translations} />
 
     <div class="relative isolate overflow-hidden">
       <div aria-hidden="true" class="absolute inset-0">

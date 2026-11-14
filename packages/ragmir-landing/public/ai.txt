@@ -36,6 +36,10 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - Python: LangChain (`langchain-mcp-adapters`), LlamaIndex (`llama-index-tools-mcp`), and the
   MCP Python SDK launch `rgr serve-mcp` over stdio; scripts can parse `rgr search --json`. No
   Python package is needed. Without Node.js, use the image `ghcr.io/jcode-works/ragmir`.
+- LangChain.js: `RagmirRetriever` from `@jcode.labs/ragmir/langchain` returns cited documents.
+- Agent plugins from the GitHub repository bundle the retrieval skill and the MCP server for
+  Claude Code, OpenAI Codex, Cursor, Gemini CLI, and Qwen Code; they need local files, so they run
+  in coding agents rather than web or mobile chat apps.
 - The MCP Registry lists the server as `io.github.jcode-works/ragmir`.
 - Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
   target one explicitly. Data resolves from the caller's project, never the installation directory.

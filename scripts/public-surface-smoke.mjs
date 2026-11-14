@@ -111,8 +111,50 @@ const pluginLauncher = await readFile(
   path.join(repoRoot, "plugins/ragmir/scripts/serve-mcp.mjs"),
   "utf8",
 )
-if (!/const RAGMIR_VERSION = "\d+\.\d+\.\d+"/u.test(pluginLauncher)) {
+const pinnedVersion = pluginLauncher.match(/const RAGMIR_VERSION = "(\d+\.\d+\.\d+)"/u)?.[1]
+if (!pinnedVersion) {
   failures.push("plugins/ragmir/scripts/serve-mcp.mjs must pin an exact Ragmir version")
+} else {
+  // The indexing command must build the index with the release the server reads it with.
+  const indexCommand = await readFile(
+    path.join(repoRoot, "plugins/ragmir/commands/index.md"),
+    "utf8",
+  )
+  const commandVersions = new Set(
+    [...indexCommand.matchAll(/@jcode\.labs\/ragmir@([^\s:`)]+)/gu)].map((match) => match[1]),
+  )
+  if (commandVersions.size !== 1 || !commandVersions.has(pinnedVersion)) {
+    failures.push(
+      `plugins/ragmir/commands/index.md must use @jcode.labs/ragmir@${pinnedVersion} like the launcher`,
+    )
+  }
+  // Codex launches its server from the project folder without plugin path placeholders.
+  const codexMcp = await readFile(path.join(repoRoot, "plugins/ragmir/codex.mcp.json"), "utf8")
+  if (!codexMcp.includes(`@jcode.labs/ragmir@${pinnedVersion}`)) {
+    failures.push(`plugins/ragmir/codex.mcp.json must run @jcode.labs/ragmir@${pinnedVersion}`)
+  }
+  const integrationGuide = await readFile(path.join(repoRoot, "docs/agent-integration.md"), "utf8")
+  const guideVersions = new Set(
+    [...integrationGuide.matchAll(/@jcode\.labs\/ragmir@(\d[^\s`"]*)/gu)].map((match) => match[1]),
+  )
+  if (guideVersions.size !== 1 || !guideVersions.has(pinnedVersion)) {
+    failures.push(`docs/agent-integration.md must index with @jcode.labs/ragmir@${pinnedVersion}`)
+  }
+}
+const pluginVersions = new Set()
+for (const manifest of [".claude-plugin", ".codex-plugin", ".cursor-plugin"]) {
+  const content = JSON.parse(
+    await readFile(path.join(repoRoot, "plugins/ragmir", manifest, "plugin.json"), "utf8"),
+  )
+  pluginVersions.add(`${content.name}@${content.version}`)
+}
+if (pluginVersions.size !== 1) {
+  failures.push(`plugin manifests disagree on name or version: ${[...pluginVersions].join(", ")}`)
+}
+const geminiExtension = await readFile(path.join(repoRoot, "gemini-extension.json"), "utf8")
+const qwenExtension = await readFile(path.join(repoRoot, "qwen-extension.json"), "utf8")
+if (geminiExtension !== qwenExtension) {
+  failures.push("qwen-extension.json must match gemini-extension.json")
 }
 const rootLlms = await readFile(path.join(repoRoot, "llms.txt"), "utf8")
 const landingLlms = await readFile(

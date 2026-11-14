@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ragmir": {
+      "command": "npx",
+      "args": ["--yes", "@jcode.labs/ragmir@6.5.2", "serve-mcp"]
+    }
+  }
+}
