@@ -40,6 +40,14 @@ const operatingModes = [
             copyLabel={t("copy_command")}
           />
         </div>
+        <p class="mt-4 text-muted-foreground text-xs font-semibold">{t("agents_plugin_label")}</p>
+        <div class="mt-2">
+          <CommandCopyBox
+            client:visible
+            command={t("agents_plugin_command")}
+            copyLabel={t("copy_command")}
+          />
+        </div>
       </div>
       <div class="mt-3 rounded-lg border border-border bg-muted/45 p-4">
         <div class="flex items-center gap-3">

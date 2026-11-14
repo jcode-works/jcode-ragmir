@@ -36,6 +36,38 @@ Use one client per project root in each long-running process. The client reuses 
 an immutable read snapshot, detects generation replacement, drains accepted operations at shutdown,
 and releases storage and model resources. Always close it, including when an operation fails.
 
+## LangChain.js retriever
+
+`@jcode.labs/ragmir/langchain` exports `RagmirRetriever`, a LangChain.js `BaseRetriever`. Install
+the optional peer `@langchain/core` 1.x next to Ragmir:
+
+```bash
+npm install @jcode.labs/ragmir @langchain/core
+```
+
+```ts
+import { createRagmirClient } from "@jcode.labs/ragmir"
+import { RagmirRetriever } from "@jcode.labs/ragmir/langchain"
+
+const ragmir = await createRagmirClient({ cwd: process.cwd() })
+const retriever = new RagmirRetriever({ client: ragmir, topK: 3, includePaths: ["docs"] })
+try {
+  const documents = await retriever.invoke("release approval")
+  for (const document of documents) {
+    console.log(document.metadata.citation, document.pageContent)
+  }
+} finally {
+  await ragmir.close()
+}
+```
+
+Each document keeps its citation in `metadata`: `source`, `citation`, line or page ranges,
+`contextPath`, `weakEvidence`, and `sourceStatus` when the file changed since indexing. A question
+the sources cannot answer returns an empty array, so a chain can say so instead of answering from
+unrelated text. The retriever accepts the same search options as `search` except `explain` and
+`signal`. Pass `projectRoot` instead of `client` to let it open its own client, then call
+`retriever.close()` during shutdown; it never closes a client you passed in.
+
 ## One-shot operations
 
 ```ts

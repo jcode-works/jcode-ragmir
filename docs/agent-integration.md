@@ -91,6 +91,20 @@ in [Use Ragmir from Python](./python.md). Ragmir has
 no built-in HTTP server. A remote-only chat needs its own supported connector or an application
 that calls the library; an Ollama or other model endpoint does not itself attach to an MCP server.
 
+### Claude Code plugin
+
+The repository is also a Claude Code plugin marketplace. Install the plugin once:
+
+```text
+/plugin install ragmir --marketplace jcode-works/jcode-ragmir
+```
+
+It bundles the retrieval skill and a stdio MCP server. The server runs a pinned Ragmir release
+from npm and passes the open project, read from `CLAUDE_PROJECT_DIR`, as `RAGMIR_PROJECT_ROOT`, so
+each session reads its own project's base and never executes code from the repository it opens.
+Index a project with `rgr init`, `rgr sources add`, and `rgr ingest`; skip
+`rgr setup --agents claude` there, since that registers a second, project-level server.
+
 ### One base, one project
 
 Register Ragmir per project: `claude mcp add --scope project`, a committed `.mcp.json`, or Codex's
