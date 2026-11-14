@@ -88,7 +88,9 @@ pip install llama-index-tools-mcp
 from llama_index.tools.mcp import BasicMCPClient, McpToolSpec
 
 client = BasicMCPClient(
-    "npx", args=["rgr", "serve-mcp"], env={"RAGMIR_PROJECT_ROOT": "/path/to/project"}
+    "/path/to/project/node_modules/.bin/rgr",
+    args=["serve-mcp"],
+    env={"RAGMIR_PROJECT_ROOT": "/path/to/project"},
 )
 tools = await McpToolSpec(client=client).to_tool_list_async()
 ```

@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react"
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { highlightCall, highlightCode, highlightCommand } from "../lib/command-syntax"
 import { cn } from "../lib/utils"
@@ -42,7 +42,6 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
   const [playback, setPlayback] = useState<PlaybackState>(INITIAL_PLAYBACK_STATE)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const tabScrollRef = useRef<HTMLDivElement>(null)
   const isVisible = useRef(false)
   const hasPlayedRef = useRef(false)
   // Once a visitor picks a tab or replays, the demo stops moving on by itself.
@@ -187,8 +186,36 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
     return () => clearTimeout(timeout)
   }, [playback.isComplete, activeScenario.id])
 
+  // The story tabs slide in one row, like a streaming catalogue row: swipe on touch, arrows on
+  // wider screens, and edges that fade only where more stories wait.
+  const tabScrollRef = useRef<HTMLDivElement>(null)
+  const [tabEdges, setTabEdges] = useState({ start: false, end: false })
+
+  const updateTabEdges = useCallback(() => {
+    const element = tabScrollRef.current
+    if (!element) return
+    const start = element.scrollLeft > 4
+    const end = element.scrollLeft + element.clientWidth < element.scrollWidth - 4
+    setTabEdges((current) =>
+      current.start === start && current.end === end ? current : { start, end },
+    )
+  }, [])
+
   useEffect(() => {
-    // Keep the active tab visible inside the horizontal tab strip without scrolling the page.
+    const element = tabScrollRef.current
+    if (!element) return
+    updateTabEdges()
+    element.addEventListener("scroll", updateTabEdges, { passive: true })
+    const resizes = new ResizeObserver(updateTabEdges)
+    resizes.observe(element)
+    return () => {
+      element.removeEventListener("scroll", updateTabEdges)
+      resizes.disconnect()
+    }
+  }, [updateTabEdges])
+
+  useEffect(() => {
+    // Keep the active story in view inside the row, without ever scrolling the page.
     const container = tabScrollRef.current
     const active = container?.querySelector<HTMLElement>(
       `[data-scenario-id="${activeScenario.id}"]`,
@@ -196,13 +223,26 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
     if (!container || !active) return
     const containerRect = container.getBoundingClientRect()
     const activeRect = active.getBoundingClientRect()
-    if (activeRect.left < containerRect.left || activeRect.right > containerRect.right) {
+    const margin = 32
+    if (
+      activeRect.left < containerRect.left + margin ||
+      activeRect.right > containerRect.right - margin
+    ) {
       container.scrollTo({
-        left: container.scrollLeft + activeRect.left - containerRect.left - 8,
-        behavior: "smooth",
+        left: container.scrollLeft + activeRect.left - containerRect.left - margin,
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
       })
     }
   }, [activeScenario.id])
+
+  const scrollTabs = useCallback((direction: 1 | -1) => {
+    const element = tabScrollRef.current
+    if (!element) return
+    element.scrollBy({
+      left: direction * element.clientWidth * 0.7,
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    })
+  }, [])
 
   const handleReplay = useCallback(() => {
     userInteractedRef.current = true
@@ -221,25 +261,6 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
     },
     [activeScenario.id, startSequence],
   )
-
-  const handleTabWheel = useCallback((event: WheelEvent) => {
-    const element = tabScrollRef.current
-    if (!element || element.scrollWidth <= element.clientWidth) return
-
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-    if (delta === 0) return
-
-    event.preventDefault()
-    element.scrollLeft += delta
-  }, [])
-
-  useEffect(() => {
-    const element = tabScrollRef.current
-    if (!element) return
-
-    element.addEventListener("wheel", handleTabWheel, { passive: false })
-    return () => element.removeEventListener("wheel", handleTabWheel)
-  }, [handleTabWheel])
 
   const lineClass: Record<TerminalLineKind, string> = {
     shell: "",
@@ -292,25 +313,35 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
       className="mx-auto flex h-[34rem] min-h-[34rem] max-h-[34rem] min-w-0 w-full max-w-full shrink-0 flex-col overflow-hidden rounded-xl bg-card sm:max-w-xl lg:max-w-none"
       ref={containerRef}
     >
-      <div className="flex shrink-0 items-center gap-3 px-4 pt-3.5 pb-2.5">
+      <div className="flex shrink-0 items-center gap-3 px-4 pt-3 pb-2.5">
         <div aria-hidden="true" className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-full bg-[#ff5f57]" />
           <span className="size-2.5 rounded-full bg-[#febc2e]" />
           <span className="size-2.5 rounded-full bg-[#28c840]" />
         </div>
-        <span className="truncate font-mono text-[0.68rem] text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate font-mono text-[0.68rem] text-muted-foreground">
           {activeScenario.terminalTitle}
         </span>
+        <button
+          aria-label={t("demo_replay_label")}
+          className="-my-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={handleReplay}
+          title={t("demo_replay_label")}
+          type="button"
+        >
+          <RotateCcw aria-hidden="true" className="size-3.5" />
+        </button>
       </div>
 
-      <div className="mx-3 flex shrink-0 items-center gap-1 rounded-full bg-background p-1">
+      <div className="relative mx-3 shrink-0">
         <div
-          className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           ref={tabScrollRef}
           role="tablist"
+          style={tabEdgeMask(tabEdges)}
         >
-          <div className="group/scenario-tabs relative flex min-w-max gap-1">
-            <TabIndicator activeSelector='[aria-selected="true"]' />
+          <div className="group/scenario-tabs relative flex w-max gap-1.5">
+            <TabIndicator activeSelector='[aria-selected="true"]' className="z-[1]" />
             {HERO_DEMO_SCENARIOS.map((scenario) => {
               const isActive = scenario.id === activeScenario.id
 
@@ -318,10 +349,10 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
                 <button
                   aria-selected={isActive}
                   className={cn(
-                    "relative h-8 shrink-0 rounded-full px-3 font-semibold text-xs transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "relative h-8 shrink-0 rounded-full px-3.5 font-semibold text-xs transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     isActive
-                      ? "bg-foreground text-background group-data-[indicator=ready]/scenario-tabs:bg-transparent"
-                      : "text-muted-foreground hover:text-foreground",
+                      ? "bg-foreground text-background group-data-[indicator=ready]/scenario-tabs:bg-background"
+                      : "bg-background text-muted-foreground hover:text-foreground",
                   )}
                   data-scenario-id={scenario.id}
                   key={scenario.id}
@@ -329,21 +360,32 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
                   role="tab"
                   type="button"
                 >
-                  {t(scenario.titleKey)}
+                  <span className="relative z-[2]">{t(scenario.titleKey)}</span>
                 </button>
               )
             })}
           </div>
         </div>
-        <button
-          aria-label={t("demo_replay_label")}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={handleReplay}
-          title={t("demo_replay_label")}
-          type="button"
-        >
-          <RotateCcw aria-hidden="true" className="size-3.5" />
-        </button>
+        {tabEdges.start && (
+          <button
+            aria-label={t("demo_tabs_previous")}
+            className="absolute top-1/2 left-0 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--card-hover)] text-foreground transition-colors hover:bg-[#2a2a2a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+            onClick={() => scrollTabs(-1)}
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" className="size-4" />
+          </button>
+        )}
+        {tabEdges.end && (
+          <button
+            aria-label={t("demo_tabs_next")}
+            className="absolute top-1/2 right-0 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--card-hover)] text-foreground transition-colors hover:bg-[#2a2a2a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+            onClick={() => scrollTabs(1)}
+            type="button"
+          >
+            <ChevronRight aria-hidden="true" className="size-4" />
+          </button>
+        )}
       </div>
 
       <p className="min-h-16 px-4 pt-3 pb-2 text-xs leading-5 text-muted-foreground">
@@ -439,4 +481,20 @@ function defaultLineHoldMs(kind: TerminalLineKind): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  )
+}
+
+/** Fades the row only on the sides where more stories are hidden. */
+function tabEdgeMask(edges: { start: boolean; end: boolean }): React.CSSProperties | undefined {
+  if (!edges.start && !edges.end) return undefined
+  const fade = 40
+  const start = edges.start ? `transparent 0, #000 ${fade}px` : "#000 0"
+  const end = edges.end ? `#000 calc(100% - ${fade}px), transparent 100%` : "#000 100%"
+  const mask = `linear-gradient(to right, ${start}, ${end})`
+  return { maskImage: mask, WebkitMaskImage: mask }
 }

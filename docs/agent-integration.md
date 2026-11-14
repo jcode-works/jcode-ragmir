@@ -97,8 +97,9 @@ that calls the library; an Ollama or other model endpoint does not itself attach
 ### Plugins and extensions for coding agents
 
 The repository ships one plugin, in `plugins/ragmir`, with manifests for each agent that installs
-plugins from GitHub. Every variant bundles the retrieval skill and the same four read-only MCP
-tools, and runs a pinned Ragmir release from npm against the project the agent has open.
+plugins from GitHub. Claude Code, Codex, and Cursor bundle the retrieval and indexing skills; Gemini CLI and Qwen
+Code read `plugins/ragmir/GEMINI.md`. Every variant exposes the same four read-only MCP tools and
+runs a pinned Ragmir release from npm against the project the agent has open.
 
 | Agent | Install |
 | --- | --- |
@@ -109,8 +110,9 @@ tools, and runs a pinned Ragmir release from npm against the project the agent h
 | Cursor | Cursor Marketplace once listed; until then, copy `plugins/ragmir` to `~/.cursor/plugins/local/ragmir` |
 
 Index each project once. In Claude Code, run `/ragmir:index`: Claude proposes the sources, asks
-before indexing, and builds the index with the same pinned release. With the other agents, run
-the commands yourself from the project root:
+before indexing, and builds the index with the same pinned release. Codex and Cursor use the
+bundled `ragmir-index` skill, and Gemini CLI and Qwen Code follow `GEMINI.md`; or run the commands
+yourself from the project root:
 
 ```bash
 npx --yes @jcode.labs/ragmir@6.8.0 init
