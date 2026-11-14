@@ -48,6 +48,8 @@
   "demo_product_out_refusal": "[] Aucun passage : l’application répond « absent des documents » au lieu de deviner.",
   "demo_product_out_done": "Chaque réponse cite sa page, et rien ne part vers un index tiers.",
   "demo_replay_label": "Rejouer le scénario",
+  "demo_tabs_previous": "Histoires précédentes",
+  "demo_tabs_next": "Autres histoires",
   "demo_badge_feature": "RAG agentique",
   "demo_badge_incident": "RAG agentique",
   "demo_script_prefix": "Chat confidentiel",
