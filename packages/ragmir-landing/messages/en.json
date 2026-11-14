@@ -210,7 +210,7 @@
   "features_semantic_title": "Semantic retrieval",
   "features_semantic_text": "Add meaning-based matching with a local embedding model when keyword evidence is not enough.",
   "features_semantic_item_1": "Install Transformers only when you need it.",
-  "features_semantic_item_2": "Download the chosen model explicitly, then use its local cache.",
+  "features_semantic_item_2": "rgr models list recommends a model for this machine; the download stays explicit.",
   "features_semantic_item_3": "Combine lexical and vector evidence with source filters.",
   "features_semantic_item_4": "Measure retrieval quality with your own golden queries.",
   "privacy_selection_title": "Selected sources",

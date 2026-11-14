@@ -76,11 +76,15 @@ jobs:
         env:
           VERSION: ${{ steps.published.outputs.version }}
         run: |
+          # The version metadata appears before the tarball is served; the image build needs both.
           for _ in $(seq 1 30); do
-            if npm view "@jcode.labs/ragmir@${VERSION}" version >/dev/null 2>&1; then exit 0; fi
+            tarball="$(npm view "@jcode.labs/ragmir@${VERSION}" dist.tarball 2>/dev/null || true)"
+            if [ -n "$tarball" ] && curl --fail --silent --head --output /dev/null "$tarball"; then
+              exit 0
+            fi
             sleep 10
           done
-          echo "npm did not expose @jcode.labs/ragmir@${VERSION} in time" >&2
+          echo "npm did not serve @jcode.labs/ragmir@${VERSION} in time" >&2
           exit 1
 
       # The organization allows only GitHub-owned actions here, so the image is built with the
@@ -118,13 +122,24 @@ jobs:
           chmod +x cosign
           sudo mv cosign /usr/local/bin/cosign
 
-      # The prepare step already wrote the released version into server.json.
+      # Write the published version even when a rerun found nothing new to release, so the
+      # registry never receives the server.json committed in the repository.
       - name: Publish to the MCP Registry
         if: steps.published.outputs.version != ''
         env:
           MCP_PUBLISHER_VERSION: v1.8.9
+          VERSION: ${{ steps.published.outputs.version }}
         run: |
           set -euo pipefail
+          node -e '
+            const fs = require("node:fs")
+            const manifest = JSON.parse(fs.readFileSync("server.json", "utf8"))
+            manifest.version = process.env.VERSION
+            for (const pkg of manifest.packages ?? []) {
+              if (pkg.registryType === "npm") pkg.version = process.env.VERSION
+            }
+            fs.writeFileSync("server.json", `${JSON.stringify(manifest, null, 2)}\n`)
+          '
           archive="mcp-publisher_linux_amd64.tar.gz"
           base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
           curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"

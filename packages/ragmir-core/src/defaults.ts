@@ -47,6 +47,8 @@ const DEFAULT_EMBEDDING_MODEL_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418
 const KNOWN_EMBEDDING_MODEL_REVISIONS: Readonly<Record<string, string>> = {
   [DEFAULT_EMBEDDING_MODEL]: DEFAULT_EMBEDDING_MODEL_REVISION,
   "mixedbread-ai/mxbai-embed-xsmall-v1": "e6ac24e5d6efb8782b59de1647b3ececb4ece94e",
+  "onnx-community/granite-embedding-97m-multilingual-r2-ONNX":
+    "536a9f241cb3f02a9c5995a1e708c784bd274859",
 }
 
 /** Budgets that `retrievalProfile` chooses unless a project config sets them explicitly. */

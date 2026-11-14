@@ -210,7 +210,7 @@
   "features_semantic_title": "Recherche sémantique",
   "features_semantic_text": "Ajoutez la recherche par le sens avec un modèle d’embeddings local lorsque les mots-clés ne suffisent pas.",
   "features_semantic_item_1": "Installez Transformers uniquement si nécessaire.",
-  "features_semantic_item_2": "Téléchargez le modèle choisi explicitement, puis utilisez son cache local.",
+  "features_semantic_item_2": "rgr models list recommande un modèle adapté à la machine ; le téléchargement reste explicite.",
   "features_semantic_item_3": "Combinez recherche lexicale, vecteurs et filtres sur les sources.",
   "features_semantic_item_4": "Mesurez la qualité avec vos propres questions de référence.",
   "privacy_selection_title": "Des sources choisies",

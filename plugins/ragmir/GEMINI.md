@@ -24,9 +24,9 @@ When `ragmir_status` reports no knowledge base or no indexed files, offer to ind
 2. Run these commands from the project root, passing the confirmed globs to `sources add`:
 
    ```bash
-   npx --yes @jcode.labs/ragmir@6.7.0 init
-   npx --yes @jcode.labs/ragmir@6.7.0 sources add "docs/**/*.md" "specs/**/*.pdf"
-   npx --yes @jcode.labs/ragmir@6.7.0 ingest
+   npx --yes @jcode.labs/ragmir@6.7.1 init
+   npx --yes @jcode.labs/ragmir@6.7.1 sources add "docs/**/*.md" "specs/**/*.pdf"
+   npx --yes @jcode.labs/ragmir@6.7.1 ingest
    ```
 
 3. Call `ragmir_status`, then one `ragmir_search`, and show the citation.

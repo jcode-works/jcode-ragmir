@@ -39,6 +39,10 @@
   --card: #161616;
   --card-foreground: #ffffff;
   --primary: #8b47ff;
+  /* Hover colours stay opaque: a translucent button lets the dot animation show through it. */
+  --primary-hover: #9d62ff;
+  --foreground-hover: #e4e4e4;
+  --inset-hover: #0e0e0e;
   --primary-foreground: #ffffff;
   --secondary: #171717;
   --secondary-foreground: #ffffff;
