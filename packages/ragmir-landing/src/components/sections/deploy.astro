@@ -1,6 +1,7 @@
 ---
-import { ArrowUpRight, Handshake, ListChecks, Server, ShieldCheck } from "@lucide/astro"
+import { ArrowUpRight } from "@lucide/astro"
 import { PROJECT_LINKS } from "../../lib/project-links"
+import { cardTag, SectionHeader } from "../section-header"
 
 interface Props {
   translations: Record<string, string>
@@ -10,56 +11,54 @@ const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 
 const deployItems = [
-  { icon: ShieldCheck, title: t("deploy_item_1_title"), text: t("deploy_item_1_text") },
-  { icon: ListChecks, title: t("deploy_item_2_title"), text: t("deploy_item_2_text") },
-  { icon: Server, title: t("deploy_item_3_title"), text: t("deploy_item_3_text") },
-  { icon: Handshake, title: t("deploy_item_4_title"), text: t("deploy_item_4_text") },
+  { title: t("deploy_item_1_title"), text: t("deploy_item_1_text") },
+  { title: t("deploy_item_2_title"), text: t("deploy_item_2_text") },
+  { title: t("deploy_item_3_title"), text: t("deploy_item_3_text") },
+  { title: t("deploy_item_4_title"), text: t("deploy_item_4_text") },
 ]
 ---
 
 <section
   id="deploy"
   aria-labelledby="deploy-heading"
-  class="container-wide relative z-10 px-5 py-16 md:px-8 md:py-36"
+  class="container-default relative z-10 px-5 py-16 md:px-8 md:py-40"
 >
-  <div class="grid gap-5 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
-    <div>
-      <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-        {t("deploy_eyebrow")}
-      </p>
-      <h2 id="deploy-heading" class="mt-4 max-w-2xl font-black text-2xl leading-tight md:text-3xl">
-        {t("deploy_title")}
-      </h2>
-    </div>
-    <p class="max-w-2xl text-muted-foreground text-sm leading-6 lg:justify-self-end">
-      {t("deploy_text")}
-    </p>
+  <div class="mb-10 md:mb-14">
+    <SectionHeader
+      num="005"
+      label={t("deploy_eyebrow")}
+      title={t("deploy_title")}
+      text={t("deploy_text")}
+      id="deploy-heading"
+    />
   </div>
 
   <ol
-    class="-mx-5 mt-8 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 scroll-px-5 overscroll-x-contain [scrollbar-width:none] sm:mx-0 sm:mt-10 sm:grid sm:grid-cols-2 sm:gap-px sm:overflow-hidden sm:rounded-xl sm:border sm:border-border sm:bg-border sm:px-0 sm:pb-0 sm:shadow-xl sm:shadow-black/20 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden"
+    class="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 scroll-px-5 overscroll-x-contain [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden"
     aria-label={t("deploy_title")}
     tabindex="0"
   >
     {deployItems.map((item, index) => (
-      <li class="flex w-[78vw] max-w-[20rem] shrink-0 snap-start flex-col rounded-xl border border-border bg-card p-5 sm:w-auto sm:max-w-none sm:rounded-none sm:border-0 md:p-6">
-        <div class="flex items-center justify-between">
-          <item.icon class="size-5 text-[var(--accent-title)]" aria-hidden="true" />
-          <span class="font-mono text-muted-foreground text-xs">0{index + 1}</span>
+      <li class="flex w-[78vw] max-w-[20rem] shrink-0 snap-start flex-col rounded-xl bg-card p-5 sm:w-auto sm:max-w-none md:p-6">
+        <div class="flex items-start justify-between">
+          <span class="tnum font-mono text-[10px] text-muted-foreground tracking-[0.25em]">
+            {cardTag(index + 1, deployItems.length)}
+          </span>
+          <span aria-hidden="true" class="size-1.5 rounded-full bg-foreground/30" />
         </div>
-        <h3 class="mt-6 font-black text-base leading-snug">{item.title}</h3>
+        <h3 class="mt-8 font-black text-lg leading-snug">{item.title}</h3>
         <p class="mt-2 text-muted-foreground text-sm leading-6">{item.text}</p>
       </li>
     ))}
   </ol>
 
-  <div class="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-muted/45 p-4 md:flex-row md:items-center md:justify-between md:px-6">
+  <div class="mt-3 flex flex-col gap-3 rounded-xl bg-card p-4 md:flex-row md:items-center md:justify-between md:px-6">
     <p class="flex flex-col gap-1 text-sm sm:flex-row sm:items-baseline sm:gap-3">
       <span class="font-bold">{t("deploy_owns_label")}</span>
       <span class="font-mono text-foreground/75 text-xs">{t("deploy_owns_items")}</span>
     </p>
     <a
-      class="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold underline underline-offset-4"
+      class="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold underline underline-offset-4 transition-opacity hover:opacity-70"
       href={PROJECT_LINKS.serverGuide}
     >
       {t("deploy_guide_link")}

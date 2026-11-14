@@ -15,6 +15,12 @@ export const PROJECT_LINKS = {
   changelog: `${GITHUB_URL}/blob/main/CHANGELOG.md`,
   license: `${GITHUB_URL}/blob/main/LICENSE`,
   commercialLicense: `${GITHUB_URL}/blob/main/COMMERCIAL-LICENSE.md`,
+  privacy: `${GITHUB_URL}/blob/main/PRIVACY.md`,
+  security: `${GITHUB_URL}/blob/main/SECURITY.md`,
+  claudePlugin: `${GITHUB_URL}/tree/main/plugins/ragmir`,
+  agentPlugins: `${GITHUB_URL}/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents`,
+  langchainRetriever: `${GITHUB_URL}/blob/main/docs/api-reference.md#langchainjs-retriever`,
+  mcpGuide: `${GITHUB_URL}/blob/main/docs/agent-integration.md#connect-an-agent-through-mcp`,
 } as const
 
 export type ProjectLinkKey = keyof typeof PROJECT_LINKS
@@ -32,19 +38,51 @@ export const PROJECT_LINK_LABEL_KEYS: Record<ProjectLinkKey, string> = {
   changelog: "footer_link_changelog",
   license: "footer_link_license",
   commercialLicense: "footer_link_commercial_license",
+  privacy: "footer_link_privacy",
+  security: "footer_link_security",
+  claudePlugin: "footer_link_claude_plugin",
+  agentPlugins: "footer_link_agent_plugins",
+  langchainRetriever: "footer_link_langchain",
+  mcpGuide: "footer_link_mcp",
 }
 
-/** The footer order: where the code lives first, then documentation, then licensing. */
-export const FOOTER_LINK_KEYS: readonly ProjectLinkKey[] = [
-  "github",
-  "npm",
-  "docs",
-  "apiReference",
-  "serverGuide",
-  "pythonGuide",
-  "benchmarks",
-  "releases",
-  "changelog",
-  "license",
-  "commercialLicense",
+/** One titled footer column: in-page anchors of the home page, then project destinations. */
+export interface FooterSection {
+  titleKey: string
+  /** Home page anchors with the translation key of their label, such as `#integrations`. */
+  anchors?: ReadonlyArray<{ hash: string; labelKey: string }>
+  links: readonly ProjectLinkKey[]
+}
+
+/** The footer columns: the page itself, the integrations, the documentation, then the project. */
+export const FOOTER_SECTIONS: readonly FooterSection[] = [
+  {
+    titleKey: "footer_section_product",
+    anchors: [
+      { hash: "library", labelKey: "nav_library" },
+      { hash: "integrations", labelKey: "nav_integrations" },
+      { hash: "use-cases", labelKey: "nav_use_cases" },
+      { hash: "deploy", labelKey: "nav_deploy" },
+      { hash: "features", labelKey: "nav_features" },
+      { hash: "faq", labelKey: "nav_faq" },
+    ],
+    links: [],
+  },
+  {
+    titleKey: "footer_section_integrations",
+    links: ["claudePlugin", "agentPlugins", "langchainRetriever", "pythonGuide", "mcpGuide"],
+  },
+  {
+    titleKey: "nav_section_docs",
+    links: ["docs", "apiReference", "serverGuide", "benchmarks", "changelog", "releases"],
+  },
+  {
+    titleKey: "nav_section_project",
+    links: ["github", "npm", "license", "commercialLicense", "privacy", "security"],
+  },
 ]
+
+/** Every project destination the footer shows, in column order. */
+export const FOOTER_LINK_KEYS: readonly ProjectLinkKey[] = FOOTER_SECTIONS.flatMap(
+  (section) => section.links,
+)
