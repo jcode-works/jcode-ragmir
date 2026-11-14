@@ -1,0 +1,16 @@
+{
+  "name": "ragmir",
+  "owner": {
+    "name": "Jean-Baptiste Thery"
+  },
+  "metadata": {
+    "description": "Ragmir plugins for Cursor: cited local retrieval over a project's code and documents."
+  },
+  "plugins": [
+    {
+      "name": "ragmir",
+      "source": "plugins/ragmir",
+      "description": "Search a project's code, specs, PDFs, and Office files and get passages cited to lines, pages, slides, or cells."
+    }
+  ]
+}

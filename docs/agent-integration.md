@@ -91,19 +91,36 @@ in [Use Ragmir from Python](./python.md). Ragmir has
 no built-in HTTP server. A remote-only chat needs its own supported connector or an application
 that calls the library; an Ollama or other model endpoint does not itself attach to an MCP server.
 
-### Claude Code plugin
+### Plugins and extensions for coding agents
 
-The repository is also a Claude Code plugin marketplace. Install the plugin once:
+The repository ships one plugin, in `plugins/ragmir`, with manifests for each agent that installs
+plugins from GitHub. Every variant bundles the retrieval skill and the same four read-only MCP
+tools, and runs a pinned Ragmir release from npm against the project the agent has open.
 
-```text
-/plugin install ragmir --marketplace jcode-works/jcode-ragmir
+| Agent | Install |
+| --- | --- |
+| Claude Code | `/plugin install ragmir --marketplace jcode-works/jcode-ragmir` |
+| OpenAI Codex | `codex plugin marketplace add jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir` |
+| Gemini CLI | `gemini extensions install https://github.com/jcode-works/jcode-ragmir` |
+| Qwen Code | `qwen extensions install jcode-works/jcode-ragmir` |
+| Cursor | Cursor Marketplace once listed; until then, copy `plugins/ragmir` to `~/.cursor/plugins/local/ragmir` |
+
+Index each project once. In Claude Code, run `/ragmir:index`: Claude proposes the sources, asks
+before indexing, and builds the index with the same pinned release. With the other agents, run
+the commands yourself from the project root:
+
+```bash
+npx --yes @jcode.labs/ragmir@6.5.2 init
+npx --yes @jcode.labs/ragmir@6.5.2 sources add "docs/**/*.md" "specs/**/*.pdf" "src/**/*.ts"
+npx --yes @jcode.labs/ragmir@6.5.2 ingest
 ```
 
-It bundles the retrieval skill and a stdio MCP server. The server runs a pinned Ragmir release
-from npm and passes the open project, read from `CLAUDE_PROJECT_DIR`, as `RAGMIR_PROJECT_ROOT`, so
-each session reads its own project's base and never executes code from the repository it opens.
-Index a project with `rgr init`, `rgr sources add`, and `rgr ingest`; skip
-`rgr setup --agents claude` there, since that registers a second, project-level server.
+The Claude Code server receives the open project as `CLAUDE_PROJECT_DIR`; Codex, Gemini CLI, and
+Qwen Code start it in the workspace folder. In each case the server only reads the project's
+Ragmir configuration and index; the Claude Code, Gemini CLI, and Qwen Code launcher never runs
+code shipped by the repository it opens. Skip `rgr setup --agents ...` in a project that uses a
+plugin, since that registers a second, project-level server. Plugins need local files, so they
+run in these coding agents and not in web or mobile chat apps.
 
 ### One base, one project
 
