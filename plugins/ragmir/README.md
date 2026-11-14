@@ -11,20 +11,21 @@ with no account, API key, or hosted store.
 /plugin install ragmir --marketplace jcode-works/jcode-ragmir
 ```
 
-Then index each project once, from its root, choosing the sources Claude may read:
+Then, in each project, run the indexing command once and confirm the sources Claude may read:
 
-```bash
-npx @jcode.labs/ragmir init
-npx @jcode.labs/ragmir sources add "docs/**/*.md" "specs/**/*.pdf" "src/**/*.ts"
-npx @jcode.labs/ragmir ingest
+```text
+/ragmir:index docs/**/*.md specs/**/*.pdf src/**/*.ts
 ```
 
-The plugin adds the Ragmir retrieval skill (`/ragmir:ragmir`) and an MCP server with four
-read-only tools: `ragmir_search`, `ragmir_expand`, `ragmir_status`, and `ragmir_audit`. The server
-runs a pinned Ragmir release from npm and reads the project Claude Code has open. Run `ingest`
-again after changing sources, or `npx @jcode.labs/ragmir hooks install` to refresh the index after
-Git operations. Skip `rgr setup --agents claude` in projects that use this plugin: it registers a
-second, project-level server.
+Without arguments, Claude proposes the sources and asks before indexing. The plugin adds this
+command, the Ragmir retrieval skill (`/ragmir:ragmir`), and an MCP server with four read-only
+tools: `ragmir_search`, `ragmir_expand`, `ragmir_status`, and `ragmir_audit`. The server runs a
+pinned Ragmir release from npm and reads the project Claude Code has open. Run `/ragmir:index`
+again after adding sources. Skip `rgr setup --agents claude` in projects that use this plugin: it
+registers a second, project-level server.
+
+The plugin works in Claude Code, where the project files live on your machine. The Claude web,
+desktop chat, and mobile apps cannot reach local files, so they cannot use it.
 
 Ragmir is open source under AGPL-3.0, with a commercial license available. Documentation:
 <https://github.com/jcode-works/jcode-ragmir>.

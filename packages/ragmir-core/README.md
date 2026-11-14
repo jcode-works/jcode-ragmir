@@ -67,17 +67,24 @@ covers pnpm and guided setup.
 
 ## Connect your agent
 
-`rgr setup --agents claude,codex` prepares a project MCP server and a retrieval skill. The server
-exposes four read-only tools: `ragmir_search` (one question or up to five related ones sharing a
-budget, with named scopes), `ragmir_expand`, `ragmir_status`, and `ragmir_audit`. Passages
-already returned in a session come back as one-line stubs. Its instructions name the base it
-serves, and it warns or refuses agents working in unrelated projects. See
-[agent integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
-for connection steps and local or self-hosted model examples. Python agents built with the MCP
-SDK, LangChain, or LlamaIndex use the same server
-([Python guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)), and
-`ghcr.io/jcode-works/ragmir` runs it without Node.js. LangChain.js chains use `RagmirRetriever`
-from `@jcode.labs/ragmir/langchain` with the optional peer `@langchain/core`.
+[![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=flat-square&logo=claude&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-111111?style=flat-square)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Cursor](https://img.shields.io/badge/Cursor-111111?style=flat-square&logo=cursor&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Qwen Code](https://img.shields.io/badge/Qwen_Code-6950EF?style=flat-square&logo=qwen&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![LangChain.js](https://img.shields.io/badge/LangChain.js-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md#langchainjs-retriever) [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md#langchain) [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-6D28D9?style=flat-square)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md#llamaindex) [![MCP](https://img.shields.io/badge/MCP-111111?style=flat-square&logo=modelcontextprotocol&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#connect-an-agent-through-mcp) [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md) [![Ollama](https://img.shields.io/badge/Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#confidential-chat-local-model-example)
+
+Install Ragmir as a plugin for Claude Code (`/plugin install ragmir --marketplace
+jcode-works/jcode-ragmir`), OpenAI Codex, or Cursor, or as an extension for Gemini CLI and Qwen
+Code; the [plugin
+guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents)
+lists every install command. Without a plugin, `rgr setup --agents claude,codex` prepares a project
+MCP server and a retrieval skill. The server exposes four read-only tools: `ragmir_search` (one
+question or up to five related ones sharing a budget, with named scopes), `ragmir_expand`,
+`ragmir_status`, and `ragmir_audit`. Passages already returned in a session come back as one-line
+stubs. Its instructions name the base it serves, and it warns or refuses agents working in unrelated
+projects. See [agent
+integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md) for
+connection steps and local or self-hosted model examples. Python agents built with the MCP SDK,
+LangChain, or LlamaIndex use the same server ([Python
+guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)), and
+`ghcr.io/jcode-works/ragmir` runs it without Node.js. LangChain.js chains use `RagmirRetriever` from
+`@jcode.labs/ragmir/langchain` with the optional peer `@langchain/core`.
 
 ## TypeScript API
 

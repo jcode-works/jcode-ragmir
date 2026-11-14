@@ -1,6 +1,6 @@
 {
   "name": "ragmir",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cited local retrieval for Claude Code: search a project's code, specs, PDFs, and Office files and get passages cited to lines, pages, slides, or cells.",
   "author": {
     "name": "Jean-Baptiste Thery",
@@ -16,5 +16,8 @@
     "mcp",
     "local-first",
     "documents"
-  ]
+  ],
+  "documentationUrl": "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents",
+  "supportUrl": "https://github.com/jcode-works/jcode-ragmir/issues",
+  "privacyPolicyUrl": "https://github.com/jcode-works/jcode-ragmir/blob/main/PRIVACY.md"
 }

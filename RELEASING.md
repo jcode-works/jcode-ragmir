@@ -77,12 +77,18 @@ For breaking CLI/API releases, make the migration explicit in the Conventional C
 footer and link to `docs/migration.md`. Removed commands and exports require a major release.
 Only the `rgr` executable is published.
 
-The Claude Code plugin in `plugins/ragmir/` is installed from this repository, not from npm. Its
-launcher pins the npm release it runs (`RAGMIR_VERSION` in `scripts/serve-mcp.mjs`), because the
-plugin directory refuses unpinned `npx` commands. After a release that the plugin should serve,
-update that pin and bump `version` in `plugins/ragmir/.claude-plugin/plugin.json` in the same
-change; installed plugins only update when that version changes. Keep the plugin's
-`skills/ragmir/SKILL.md` identical to the Core skill; `pnpm public:smoke` enforces it.
+The agent plugin in `plugins/ragmir/` is installed from this repository, not from npm, with one
+manifest per agent: `.claude-plugin/`, `.codex-plugin/`, and `.cursor-plugin/` in the plugin
+folder, plus `gemini-extension.json` and `qwen-extension.json` at the repository root. Its MCP
+launchers pin the npm release they run (`RAGMIR_VERSION` in `scripts/serve-mcp.mjs`, and
+`codex.mcp.json`), because the plugin directories refuse unpinned `npx` commands. After a release
+that the plugin should serve, update that pin everywhere it appears (`commands/index.md` and
+`docs/agent-integration.md` included) and bump the three plugin manifests' `version` together;
+installed plugins only update when that version changes. Set the Gemini and Qwen manifests'
+`version` to the release the promotion will publish, because Gemini CLI installs from the latest
+GitHub release. Keep the plugin's `skills/ragmir/SKILL.md` identical to the Core skill.
+`pnpm public:smoke` enforces the identical skill, the shared pin, the aligned plugin versions, and
+the identical Gemini and Qwen manifests.
 
 ## Required Local Checks
 

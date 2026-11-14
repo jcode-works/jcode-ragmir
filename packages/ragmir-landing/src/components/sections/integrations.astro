@@ -1,0 +1,141 @@
+---
+import { ArrowUpRight, Bot, Library, SquareTerminal } from "@lucide/astro"
+import { INTEGRATION_LOGOS, type IntegrationLogoKey } from "../../content/integration-logos"
+import { GITHUB_URL, NPM_URL } from "../../lib/project-links"
+
+interface Props {
+  translations: Record<string, string>
+}
+
+const { translations } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+
+const docsUrl = (file: string, anchor?: string): string =>
+  `${GITHUB_URL}/blob/main/docs/${file}${anchor ? `#${anchor}` : ""}`
+const pluginsUrl = docsUrl("agent-integration.md", "plugins-and-extensions-for-coding-agents")
+
+interface Integration {
+  name: string
+  kind: string
+  href: string
+  logo?: IntegrationLogoKey
+  fallback?: "terminal" | "library" | "bot"
+}
+
+const groups: { title: string; items: Integration[] }[] = [
+  {
+    title: t("integrations_group_agents"),
+    items: [
+      { name: "Claude Code", kind: t("integrations_kind_plugin"), href: pluginsUrl, logo: "claude" },
+      { name: "OpenAI Codex", kind: t("integrations_kind_plugin"), href: pluginsUrl, fallback: "terminal" },
+      { name: "Cursor", kind: t("integrations_kind_plugin"), href: pluginsUrl, logo: "cursor" },
+      { name: "Gemini CLI", kind: t("integrations_kind_extension"), href: pluginsUrl, logo: "gemini" },
+      { name: "Qwen Code", kind: t("integrations_kind_extension"), href: pluginsUrl, logo: "qwen" },
+      {
+        name: "Kimi, OpenCode, Cline",
+        kind: t("integrations_kind_setup"),
+        href: docsUrl("agent-integration.md", "connect-an-agent-through-mcp"),
+        fallback: "bot",
+      },
+    ],
+  },
+  {
+    title: t("integrations_group_frameworks"),
+    items: [
+      {
+        name: "LangChain.js",
+        kind: t("integrations_kind_retriever"),
+        href: docsUrl("api-reference.md", "langchainjs-retriever"),
+        logo: "langchain",
+      },
+      { name: "LangChain", kind: t("integrations_kind_python"), href: docsUrl("python.md", "langchain"), logo: "langchain" },
+      { name: "LlamaIndex", kind: t("integrations_kind_python"), href: docsUrl("python.md", "llamaindex"), fallback: "library" },
+      { name: "TypeScript", kind: t("integrations_kind_library"), href: docsUrl("api-reference.md"), logo: "typescript" },
+    ],
+  },
+  {
+    title: t("integrations_group_protocols"),
+    items: [
+      {
+        name: "MCP",
+        kind: t("integrations_kind_mcp"),
+        href: docsUrl("agent-integration.md", "connect-an-agent-through-mcp"),
+        logo: "mcp",
+      },
+      { name: "MCP Python SDK", kind: t("integrations_kind_python"), href: docsUrl("python.md", "mcp-python-sdk"), logo: "python" },
+      { name: "npm", kind: t("integrations_kind_cli"), href: NPM_URL, logo: "npm" },
+      {
+        name: "Ollama",
+        kind: t("integrations_kind_local_model"),
+        href: docsUrl("agent-integration.md", "confidential-chat-local-model-example"),
+        logo: "ollama",
+      },
+    ],
+  },
+]
+---
+
+<section
+  id="integrations"
+  aria-labelledby="integrations-heading"
+  class="container-default relative z-10 px-5 py-16 md:px-8 md:py-32"
+>
+  <div class="mb-10 max-w-3xl">
+    <p class="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+      {t("integrations_eyebrow")}
+    </p>
+    <h2 id="integrations-heading" class="mt-4 text-balance font-black text-2xl leading-tight md:text-3xl">
+      {t("integrations_title")}
+    </h2>
+    <p class="mt-4 text-muted-foreground text-sm leading-6">{t("integrations_text")}</p>
+  </div>
+
+  <div class="grid gap-8 lg:grid-cols-3 lg:gap-6">
+    {groups.map((group) => (
+      <div>
+        <h3 class="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          {group.title}
+        </h3>
+        <ul class="grid grid-cols-2 gap-2 lg:grid-cols-1" role="list">
+          {group.items.map((item) => {
+            const logo = item.logo ? INTEGRATION_LOGOS[item.logo] : undefined
+            return (
+              <li>
+                <a
+                  class="group flex h-full items-center gap-3 rounded-lg border border-border bg-muted/45 p-3 transition-colors hover:border-foreground/25 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  href={item.href}
+                >
+                  <span class="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background/60 text-foreground">
+                    {logo ? (
+                      <svg class="size-5" viewBox="0 0 24 24" fill="currentColor" role="img" aria-hidden="true">
+                        <path d={logo.path} />
+                      </svg>
+                    ) : item.fallback === "library" ? (
+                      <Library class="size-5" aria-hidden="true" />
+                    ) : item.fallback === "bot" ? (
+                      <Bot class="size-5" aria-hidden="true" />
+                    ) : (
+                      <SquareTerminal class="size-5" aria-hidden="true" />
+                    )}
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block font-bold text-sm leading-5">{item.name}</span>
+                    <span class="block text-muted-foreground text-xs leading-4">{item.kind}</span>
+                  </span>
+                </a>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    ))}
+  </div>
+
+  <a
+    class="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-4"
+    href={pluginsUrl}
+  >
+    {t("integrations_all_link")}
+    <ArrowUpRight class="size-4" aria-hidden="true" />
+  </a>
+</section>
