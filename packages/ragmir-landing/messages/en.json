@@ -371,5 +371,18 @@
   "footer_link_agent_plugins": "Codex, Cursor, and Gemini CLI",
   "footer_link_langchain": "LangChain.js retriever",
   "footer_link_mcp": "MCP server",
-  "footer_social_label": "Ragmir on GitHub and npm"
+  "footer_social_label": "Ragmir on GitHub and npm",
+  "formats_title": "Supported formats",
+  "formats_text": "Every file type below is indexed locally with a citation agents can quote. Data models, diagrams, and APIs are cited object by object.",
+  "formats_full_list": "See every extension",
+  "formats_group_documents": "Documents",
+  "formats_group_data_models": "Data models",
+  "formats_group_diagrams": "Diagrams and processes",
+  "formats_group_apis": "APIs and schemas",
+  "formats_group_data": "Data and configuration",
+  "formats_group_bi": "BI and reporting",
+  "formats_group_mail": "Mail, calendar, captions",
+  "formats_group_code": "Code and infrastructure",
+  "formats_group_extractors": "With an optional local extractor",
+  "footer_link_formats": "Supported formats"
 }

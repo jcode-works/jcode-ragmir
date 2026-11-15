@@ -102,6 +102,7 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 - [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
+- [Supported formats](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/supported-formats.md)
 - [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
 - [Run on a server or in a container](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)
 - [Use Ragmir from Python](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)

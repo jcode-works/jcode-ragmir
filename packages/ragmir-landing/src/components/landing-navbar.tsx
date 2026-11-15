@@ -78,6 +78,7 @@ const DRAWER_SECTIONS: ReadonlyArray<{
     links: [
       { key: "docs", icon: BookOpen },
       { key: "apiReference", icon: FileCode },
+      { key: "supportedFormats", icon: Layers },
       { key: "serverGuide", icon: Server },
       { key: "pythonGuide", icon: FileCode },
       { key: "benchmarks", icon: Gauge },
