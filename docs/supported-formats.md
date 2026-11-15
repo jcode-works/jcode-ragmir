@@ -29,6 +29,10 @@ one object of a mailbox, design file, data model, diagram, API description, or c
 | Tool configuration files | `.babelrc`, `.browserslistrc`, `.clang-format`, `.clang-tidy`, `.containerignore`, `.dockerignore`, `.editorconfig`, `.eslintignore`, `.eslintrc`, `.flake8`, `.gcloudignore`, `.gitattributes`, `.gitignore`, `.gitmodules`, `.helmignore`, `.htaccess`, `.mailmap`, `.node-version`, `.npmignore`, `.nvmrc`, `.prettierignore`, `.prettierrc`, `.pylintrc`, `.python-version`, `.ruby-version`, `.stylelintignore`, `.stylelintrc`, `.swcrc`, `.terraform-version`, `.tool-versions`, `.vscodeignore`, `.all-contributorsrc`, `.arcconfig`, `.autorc`, `.buckconfig`, `.c8rc`, `.codespellrc`, `.coveragerc`, `.gitreview`, `.htmlhintrc`, `.irbrc`, `.jscsrc`, `.jshintrc`, `.jslintrc`, `.justfile`, `.latexmkrc`, `.luacheckrc`, `.nycrc`, `.pryrc`, `.releaserc`, `.Rprofile`, `.rspec`, `.shellcheckrc`, `.simplecov`, `.tern-config`, `.tern-project`, `.watchmanconfig`, `.yardopts`, `_redirects`, `browserslist`, `latexmkrc`, `mocha.opts`, `pylintrc` | Lines |
 | With a local extractor (optional) | Scanned PDF pages; images `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.webp`, `.gif`, `.bmp`, `.heic`, `.heif`, `.avif`; legacy Word `.doc` | Page or passage |
 
+Dotenv templates such as `.env.example`, `.env.sample`, or `env.template` keep their variable
+names and comments, each on its own line, with every value masked; `.env` and every other `.env.*`
+file stay skipped as secrets.
+
 Office charts are indexed with their titles, axes, series, and values. Text files keep their own
 encoding: a UTF-16 byte order mark selects UTF-16, and bytes that are not valid UTF-8 are read as
 Windows-1252, so legacy CSV files, subtitles, and Apple string tables index correctly. Other text

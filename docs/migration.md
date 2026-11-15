@@ -3,6 +3,17 @@
 This is a breaking surface change. Ragmir now concentrates on local indexing, search, exact
 citations, OCR, and integration with developer agents.
 
+## Dotenv templates with masked values (6.14)
+
+Dotenv templates such as `.env.example`, `.env.local.sample`, `env.template`, or `app.env.dist`
+now index their variable names and comments with every value replaced by `(value omitted)`, each on
+its own line, so an agent can answer "which variables does this service need?" without reading a
+secret left in a template. `.env` and every other `.env.*` file stay skipped as secrets.
+
+Templates whose name does not start with `.env.`, such as `env.example`, were indexed with their
+values before. The extraction policy moves to parser version 6, so the next `rgr ingest` stages a
+validated rebuild without those values; the previous index keeps serving until it activates.
+
 ## Keyword-only evidence and GPU ingestion (6.5)
 
 Existing indexes stay searchable after the update; nothing needs rebuilding.
