@@ -1208,7 +1208,9 @@ uses the active Claude Code project as the knowledge-base root.`)
 ${input.codexConfigPath}
 \`\`\`
 
-Copy that TOML snippet into \`~/.codex/config.toml\` or another trusted Codex config layer.`)
+Copy that TOML snippet into this repository's \`.codex/config.toml\`, which Codex loads once you
+trust the project. Avoid \`~/.codex/config.toml\`: a server there answers every project from this
+base.`)
   }
 
   if (hasAgentHelper(input, "kimi")) {
