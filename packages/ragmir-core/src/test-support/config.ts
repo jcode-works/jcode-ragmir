@@ -58,6 +58,7 @@ export function testConfig(
     maxChunksPerDataFile: DEFAULT_CONFIG.maxChunksPerDataFile,
     mcpAllowedRoots: [...DEFAULT_CONFIG.mcpAllowedRoots],
     mcpAutoIngest: DEFAULT_CONFIG.mcpAutoIngest,
+    mcpIngest: DEFAULT_CONFIG.mcpIngest,
     mcpSeenResults: DEFAULT_CONFIG.mcpSeenResults,
   }
 

@@ -621,11 +621,11 @@ program
 
 const sourcesCommand = program
   .command("sources")
-  .description("Manage extra source paths and glob patterns in .ragmir/config.json.")
+  .description("Manage the source paths and glob patterns the project indexes.")
 
 sourcesCommand
   .command("list")
-  .description("List extra source paths and glob patterns.")
+  .description("List the source paths and glob patterns the project indexes.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (options: { json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
@@ -637,7 +637,7 @@ sourcesCommand
 
     console.log(`sourcesFile=${path.relative(cwd, result.sourcesFile) || result.sourcesFile}`)
     if (result.entries.length === 0) {
-      console.log("No extra source entries.")
+      console.log("No source entries.")
       console.log('Add one with `rgr sources add "../apps/*/docs/**/*.md"`.')
       return
     }
@@ -648,7 +648,7 @@ sourcesCommand
 
 sourcesCommand
   .command("add")
-  .description("Add extra source paths or glob patterns.")
+  .description("Add source paths, glob patterns, or ! exclusions to the project configuration.")
   .argument("<entries...>", "Source paths, glob patterns, or ! exclusion patterns.")
   .option("--json", "Print machine-readable JSON.")
   .action(async (entries: string[], options: { json?: boolean }, command: Command) => {
@@ -826,14 +826,14 @@ program
     parseNonNegativeInt,
   )
   .option(
-    "--include-path <prefix>",
-    "Search only indexed source paths under this prefix. Repeat for multiple prefixes.",
+    "--include-path <path>",
+    'Search only this folder, file, or glob such as "**/*.pdf". Repeat for alternatives.',
     collectOptionValue,
     [],
   )
   .option(
-    "--exclude-path <prefix>",
-    "Exclude indexed source paths under this prefix. Repeat for multiple prefixes.",
+    "--exclude-path <path>",
+    "Exclude this folder, file, or glob. Repeat for multiple paths.",
     collectOptionValue,
     [],
   )

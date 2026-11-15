@@ -24,6 +24,7 @@ const IMPLICIT_DEFAULT_FIELDS = new Set([
   "maxChunksPerDataFile",
   "mcpAllowedRoots",
   "mcpAutoIngest",
+  "mcpIngest",
   "mcpSeenResults",
 ])
 const INITIAL_CONFIG = Object.fromEntries(

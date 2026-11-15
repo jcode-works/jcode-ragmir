@@ -99,6 +99,8 @@ export interface Config {
   mcpAllowedRoots: string[]
   /** Refresh the index in the background when MCP results cite changed files. */
   mcpAutoIngest: boolean
+  /** Let MCP clients refresh the index with ragmir_ingest; false keeps the server read-only. */
+  mcpIngest: boolean
   /** How MCP search treats passages already returned in the same session. */
   mcpSeenResults: McpSeenResults
 }
@@ -670,11 +672,18 @@ export interface KnowledgeBaseSourceCatalog {
     limit: number
     nextOffset: number | null
   }
+  /** Present when `paths` filtered the list: the filters and how many indexed files match them. */
+  filter?: {
+    paths: string[]
+    matchedFiles: number
+  }
 }
 
 export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
   offset?: number
   limit?: number
+  /** List only indexed files under these folders or files, or matching these globs (`**\/*.pdf`). */
+  paths?: string[]
 }
 
 export interface SearchOptions extends OperationOptions {
@@ -792,6 +801,12 @@ export interface ExpandedCitation {
   contextRadius: number
   passages: SearchContextChunk[]
   evidence?: EvidenceVersion
+  /** Number of indexed chunks of the cited document, when the citation was found. */
+  documentChunks?: number
+  /** Citation to expand, with the same radius, to read the window just before this one. */
+  previousCitation?: string
+  /** Citation to expand, with the same radius, to read on after this window. */
+  nextCitation?: string
 }
 
 export interface CompactSearchResult {

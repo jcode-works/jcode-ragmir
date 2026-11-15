@@ -25,24 +25,35 @@ if (!checkOnly) {
   await writeFile(versionSourcePath, `export const VERSION = ${JSON.stringify(version)}\n`, "utf8")
 }
 
-// The MCP Registry entry must name the npm version it installs, and the registry checks that
-// package's `mcpName`, so both stay aligned with the published Core manifest.
+// The MCP Registry entry must name the versions it installs: the Core npm package, whose
+// `mcpName` the registry checks, and the official image, which carries the matching OCI label.
 const serverManifestPath = path.join(repoRoot, "server.json")
 const serverManifest = JSON.parse(await readFile(serverManifestPath, "utf8"))
 const coreManifest = JSON.parse(
   await readFile(path.join(repoRoot, "packages/ragmir-core/package.json"), "utf8"),
 )
+const OFFICIAL_IMAGE = "ghcr.io/jcode-works/ragmir"
 const registryPackages = serverManifest.packages ?? []
+const npmPackages = registryPackages.filter((entry) => entry.registryType === "npm")
+const ociPackages = registryPackages.filter((entry) => entry.registryType === "oci")
 if (
   serverManifest.name !== coreManifest.mcpName ||
-  registryPackages.length !== 1 ||
-  registryPackages[0].identifier !== coreManifest.name
+  npmPackages.length !== 1 ||
+  npmPackages[0].identifier !== coreManifest.name ||
+  ociPackages.length > 1 ||
+  ociPackages.some((entry) => !entry.identifier?.startsWith(`${OFFICIAL_IMAGE}:`)) ||
+  npmPackages.length + ociPackages.length !== registryPackages.length
 ) {
-  throw new Error("server.json must describe the Core npm package and match its mcpName")
+  throw new Error(
+    `server.json must describe the Core npm package, match its mcpName, and list at most the ${OFFICIAL_IMAGE} image besides it`,
+  )
 }
 if (!checkOnly) {
   serverManifest.version = version
-  registryPackages[0].version = version
+  npmPackages[0].version = version
+  for (const image of ociPackages) {
+    image.identifier = `${OFFICIAL_IMAGE}:${version}`
+  }
   await writeJson(serverManifestPath, serverManifest)
 }
 

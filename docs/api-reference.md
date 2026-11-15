@@ -36,10 +36,11 @@ Use one client per project root in each long-running process. The client reuses 
 an immutable read snapshot, detects generation replacement, drains accepted operations at shutdown,
 and releases storage and model resources. Always close it, including when an operation fails.
 
-## LangChain.js retriever
+## LangChain.js retriever and agent tools
 
-`@jcode.labs/ragmir/langchain` exports `RagmirRetriever`, a LangChain.js `BaseRetriever`. Install
-the optional peer `@langchain/core` 1.x next to Ragmir:
+`@jcode.labs/ragmir/langchain` exports `RagmirRetriever`, a LangChain.js `BaseRetriever`, and
+`RagmirToolkit`, the `ragmir_search` and `ragmir_expand` tools for LangChain and LangGraph agents.
+Install the optional peer `@langchain/core` 1.x next to Ragmir:
 
 ```bash
 npm install @jcode.labs/ragmir @langchain/core
@@ -68,6 +69,36 @@ unrelated text. The retriever accepts the same search options as `search` except
 `signal`. Pass `projectRoot` instead of `client` to let it open its own client, then call
 `retriever.close()` during shutdown; it never closes a client you passed in.
 
+For agentic RAG, give the agent tools instead of a fixed retrieval step. The agent decides what to
+search, reads the passages it needs, and answers with its own model:
+
+```ts
+import { createAgent } from "langchain"
+import { createRagmirClient } from "@jcode.labs/ragmir"
+import { createRagmirTools } from "@jcode.labs/ragmir/langchain"
+
+const ragmir = await createRagmirClient({ cwd: process.cwd() })
+const agent = createAgent({
+  model: "anthropic:claude-sonnet-5-5",
+  tools: createRagmirTools({ client: ragmir, topK: 4 }),
+  systemPrompt: "Answer from the project documents and cite each claim with its citation.",
+})
+try {
+  const result = await agent.invoke({
+    messages: [{ role: "user", content: "Who approves a production release?" }],
+  })
+  console.log(result.messages.at(-1)?.content)
+} finally {
+  await ragmir.close()
+}
+```
+
+`ragmir_search` answers the model with numbered citations and passage text, flags weak matches and
+changed files, and says so when no passage supports an answer; its tool message `artifact` holds
+the LangChain documents. `ragmir_expand` returns a citation with its neighbours and the next
+citation to read on; its artifact is the `ExpandedCitation`. `new RagmirToolkit({ projectRoot })`
+opens its own client instead: call `toolkit.close()` at shutdown.
+
 ## One-shot operations
 
 ```ts
@@ -83,8 +114,16 @@ if (results[0]) {
 
 `SearchOptions` includes `topK`, `maxChunksPerDocument`, `contextRadius`, `includePaths`,
 `excludePaths`, `contextPaths`, `scope` (a named scope from the config), `explain`, and
-`vectorSearchMode: "exact"` for ANN comparisons. Path filters accept backslashes and either Unicode
-form; results always use forward slashes and NFC.
+`vectorSearchMode: "exact"` for ANN comparisons. `includePaths` and `excludePaths` take folders,
+files, or globs (`**` crosses folders, `*` and `?` stay within one, `{a,b}` lists alternatives), so
+`["**/*.pdf"]` searches only PDF files. Path filters accept backslashes and either Unicode form;
+results always use forward slashes and NFC.
+
+`expandCitation` returns the cited chunk and its neighbours, `documentChunks` (the chunk count of the
+cited document), and `nextCitation` / `previousCitation`: expand them with the same `contextRadius`
+to read the neighbouring windows of a long document. `client.sources({ paths, offset, limit })`
+lists indexed files under folders or matching globs, with chunk counts, `page.nextOffset`, and the
+number of matching files in `filter.matchedFiles`.
 Use `CompactSearchResult` for bounded snippets or `SearchResult` for text and neighboring context.
 Score explanations describe retrieval signals, not calibrated confidence in a claim.
 
@@ -181,14 +220,17 @@ Client ownership normally manages this lifecycle; active inference leases finish
 SDK transport and returns the handle for shutdown. `serveMcp(cwd?)` runs the stdio transport.
 Close the server when the host stops; it closes its lazy client too.
 
-The server exposes four tools: `ragmir_status`, `ragmir_search`, `ragmir_expand`, `ragmir_audit`,
-and two resources: `ragmir://context`, `ragmir://sources`. Search defaults to three compact results,
-accepts up to five `queries` sharing one budget, remembers the passages it already returned in the
-connection (`seen` stubs), and applies named `scope`s. The server instructions and tool
-descriptions name the base; the server compares the client's MCP roots (or `CLAUDE_PROJECT_DIR`, or
-the recorded launch directory) with the base and warns, or refuses with `mcpAllowedRoots`, when the
-workspace is unrelated.
-Search, expansion, and audit accept `maxBytes`, capped by configuration and the 1 MiB server limit.
+The server exposes six tools: `ragmir_status`, `ragmir_search`, `ragmir_expand`, `ragmir_sources`,
+`ragmir_audit`, and `ragmir_ingest`; the `answer` prompt; and two resources: `ragmir://context`,
+`ragmir://sources`. Search defaults to three compact results, accepts up to five `queries` sharing
+one budget, remembers the passages it already returned in the connection (`seen` stubs), and
+applies named `scope`s. `ragmir_ingest` refreshes the index incrementally, shares one run with the
+`mcpAutoIngest` refresh, and refuses while `mcpIngest` is `false` or a security warning stands. The
+server instructions and tool descriptions name the base; the server compares the client's MCP roots
+(or `CLAUDE_PROJECT_DIR`, or the recorded launch directory) with the base and warns, or refuses with
+`mcpAllowedRoots`, when the workspace is unrelated.
+Search, expansion, sources, and audit accept `maxBytes`, capped by configuration and the 1 MiB
+server limit.
 `ragmir_expand` accepts `expectedEvidenceId` from a previous `ragmir_search` result for the same
 checked expansion used by the TypeScript API.
 `_meta["ragmir/output"]` reports compaction and truncation. Typed summaries preserve identifiers

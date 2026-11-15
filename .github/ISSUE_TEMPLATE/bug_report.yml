@@ -3,6 +3,11 @@ description: Report a reproducible Ragmir bug
 title: "bug: "
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: >-
+        Never attach private documents, indexes (`.ragmir/`), credentials, or customer data.
+        Report security vulnerabilities privately as described in SECURITY.md.
   - type: textarea
     id: summary
     attributes:
@@ -14,15 +19,8 @@ body:
     id: reproduce
     attributes:
       label: Reproduction
-      description: Provide commands and minimal sample files. Do not include private documents or secrets.
+      description: Commands and minimal sample files that reproduce the problem.
       render: bash
-    validations:
-      required: true
-  - type: input
-    id: version
-    attributes:
-      label: Ragmir version
-      placeholder: "pnpm exec rgr --version"
     validations:
       required: true
   - type: textarea
@@ -31,3 +29,37 @@ body:
       label: Expected behavior
     validations:
       required: true
+  - type: input
+    id: version
+    attributes:
+      label: Ragmir version
+      placeholder: "rgr --version"
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: How do you run Ragmir?
+      multiple: true
+      options:
+        - CLI or TypeScript library from npm
+        - Coding-agent plugin (Claude Code, Codex, Cursor, Gemini CLI, Qwen Code)
+        - MCP server in another client
+        - Agent skill from skills.sh
+        - Python package (ragmir, langchain-ragmir, llama-index-retrievers-ragmir)
+        - Docker image
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js version, and the Python version for the Python packages.
+      placeholder: "macOS 26, Node.js 22.23, Python 3.13"
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: >-
+        Output of `rgr doctor` or `rgr status --json`, with private paths or file names removed.
+      render: text

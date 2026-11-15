@@ -101,13 +101,51 @@ jobs:
           docker run --privileged --rm "$BINFMT_IMAGE" --install arm64
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
           docker buildx create --name ragmir-release --use
-          docker buildx build docker \
-            --platform linux/amd64,linux/arm64 \
-            --build-arg "RAGMIR_VERSION=${VERSION}" \
-            --tag "ghcr.io/jcode-works/ragmir:${VERSION}" \
-            --tag ghcr.io/jcode-works/ragmir:latest \
-            --push
+          image=ghcr.io/jcode-works/ragmir
+          minor="${VERSION%.*}"
+          major="${VERSION%%.*}"
+          # slim: 6.11.0, 6.11, 6, latest. full: the same tags with a -full suffix, and full.
+          for target in slim full; do
+            suffix=""
+            moving=latest
+            if [ "$target" = full ]; then
+              suffix=-full
+              moving=full
+            fi
+            docker buildx build docker \
+              --target "$target" \
+              --platform linux/amd64,linux/arm64 \
+              --build-arg "RAGMIR_VERSION=${VERSION}" \
+              --provenance=mode=max \
+              --sbom=true \
+              --tag "${image}:${VERSION}${suffix}" \
+              --tag "${image}:${minor}${suffix}" \
+              --tag "${image}:${major}${suffix}" \
+              --tag "${image}:${moving}" \
+              --push
+          done
           docker logout ghcr.io
+
+      - name: Set up Python
+        if: steps.published.outputs.version != ''
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # PyPI trusted publishing: uv exchanges this job's OIDC identity for a short-lived upload
+      # token, so no PyPI token is stored. Each of the three PyPI projects lists this workflow
+      # file and the npm-publish environment as its trusted publisher.
+      - name: Publish the Python packages
+        if: steps.published.outputs.version != ''
+        env:
+          VERSION: ${{ steps.published.outputs.version }}
+        run: |
+          set -euo pipefail
+          python -m pip install "uv==0.13.6"
+          node scripts/python-release-version.mjs "$VERSION"
+          cd python
+          uv build --all-packages -o dist
+          uv publish --trusted-publishing always dist/*
 
       - name: Install cosign
         if: steps.published.outputs.version != ''
@@ -137,6 +175,9 @@ jobs:
             manifest.version = process.env.VERSION
             for (const pkg of manifest.packages ?? []) {
               if (pkg.registryType === "npm") pkg.version = process.env.VERSION
+              if (pkg.registryType === "oci") {
+                pkg.identifier = pkg.identifier.replace(/:[^:/]+$/, ":" + process.env.VERSION)
+              }
             }
             fs.writeFileSync("server.json", `${JSON.stringify(manifest, null, 2)}\n`)
           '

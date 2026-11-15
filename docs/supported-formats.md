@@ -2,28 +2,38 @@
 
 Ragmir indexes every format below with no extra install, unless the table says otherwise. Each
 result carries a citation an agent can quote and open again: lines for text, pages for PDF, slides,
-sheets and cells, EPUB spine items, a passage number for reformatted text, or a named section for one object of a data model, diagram, or
-API description. `rgr audit --unsupported` lists the files of your sources that Ragmir skipped.
+sheets and cells, EPUB spine items, a passage number for reformatted text, or a named section for
+one object of a mailbox, design file, data model, diagram, API description, or collection.
+`rgr audit --unsupported` lists the files of your sources that Ragmir skipped.
 
 ## Every format
 
 | Family | Extensions and file names | Citation |
 | --- | --- | --- |
-| Documents | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.odt`, `.odp`, `.ods`, `.epub`, `.rtf`, `.html`, `.htm` | Page, slide, sheet and cells, EPUB item, or passage |
-| Writing and markup | `.md`, `.markdown`, `.mdown`, `.mdx`, `.txt`, `.text`, `.adoc`, `.rst`, `.tex` | Lines |
-| Mail, calendar, captions, feeds | `.eml`, `.msg`, `.ics`, `.srt`, `.vtt`, `.rss`, `.atom` | Lines (`.msg`: passage) |
-| Data and configuration | `.csv`, `.tsv`, `.json`, `.jsonl`, `.ndjson`, `.ipynb`, `.yaml`, `.yml`, `.toml`, `.ini`, `.cfg`, `.conf`, `.properties`, `.xml`, `.log`, `.example`, `.exemple` | Lines (JSON and YAML: passage) |
-| Data models and SQL | PowerDesigner `.cdm`, `.ldm`, `.pdm`, `.oom`, `.bpm`, `.mcd`, `.mpd`; MySQL Workbench `.mwb`; Oracle Data Modeler `.dmd`; ERwin XML; `.sql`; PL/SQL `.pkb`, `.pks`, `.pls`, `.plb`, `.pck`, `.bdy`, `.trg`, `.fnc`, `.prc`; `.dbml`, `.prisma` | Section per object, or lines |
-| Diagrams and processes | draw.io `.drawio`; Visio `.vsdx`; `.bpmn`, `.dmn`; ArchiMate `.archimate`; UML `.xmi`; Mermaid `.mmd`; PlantUML `.puml`, `.plantuml`; Structurizr `.dsl`; D2 `.d2`; `.svg` | Section per page or object, or lines |
-| APIs and schemas | OpenAPI, Swagger, and AsyncAPI in YAML or JSON; `.graphql`, `.gql`, `.proto`, `.avsc`, `.thrift`, `.xsd`, `.wsdl`, `.http` | Section per operation, or lines |
-| BI and reporting | Tableau `.twb`, `.twbx`; Power BI project `.tmdl`, `.pbip`, `.pbir`, `.pbism`, `.bim`; JasperReports `.jrxml` | Section per object, or lines |
-| Code | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.vue`, `.svelte`, `.astro`, `.css`, `.scss`, `.py`, `.java`, `.kt`, `.kts`, `.scala`, `.groovy`, `.gradle`, `.go`, `.rs`, `.c`, `.h`, `.cpp`, `.hpp`, `.cs`, `.vb`, `.fs`, `.php`, `.rb`, `.swift`, `.dart`, `.lua`, `.r`, `.pl`, `.ex`, `.exs`, `.erl`, `.hs`, `.clj`, `.sol`, `.cbl`, `.cob` | Lines |
-| Infrastructure and scripts | `.tf`, `.hcl`, `.tpl` and Helm YAML templates, `.dockerfile`, `Dockerfile`, `Makefile`, `Procfile`, `Gemfile`, `Rakefile`, `gradlew`, `mvnw`, `.sh`, `.bash`, `.ps1`, `.bat`, `.cmd`, `.diff`, `.patch`, `.gitignore`, `.dockerignore`, `.npmignore` | Lines |
+| Documents | `.pdf`, `.docx`, `.docm`, `.dotx`, `.dotm`, `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx`, `.ppsm`, `.xlsx`, `.xlsm`, `.xltx`, `.xltm`, `.odt`, `.ods`, `.odp`, `.odg`, `.ott`, `.ots`, `.otp`, `.otg`, `.fodt`, `.fods`, `.fodp`, `.fodg`, `.epub`, `.fb2`, `.rtf`, `.html`, `.htm`, `.xhtml`, `.xht`, `.shtml`, `.mhtml`, `.mht` | Page, slide, sheet and cells, EPUB item, chapter, or passage |
+| Writing and markup | `.md`, `.markdown`, `.mdown`, `.mkd`, `.mkdn`, `.mdwn`, `.mdtext`, `.mdtxt`, `.mdx`, `.mdoc`, `.mdc`, `.livemd`, `.qmd`, `.rmd`, `.rnw`, `.txt`, `.text`, `.adoc`, `.asciidoc`, `.rst`, `.org`, `.typ`, `.tex`, `.ltx`, `.sty`, `.cls`, `.bib`, `.ris`, `.textile`, `.wiki`, `.mediawiki`, `.creole`, `.rdoc`, `.pod`, `.texi`, `.texinfo`, `.opml` | Lines |
+| Mail, contacts, calendar, captions, and feeds | `.eml`, `.emlx`, `.mbox`, `.msg`, `.vcf`, `.ics`, `.vcs`, `.srt`, `.vtt`, `.ass`, `.ssa`, `.sbv`, `.lrc`, `.ttml`, `.dfxp`, `.rss`, `.atom` | Lines; `.eml`, `.emlx`, `.msg`: passage; `.mbox`: one section per message |
+| Notes, whiteboards, and design files | `.enex`, `.canvas`, `.excalidraw`, `.tldr`, `.fig`, `.sketch` | Section per note, frame, page, group, or artboard |
+| Data and configuration | `.csv`, `.tsv`, `.json`, `.jsonl`, `.ndjson`, `.json5`, `.jsonc`, `.hjson`, `.cson`, `.jsonld`, `.geojson`, `.topojson`, `.webmanifest`, `.ipynb`, `.yaml`, `.yml`, `.toml`, `.ini`, `.cfg`, `.conf`, `.cnf`, `.properties`, `.xml`, `.log`, `.example`, `.exemple`, `.sample`, `.template`, `.dist`, `.desktop`, `.service`, `.timer`, `.socket`, `.mount`, `.xcconfig`, `.entitlements` | Lines (JSON and YAML: passage; GeoJSON: section per feature) |
+| Translations | `.po`, `.pot`, `.xliff`, `.xlf`, `.strings`, `.stringsdict`, `.resx`, `.resw`, `.arb`, `.ftl`, `.xcstrings` | Lines |
+| Data models, SQL, and queries | `.cdm`, `.ldm`, `.pdm`, `.oom`, `.bpm`, `.mcd`, `.mpd`, `.mwb`, `.dmd`, `.sql`, `.psql`, `.pgsql`, `.mysql`, `.ddl`, `.dml`, `.pkb`, `.pks`, `.pls`, `.plb`, `.pck`, `.bdy`, `.trg`, `.fnc`, `.prc`, `.dbml`, `.prisma`, `.hql`, `.cql`, `.cypher`, `.sparql`, `.rq`, `.ttl`, `.rdf`, `.owl`, `.edgeql`, `.surql`, `.kql`, `.prql` | Section per object, or lines |
+| Diagrams and processes | `.drawio`, `.dio`, `.vsdx`, `.vsdm`, `.vstx`, `.vstm`, `.bpmn`, `.dmn`, `.archimate`, `.xmi`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.iuml`, `.wsd`, `.dsl`, `.d2`, `.dot`, `.gv`, `.graphml`, `.likec4`, `.c4`, `.svg` | Section per page or object, or lines |
+| APIs, schemas, and requests | `.graphql`, `.gql`, `.proto`, `.avsc`, `.thrift`, `.xsd`, `.wsdl`, `.http`, `.rest`, `.hurl`, `.bru`, `.raml`, `.smithy`, `.tsp`, `.capnp`, `.fbs`, `.idl`, `.wit` | Section per operation or request, or lines |
+| BI, reporting, analytics, and ETL | `.twb`, `.twbx`, `.tmdl`, `.pbip`, `.pbir`, `.pbism`, `.bim`, `.jrxml`, `.lkml`, `.malloy`, `.dax`, `.pq`, `.qvs`, `.rdl`, `.rdlc`, `.dtsx`, `.ktr`, `.kjb`, `.yxmd`, `.yxmc`, `.yxwz`, `.sas`, `.sps`, `.do`, `.ado` | Section per object, or lines |
+| Code | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.vue`, `.svelte`, `.astro`, `.marko`, `.css`, `.scss`, `.sass`, `.less`, `.styl`, `.pcss`, `.postcss`, `.py`, `.pyi`, `.pyx`, `.pxd`, `.java`, `.kt`, `.kts`, `.scala`, `.sbt`, `.groovy`, `.gradle`, `.go`, `.rs`, `.zig`, `.nim`, `.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hh`, `.hpp`, `.hxx`, `.ino`, `.m`, `.mm`, `.cu`, `.cuh`, `.cs`, `.vb`, `.fs`, `.fsx`, `.fsi`, `.php`, `.rb`, `.rake`, `.gemspec`, `.podspec`, `.swift`, `.dart`, `.lua`, `.r`, `.jl`, `.pl`, `.ex`, `.exs`, `.erl`, `.gleam`, `.hs`, `.cabal`, `.ml`, `.mli`, `.re`, `.sml`, `.elm`, `.purs`, `.clj`, `.cljs`, `.cljc`, `.edn`, `.lisp`, `.lsp`, `.el`, `.scm`, `.ss`, `.rkt`, `.cr`, `.hx`, `.mojo`, `.v`, `.sv`, `.svh`, `.vhd`, `.vhdl`, `.f`, `.for`, `.f77`, `.f90`, `.f95`, `.f03`, `.f08`, `.pas`, `.pp`, `.ada`, `.adb`, `.ads`, `.asm`, `.s`, `.wat`, `.glsl`, `.vert`, `.frag`, `.hlsl`, `.wgsl`, `.metal`, `.sol`, `.move`, `.cairo`, `.vy`, `.cbl`, `.cob`, `.cpy`, `.jcl`, `.pli`, `.rpgle`, `.abap`, `.trigger`, `.cfm`, `.cfc`, `.bas`, `.vbs`, `.tcl`, `.coffee`, `.wl`, `.wls`, `.qml`, `.xaml`, `.axaml`, `.xib`, `.storyboard`, `.ui`, `.vim` | Lines |
+| Web templates | `.hbs`, `.handlebars`, `.mustache`, `.ejs`, `.erb`, `.haml`, `.slim`, `.pug`, `.jade`, `.njk`, `.jinja`, `.jinja2`, `.j2`, `.twig`, `.liquid`, `.cshtml`, `.vbhtml`, `.razor`, `.jsp`, `.jspx`, `.asp`, `.aspx`, `.ascx`, `.gohtml`, `.gotmpl`, `.tmpl`, `.mjml` | Lines |
+| Infrastructure, build, and scripts | `.tf`, `.hcl`, `.tpl`, `.bicep`, `.bicepparam`, `.nomad`, `.rego`, `.sentinel`, `.cue`, `.jsonnet`, `.libsonnet`, `.nix`, `.dhall`, `.pkl`, `.kcl`, `.sls`, `.dockerfile`, `.containerfile`, `.cmake`, `.bzl`, `.bazel`, `.star`, `.mk`, `.mak`, `.ninja`, `.gn`, `.gni`, `.sh`, `.bash`, `.zsh`, `.fish`, `.ksh`, `.csh`, `.tcsh`, `.ps1`, `.psm1`, `.psd1`, `.bat`, `.cmd`, `.awk`, `.sed`, `.ahk`, `.applescript`, `.diff`, `.patch` | Lines |
+| Security and compliance reports | `.sarif`, `.spdx` | Section per finding (SARIF), or lines |
+| Project files without an extension | `AUTHORS`, `CHANGELOG`, `CHANGES`, `CODEOWNERS`, `CONTRIBUTORS`, `COPYING`, `HISTORY`, `LICENCE`, `LICENSE`, `NOTICE`, `OWNERS`, `README`, `TODO` | Lines |
+| Build and automation files | `Appfile`, `Berksfile`, `Brewfile`, `BUILD`, `Caddyfile`, `Capfile`, `Cartfile`, `Containerfile`, `Dangerfile`, `Dockerfile`, `Earthfile`, `Fastfile`, `Gemfile`, `GNUmakefile`, `Gradlew`, `Guardfile`, `Jenkinsfile`, `Justfile`, `Makefile`, `Matchfile`, `Mvnw`, `Pipfile`, `Podfile`, `Procfile`, `Rakefile`, `Snakefile`, `Tiltfile`, `Vagrantfile`, `WORKSPACE`, and variants such as `Dockerfile.*`, `Containerfile.*`, `Jenkinsfile.*`, `Makefile.*` | Lines |
+| Tool configuration files | `.babelrc`, `.browserslistrc`, `.clang-format`, `.clang-tidy`, `.containerignore`, `.dockerignore`, `.editorconfig`, `.eslintignore`, `.eslintrc`, `.flake8`, `.gcloudignore`, `.gitattributes`, `.gitignore`, `.gitmodules`, `.helmignore`, `.htaccess`, `.mailmap`, `.node-version`, `.npmignore`, `.nvmrc`, `.prettierignore`, `.prettierrc`, `.pylintrc`, `.python-version`, `.ruby-version`, `.stylelintignore`, `.stylelintrc`, `.swcrc`, `.terraform-version`, `.tool-versions`, `.vscodeignore` | Lines |
 | With a local extractor (optional) | Scanned PDF pages; images `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.webp`, `.gif`, `.bmp`, `.heic`, `.heif`, `.avif`; legacy Word `.doc` | Page or passage |
 
-Office charts are indexed with their titles, axes, series, and values. Other text extensions can be
-added with `includeExtensions` in the [configuration](./configuration.md). Binary formats outside
-this list are reported, never guessed.
+Office charts are indexed with their titles, axes, series, and values. Text files keep their own
+encoding: a UTF-16 byte order mark selects UTF-16, and bytes that are not valid UTF-8 are read as
+Windows-1252, so legacy CSV files, subtitles, and Apple string tables index correctly. Other text
+extensions can be added with `includeExtensions` in the [configuration](./configuration.md).
+Binary formats outside this list are reported, never guessed.
 
 ## Structured exports in detail
 
@@ -33,23 +43,40 @@ this list are reported, never guessed.
 | ERwin Data Modeler | XML export (`.xml`) | Entities, attributes with physical names and types, relationships |
 | MySQL Workbench | `.mwb` | Tables, columns, foreign keys, indexes, views, routines |
 | Oracle SQL Developer Data Modeler | object `.xml` files in the design folder | Entities, tables, and their attributes or columns with comments |
-| draw.io / diagrams.net | `.drawio`, `.drawio.svg`, or `.xml` | One section per page: shape labels, custom properties, containers, and connections |
-| Visio | `.vsdx` | One section per page: shape text and connectors |
+| draw.io / diagrams.net | `.drawio`, `.dio`, `.drawio.svg`, or `.xml` | One section per page: shape labels, custom properties, containers, and connections |
+| Visio | `.vsdx`, `.vsdm`, `.vstx`, `.vstm` | One section per page: shape text and connectors |
 | BPMN 2.0 | `.bpmn` or `.xml` | Processes with lanes, steps, documentation, flows, and conditions; collaborations |
 | DMN | `.dmn` or `.xml` | Decisions with hit policy, inputs, outputs, every rule, and requirements |
 | ArchiMate | `.archimate` (Archi) or Open Group exchange `.xml` | Elements with documentation, properties, and relations |
 | UML | `.xmi` or `.xml` | Classes, interfaces, enumerations, components, actors, use cases, attributes, operations, generalizations, notes |
+| Figma, FigJam, Figma Slides | `.fig` saved with "Save local copy", or the file JSON of the REST API | One section per top-level frame, section, component, or slide of each page: text layers, instance text overrides, component descriptions; loose stickies and text per page |
+| Sketch | `.sketch` | One section per artboard or symbol: text layers and symbol text overrides |
+| Excalidraw | `.excalidraw`, or a `.json` scene | One section per frame and one for the rest of the canvas: text, labelled shapes, labelled arrows, links |
+| tldraw | `.tldr` | One section per page: frame names, text and notes in reading order, bound arrows |
+| JSON Canvas (Obsidian) | `.canvas` | One section per group and one for ungrouped cards: text, file and link cards, labelled edges |
 | Tableau | `.twb`, `.twbx` | Data sources with fields and calculated formulas, worksheets, dashboards |
 | OpenAPI, Swagger, AsyncAPI | `.yaml`, `.yml`, `.json` | API overview, each operation (`GET /invoices/{id}`), channel, message, and schema |
+| Postman | collection v2.0 or v2.1 `.json` | Collection overview, folders, and one section per request: method, URL, description, parameters, headers, body, example responses; secret header values left out |
+| Insomnia | v4 `.json` export or v5 `.yaml` collection | Workspace, then one section per request with its folder path; environments are not indexed |
 | Power BI project | `.tmdl`, `.pbip`, `.pbir`, `.pbism`, `.bim` | TMDL as text with line citations, PBIR and TMSL as JSON |
-| Outlook | `.msg` | Subject, sender, recipients, date, attachment names, and body |
+| Email | `.eml`, `.emlx`, `.msg` | Subject, sender, recipients, date, attachment names, and the decoded body: quoted-printable and base64 parts in their charset, HTML rendered as text, forwarded messages included |
+| Mailbox | `.mbox` (Gmail Takeout, Thunderbird, Apple Mail export) | One section per message, labelled with its number and subject |
+| Saved web page | `.mhtml`, `.mht` | Page title, address, and the rendered page; images are skipped |
+| Evernote | `.enex` | One section per note: title, tags, dates, author, source address, attachment names, and the rendered body |
+| FictionBook | `.fb2` | Book description, then one section per chapter |
+| GeoJSON | `.geojson`, or a `.json` feature collection | One section per feature: its name, geometry type, point coordinates, and properties |
+| SARIF | `.sarif` from CodeQL, Semgrep, ESLint, and other analyzers | One section per finding: rule, level, message, locations, and rule description |
+| Flat OpenDocument | `.fodt`, `.fods`, `.fodp`, `.fodg` | Metadata and body, without styles and settings |
 
 ## How detection works
 
 A file with a dedicated extension uses its extractor. A generic `.xml` file is read as structured
 only when its first bytes identify the tool: the PowerDesigner processing instruction, or the root
 element and namespace of draw.io, BPMN, DMN, ArchiMate, XMI, MySQL Workbench, Oracle Data
-Modeler, ERwin, or Tableau. Any other XML file, such as a Maven `pom.xml`, keeps line citations.
+Modeler, ERwin, or Tableau. Any other XML file, such as a Maven `pom.xml`, keeps line citations. A
+`.json` or `.yaml` file is read as structured only when its shape identifies an OpenAPI or AsyncAPI
+description, a Postman or Insomnia collection, a Figma file, an Excalidraw or tldraw document, a
+GeoJSON feature collection, a SARIF log, or a JSON Canvas; any other JSON keeps its plain text.
 
 ## Exports that need one step first
 
@@ -61,15 +88,22 @@ Modeler, ERwin, or Tableau. Any other XML file, such as a Maven `pom.xml`, keeps
 - **Power BI `.pbix`.** The model is stored in a compressed binary part. Save the report as a Power
   BI project (PBIP) with the TMDL format and index the project folder.
 - **Enterprise Architect `.qea` and `.eap`.** These are databases. Export the model to XMI.
-- **Figma `.fig`.** The format is private and binary. Export frames or specifications as text,
-  Markdown, or PDF.
+- **Figma in the browser.** Use "Save local copy" to get a `.fig` file, or save the file JSON of the
+  REST API (`GET /v1/files/:key`). Zstandard-compressed `.fig` files need Node.js 22.15 or later.
+- **Apple Pages, Numbers, and Keynote.** Export to Word, Excel, PowerPoint, or PDF.
+- **OneNote, Google Docs, Notion, and Confluence.** Export to Word, PDF, HTML, or Markdown; Google
+  Takeout and Notion exports already use these formats.
+- **Legacy `.xls` and `.ppt`.** Convert to `.xlsx`, `.pptx`, CSV, or PDF.
 
 ## Limits
 
 One file produces at most 20,000 sections; a last section records how many objects were left out.
-A compressed draw.io page expands to at most 25 MB. Archives (`.mwb`, `.vsdx`, `.twbx`) use the
-same entry-count and size limits as Office files. A damaged file is reported in the ingestion
-errors and does not stop ingestion.
+A compressed draw.io page expands to at most 25 MB, and a Figma document to at most 256 MB.
+Archives (`.mwb`, `.vsdx`, `.twbx`, `.sketch`) use the same entry-count and size limits as Office
+files. A mail part is indexed up to 2 million characters; binary attachments are listed by name.
+Files larger than `maxFileBytes` (50 MB at most) are skipped, so split large mailboxes by year or
+label before indexing them. A damaged file is reported in the ingestion errors and does not stop
+ingestion.
 
 After an upgrade, the next `rgr ingest` stages a rebuild with the new extractors and activates it
 only once it passes validation. The previous index stays searchable meanwhile, and

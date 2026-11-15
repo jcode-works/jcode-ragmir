@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm lint)",
+      "Bash(pnpm lint:fix)",
+      "Bash(pnpm knip)",
+      "Bash(pnpm check)",
+      "Bash(pnpm test)",
+      "Bash(pnpm build)",
+      "Bash(pnpm public:smoke)",
+      "Bash(pnpm smoke)",
+      "Bash(pnpm validate)",
+      "Bash(pnpm python:check)",
+      "Bash(pnpm --filter @jcode.labs/ragmir build)",
+      "Bash(pnpm --filter @jcode.labs/ragmir check)",
+      "Bash(pnpm --filter @jcode.labs/ragmir test *)",
+      "Bash(pnpm --filter @jcode.labs/ragmir-landing check)",
+      "Bash(pnpm --filter @jcode.labs/ragmir-landing test *)",
+      "Bash(pnpm exec biome check *)",
+      "Bash(pnpm exec vitest run *)",
+      "Bash(pnpm rgr doctor *)",
+      "Bash(pnpm rgr status *)",
+      "Bash(pnpm rgr search *)",
+      "Bash(pnpm rgr audit *)",
+      "Bash(pnpm rgr ingest)",
+      "Bash(node scripts/public-surface-smoke.mjs)"
+    ],
+    "deny": ["Read(./.env)", "Read(./.env.*)", "Read(./private/**)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-edits.mjs\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/after-edit.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

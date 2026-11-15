@@ -26,6 +26,8 @@ describe("supported formats guide", () => {
       ...setEntries("OCR_IMAGE_EXTENSIONS"),
       ...setEntries("LEGACY_WORD_EXTENSIONS"),
       ...setEntries("DEFAULT_SUPPORTED_FILE_NAMES"),
+      // `Dockerfile.*` documents every `dockerfile.` variant.
+      ...setEntries("DEFAULT_SUPPORTED_NAME_PREFIXES").map((prefix) => `${prefix}*`),
     ].filter((entry) => !listed.has(entry))
 
     expect(missing).toEqual([])

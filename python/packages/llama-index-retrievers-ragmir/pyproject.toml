@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llama-index-retrievers-ragmir"
+version = "0.0.0"
+description = "LlamaIndex retriever for Ragmir: nodes cited to lines, pages, slides, or cells from local documents and code."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Jean-Baptiste Thery", email = "jb.thery@jcode.works" }]
+keywords = ["ragmir", "llama-index", "retriever", "rag", "citations", "local-first"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
+dependencies = ["ragmir", "llama-index-core>=0.13,<0.15"]
+
+[project.urls]
+Homepage = "https://ragmir.com"
+Documentation = "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md"
+Repository = "https://github.com/jcode-works/jcode-ragmir"
+Issues = "https://github.com/jcode-works/jcode-ragmir/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llama_index"]
+
+[tool.llamahub]
+contains_example = false
+import_path = "llama_index.retrievers.ragmir"
+
+[tool.llamahub.class_authors]
+RagmirRetriever = "jb-thery"

@@ -9,7 +9,6 @@ const manifestDirs = [".", ...publishedPackageDirs, "packages/ragmir-landing"]
 const requiredPackageFiles = ["LICENSE", "COMMERCIAL-LICENSE.md", "NOTICE"]
 const publicPolicyFiles = [
   "AGENTS.md",
-  "CLAUDE.md",
   "CONTRIBUTING.md",
   "README.md",
   "RELEASING.md",
@@ -73,6 +72,12 @@ for (const directory of publishedPackageDirs) {
   }
 }
 
+// CLAUDE.md imports AGENTS.md, so Claude Code reads the same policy.
+const claudeInstructions = await readFile(path.join(repoRoot, "CLAUDE.md"), "utf8")
+if (!/^@AGENTS\.md$/mu.test(claudeInstructions)) {
+  failures.push("CLAUDE.md: must import AGENTS.md with an @AGENTS.md line")
+}
+
 for (const relativePath of publicPolicyFiles) {
   const content = await readFile(path.join(repoRoot, relativePath), "utf8")
   if (!content.includes("AGPL")) {
@@ -84,6 +89,26 @@ for (const relativePath of publicPolicyFiles) {
     )
   ) {
     failures.push(`${relativePath}: still presents the current project as MIT licensed`)
+  }
+}
+
+// The PyPI packages declare the same license and ship the canonical text.
+for (const project of ["ragmir", "langchain-ragmir", "llama-index-retrievers-ragmir"]) {
+  const directory = path.join("python", "packages", project)
+  const pyproject = await readFile(path.join(repoRoot, directory, "pyproject.toml"), "utf8")
+  if (!pyproject.includes(`license = "${expectedLicense}"`)) {
+    failures.push(`${directory}/pyproject.toml: expected license ${expectedLicense}`)
+  }
+  if (!pyproject.includes('license-files = ["LICENSE"]')) {
+    failures.push(`${directory}/pyproject.toml: license-files must ship LICENSE`)
+  }
+  const packageLicense = await readFile(path.join(repoRoot, directory, "LICENSE"), "utf8")
+  if (packageLicense !== canonicalLicense) {
+    failures.push(`${directory}/LICENSE: differs from the canonical root license`)
+  }
+  const readme = await readFile(path.join(repoRoot, directory, "README.md"), "utf8")
+  if (!readme.includes("AGPL")) {
+    failures.push(`${directory}/README.md: missing the AGPL policy`)
   }
 }
 
