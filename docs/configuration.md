@@ -252,8 +252,9 @@ bundles. A source entry that names one of these folders, such as `.claude/**/*.m
 it. Set `defaultExcludes: false` to index everything the globs match.
 
 Files that hold credentials are always skipped, whatever the sources say: `.env` and `.env.*`,
-`.npmrc`, `.netrc`, `.pgpass`, `.pypirc`, `.htpasswd`, `credentials`, SSH private keys, and key or
-certificate files such as `.pem`, `.key`, `.p12`, or `.kdbx`. `rgr audit --unsupported` lists them
+`.npmrc`, `.netrc`, `.pgpass`, `.pypirc`, `.htpasswd`, `credentials`, SSH private keys, key or
+certificate files such as `.pem`, `.key`, `.p12`, or `.kdbx`, Terraform state and variable files
+(`.tfstate`, `.tfvars`), and the Firebase `GoogleService-Info.plist`. `rgr audit --unsupported` lists them
 as `sensitive-name`. Dotenv templates (`.env.example`, `.env.sample`, `.env.template`, `.env.dist`,
 or `env.example`) are the exception: they index their variable names and comments with every value
 masked.

@@ -412,16 +412,18 @@ model for its own retrieval:
 
 ## Supported documents
 
-More than 650 extensions and file names index with no extra install: PDF, Word, PowerPoint,
+More than 900 extensions and file names index with no extra install: PDF, Word, PowerPoint,
 Excel (macro-enabled files and templates included), OpenDocument, EPUB, HTML and saved web pages,
-code in over 200 languages, Visual Studio projects and solutions, Godot scenes, configuration,
+code in over 250 languages, C++ modules, Perl modules, Gherkin and Robot Framework tests, Visual
+Studio, MSBuild, and WiX projects, Godot scenes, configuration, Apple property lists,
 translations, and build files such as `Dockerfile`, `Jenkinsfile`, `go.mod`, or `meson.build`.
 Images and legacy `.doc` files use optional local extractors.
 
 Exports are indexed object by object and cited as `model.pdm:section=Table%20INVOICE#3`:
 
-- **Design and whiteboards:** Figma `.fig` files and REST exports, Sketch, Excalidraw, tldraw, and
-  Obsidian canvases, by frame, artboard, page, or group.
+- **Design, whiteboards, and mind maps:** Figma `.fig` files and REST exports, Sketch,
+  Excalidraw, tldraw, Obsidian canvases, and XMind maps, by frame, artboard, page, group, or
+  sheet.
 - **Mail and notes:** `.eml`, `.emlx`, and Outlook `.msg` messages decoded with their attachment
   names, `.mbox` mailboxes message by message, Evernote notes, and saved `.mhtml` pages.
 - **APIs:** OpenAPI and AsyncAPI operations, Postman and Insomnia requests, and HAR captures from
