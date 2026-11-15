@@ -41,6 +41,7 @@ rgr preview --path docs --max-files 5 --max-chunks 3
 rgr search "migration" --top-k 5 --context-radius 1
 rgr search "migration" --top-k 5 --max-chunks-per-document 2
 rgr search "migration" --include-path docs --exclude-path docs/archive
+rgr search "termination notice" --include-path "**/*.pdf"
 rgr search "migration" --context-path "Guide > Migration" --explain
 rgr search "migration" --scope docs
 rgr search "migration" --exact-vector-search
@@ -50,7 +51,8 @@ Text output marks a result whose file changed or disappeared after indexing
 (`source modified since indexing`) and a result with thin support (`weak evidence`). JSON results
 carry the same information as `sourceStatus` and `weakEvidence`. A search whose first five results are
 all weak prints no result, with any provider: the base holds no evidence for the question. `--scope`
-applies a named scope from the config; `--include-path` accepts backslashes on every platform.
+applies a named scope from the config. `--include-path` and `--exclude-path` take a folder, a file,
+or a glob such as `"**/*.pdf"`, and accept backslashes on every platform.
 
 `sources add` accepts paths, globs, and `!` exclusions. Search accepts `--top-k`,
 `--include-path`, `--exclude-path`, and repeatable `--context-path`. Search accepts

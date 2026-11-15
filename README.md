@@ -181,7 +181,7 @@ come back as stubs, so the second search spends its budget on new evidence.
 
 ## Works with your agent and framework
 
-[![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=flat-square&logo=claude&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-111111?style=flat-square)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Cursor](https://img.shields.io/badge/Cursor-111111?style=flat-square&logo=cursor&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Qwen Code](https://img.shields.io/badge/Qwen_Code-6950EF?style=flat-square&logo=qwen&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![LangChain.js](https://img.shields.io/badge/LangChain.js-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](./docs/api-reference.md#langchainjs-retriever) [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](./docs/python.md#langchain) [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-6D28D9?style=flat-square)](./docs/python.md#llamaindex) [![MCP](https://img.shields.io/badge/MCP-111111?style=flat-square&logo=modelcontextprotocol&logoColor=white)](./docs/agent-integration.md#connect-an-agent-through-mcp) [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](./docs/python.md) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](./docs/api-reference.md) [![Ollama](https://img.shields.io/badge/Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](./docs/agent-integration.md#confidential-chat-local-model-example)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=flat-square&logo=claude&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-111111?style=flat-square)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Cursor](https://img.shields.io/badge/Cursor-111111?style=flat-square&logo=cursor&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Qwen Code](https://img.shields.io/badge/Qwen_Code-6950EF?style=flat-square&logo=qwen&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![LangChain.js](https://img.shields.io/badge/LangChain.js-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](./docs/api-reference.md#langchainjs-retriever-and-agent-tools) [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](./docs/python.md#langchain) [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-6D28D9?style=flat-square)](./docs/python.md#llamaindex) [![MCP](https://img.shields.io/badge/MCP-111111?style=flat-square&logo=modelcontextprotocol&logoColor=white)](./docs/agent-integration.md#connect-an-agent-through-mcp) [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](./docs/python.md) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](./docs/api-reference.md) [![Ollama](https://img.shields.io/badge/Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](./docs/agent-integration.md#confidential-chat-local-model-example)
 
 The same local index and the same citations serve every integration: a plugin for Claude Code,
 OpenAI Codex, or Cursor, an extension for Gemini CLI or Qwen Code, a LangChain.js retriever, the
@@ -196,16 +196,19 @@ MCP server for any client, or the TypeScript API.
 | Qwen Code | `qwen extensions install jcode-works/jcode-ragmir` |
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
 | Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
-| LangChain.js | `RagmirRetriever` from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever)) |
+| LangChain.js and LangGraph.js | `RagmirRetriever` for chains, `createRagmirTools` for agents, from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever-and-agent-tools)) |
 | Python: MCP SDK, LangChain, LlamaIndex | [Use Ragmir from Python](./docs/python.md) |
 | Local models such as Ollama | [Local model example](./docs/agent-integration.md#confidential-chat-local-model-example) |
 | Without Node.js | `docker run -v "$PWD:/workspace" ghcr.io/jcode-works/ragmir` |
 | Your own application | `createRagmirClient()` from the TypeScript API |
 
-The MCP server exposes four read-only tools: `ragmir_search` (one question or up to five related
-ones in a shared budget, optional named `scope`), `ragmir_expand`, `ragmir_status`, and
-`ragmir_audit`. Its instructions name the base it serves. Register it per project: a server
-registered for every project answers unrelated workspaces too, and `rgr doctor` flags it.
+The MCP server exposes `ragmir_search` (one question or up to five related ones in a shared budget,
+with folder or glob filters and named scopes), `ragmir_expand` (a citation with its neighbours,
+and the next window to read a document through), `ragmir_sources` (the indexed documents),
+`ragmir_status`, `ragmir_audit`, and `ragmir_ingest`, which refreshes the index after files change
+and writes nothing but Ragmir's private index. An `answer` prompt asks for a fully cited answer.
+Its instructions name the base it serves. Register it per project: a server registered for every
+project answers unrelated workspaces too, and `rgr doctor` flags it.
 
 ## Four workflow examples
 
@@ -404,15 +407,25 @@ model for its own retrieval:
 
 ## Supported documents
 
-Text and code, Markdown, JSON/JSONL, YAML, CSV, HTML, PDF, DOCX, XLSX, PPTX, OpenDocument, EPUB,
-RTF, Outlook `.msg`, images and legacy `.doc` with local extractors, and configured custom text
-extensions. Charts in Word, PowerPoint, and Excel files are indexed with their title, axes, series,
-and values; Helm chart templates (`.tpl` and YAML with `{{ }}` actions) are indexed as text with
-line citations. Data models and diagrams are indexed object by object and cited as
-`model.pdm:section=Table%20INVOICE#3`: PowerDesigner, ERwin, MySQL Workbench, Oracle Data Modeler,
-draw.io, Visio, BPMN, DMN, ArchiMate, UML XMI, Tableau, and OpenAPI or AsyncAPI operations. PL/SQL,
-Kotlin, Swift, Terraform, Protobuf, GraphQL, Prisma, DBML, PlantUML, TMDL, and other text formats
-keep line citations. See [Supported formats](./docs/supported-formats.md). Semantic retrieval runs a
+More than 450 extensions and file names index with no extra install: PDF, Word, PowerPoint,
+Excel (macro-enabled files and templates included), OpenDocument, EPUB, HTML and saved web pages,
+code in over 100 languages, configuration, translations, and build files such as `Dockerfile` or
+`Jenkinsfile`. Images and legacy `.doc` files use optional local extractors.
+
+Exports are indexed object by object and cited as `model.pdm:section=Table%20INVOICE#3`:
+
+- **Design and whiteboards:** Figma `.fig` files and REST exports, Sketch, Excalidraw, tldraw, and
+  Obsidian canvases, by frame, artboard, page, or group.
+- **Mail and notes:** `.eml`, `.emlx`, and Outlook `.msg` messages decoded with their attachment
+  names, `.mbox` mailboxes message by message, Evernote notes, and saved `.mhtml` pages.
+- **APIs:** OpenAPI and AsyncAPI operations, Postman and Insomnia requests, with secret header
+  values left out.
+- **Models and diagrams:** PowerDesigner, ERwin, MySQL Workbench, Oracle Data Modeler, draw.io,
+  Visio, BPMN, DMN, ArchiMate, UML XMI, Tableau, and Power BI projects.
+- **Data and reports:** GeoJSON features, SARIF security findings, and Office charts with their
+  series and values.
+
+See [Supported formats](./docs/supported-formats.md) for the full list. Semantic retrieval runs a
 local model or, opt-in, any OpenAI-compatible embeddings endpoint such as Ollama or vLLM.
 Transformed formats use native coordinates instead of invented source lines. Unsupported,
 sensitive, oversized, and empty-text files are reported.

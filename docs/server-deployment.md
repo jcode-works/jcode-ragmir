@@ -89,8 +89,9 @@ each host its own index, or let one host write and copy the result.
 ## Serve retrieval
 
 **An agent on the same machine.** MCP clients launch `rgr serve-mcp` over stdio, from the project
-folder or with `docker run -i ... serve-mcp`. The server exposes four read-only tools and names the
-base it serves. See [agent integration](./agent-integration.md).
+folder or with `docker run -i ... serve-mcp`. The server names the base it serves, exposes five
+read-only tools and `ragmir_ingest`, which refreshes the index; set `"mcpIngest": false` to keep a
+shared deployment read-only. See [agent integration](./agent-integration.md).
 
 **Your own service.** Embed one client per project root in a long-running process and call it from
 your routes after your own authentication and authorization checks:
