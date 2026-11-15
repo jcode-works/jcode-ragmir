@@ -27,7 +27,7 @@ export const SUPPORTED_FORMAT_GROUPS = [
   },
   {
     labelKey: "formats_group_design",
-    formats: ["Figma", "FigJam", "Sketch", "Excalidraw", "tldraw", "Obsidian Canvas"],
+    formats: ["Figma", "FigJam", "Sketch", "Excalidraw", "tldraw", "Obsidian Canvas", "XMind"],
   },
   {
     labelKey: "formats_group_mail",
@@ -128,6 +128,8 @@ export const SUPPORTED_FORMAT_GROUPS = [
       "JasperReports",
       "SAS",
       "Stata",
+      "Nextflow",
+      "Snakemake",
     ],
   },
   {
@@ -144,6 +146,7 @@ export const SUPPORTED_FORMAT_GROUPS = [
       "C#",
       "C/C++",
       "PHP",
+      "Perl",
       "Ruby",
       "Dart",
       "Scala",
@@ -161,9 +164,14 @@ export const SUPPORTED_FORMAT_GROUPS = [
       "Dockerfile",
       "Shell",
       ".NET projects",
+      "WiX",
       "Godot",
       "Luau",
       "Lean",
+      "Gherkin",
+      "Robot Framework",
+      "XSLT",
+      "Apple plist",
     ],
   },
   {

@@ -3,6 +3,19 @@
 This is a breaking surface change. Ragmir now concentrates on local indexing, search, exact
 citations, OCR, and integration with developer agents.
 
+## XMind maps and more than 230 new file types (6.15)
+
+The next `rgr ingest` indexes file types that Ragmir skipped before: XMind maps (one section per
+sheet), XML property lists, C++ module and inline files, Perl modules and tests, Gherkin features,
+Robot Framework suites, XSLT, MSBuild and WiX projects, Phoenix and other web templates,
+`CITATION.cff`, `NEWS`, and more. They join the index as new files; files already indexed are not
+re-read, and no rebuild is staged.
+
+Terraform state and variable files (`.tfstate`, `.tfvars`) and Firebase `GoogleService-Info.plist`
+are skipped as secrets: `rgr audit --unsupported` lists them as sensitive files instead of
+unsupported ones. A project that added one of these extensions through `includeExtensions` sees
+those files leave the index at the next ingest.
+
 ## Dotenv templates with masked values (6.14)
 
 Dotenv templates such as `.env.example`, `.env.local.sample`, `env.template`, or `app.env.dist`

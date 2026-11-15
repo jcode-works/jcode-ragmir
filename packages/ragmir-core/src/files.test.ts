@@ -199,6 +199,10 @@ describe("listSourceFiles", () => {
     await writeFile(path.join(raw, "id_rsa"), "PRIVATE\n", "utf8")
     await writeFile(path.join(raw, "credentials"), "aws creds\n", "utf8")
     await writeFile(path.join(raw, "service.p8"), "apple key\n", "utf8")
+    await writeFile(path.join(raw, "GoogleService-Info.plist"), "<plist />\n", "utf8")
+    await writeFile(path.join(raw, "prod.tfvars"), 'db_password = "x"\n', "utf8")
+    await writeFile(path.join(raw, "terraform.tfstate"), "{}\n", "utf8")
+    await writeFile(path.join(raw, "Info.plist"), "<plist />\n", "utf8")
     await writeFile(path.join(raw, "keep.md"), "safe evidence\n", "utf8")
 
     const inventory = await inventorySourceFiles(testConfig(root))
@@ -206,6 +210,7 @@ describe("listSourceFiles", () => {
     expect(inventory.supportedFiles.map((file) => file.relativePath).sort()).toEqual([
       ".ragmir/raw/.env.example",
       ".ragmir/raw/.env.local.sample",
+      ".ragmir/raw/Info.plist",
       ".ragmir/raw/env.template",
       ".ragmir/raw/keep.md",
     ])
@@ -215,9 +220,12 @@ describe("listSourceFiles", () => {
     expect(sensitive.sort()).toEqual([
       ".ragmir/raw/.env.development",
       ".ragmir/raw/.env.local",
+      ".ragmir/raw/GoogleService-Info.plist",
       ".ragmir/raw/credentials",
       ".ragmir/raw/id_rsa",
+      ".ragmir/raw/prod.tfvars",
       ".ragmir/raw/service.p8",
+      ".ragmir/raw/terraform.tfstate",
     ])
   })
 

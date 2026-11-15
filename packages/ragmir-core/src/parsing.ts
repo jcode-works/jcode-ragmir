@@ -25,6 +25,7 @@ import {
   MAX_PDF_TEXT_CHARACTERS,
 } from "./limits.js"
 import { emlText, emlxText, mboxSections, mhtmlText } from "./mail.js"
+import { xmindSections } from "./mind-maps.js"
 import { evernoteSections, fictionBookSections } from "./note-exports.js"
 import { MAX_OCR_BATCH_PAGES, pdfOcrCommandIdentity } from "./ocr.js"
 import {
@@ -58,6 +59,10 @@ const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu
 const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm|opf|twb)$/iu
 // A Sketch document keeps its pages as JSON; previews and images stay compressed.
 const SKETCH_TEXT_ENTRY_PATTERN = /^(?:pages\/[^/]+|document|meta)\.json$/u
+// An XMind map keeps its sheets in content.json (XMind 2020 and later) or content.xml (XMind 8).
+const XMIND_TEXT_ENTRY_PATTERN = /^content\.(?:json|xml)$/u
+// Binary property lists start with this magic; XML ones are text.
+const BINARY_PLIST_MAGIC = "bplist"
 // Flat OpenDocument files hold the body and metadata next to styles and settings, which are noise.
 const FLAT_OPENDOCUMENT_PARTS = /<office:(meta|body)\b[\s\S]*?<\/office:\1>/gu
 // Extensions whose content is a known structured export; generic `.xml` is detected by content.
@@ -222,6 +227,26 @@ export async function parseFile(
         SKETCH_TEXT_ENTRY_PATTERN,
       )
       ;({ text, regions } = sectionRegions(sketchSections(entries), options.signal))
+      break
+    }
+    case ".xmind": {
+      const entries = unzipOfficeFile(
+        await readFile(file.absolutePath),
+        options.signal,
+        XMIND_TEXT_ENTRY_PATTERN,
+      )
+      ;({ text, regions } = sectionRegions(xmindSections(entries), options.signal))
+      break
+    }
+    case ".plist": {
+      const buffer = await readFile(file.absolutePath)
+      if (buffer.subarray(0, BINARY_PLIST_MAGIC.length).toString("latin1") === BINARY_PLIST_MAGIC) {
+        throw new Error(
+          "Binary property list. Save an XML copy with `plutil -convert xml1 -o copy.plist <file>`, then index the copy.",
+        )
+      }
+      text = decodeText(buffer)
+      sourceLineCoordinates = true
       break
     }
     case ".har": {
