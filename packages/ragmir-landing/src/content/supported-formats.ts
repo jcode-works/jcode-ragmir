@@ -159,6 +159,10 @@ export const SUPPORTED_FORMAT_GROUPS = [
       "Nix",
       "Dockerfile",
       "Shell",
+      ".NET projects",
+      "Godot",
+      "Luau",
+      "Lean",
     ],
   },
   {
