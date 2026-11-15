@@ -15,7 +15,7 @@
   "seo_home_title": "Ragmir | Self-hosted agentic RAG with exact citations",
   "seo_home_description": "Open-source agentic RAG: index documents on a laptop, VPS, or offline server and get exact citations in Claude Code, Codex, Cursor, MCP, CLI, or TypeScript.",
   "seo_home_keywords": "Ragmir, agentic RAG, local RAG, self-hosted RAG, on-premise RAG, air-gapped RAG, RAG pipeline, hybrid search, MCP server, cited retrieval, PDF OCR, TypeScript library, forward deployed engineers, Claude Code plugin, Codex plugin, Cursor plugin, Gemini CLI extension, LangChain.js retriever, PowerDesigner, data model RAG, draw.io, BPMN, OpenAPI, PL/SQL",
-  "seo_author": "Jean-Baptiste Thery",
+  "seo_author": "JCode Labs",
   "seo_robots": "index, follow",
   "seo_image_alt": "Ragmir: agentic RAG for developers, local retrieval and exact citations",
   "hero_title": "Agentic RAG. Your infrastructure. Exact citations.",

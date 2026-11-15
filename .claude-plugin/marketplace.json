@@ -1,8 +1,9 @@
 {
   "name": "ragmir",
   "owner": {
-    "name": "Jean-Baptiste Thery",
-    "url": "https://github.com/jb-thery"
+    "name": "JCode Works",
+    "email": "contact@jcode.works",
+    "url": "https://jcode.works"
   },
   "metadata": {
     "description": "Ragmir plugins for Claude Code: cited local retrieval over a project's code and documents."

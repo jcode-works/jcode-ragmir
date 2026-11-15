@@ -5,7 +5,7 @@
   "description": "Open-source retrieval for agentic RAG: document search with exact citations on your laptop or servers, with OCR, CLI, MCP, and TypeScript.",
   "type": "module",
   "license": "AGPL-3.0-only",
-  "author": "Jean-Baptiste Thery (https://github.com/jb-thery)",
+  "author": "JCode Works <contact@jcode.works> (https://jcode.works)",
   "homepage": "https://github.com/jcode-works/jcode-ragmir#readme",
   "repository": {
     "type": "git",

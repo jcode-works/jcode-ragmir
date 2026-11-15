@@ -15,7 +15,7 @@
   "seo_home_title": "Ragmir | RAG agentique auto-hébergé, citations exactes",
   "seo_home_description": "RAG agentique open source : indexez vos documents sur un poste, un VPS ou un serveur isolé, avec citations précises dans Claude Code, Codex, Cursor ou via MCP.",
   "seo_home_keywords": "Ragmir, RAG agentique, RAG local, RAG auto-hébergé, RAG on-premise, RAG hors ligne, pipeline RAG, recherche hybride, serveur MCP, recherche sourcée, OCR PDF, bibliothèque TypeScript, forward deployed engineers, plugin Claude Code, plugin Codex, plugin Cursor, extension Gemini CLI, retriever LangChain.js, PowerDesigner, RAG modèle de données, draw.io, BPMN, OpenAPI, PL/SQL",
-  "seo_author": "Jean-Baptiste Thery",
+  "seo_author": "JCode Labs",
   "seo_robots": "index, follow",
   "seo_image_alt": "Ragmir : RAG agentique pour développeurs, recherche locale et citations précises",
   "hero_title": "RAG agentique. Votre infrastructure. Citations exactes.",
