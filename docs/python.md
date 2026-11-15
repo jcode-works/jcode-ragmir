@@ -34,10 +34,12 @@ with Ragmir("/path/to/project") as rag:
     print(report.indexed_files, report.chunks)
 ```
 
-The same steps work from a terminal: `npx rgr init`, `npx rgr sources add "docs/**/*.md"`, then
-`npx rgr ingest`. `ingest()` is incremental: unchanged files are reused and the previous index stays
-searchable until the new one passes validation. Ragmir refuses an ingest started through the client
-while `rgr security-audit` warns, for example when local OCR commands are configured; run
+The same steps work from a terminal: `npx @jcode.labs/ragmir init`, then
+`npx @jcode.labs/ragmir sources add "docs/**/*.md"` and `npx @jcode.labs/ragmir ingest`. Name the
+package: `npx rgr` only works once a project installs `@jcode.labs/ragmir` with npm. `ingest()` is
+incremental: unchanged files are reused and the previous index stays searchable until the new one
+passes validation. Ragmir refuses an ingest started through the client while `rgr security-audit`
+warns, for example when local OCR commands are configured; run
 `run_cli("/path/to/project", "ingest")` from an operator script in that case.
 
 ## Search, read, and list documents
