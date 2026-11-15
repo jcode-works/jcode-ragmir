@@ -412,7 +412,7 @@ line citations. Data models and diagrams are indexed object by object and cited 
 `model.pdm:section=Table%20INVOICE#3`: PowerDesigner, ERwin, MySQL Workbench, Oracle Data Modeler,
 draw.io, Visio, BPMN, DMN, ArchiMate, UML XMI, Tableau, and OpenAPI or AsyncAPI operations. PL/SQL,
 Kotlin, Swift, Terraform, Protobuf, GraphQL, Prisma, DBML, PlantUML, TMDL, and other text formats
-keep line citations. See [Structured formats](./docs/structured-formats.md). Semantic retrieval runs a
+keep line citations. See [Supported formats](./docs/supported-formats.md). Semantic retrieval runs a
 local model or, opt-in, any OpenAI-compatible embeddings endpoint such as Ollama or vLLM.
 Transformed formats use native coordinates instead of invented source lines. Unsupported,
 sensitive, oversized, and empty-text files are reported.
@@ -439,7 +439,7 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 - [CLI reference](./docs/cli-reference.md)
 - [TypeScript API](./docs/api-reference.md)
 - [Configuration, sources, and ranking](./docs/configuration.md)
-- [Structured formats: data models, diagrams, and APIs](./docs/structured-formats.md)
+- [Supported formats](./docs/supported-formats.md)
 - [Agents, MCP, and four workflows](./docs/agent-integration.md)
 - [Run on a server or in a container](./docs/server-deployment.md)
 - [Use Ragmir from Python](./docs/python.md)
