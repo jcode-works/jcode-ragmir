@@ -26,6 +26,7 @@ export function stripCitationCoordinates(value: string): string {
     .replace(/:L\d+-L\d+$/u, "")
     .replace(/:cells=[A-Z]+\d+(?:-[A-Z]+\d+)?$/u, "")
     .replace(/:sheet=[^:]+$/u, "")
+    .replace(/:section=[^:]+$/u, "")
     .replace(/:(?:p\d+(?:-p\d+)?|slide\d+(?:-slide\d+)?|spine\d+(?:-spine\d+)?)$/u, "")
 }
 
@@ -43,6 +44,15 @@ function locationSegment(coordinates: CitationCoordinates): string {
   }
   if (coordinates.locationKind === "epub" && start !== null) {
     return `:spine${start}${end !== null && end !== start ? `-spine${end}` : ""}`
+  }
+  if (coordinates.locationKind === "section") {
+    // A named object of a structured export: a table, a diagram page, an API operation.
+    const label = coordinates.locationLabel?.trim()
+    return label
+      ? `:section=${encodeURIComponent(label)}`
+      : start === null
+        ? ""
+        : `:section=${start}`
   }
   if (coordinates.locationKind === "sheet") {
     const label = coordinates.locationLabel?.trim()

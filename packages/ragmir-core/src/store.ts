@@ -890,7 +890,13 @@ function nonEmptyStoredString(value: unknown): value is string {
 }
 
 function isSourceLocationKind(value: unknown): value is SourceLocationKind {
-  return value === "page" || value === "slide" || value === "sheet" || value === "epub"
+  return (
+    value === "page" ||
+    value === "slide" ||
+    value === "sheet" ||
+    value === "epub" ||
+    value === "section"
+  )
 }
 
 function sqlString(value: string): string {

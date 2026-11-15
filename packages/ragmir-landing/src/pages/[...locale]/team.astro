@@ -1,8 +1,8 @@
 ---
+import { ArrowUpRight } from "@lucide/astro"
 import { RagmirBackground } from "../../components/ragmir-background"
 import Footer from "../../components/sections/footer.astro"
 import { LandingNavbar } from "../../components/landing-navbar"
-import { TeamCard } from "../../components/team-card"
 import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
 import { NAVBAR_TRANSLATIONS, pickTranslations } from "../../lib/island-translations"
@@ -25,11 +25,28 @@ const alternateLocales = locales.map((entry) => ({
 }))
 
 const memberImg = "/team/jb-thery.jpg"
+const JCODE_URL = "https://jcode.works"
 const memberLinks = [
   { label: "GitHub", href: "https://github.com/jb-thery" },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/jean-baptiste-thery/" },
   { label: "Malt", href: "https://www.malt.fr/profile/jeanbaptistethery/" },
 ]
+
+// Figures from jcode.works, dated where they change; the number animates on screen, the unit stays.
+const stats = [
+  {
+    value: t("team_stat_years_value"),
+    suffix: ` ${t("team_stat_years_unit")}`,
+    label: t("team_stat_years_label"),
+  },
+  { value: t("team_stat_missions_value"), suffix: "+", label: t("team_stat_missions_label") },
+  { value: t("team_stat_products_value"), suffix: "", label: t("team_stat_products_label") },
+  { value: t("team_stat_rating_value"), suffix: "/5", label: t("team_stat_rating_label") },
+]
+const pillClass =
+  "group inline-flex h-11 items-center gap-2 rounded-full px-5 font-bold text-sm transition-[background-color,color,scale] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] motion-reduce:transition-colors"
+const arrowClass =
+  "size-4 transition-transform duration-200 ease-[var(--ease-out-expo)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 motion-reduce:transform-none"
 
 const structuredData = [
   {
@@ -73,6 +90,7 @@ const structuredData = [
     image: new URL(memberImg, siteBase).href,
     worksFor: { "@id": "https://ragmir.com/#organization" },
     sameAs: [
+      JCODE_URL,
       "https://github.com/jb-thery",
       "https://www.linkedin.com/in/jean-baptiste-thery/",
       "https://www.malt.fr/profile/jeanbaptistethery/",
@@ -108,41 +126,153 @@ const structuredData = [
   <div class="relative overflow-hidden">
     <RagmirBackground
       behindContent={false}
-      className="inset-0 min-h-[110dvh]"
+      className="inset-x-0 top-0 [mask-image:linear-gradient(to_bottom,black_55%,transparent)]"
       client:visible
-      height="100dvh"
+      height="300px"
     />
-    <main class="relative z-10 mx-auto max-w-3xl px-5 pt-32 pb-24 md:px-8 md:pt-40">
-    <header class="mb-16 text-center">
-      <p class="font-bold text-muted-foreground text-xs uppercase tracking-[0.18em]">
-        {t("team_eyebrow")}
-      </p>
-      <h1 id="team-title" class="mt-4 font-black text-3xl leading-tight md:text-4xl">
-        {t("team_title")}
-      </h1>
-    </header>
+    <main class="container-default relative z-10 px-5 pt-28 pb-24 md:px-8 md:pt-36">
+      <section
+        aria-labelledby="team-title"
+        class="grid items-center gap-10 md:grid-cols-[minmax(0,1fr)_15rem] lg:gap-16"
+      >
+        <div class="min-w-0">
+          <p class="text-shadow-hero flex items-center gap-3 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+            <span aria-hidden="true" class="h-px w-10 bg-foreground/40" />
+            <span class="tnum">001</span>
+            <span aria-hidden="true" class="opacity-60">·</span>
+            <span>{t("team_profile_label")}</span>
+          </p>
+          <h1 id="team-title" class="display text-shadow-hero mt-6 text-balance text-4xl md:text-5xl">
+            {t("team_title")}
+          </h1>
+          <p class="text-shadow-hero mt-6 max-w-xl text-base text-muted-foreground leading-relaxed">
+            {t("team_member_jb_description")}
+          </p>
+          <div class="mt-8 flex flex-wrap gap-3">
+            <a
+              class={`${pillClass} rounded-full bg-primary text-primary-foreground hover:bg-[var(--primary-hover)]`}
+              href={JCODE_URL}
+              rel="noopener"
+              target="_blank"
+            >
+              {t("team_jcode_cta")}
+              <ArrowUpRight aria-hidden="true" class={arrowClass} />
+            </a>
+            {memberLinks.map((link) => (
+              <a
+                class={`${pillClass} bg-card text-foreground hover:bg-[var(--card-hover)]`}
+                href={link.href}
+                rel="nofollow noreferrer noopener"
+                target="_blank"
+              >
+                {link.label}
+                <ArrowUpRight aria-hidden="true" class={`${arrowClass} text-muted-foreground`} />
+              </a>
+            ))}
+          </div>
+        </div>
 
-    <section class="mb-24" aria-labelledby="team-title">
-      <div class="mx-auto max-w-md">
-        <TeamCard
-          description={t("team_member_jb_description")}
-          img={memberImg}
-          links={memberLinks}
-          subtitle={t("team_member_jb_subtitle")}
-          title={t("team_member_jb_title")}
-        />
-      </div>
-    </section>
+        <figure class="order-first flex flex-col items-start gap-4 md:order-none md:items-center">
+          <div class="size-32 overflow-hidden rounded-full bg-card md:size-60">
+            <img
+              alt={t("team_member_jb_title")}
+              class="size-full object-cover"
+              decoding="async"
+              height="240"
+              src={memberImg}
+              width="240"
+            />
+          </div>
+          <figcaption class="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.2em] md:text-center">
+            {t("team_photo_caption")}
+            <span class="sr-only">, {t("team_member_jb_subtitle")}</span>
+          </figcaption>
+        </figure>
+      </section>
 
-    <section aria-labelledby="mission-title">
-      <h2 id="mission-title" class="mb-5 text-center font-black text-2xl">
-        {t("team_mission_title")}
-      </h2>
-      <p class="text-muted-foreground text-sm leading-7">{t("team_mission_description_1")}</p>
-      <p class="mt-4 text-muted-foreground text-sm leading-7">{t("team_mission_description_2")}</p>
-    </section>
+      <ul
+        aria-label={t("team_stats_label")}
+        class="mt-14 grid grid-cols-2 gap-3 lg:grid-cols-4"
+        data-team-stats
+      >
+        {stats.map((stat) => (
+          <li class="flex flex-col rounded-xl bg-card p-5 md:p-6">
+            <p class="tnum font-black text-3xl leading-none md:text-4xl">
+              <span data-count={stat.value}>{stat.value}</span>{stat.suffix}
+            </p>
+            <p class="mt-3 text-muted-foreground text-sm leading-6">{stat.label}</p>
+          </li>
+        ))}
+      </ul>
+
+      <section aria-labelledby="mission-title" class="mt-24 md:mt-32">
+        <p class="flex items-center gap-3 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+          <span aria-hidden="true" class="h-px w-10 bg-foreground/40" />
+          <span class="tnum">002</span>
+          <span aria-hidden="true" class="opacity-60">·</span>
+          <span>{t("team_mission_label")}</span>
+        </p>
+        <h2 id="mission-title" class="display mt-6 text-balance text-3xl md:text-4xl">
+          {t("team_mission_title")}
+        </h2>
+        <div class="mt-10 grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div class="rounded-xl bg-card p-6 md:p-8">
+            <p class="text-muted-foreground text-sm leading-7">{t("team_mission_description_1")}</p>
+            <p class="mt-4 text-muted-foreground text-sm leading-7">{t("team_mission_description_2")}</p>
+          </div>
+          <div class="flex flex-col rounded-xl bg-card p-6 md:p-8">
+            <h3 class="font-black text-lg leading-snug">{t("team_jcode_title")}</h3>
+            <p class="mt-2 text-muted-foreground text-sm leading-7">{t("team_jcode_text")}</p>
+            <a
+              class={`${pillClass} mt-6 w-fit bg-background text-foreground hover:bg-[var(--inset-hover)]`}
+              href={JCODE_URL}
+              rel="noopener"
+              target="_blank"
+            >
+              jcode.works
+              <ArrowUpRight aria-hidden="true" class={`${arrowClass} text-muted-foreground`} />
+            </a>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
+
+  <script>
+    // One focal moment: key figures count up once when they enter the screen. Reduced motion,
+    // missing IntersectionObserver, or a failed parse keep the server-rendered final values.
+    const list = document.querySelector<HTMLElement>("[data-team-stats]")
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (list && !reduce && "IntersectionObserver" in window) {
+      const easeOutExpo = (t: number) => (t >= 1 ? 1 : 1 - 2 ** (-10 * t))
+      const run = (element: HTMLElement) => {
+        const final = element.dataset.count ?? ""
+        const separator = final.includes(",") ? "," : "."
+        const target = Number(final.replace(",", "."))
+        if (!Number.isFinite(target)) return
+        const decimals = final.split(separator)[1]?.length ?? 0
+        const start = performance.now()
+        const frame = (now: number) => {
+          const progress = Math.min(1, (now - start) / 1100)
+          element.textContent = (target * easeOutExpo(progress))
+            .toFixed(decimals)
+            .replace(".", separator)
+          if (progress < 1) requestAnimationFrame(frame)
+          else element.textContent = final
+        }
+        requestAnimationFrame(frame)
+      }
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return
+          observer.disconnect()
+          for (const element of list.querySelectorAll<HTMLElement>("[data-count]")) run(element)
+        },
+        { threshold: 0.4 },
+      )
+      observer.observe(list)
+    }
+  </script>
 
   <Footer localizedHomeUrl={`${homeUrl}#top`} translations={translations} />
 </Layout>

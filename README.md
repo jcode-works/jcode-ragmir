@@ -405,11 +405,15 @@ model for its own retrieval:
 ## Supported documents
 
 Text and code, Markdown, JSON/JSONL, YAML, CSV, HTML, PDF, DOCX, XLSX, PPTX, OpenDocument, EPUB,
-RTF, images and legacy `.doc` with local extractors, and configured custom text extensions. Charts in
-Word, PowerPoint, and Excel files are indexed with their title, axes, series, and values; Helm chart
-templates (`.tpl` and YAML with `{{ }}` actions) are indexed as text with line citations. Semantic
-retrieval runs a local model or, opt-in, any OpenAI-compatible embeddings endpoint such as Ollama or
-vLLM.
+RTF, Outlook `.msg`, images and legacy `.doc` with local extractors, and configured custom text
+extensions. Charts in Word, PowerPoint, and Excel files are indexed with their title, axes, series,
+and values; Helm chart templates (`.tpl` and YAML with `{{ }}` actions) are indexed as text with
+line citations. Data models and diagrams are indexed object by object and cited as
+`model.pdm:section=Table%20INVOICE#3`: PowerDesigner, ERwin, MySQL Workbench, Oracle Data Modeler,
+draw.io, Visio, BPMN, DMN, ArchiMate, UML XMI, Tableau, and OpenAPI or AsyncAPI operations. PL/SQL,
+Kotlin, Swift, Terraform, Protobuf, GraphQL, Prisma, DBML, PlantUML, TMDL, and other text formats
+keep line citations. See [Supported formats](./docs/supported-formats.md). Semantic retrieval runs a
+local model or, opt-in, any OpenAI-compatible embeddings endpoint such as Ollama or vLLM.
 Transformed formats use native coordinates instead of invented source lines. Unsupported,
 sensitive, oversized, and empty-text files are reported.
 
@@ -435,6 +439,7 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 - [CLI reference](./docs/cli-reference.md)
 - [TypeScript API](./docs/api-reference.md)
 - [Configuration, sources, and ranking](./docs/configuration.md)
+- [Supported formats](./docs/supported-formats.md)
 - [Agents, MCP, and four workflows](./docs/agent-integration.md)
 - [Run on a server or in a container](./docs/server-deployment.md)
 - [Use Ragmir from Python](./docs/python.md)

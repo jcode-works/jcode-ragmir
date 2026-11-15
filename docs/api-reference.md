@@ -114,7 +114,7 @@ Check complex or multi-level tables in `preview`; Ragmir does not infer their se
 
 `charStart` and `charEnd` address the parsed indexed text. For source-preserving text, passages map
 to the original character range and real lines. Extracted binary documents use native page, slide,
-sheet/cell, or EPUB coordinates. They are not byte offsets into a binary file.
+sheet/cell, EPUB, or named section coordinates. They are not byte offsets into a binary file.
 
 ## Indexing and diagnostics
 
