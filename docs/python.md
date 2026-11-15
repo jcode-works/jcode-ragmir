@@ -6,9 +6,9 @@ your coding agent cites.
 
 | Package | For |
 | --- | --- |
-| `ragmir` | A typed client for scripts, services, and notebooks, sync or async |
-| `langchain-ragmir` | A LangChain retriever and agent tools for LangChain and LangGraph |
-| `llama-index-retrievers-ragmir` | A LlamaIndex retriever |
+| [`ragmir`](https://pypi.org/project/ragmir/) | A typed client for scripts, services, and notebooks, sync or async |
+| [`langchain-ragmir`](https://pypi.org/project/langchain-ragmir/) | A LangChain retriever and agent tools for LangChain and LangGraph |
+| [`llama-index-retrievers-ragmir`](https://pypi.org/project/llama-index-retrievers-ragmir/) | A LlamaIndex retriever |
 
 ```bash
 pip install ragmir                          # or: uv add ragmir

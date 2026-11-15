@@ -11,6 +11,10 @@ export const PROJECT_LINKS = {
   supportedFormats: `${GITHUB_URL}/blob/main/docs/supported-formats.md`,
   serverGuide: `${GITHUB_URL}/blob/main/docs/server-deployment.md`,
   pythonGuide: `${GITHUB_URL}/blob/main/docs/python.md`,
+  dockerGuide: `${GITHUB_URL}/blob/main/docs/docker.md`,
+  pypi: "https://pypi.org/project/ragmir/",
+  agentSkills: "https://skills.sh/jcode-works/jcode-ragmir",
+  context7: "https://context7.com/jcode-works/jcode-ragmir",
   benchmarks: `${GITHUB_URL}#benchmarks`,
   releases: `${GITHUB_URL}/releases/latest`,
   changelog: `${GITHUB_URL}/blob/main/CHANGELOG.md`,
@@ -35,6 +39,10 @@ export const PROJECT_LINK_LABEL_KEYS: Record<ProjectLinkKey, string> = {
   supportedFormats: "footer_link_formats",
   serverGuide: "footer_link_server_guide",
   pythonGuide: "footer_link_python_guide",
+  dockerGuide: "footer_link_docker_guide",
+  pypi: "footer_link_pypi",
+  agentSkills: "footer_link_agent_skills",
+  context7: "footer_link_context7",
   benchmarks: "footer_link_benchmarks",
   releases: "footer_link_releases",
   changelog: "footer_link_changelog",
@@ -72,7 +80,14 @@ export const FOOTER_SECTIONS: readonly FooterSection[] = [
   },
   {
     titleKey: "footer_section_integrations",
-    links: ["claudePlugin", "agentPlugins", "langchainRetriever", "pythonGuide", "mcpGuide"],
+    links: [
+      "claudePlugin",
+      "agentPlugins",
+      "agentSkills",
+      "langchainRetriever",
+      "pythonGuide",
+      "mcpGuide",
+    ],
   },
   {
     titleKey: "nav_section_docs",
@@ -81,6 +96,8 @@ export const FOOTER_SECTIONS: readonly FooterSection[] = [
       "apiReference",
       "supportedFormats",
       "serverGuide",
+      "dockerGuide",
+      "context7",
       "benchmarks",
       "changelog",
       "releases",
@@ -88,7 +105,7 @@ export const FOOTER_SECTIONS: readonly FooterSection[] = [
   },
   {
     titleKey: "nav_section_project",
-    links: ["github", "npm", "license", "commercialLicense", "privacy", "security"],
+    links: ["github", "npm", "pypi", "license", "commercialLicense", "privacy", "security"],
   },
 ]
 
