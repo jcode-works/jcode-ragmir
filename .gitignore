@@ -17,10 +17,22 @@ packages/ragmir-core/benchmarks/.results/
 *.pid
 
 packages/ragmir-core/dist/
-packages/ragmir-tts/dist/
-packages/ragmir-chat/dist/
 packages/ragmir-landing/.astro/
 packages/ragmir-landing/dist/
+
+# Python packages
+python/.venv/
+python/dist/
+python/packages/*/dist/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
 
 # Tracked synthetic examples. Keep generated example runtime state ignored.
 !packages/ragmir-core/examples/

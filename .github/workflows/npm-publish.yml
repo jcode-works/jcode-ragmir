@@ -109,6 +109,27 @@ jobs:
             --push
           docker logout ghcr.io
 
+      - name: Set up Python
+        if: steps.published.outputs.version != ''
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # PyPI trusted publishing: uv exchanges this job's OIDC identity for a short-lived upload
+      # token, so no PyPI token is stored. Each of the three PyPI projects lists this workflow
+      # file and the npm-publish environment as its trusted publisher.
+      - name: Publish the Python packages
+        if: steps.published.outputs.version != ''
+        env:
+          VERSION: ${{ steps.published.outputs.version }}
+        run: |
+          set -euo pipefail
+          python -m pip install "uv==0.13.6"
+          node scripts/python-release-version.mjs "$VERSION"
+          cd python
+          uv build --all-packages -o dist
+          uv publish --trusted-publishing always dist/*
+
       - name: Install cosign
         if: steps.published.outputs.version != ''
         env:

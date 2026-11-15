@@ -87,6 +87,26 @@ for (const relativePath of publicPolicyFiles) {
   }
 }
 
+// The PyPI packages declare the same license and ship the canonical text.
+for (const project of ["ragmir", "langchain-ragmir", "llama-index-retrievers-ragmir"]) {
+  const directory = path.join("python", "packages", project)
+  const pyproject = await readFile(path.join(repoRoot, directory, "pyproject.toml"), "utf8")
+  if (!pyproject.includes(`license = "${expectedLicense}"`)) {
+    failures.push(`${directory}/pyproject.toml: expected license ${expectedLicense}`)
+  }
+  if (!pyproject.includes('license-files = ["LICENSE"]')) {
+    failures.push(`${directory}/pyproject.toml: license-files must ship LICENSE`)
+  }
+  const packageLicense = await readFile(path.join(repoRoot, directory, "LICENSE"), "utf8")
+  if (packageLicense !== canonicalLicense) {
+    failures.push(`${directory}/LICENSE: differs from the canonical root license`)
+  }
+  const readme = await readFile(path.join(repoRoot, directory, "README.md"), "utf8")
+  if (!readme.includes("AGPL")) {
+    failures.push(`${directory}/README.md: missing the AGPL policy`)
+  }
+}
+
 if (failures.length > 0) {
   throw new Error(`License policy smoke failed:\n${failures.join("\n")}`)
 }
