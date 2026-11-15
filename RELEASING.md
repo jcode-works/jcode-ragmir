@@ -33,12 +33,15 @@ must list one trusted publisher with these values: organization `jcode-works`, r
 `jcode-ragmir`, workflow `npm-publish.yml`, and environment `npm-publish`. Renaming the workflow,
 the environment, or the repository requires updating that entry on npmjs.com first.
 
-PyPI uses trusted publishing the same way: `uv publish --trusted-publishing always` exchanges the
-job's OIDC identity, so the repository stores no PyPI token. Each of `ragmir`, `langchain-ragmir`,
-and `llama-index-retrievers-ragmir` must list one trusted publisher on pypi.org with owner
-`jcode-works`, repository `jcode-ragmir`, workflow `npm-publish.yml`, and environment
-`npm-publish`; a project that does not exist yet needs a pending publisher before its first
-release. The `Docker` workflow builds and smoke-tests both image targets whenever `docker/`
+PyPI uses trusted publishing the same way: after the release job, one `pypi` job per package
+runs `uv publish --trusted-publishing always`, which exchanges the job's OIDC identity, so the
+repository stores no PyPI token. PyPI lets a pending publisher create only one project per
+repository, workflow, and environment, so each package publishes from its own environment: on
+pypi.org, `ragmir`, `langchain-ragmir`, and `llama-index-retrievers-ragmir` each list one trusted
+publisher with owner `jcode-works`, repository `jcode-ragmir`, workflow `npm-publish.yml`, and
+environment `pypi-<package>` (for example `pypi-ragmir`). Those GitHub environments only accept
+deployments from `main`. A project that does not exist yet needs that pending publisher before
+its first release, and `--check-url` lets a rerun skip files PyPI already holds. The `Docker` workflow builds and smoke-tests both image targets whenever `docker/`
 changes, so an image problem surfaces before a release.
 
 The repository intentionally contains no cloud-vendor landing configuration and the npm workflow
