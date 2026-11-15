@@ -81,6 +81,8 @@ curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.jc
 Check that the npm license is `AGPL-3.0-only` and the tarball holds `LICENSE`,
 `COMMERCIAL-LICENSE.md`, and `NOTICE`. Build the landing with `PUBLIC_RAGMIR_VERSION` set to the
 release, deploy it through its external process, and run the landing checks in `RELEASING.md`.
+Then sync the GitHub wiki with `pnpm wiki:sync <wiki checkout>` (a clone of
+`jcode-ragmir.wiki.git`), review its `Home.md`, and push it.
 
 ## 5. Pin the agent plugins
 
@@ -94,5 +96,7 @@ non-publishing promotion:
    together. Update the plugin README, `GEMINI.md`, and `commands/index.md` for any new tools.
 2. Run `pnpm public:smoke`, merge into `develop`, then promote with a `chore(plugin): ...` commit,
    which publishes nothing.
+3. Once that promotion lands, refresh the Context7 library from its admin page; Context7 indexes
+   `main` and the wiki. Only the maintainer's signed-in browser can do it.
 
 Report the version, each channel's verification, and anything left for the maintainer.
