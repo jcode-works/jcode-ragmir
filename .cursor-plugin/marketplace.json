@@ -1,7 +1,8 @@
 {
   "name": "ragmir",
   "owner": {
-    "name": "Jean-Baptiste Thery"
+    "name": "JCode Works",
+    "email": "contact@jcode.works"
   },
   "metadata": {
     "description": "Ragmir plugins for Cursor: cited local retrieval over a project's code and documents."

@@ -64,7 +64,7 @@ Set `name` and `description` in `ragmir.config.json` so agents know what the bas
 commit that file; never commit `.ragmir/`. In a monorepo, run setup in each app that needs its own
 base and keep shared knowledge in the root base. Ragmir indexes more than 650 file types: code, Markdown,
 PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, email, and exports from Figma, Sketch,
-Excalidraw, Postman, Insomnia, Evernote, and modeling tools. `rgr audit --unsupported` names what
+Excalidraw, Postman, Insomnia, HAR captures, Evernote, and modeling tools. `rgr audit --unsupported` names what
 it skips.
 
 ## 4. Index and verify

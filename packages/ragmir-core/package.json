@@ -6,8 +6,9 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": {
-    "name": "Jean-Baptiste Thery",
-    "url": "https://github.com/jb-thery"
+    "name": "JCode Works",
+    "email": "contact@jcode.works",
+    "url": "https://jcode.works"
   },
   "keywords": [
     "jcode",

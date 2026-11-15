@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
-authors = [{ name = "Jean-Baptiste Thery", email = "jb.thery@jcode.works" }]
+authors = [{ name = "JCode Works", email = "contact@jcode.works" }]
 keywords = [
   "ragmir",
   "rag",

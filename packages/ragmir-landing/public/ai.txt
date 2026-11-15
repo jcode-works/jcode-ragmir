@@ -32,9 +32,10 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   (UTF-16 BOM, Windows-1252 fallback). Exports are cited object by object
   (`:section=Table%20INVOICE`): Figma .fig files and REST exports, Sketch, Excalidraw, tldraw,
   Obsidian canvases, .eml/.emlx/.msg mail decoded with attachment names, .mbox mailboxes per
-  message, Evernote notes, Postman and Insomnia requests, OpenAPI and AsyncAPI operations,
-  PowerDesigner, ERwin, MySQL Workbench, Oracle Data Modeler, draw.io, Visio, BPMN, DMN, ArchiMate,
-  UML XMI, Tableau, GeoJSON features, and SARIF findings. `rgr audit --unsupported` reports gaps.
+  message, Evernote notes, Postman and Insomnia requests, HAR captures with cookies and
+  credentials left out, OpenAPI and AsyncAPI operations, PowerDesigner, ERwin, MySQL Workbench,
+  Oracle Data Modeler, draw.io, Visio, BPMN, DMN, ArchiMate, UML XMI, Tableau, GeoJSON features,
+  and SARIF findings. `rgr audit --unsupported` reports gaps.
   Do not claim universal binary support.
 - Paths are stored and cited with forward slashes and in Unicode NFC on every platform, so
   exclusions also match accented names stored decomposed. `rgr audit` reports source rules that
