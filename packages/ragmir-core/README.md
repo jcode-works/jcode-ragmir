@@ -129,7 +129,7 @@ scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blo
 
 ## Documents, semantic retrieval, and OCR
 
-Index more than 450 file types: code in over 100 languages, Markdown, PDF, Word, PowerPoint, Excel,
+Index more than 650 file types: code in over 200 languages, Markdown, PDF, Word, PowerPoint, Excel,
 OpenDocument, EPUB, HTML, mail and mailboxes, Figma, Sketch, Excalidraw, and tldraw files, Postman
 and OpenAPI collections, data models, and diagrams, each cited to its line, page, slide, cell, or
 object ([supported formats](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/supported-formats.md)).
