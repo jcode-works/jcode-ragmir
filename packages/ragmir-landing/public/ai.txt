@@ -24,10 +24,11 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `multilingual-e5-base`. EmbeddingGemma 2 and Qwen3-Embedding are not supported yet as local
   models; `embeddingProvider: "openai-compatible"` with `embeddingEndpoint` embeds through Ollama,
   vLLM, or any OpenAI-compatible endpoint instead (opt-in: passage text goes to that endpoint).
-- More than 450 extensions and file names index with no extra install: PDF, Office (macro-enabled
+- More than 650 extensions and file names index with no extra install: PDF, Office (macro-enabled
   files and templates, with chart titles, series, and values), OpenDocument (flat files too), EPUB,
-  FictionBook, HTML and saved .mhtml pages, code in over 100 languages, configuration,
-  translations, and build files such as Dockerfile or Jenkinsfile. Text files keep their encoding
+  FictionBook, HTML and saved .mhtml pages, code in over 200 languages, Visual Studio projects
+  and solutions, Godot scenes, configuration, translations, and build files such as Dockerfile,
+  Jenkinsfile, go.mod, or meson.build. Text files keep their encoding
   (UTF-16 BOM, Windows-1252 fallback). Exports are cited object by object
   (`:section=Table%20INVOICE`): Figma .fig files and REST exports, Sketch, Excalidraw, tldraw,
   Obsidian canvases, .eml/.emlx/.msg mail decoded with attachment names, .mbox mailboxes per

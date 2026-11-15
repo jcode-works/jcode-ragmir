@@ -412,10 +412,11 @@ model for its own retrieval:
 
 ## Supported documents
 
-More than 450 extensions and file names index with no extra install: PDF, Word, PowerPoint,
+More than 650 extensions and file names index with no extra install: PDF, Word, PowerPoint,
 Excel (macro-enabled files and templates included), OpenDocument, EPUB, HTML and saved web pages,
-code in over 100 languages, configuration, translations, and build files such as `Dockerfile` or
-`Jenkinsfile`. Images and legacy `.doc` files use optional local extractors.
+code in over 200 languages, Visual Studio projects and solutions, Godot scenes, configuration,
+translations, and build files such as `Dockerfile`, `Jenkinsfile`, `go.mod`, or `meson.build`.
+Images and legacy `.doc` files use optional local extractors.
 
 Exports are indexed object by object and cited as `model.pdm:section=Table%20INVOICE#3`:
 
