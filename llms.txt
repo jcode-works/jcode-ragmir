@@ -73,9 +73,13 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `RAGMIR_STORAGE_DIR`) at a persistent volume and run `rgr ingest` from a scheduled job. The host
   service owns TLS, authentication, per-user authorization, and rate limits; Ragmir does not filter
   results per user. Writers are serialized per machine, not across machines.
-- Python: LangChain (`langchain-mcp-adapters`), LlamaIndex (`llama-index-tools-mcp`), and the
-  MCP Python SDK launch `rgr serve-mcp` over stdio; scripts can parse `rgr search --json`. No
-  Python package is needed. Without Node.js, use the image `ghcr.io/jcode-works/ragmir`.
+- Python 3.11+: `pip install ragmir` gives a typed client (`Ragmir` sync with async twins,
+  `AsyncRagmir`) that keeps one MCP server per project; `init_project`, `add_sources`, and
+  `run_cli` prepare a base. `langchain-ragmir` adds `RagmirRetriever` and `RagmirToolkit` for
+  LangChain and LangGraph; `llama-index-retrievers-ragmir` adds a LlamaIndex `RagmirRetriever`.
+  The client runs the project's npm install, a global `rgr`, the matching npm release through
+  npx, or the `ghcr.io/jcode-works/ragmir` image when Node.js is absent. `langchain-mcp-adapters`
+  is unmaintained; prefer `langchain-ragmir`.
 - Agent plugins from this repository, each with the MCP server (Claude Code, Codex, and Cursor also
   bundle the retrieval and indexing skills): Claude Code (`/plugin install ragmir --marketplace
   jcode-works/jcode-ragmir`, then `/ragmir:index`), OpenAI Codex (`codex plugin marketplace add
