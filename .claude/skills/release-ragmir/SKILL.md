@@ -23,8 +23,8 @@ git diff --stat origin/main origin/develop
   `fix` and `docs` a patch, `!` or `BREAKING CHANGE:` a major; `scope: landing` publishes nothing.
 - A new PyPI project, or a renamed workflow, environment, or repository, needs its trusted
   publisher on pypi.org first (owner `jcode-works`, repository `jcode-ragmir`, workflow
-  `npm-publish.yml`, environment `npm-publish`). npm has the same entry on npmjs.com. Only the
-  maintainer can sign in there.
+  `npm-publish.yml`, environment `pypi-<package>`, one per project). npm has the same entry on
+  npmjs.com, with environment `npm-publish`. Only the maintainer can sign in there.
 
 ## 2. Promotion commit
 
@@ -62,8 +62,9 @@ open a pull request into `main`.
 - Wait for the required checks (Quality gate, Commitlint, Analyze TypeScript), then merge with a
   merge commit (`gh pr merge <number> --merge`). Never squash or rebase.
 - The `Release npm` run on `main` waits for the `npm-publish` environment approval. After it, the
-  job publishes npm with provenance and the GitHub release, then the slim and full GHCR images,
-  the three PyPI packages, and the MCP Registry entry.
+  release job publishes npm with provenance and the GitHub release, then the slim and full GHCR
+  images and the MCP Registry entry; three `pypi` jobs, one per package and environment, then
+  publish the Python packages.
 
 ## 4. Verify every channel
 
