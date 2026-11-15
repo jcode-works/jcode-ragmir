@@ -31,7 +31,7 @@ export function indexPolicyFingerprint(config: Config): string {
         : { maxChunksPerDataFile: config.maxChunksPerDataFile }),
     },
     extraction: {
-      parserVersion: 3,
+      parserVersion: 4,
       pdfOcrCommand: config.pdfOcrCommand,
       pdfOcrParserPolicy: config.pdfOcrCommand.length > 0 ? PDF_OCR_PARSER_POLICY : null,
       imageOcrCommand: config.imageOcrCommand,
