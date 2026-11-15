@@ -18,10 +18,12 @@ Then, in each project, run the indexing command once and confirm the sources Cla
 ```
 
 Without arguments, Claude proposes the sources and asks before indexing. The plugin adds this
-command, the Ragmir retrieval skill (`/ragmir:ragmir`), and an MCP server with four read-only
-tools: `ragmir_search`, `ragmir_expand`, `ragmir_status`, and `ragmir_audit`. The server runs a
-pinned Ragmir release from npm and reads the project Claude Code has open. Run `/ragmir:index`
-again after adding sources. Skip `rgr setup --agents claude` in projects that use this plugin: it
+command, the Ragmir retrieval skill (`/ragmir:ragmir`), and an MCP server with five read-only
+tools (`ragmir_search`, `ragmir_expand`, `ragmir_sources`, `ragmir_status`, and `ragmir_audit`),
+`ragmir_ingest`, which refreshes the index after files change, and an `answer` prompt
+(`/mcp__plugin_ragmir_ragmir__answer`) for a fully cited answer. The server runs a pinned Ragmir
+release from npm and reads the project Claude Code has open. Run `/ragmir:index` again after
+adding sources. Skip `rgr setup --agents claude` in projects that use this plugin: it
 registers a second, project-level server.
 
 The plugin works in Claude Code, where the project files live on your machine. The Claude web,
