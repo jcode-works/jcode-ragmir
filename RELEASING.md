@@ -19,15 +19,27 @@ For every release, verify that npm metadata declares `AGPL-3.0-only` and that ea
 `LICENSE`, `COMMERCIAL-LICENSE.md`, and `NOTICE`. The protected validation gate enforces this policy.
 
 The workflow runs `pnpm validate`, then semantic-release derives the next version from
-Conventional Commits. It prepares and publishes `@jcode.labs/ragmir` with npm provenance, then pushes the GHCR image
-and publishes `server.json` to the MCP Registry; verify all three after each release.
-The landing is private and is not published to npm.
+Conventional Commits and publishes `@jcode.labs/ragmir` with npm provenance and the GitHub release.
+The same job then pushes the `slim` and `full` Docker targets to `ghcr.io/jcode-works/ragmir` for
+`linux/amd64` and `linux/arm64` with SBOM and provenance attestations (tags `X.Y.Z`, `X.Y`, `X`, and
+`latest`, plus `-full` variants and `full`), stamps the version into the three Python packages with
+`scripts/python-release-version.mjs` and publishes them to PyPI, and publishes `server.json`, with
+its npm and OCI packages, to the MCP Registry. Verify every channel after each release. The landing
+is private and is not published to npm.
 
 Publishing uses npm trusted publishing: `pnpm publish` exchanges the release job's GitHub OIDC
 identity for a short-lived token, so the repository stores no npm token. The npm package settings
 must list one trusted publisher with these values: organization `jcode-works`, repository
 `jcode-ragmir`, workflow `npm-publish.yml`, and environment `npm-publish`. Renaming the workflow,
 the environment, or the repository requires updating that entry on npmjs.com first.
+
+PyPI uses trusted publishing the same way: `uv publish --trusted-publishing always` exchanges the
+job's OIDC identity, so the repository stores no PyPI token. Each of `ragmir`, `langchain-ragmir`,
+and `llama-index-retrievers-ragmir` must list one trusted publisher on pypi.org with owner
+`jcode-works`, repository `jcode-ragmir`, workflow `npm-publish.yml`, and environment
+`npm-publish`; a project that does not exist yet needs a pending publisher before its first
+release. The `Docker` workflow builds and smoke-tests both image targets whenever `docker/`
+changes, so an image problem surfaces before a release.
 
 The repository intentionally contains no cloud-vendor landing configuration and the npm workflow
 does not deploy the site. The external deployment must build with the released version in
@@ -90,6 +102,15 @@ installed plugins only update when that version changes. Set the Gemini and Qwen
 GitHub release. Keep the plugin's `skills/ragmir/SKILL.md` identical to the Core skill.
 `pnpm public:smoke` enforces the identical skill, the shared pin, the aligned plugin versions, and
 the identical Gemini and Qwen manifests.
+
+The Agent Skills in `skills/` have no publish step: `npx skills add jcode-works/jcode-ragmir`
+installs them from the default branch, and skills.sh lists them from those installs, grouped by
+`skills.sh.json`. They run the project's own install of the npm package, so they need no version
+pin. `pnpm public:smoke` checks them against the Agent Skills specification, keeps
+`skills/ragmir/SKILL.md` identical to the Core skill, and requires every skill in one grouping.
+
+In Claude Code, the `release-ragmir` project skill walks through a promotion, the verification of
+every channel, and the plugin pin that follows.
 
 ## Required Local Checks
 
