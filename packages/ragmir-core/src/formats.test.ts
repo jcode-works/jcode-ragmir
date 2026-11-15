@@ -4,7 +4,7 @@ import path from "node:path"
 import { deflateRawSync, zstdCompressSync } from "node:zlib"
 import { strToU8, zipSync } from "fflate"
 import { afterEach, describe, expect, it } from "vitest"
-import { listSourceFiles } from "./files.js"
+import { inventorySourceFiles, listSourceFiles } from "./files.js"
 import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import { parseFile } from "./parsing.js"
@@ -375,6 +375,130 @@ describe("whiteboards and design files", () => {
       "Welcome back\nSign in with SSO",
     )
     expect(sectionText(parsed, "Page Mobile")).toContain("Draft copy")
+  })
+
+  it("cites each XMind sheet with its outline, notes, markers, and relationships", async () => {
+    const sheets = [
+      {
+        id: "sheet-1",
+        class: "sheet",
+        title: "Launch plan",
+        rootTopic: {
+          id: "root",
+          title: "Checkout launch",
+          children: {
+            attached: [
+              {
+                id: "risks",
+                title: "Risks",
+                labels: ["blocking"],
+                markers: [{ markerId: "priority-1" }, { markerId: "smiley-laugh" }],
+                notes: { plain: { content: "Card fraud rules\nneed review" } },
+                children: {
+                  attached: [
+                    { id: "fraud", title: "Fraud rules", href: "https://example.test/fraud" },
+                  ],
+                },
+              },
+              { id: "ship", title: "Ship", markers: [{ markerId: "task-done" }], href: "xmind:#a" },
+            ],
+            detached: [{ id: "idea", title: "Gift cards later" }],
+            summary: [{ id: "summary", title: "Two workstreams" }],
+          },
+        },
+        relationships: [{ id: "link", end1Id: "fraud", end2Id: "ship", title: "blocks" }],
+      },
+      { id: "sheet-2", class: "sheet", title: "Retro", rootTopic: { id: "r", title: "Keep" } },
+    ]
+    const parsed = await parseFixture(
+      "launch.xmind",
+      Buffer.from(
+        zipSync({
+          "content.json": strToU8(JSON.stringify(sheets)),
+          // XMind 2020 also writes a stub content.xml for older versions; content.json wins.
+          "content.xml": strToU8(
+            "<xmap-content><sheet><topic><title>Old stub</title></topic></sheet></xmap-content>",
+          ),
+          "metadata.json": strToU8("{}"),
+          "Thumbnails/thumbnail.png": new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+        }),
+      ),
+    )
+
+    expect(sectionLabels(parsed)).toEqual(["Sheet Launch plan", "Sheet Retro"])
+    expect(sectionText(parsed, "Sheet Launch plan")).toBe(
+      [
+        "Mind map: Launch plan",
+        "- Checkout launch",
+        "  - Risks",
+        "    Labels: blocking",
+        "    Markers: priority-1",
+        "    Note: Card fraud rules",
+        "      need review",
+        "    - Fraud rules",
+        "      Link: https://example.test/fraud",
+        "  - Ship",
+        "    Markers: task-done",
+        "  - Floating topic: Gift cards later",
+        "  - Summary: Two workstreams",
+        "Relationships:",
+        "- Fraud rules -> Ship: blocks",
+      ].join("\n"),
+    )
+    expect(sectionText(parsed, "Sheet Retro")).toBe("Mind map: Retro\n- Keep")
+    expect(parsed.text).not.toContain("Old stub")
+  })
+
+  it("reads XMind 8 maps and reports unreadable ones", async () => {
+    const legacy = await parseFixture(
+      "roadmap.xmind",
+      Buffer.from(
+        zipSync({
+          "content.xml": strToU8(
+            [
+              '<?xml version="1.0" encoding="UTF-8"?>',
+              '<xmap-content xmlns="urn:xmind:xmap:xmlns:content:2.0" xmlns:xlink="http://www.w3.org/1999/xlink">',
+              '<sheet id="s1"><topic id="t1"><title>Roadmap</title><children><topics type="attached">',
+              '<topic id="t2" xlink:href="https://example.test/q3"><title>Q3</title>',
+              "<notes><plain>Ship invoices\nthen refunds</plain></notes>",
+              "<labels><label>finance</label></labels>",
+              '<marker-refs><marker-ref marker-id="task-half"/></marker-refs></topic>',
+              '<topic id="t3"><title>Q4</title></topic>',
+              "</topics></children></topic><title>Plan</title>",
+              '<relationships><relationship end1="t2" end2="t3"><title>before</title></relationship></relationships>',
+              "</sheet></xmap-content>",
+            ].join(""),
+          ),
+        }),
+      ),
+    )
+
+    expect(sectionLabels(legacy)).toEqual(["Sheet Plan"])
+    expect(sectionText(legacy, "Sheet Plan")).toBe(
+      [
+        "Mind map: Plan",
+        "- Roadmap",
+        "  - Q3",
+        "    Labels: finance",
+        "    Markers: task-half",
+        "    Link: https://example.test/q3",
+        "    Note: Ship invoices",
+        "      then refunds",
+        "  - Q4",
+        "Relationships:",
+        "- Q3 -> Q4: before",
+      ].join("\n"),
+    )
+
+    await expect(
+      parseFixture(
+        "locked.xmind",
+        Buffer.from(zipSync({ "content.json": new Uint8Array([0x00, 0x9f, 0x92, 0x96]) })),
+      ),
+    ).rejects.toThrow("Save a copy without a password")
+    await expect(
+      parseFixture("empty.xmind", Buffer.from(zipSync({ "metadata.json": strToU8("{}") }))),
+    ).rejects.toThrow("XMind file has no content.json or content.xml.")
   })
 
   it("cites Figma frames and component descriptions from a REST export", async () => {
@@ -1065,6 +1189,81 @@ describe("text formats and encodings", () => {
     const godot = await parseFixture("level.tscn", sources["level.tscn"] ?? "")
     expect(godot.sourceLineCoordinates).toBe(true)
     expect(godot.text).toContain('[node name="Level" type="Node2D"]')
+  })
+
+  it("indexes C++ modules, Perl modules, Gherkin features, and other common file types", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-linguist-more-"))
+    tempDirs.push(root)
+    const sources: Record<string, string> = {
+      "math.cppm": "export module math;\nexport int add(int a, int b) { return a + b; }\n",
+      "vector.inl": "template <typename T> T Vector<T>::length() const { return size; }\n",
+      "Checkout.pm": "package Checkout;\nsub total { return 42 }\n1;\n",
+      "checkout.t": "use Test::More;\nok(1);\ndone_testing;\n",
+      "checkout.feature": "Feature: Checkout\n  Scenario: Pay by card\n    Given a cart\n",
+      "smoke.robot": "*** Test Cases ***\nOpen Checkout\n    Log    ready\n",
+      "invoice.heex": "<p>Total: <%= @total %></p>\n",
+      "invoice.xslt": '<xsl:stylesheet version="1.0" />\n',
+      "engine.vcxproj": '<Project DefaultTargets="Build" />\n',
+      "App.slnx": '<Solution><Project Path="App/App.csproj" /></Solution>\n',
+      "schema.graphqls": "type Invoice { id: ID! }\n",
+      "build.zig.zon": '.{ .name = .checkout, .version = "0.1.0" }\n',
+      "main.nf": "workflow { CHECKOUT() }\n",
+      "pricing.cds": "entity Invoices { key ID : UUID; }\n",
+      "rules.yar": "rule Invoice { condition: true }\n",
+      "checkout.container": "[Container]\nImage=registry.example.test/checkout\n",
+      "Info.plist":
+        "<plist><dict><key>CFBundleName</key><string>Checkout</string></dict></plist>\n",
+      "CITATION.cff": "cff-version: 1.2.0\ntitle: Checkout\n",
+      NEWS: "Version 2.0: card payments\n",
+      ".clangd": "CompileFlags:\n  Add: [-std=c++20]\n",
+      "Report.xlsb": "binary workbook",
+    }
+    for (const [name, content] of Object.entries(sources)) {
+      await writeFile(path.join(root, name), content)
+    }
+
+    const inventory = await inventorySourceFiles(testConfig(root, { rawDir: root }))
+
+    expect(inventory.supportedFiles.map((file) => file.relativePath).sort()).toEqual(
+      Object.keys(sources)
+        .filter((name) => name !== "Report.xlsb")
+        .sort(),
+    )
+    expect(inventory.skippedFiles).toEqual([
+      expect.objectContaining({
+        relativePath: "Report.xlsb",
+        reason: "unsupported-extension",
+        recommendation: "Save the binary Excel workbook as XLSX or CSV before ingesting.",
+      }),
+    ])
+    const feature = await parseFixture("checkout.feature", sources["checkout.feature"] ?? "")
+    expect(feature.sourceLineCoordinates).toBe(true)
+    expect(feature.text).toContain("  Scenario: Pay by card")
+  })
+
+  it("reads XML property lists with line citations and reports binary ones", async () => {
+    const xml = await parseFixture(
+      "Info.plist",
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<plist version="1.0">',
+        "<dict>",
+        "  <key>CFBundleDisplayName</key>",
+        "  <string>Checkout</string>",
+        "</dict>",
+        "</plist>",
+        "",
+      ].join("\n"),
+    )
+    expect(xml.sourceLineCoordinates).toBe(true)
+    expect(xml.text.split("\n")[4]).toBe("  <string>Checkout</string>")
+
+    await expect(
+      parseFixture(
+        "Preferences.plist",
+        Buffer.concat([Buffer.from("bplist00", "latin1"), Buffer.from([0xd1, 0x01, 0x02])]),
+      ),
+    ).rejects.toThrow("plutil -convert xml1")
   })
 
   it("reads UTF-16 and Windows-1252 text files with line citations", async () => {

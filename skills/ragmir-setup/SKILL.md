@@ -62,9 +62,9 @@ pnpm exec rgr audit --unsupported              # skipped files and rules that ma
 
 Set `name` and `description` in `ragmir.config.json` so agents know what the base answers, and
 commit that file; never commit `.ragmir/`. In a monorepo, run setup in each app that needs its own
-base and keep shared knowledge in the root base. Ragmir indexes more than 650 file types: code, Markdown,
+base and keep shared knowledge in the root base. Ragmir indexes more than 900 file types: code, Markdown,
 PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, email, and exports from Figma, Sketch,
-Excalidraw, Postman, Insomnia, HAR captures, Evernote, and modeling tools. `rgr audit --unsupported` names what
+Excalidraw, XMind, Postman, Insomnia, HAR captures, Evernote, and modeling tools. `rgr audit --unsupported` names what
 it skips.
 
 ## 4. Index and verify
