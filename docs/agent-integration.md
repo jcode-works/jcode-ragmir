@@ -150,6 +150,10 @@ The skills drive a project install of `@jcode.labs/ragmir`, so the project's loc
 the release they run. `rgr setup` already links the `ragmir` skill into the agents it prepares;
 the others are optional.
 
+Coding assistants that fetch library documentation, such as the Context7 MCP server, find this
+repository's guides and rules as [`/jcode-works/jcode-ragmir`](https://context7.com/jcode-works/jcode-ragmir),
+refreshed from `context7.json` after each release.
+
 ### One base, one project
 
 Register Ragmir per project: `claude mcp add --scope project`, a committed `.mcp.json`, or Codex's
