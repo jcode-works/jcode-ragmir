@@ -145,7 +145,7 @@ async function buildCycloneDxSbom() {
       timestamp: new Date().toISOString(),
       tools: [
         {
-          vendor: "JCode Labs",
+          vendor: "JCode Works",
           name: "Ragmir release artifacts",
           version: corePackageJson.version,
         },
