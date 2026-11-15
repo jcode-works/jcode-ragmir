@@ -1,9 +1,12 @@
 import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
+import { isRecord } from "./guards.js"
+import { VERSION } from "./version.js"
 
 export type PackageManager = "pnpm" | "npm" | "yarn" | "bun"
 const RGR_CLI_BIN = "rgr"
+const RAGMIR_PACKAGE = "@jcode.labs/ragmir"
 export const RGR_RUNNER_FILENAME = "run.cjs"
 export const RGR_RUNNER_PROBE_ARG = "--ragmir-runner-probe"
 
@@ -50,6 +53,17 @@ export async function rgrCommand(cwd: string, args: string[]): Promise<RagmirCom
       display: displayRunnerCommand(root, runnerPath, args),
     }
   }
+  if (!(await projectHasRagmir(root))) {
+    // Without a project install, `pnpm exec rgr` fails and `npx rgr` asks npm for a package named
+    // `rgr`, so name the release this CLI belongs to, as the generated runner does.
+    const pinnedArgs = ["--yes", `${RAGMIR_PACKAGE}@${VERSION}`, ...args]
+    return {
+      packageManager,
+      command: "npx",
+      args: pinnedArgs,
+      display: `npx ${pinnedArgs.map(formatArg).join(" ")}`,
+    }
+  }
   const commandArgs = commandArgsFor(packageManager, args)
   return {
     packageManager,
@@ -64,6 +78,56 @@ function displayRunnerCommand(root: string, runnerPath: string, args: string[]):
   const relativeRunner = (path.relative(root, runnerPath) || runnerPath).split(path.sep).join("/")
   const suffix = [relativeRunner, ...args].map(formatArg).join(" ")
   return `node ${suffix}`
+}
+
+/**
+ * Whether the project's package manager can run the CLI: Ragmir sits in a node_modules folder at or
+ * above the project, its package.json declares it (Yarn Plug'n'Play keeps no node_modules), or the
+ * project is the Ragmir repository itself.
+ */
+async function projectHasRagmir(root: string): Promise<boolean> {
+  if (
+    (await isRagmirPackage(path.join(root, "packages", "ragmir-core"))) ||
+    (await declaresRagmir(path.join(root, "package.json")))
+  ) {
+    return true
+  }
+  let current = root
+  while (true) {
+    if (await isRagmirPackage(path.join(current, "node_modules", ...RAGMIR_PACKAGE.split("/")))) {
+      return true
+    }
+    const parent = path.dirname(current)
+    if (parent === current) {
+      return false
+    }
+    current = parent
+  }
+}
+
+async function isRagmirPackage(packageDir: string): Promise<boolean> {
+  const manifest = await readJsonObject(path.join(packageDir, "package.json"))
+  return manifest?.name === RAGMIR_PACKAGE
+}
+
+async function declaresRagmir(packageJsonPath: string): Promise<boolean> {
+  const manifest = await readJsonObject(packageJsonPath)
+  return ["dependencies", "devDependencies", "optionalDependencies"].some((field) => {
+    const dependencies = manifest?.[field]
+    return isRecord(dependencies) && RAGMIR_PACKAGE in dependencies
+  })
+}
+
+async function readJsonObject(filePath: string): Promise<Record<string, unknown> | null> {
+  if (!existsSync(filePath)) {
+    return null
+  }
+  try {
+    const value: unknown = JSON.parse(await readFile(filePath, "utf8"))
+    return isRecord(value) ? value : null
+  } catch {
+    return null
+  }
 }
 
 /** @deprecated Use `rgrCommand`. @alias */
