@@ -9,6 +9,9 @@ import {
   FileText,
   WifiOff,
 } from "@lucide/astro"
+import { ArrowUpRight } from "@lucide/astro"
+import { SUPPORTED_FORMAT_GROUPS } from "../../content/supported-formats"
+import { PROJECT_LINKS } from "../../lib/project-links"
 import { CommandCopyBox } from "../command-copy"
 import { RagmirBackground } from "../ragmir-background"
 import { cardTag, SectionHeader } from "../section-header"
@@ -134,6 +137,41 @@ const featureGroups = [
           </ul>
         </article>
       ))}
+    </div>
+
+    <div class="mt-3 rounded-xl bg-card p-5 md:mt-4 md:p-8" aria-labelledby="formats-heading">
+      <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div class="max-w-xl">
+          <h3 id="formats-heading" class="font-black text-xl leading-tight">{t("formats_title")}</h3>
+          <p class="mt-2 text-muted-foreground text-sm leading-6">{t("formats_text")}</p>
+        </div>
+        <a
+          class="group inline-flex h-10 w-fit shrink-0 items-center gap-2 rounded-full bg-background px-4 font-bold text-foreground text-sm transition-[background-color,scale] hover:bg-[var(--inset-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] motion-reduce:transition-colors"
+          href={PROJECT_LINKS.supportedFormats}
+        >
+          {t("formats_full_list")}
+          <ArrowUpRight
+            aria-hidden="true"
+            class="size-4 text-muted-foreground transition-transform duration-200 ease-[var(--ease-out-expo)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 motion-reduce:transform-none"
+          />
+        </a>
+      </div>
+      <dl class="mt-8 grid gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-3">
+        {SUPPORTED_FORMAT_GROUPS.map((group) => (
+          <div>
+            <dt class="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+              {t(group.labelKey)}
+            </dt>
+            <dd class="mt-3 flex flex-wrap gap-1.5">
+              {group.formats.map((format) => (
+                <span class="rounded-full bg-background px-2.5 py-1 font-semibold text-foreground/85 text-xs">
+                  {format}
+                </span>
+              ))}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </div>
   </div>
 </section>

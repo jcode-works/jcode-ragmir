@@ -9,6 +9,7 @@ import mammoth = require("mammoth")
 
 import { getDocumentProxy } from "unpdf"
 import YAML from "yaml"
+import { apiDescriptionSections } from "./api-description.js"
 import { OCR_IMAGE_EXTENSIONS } from "./files.js"
 import { isRecord } from "./guards.js"
 import {
@@ -27,6 +28,16 @@ import {
   writePdfOcrCache,
 } from "./ocr-cache.js"
 import { throwIfAborted } from "./operation.js"
+import { outlookMessageText } from "./outlook-msg.js"
+import {
+  boundedSections,
+  detectStructuredXml,
+  drawioFromSvg,
+  type StructuredSection,
+  type StructuredXmlFormat,
+  structuredXmlSections,
+  visioSections,
+} from "./structured-formats.js"
 import type {
   ParsedDocument,
   ParsedPage,
@@ -38,7 +49,24 @@ import type {
 
 const EXTERNAL_COMMAND_KILL_GRACE_MS = 2_000
 const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu
-const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm|opf)$/iu
+const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm|opf|twb)$/iu
+// Extensions whose content is a known structured export; generic `.xml` is detected by content.
+const STRUCTURED_XML_EXTENSIONS: Record<string, StructuredXmlFormat> = {
+  ".archimate": "archimate",
+  ".bpm": "powerdesigner",
+  ".bpmn": "bpmn",
+  ".cdm": "powerdesigner",
+  ".dmn": "dmn",
+  ".drawio": "drawio",
+  ".ldm": "powerdesigner",
+  ".mcd": "powerdesigner",
+  ".mpd": "powerdesigner",
+  ".oom": "powerdesigner",
+  ".pdm": "powerdesigner",
+  ".twb": "tableau",
+  ".xmi": "xmi",
+}
+const POWERDESIGNER_EXTENSIONS = new Set([".bpm", ".cdm", ".ldm", ".mcd", ".mpd", ".oom", ".pdm"])
 const CHART_PART_PATTERN = /\/charts\/chart\d+\.xml$/u
 // Points listed per chart series; larger series keep a count of the rest.
 const MAX_CHART_POINTS = 200
@@ -117,10 +145,101 @@ export async function parseFile(
       text = htmlToText(await readFile(file.absolutePath, "utf8"), HTML_TO_TEXT_OPTIONS)
       break
     case ".json":
+    case ".bim":
+    case ".pbip":
+    case ".pbir":
+    case ".pbism":
     case ".ipynb": {
-      text = JSON.stringify(JSON.parse(await readFile(file.absolutePath, "utf8")), null, 2)
+      const value: unknown = JSON.parse(await readFile(file.absolutePath, "utf8"))
+      const sections = apiDescriptionSections(value)
+      if (sections) {
+        ;({ text, regions } = sectionRegions(sections, options.signal))
+        break
+      }
+      text = JSON.stringify(value, null, 2)
       break
     }
+    case ".xml":
+    case ".archimate":
+    case ".bpm":
+    case ".bpmn":
+    case ".cdm":
+    case ".dmn":
+    case ".drawio":
+    case ".ldm":
+    case ".mcd":
+    case ".mpd":
+    case ".oom":
+    case ".pdm":
+    case ".twb":
+    case ".xmi": {
+      const source = await readStructuredSource(file)
+      const format = detectStructuredXml(source) ?? STRUCTURED_XML_EXTENSIONS[file.extension]
+      if (
+        !format ||
+        (format === "powerdesigner" && !/<\?PowerDesigner\b/u.test(source.slice(0, 8_192)))
+      ) {
+        if (
+          POWERDESIGNER_EXTENSIONS.has(file.extension) &&
+          file.extension !== ".mcd" &&
+          file.extension !== ".mpd"
+        ) {
+          throw new Error(
+            "PowerDesigner model is not saved as XML. Save it in the XML format, then ingest again.",
+          )
+        }
+        text = source
+        sourceLineCoordinates = true
+        break
+      }
+      ;({ text, regions } = sectionRegions(structuredXmlSections(source, format), options.signal))
+      break
+    }
+    case ".svg": {
+      const source = await readFile(file.absolutePath, "utf8")
+      const sections = /<mxfile\b|&lt;mxfile\b/u.test(source.slice(0, 65_536))
+        ? drawioFromSvg(source)
+        : null
+      if (sections) {
+        ;({ text, regions } = sectionRegions(sections, options.signal))
+        break
+      }
+      text = source
+      sourceLineCoordinates = true
+      break
+    }
+    case ".mwb": {
+      const entries = unzipOfficeFile(await readFile(file.absolutePath), options.signal)
+      const model = entries.get("document.mwb.xml")
+      if (!model) {
+        throw new Error("MySQL Workbench model has no document.mwb.xml.")
+      }
+      ;({ text, regions } = sectionRegions(
+        structuredXmlSections(model, "mysql-workbench"),
+        options.signal,
+      ))
+      break
+    }
+    case ".vsdx": {
+      const entries = unzipOfficeFile(await readFile(file.absolutePath), options.signal)
+      ;({ text, regions } = sectionRegions(visioSections(entries), options.signal))
+      break
+    }
+    case ".twbx": {
+      const entries = unzipOfficeFile(await readFile(file.absolutePath), options.signal)
+      const workbook = [...entries.keys()].find((name) => /\.twb$/iu.test(name))
+      if (!workbook) {
+        throw new Error("Packaged Tableau workbook has no .twb file.")
+      }
+      ;({ text, regions } = sectionRegions(
+        structuredXmlSections(entries.get(workbook) ?? "", "tableau"),
+        options.signal,
+      ))
+      break
+    }
+    case ".msg":
+      text = outlookMessageText(await readFile(file.absolutePath))
+      break
     case ".yaml":
     case ".yml": {
       const source = await readFile(file.absolutePath, "utf8")
@@ -134,6 +253,12 @@ export async function parseFile(
       }
       if (error) {
         throw error
+      }
+      const values = documents.map((document) => document.toJS())
+      const sections = values.length === 1 ? apiDescriptionSections(values[0]) : null
+      if (sections) {
+        ;({ text, regions } = sectionRegions(sections, options.signal))
+        break
       }
       text = documents
         .flatMap((document) => {
@@ -167,6 +292,33 @@ export async function parseFile(
     document.ocr = ocr
   }
   return document
+}
+
+/** One located region per structured object, cited as `:section=<label>`. */
+function sectionRegions(
+  sections: StructuredSection[],
+  signal: AbortSignal | undefined,
+): { text: string; regions: ParsedRegion[] } {
+  return joinLocatedParts(
+    boundedSections(sections).map((section, index) => ({
+      text: section.text,
+      contextPath: section.label,
+      location: { kind: "section", start: index + 1, end: index + 1, label: section.label },
+    })),
+    signal,
+  )
+}
+
+async function readStructuredSource(file: SourceFile): Promise<string> {
+  const buffer = await readFile(file.absolutePath)
+  if (buffer.subarray(0, 4_096).includes(0)) {
+    throw new Error(
+      POWERDESIGNER_EXTENSIONS.has(file.extension)
+        ? "PowerDesigner model is saved in binary format. Save it as XML, then ingest again."
+        : "Structured model is binary, not XML.",
+    )
+  }
+  return buffer.toString("utf8").replace(/^\uFEFF/u, "")
 }
 
 async function parseDocx(filePath: string, signal: AbortSignal | undefined): Promise<string> {

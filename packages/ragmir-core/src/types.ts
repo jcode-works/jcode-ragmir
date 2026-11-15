@@ -365,7 +365,7 @@ export interface ParsedPage {
   charEnd: number
 }
 
-export type SourceLocationKind = "page" | "slide" | "sheet" | "epub"
+export type SourceLocationKind = "page" | "slide" | "sheet" | "epub" | "section"
 
 export interface SourceLocation {
   kind: SourceLocationKind
