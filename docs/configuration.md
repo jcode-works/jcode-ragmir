@@ -22,7 +22,9 @@ Two files can hold it:
 
 With only `ragmir.config.json`, CLI changes such as `rgr sources add` write to it and `rgr init`
 does not create a local copy. With both files, CLI changes go to `.ragmir/config.json`. A local
-`sources` array replaces the shared one as a whole, like every other key.
+`sources` array replaces the shared one as a whole, like every other key, so the first
+`rgr sources add` copies the shared sources into it before adding the new entries;
+`rgr sources list` shows the list that applies and the file it comes from.
 
 ## Common fields
 

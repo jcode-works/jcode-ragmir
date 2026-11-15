@@ -77,6 +77,58 @@ describe("source entries", () => {
     expect(merged.entries).toEqual(["../apps/*/README.md", "../docs/**/*.md"])
   })
 
+  it("lists the shared sources and extends them when the local config sets none", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-sources-shared-"))
+    tempDirs.push(root)
+    const sharedPath = path.join(root, "ragmir.config.json")
+    const localPath = path.join(root, ".ragmir", "config.json")
+    await writeFile(sharedPath, JSON.stringify({ sources: ["docs/**/*.md", "!docs/archive/**"] }))
+    await mkdir(path.dirname(localPath), { recursive: true })
+    await writeFile(localPath, JSON.stringify({ retrievalProfile: "balanced" }))
+
+    await expect(listSourceEntries(root)).resolves.toEqual({
+      sourcesFile: sharedPath,
+      entries: ["docs/**/*.md", "!docs/archive/**"],
+    })
+
+    const result = await addSourceEntries({ cwd: root, entries: ["src/**/*.ts", "docs/**/*.md"] })
+
+    expect(result).toEqual({
+      sourcesFile: localPath,
+      added: ["src/**/*.ts"],
+      skipped: ["docs/**/*.md"],
+    })
+    // The local array replaces the shared one, so it must carry the shared entries forward.
+    const local = JSON.parse(await readFile(localPath, "utf8"))
+    expect(local).toEqual({
+      retrievalProfile: "balanced",
+      sources: ["docs/**/*.md", "!docs/archive/**", "src/**/*.ts"],
+    })
+    expect(JSON.parse(await readFile(sharedPath, "utf8")).sources).toEqual([
+      "docs/**/*.md",
+      "!docs/archive/**",
+    ])
+    await expect(listSourceEntries(root)).resolves.toEqual({
+      sourcesFile: localPath,
+      entries: ["docs/**/*.md", "!docs/archive/**", "src/**/*.ts"],
+    })
+  })
+
+  it("writes to the shared config when it is the only one", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-sources-shared-only-"))
+    tempDirs.push(root)
+    const sharedPath = path.join(root, "ragmir.config.json")
+    await writeFile(sharedPath, JSON.stringify({ name: "Handbook", sources: ["docs"] }))
+
+    await addSourceEntries({ cwd: root, entries: ["specs/**/*.pdf"] })
+
+    expect(JSON.parse(await readFile(sharedPath, "utf8"))).toEqual({
+      name: "Handbook",
+      sources: ["docs", "specs/**/*.pdf"],
+    })
+    expect(existsSync(path.join(root, ".ragmir", "config.json"))).toBe(false)
+  })
+
   it("should preserve concurrent updates from independent config features", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-sources-concurrent-"))
     tempDirs.push(root)
