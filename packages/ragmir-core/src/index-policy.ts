@@ -32,7 +32,8 @@ export function indexPolicyFingerprint(config: Config): string {
     },
     extraction: {
       // 5: decoded mail, mailboxes, notes, design files, API collections, and legacy encodings.
-      parserVersion: 5,
+      // 6: dotenv templates such as env.example index with every value masked.
+      parserVersion: 6,
       pdfOcrCommand: config.pdfOcrCommand,
       pdfOcrParserPolicy: config.pdfOcrCommand.length > 0 ? PDF_OCR_PARSER_POLICY : null,
       imageOcrCommand: config.imageOcrCommand,

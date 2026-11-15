@@ -6,6 +6,7 @@ import path from "node:path"
 import fg from "fast-glob"
 import picomatch from "picomatch"
 import { DEFAULT_CONFIG, LEGACY_KB_DIR, LEGACY_PRIVATE_DIR, RAGMIR_DIR } from "./defaults.js"
+import { isDotenvTemplateName } from "./dotenv-template.js"
 import { activeIngestionMetrics } from "./ingestion-metrics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import {
@@ -1551,7 +1552,8 @@ function isSensitiveFilePath(absolutePath: string): boolean {
 }
 
 function isEnvFileName(baseName: string): boolean {
-  return baseName === ".env" || baseName.startsWith(".env.")
+  // Templates such as `.env.example` index with every value masked; see `dotenv-template.ts`.
+  return (baseName === ".env" || baseName.startsWith(".env.")) && !isDotenvTemplateName(baseName)
 }
 
 export function countSkippedByReason(
