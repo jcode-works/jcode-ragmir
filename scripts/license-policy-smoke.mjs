@@ -9,7 +9,6 @@ const manifestDirs = [".", ...publishedPackageDirs, "packages/ragmir-landing"]
 const requiredPackageFiles = ["LICENSE", "COMMERCIAL-LICENSE.md", "NOTICE"]
 const publicPolicyFiles = [
   "AGENTS.md",
-  "CLAUDE.md",
   "CONTRIBUTING.md",
   "README.md",
   "RELEASING.md",
@@ -71,6 +70,12 @@ for (const directory of publishedPackageDirs) {
   if (packageCopyrightNotice !== copyrightNotice) {
     failures.push(`${directory}/NOTICE: differs from the canonical root notice`)
   }
+}
+
+// CLAUDE.md imports AGENTS.md, so Claude Code reads the same policy.
+const claudeInstructions = await readFile(path.join(repoRoot, "CLAUDE.md"), "utf8")
+if (!/^@AGENTS\.md$/mu.test(claudeInstructions)) {
+  failures.push("CLAUDE.md: must import AGENTS.md with an @AGENTS.md line")
 }
 
 for (const relativePath of publicPolicyFiles) {

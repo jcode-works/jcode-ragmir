@@ -1,0 +1,33 @@
+{
+  "name": "Ragmir",
+  "description": "Ragmir's own code, documentation, agent plugins and skills, Python packages, and release workflows.",
+  "sources": [
+    "README.md",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "RELEASING.md",
+    "SECURITY.md",
+    "SECURITY-HARDENING.md",
+    "PRIVACY.md",
+    "llms.txt",
+    "context7.json",
+    "docs/**/*.md",
+    "packages/ragmir-core/README.md",
+    "packages/ragmir-core/skills/**/*.md",
+    "packages/ragmir-core/src/**/*.ts",
+    "!packages/ragmir-core/src/**/*.test.ts",
+    "packages/ragmir-landing/src/**",
+    "python/packages/*/README.md",
+    "python/packages/*/src/**/*.py",
+    "skills/**/*.md",
+    "!skills/ragmir/**",
+    "plugins/**",
+    "!plugins/ragmir/skills/ragmir/**",
+    ".claude/rules/*.md",
+    ".claude/skills/*/SKILL.md",
+    "!.claude/skills/gitnexus-*/**",
+    "docker/**",
+    ".github/workflows/*.yml",
+    "scripts/*.mjs"
+  ]
+}

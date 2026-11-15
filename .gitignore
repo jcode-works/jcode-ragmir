@@ -7,9 +7,18 @@ coverage/
 private/**
 .kb/
 .ragmir/
-.claude/
 .codex/
 .agents/
+
+# Claude Code: share the project settings, hooks, rules, and skills; keep personal state local.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/rules/
+!.claude/skills/
+.claude/skills/gitnexus-*/
+CLAUDE.local.md
+
 *.tgz
 release-artifacts/
 packages/ragmir-core/benchmarks/.corpora/

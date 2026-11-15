@@ -10,6 +10,7 @@
       "*.cjs",
       "*.json",
       "scripts/**/*.mjs",
+      ".claude/hooks/**/*.mjs",
       "packages/*/scripts/**/*.mjs",
       "packages/*/vitest.config.ts",
       "packages/*/src/**/*.{ts,tsx}"
