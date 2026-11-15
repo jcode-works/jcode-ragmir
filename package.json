@@ -81,6 +81,7 @@
     "test": "pnpm --filter @jcode.labs/ragmir-landing test && pnpm --filter @jcode.labs/ragmir test",
     "test:coverage": "pnpm --filter @jcode.labs/ragmir-landing test:coverage && pnpm --filter @jcode.labs/ragmir test:coverage",
     "validate": "pnpm lint && pnpm knip && pnpm audit:security && pnpm check && pnpm test:coverage && pnpm build && pnpm api:check && pnpm smoke && pnpm package:check && pnpm release:semantic:smoke && pnpm release:artifacts",
+    "wiki:sync": "node scripts/wiki-sync.mjs",
     "bench:developer-evidence": "pnpm --filter @jcode.labs/ragmir bench:developer-evidence"
   },
   "devDependencies": {
