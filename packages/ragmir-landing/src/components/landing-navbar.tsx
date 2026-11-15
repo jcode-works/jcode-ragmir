@@ -381,7 +381,7 @@ export function LandingNavbar({
         />
         <div
           className={cn(
-            "absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col border-border border-l bg-background shadow-2xl shadow-black/60 transition-[transform,opacity]",
+            "absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col border-border border-l bg-background shadow-2xl shadow-black/60 transition-[translate,opacity]",
             // Opens on a long deceleration, closes faster; reduced motion fades it in place.
             menuOpen
               ? "translate-x-0 opacity-100 duration-300 ease-[var(--ease-out-expo)]"
