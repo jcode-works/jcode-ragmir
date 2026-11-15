@@ -4,7 +4,8 @@
 const TEMPLATE_SUFFIXES = new Set(["dist", "example", "exemple", "sample", "template"])
 const MASKED = "(value omitted)"
 const ASSIGNMENT = /^(\s*(?:export\s+)?)([A-Za-z_][\w.-]*)(\s*=\s*)(.*)$/u
-// Key-like tokens that mix letters and digits, such as `sk_live_51H...` or `AKIA...`.
+// Key-like tokens of 20 or more characters that mix letters and digits, such as payment provider
+// or cloud access keys.
 const SECRET_TOKEN = /(?<![\w+/=-])(?=[\w+/=-]*\d)(?=[\w+/=-]*[A-Za-z])[\w+/=-]{20,}(?![\w+/=-])/gu
 const JWT = /\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]+/gu
 
