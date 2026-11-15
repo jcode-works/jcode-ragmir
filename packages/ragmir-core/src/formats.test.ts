@@ -700,6 +700,53 @@ describe("API collections and data exports", () => {
     }
   })
 
+  it("indexes dotenv templates with every value masked and their lines in place", async () => {
+    const template = [
+      "# Payment provider",
+      "# Old key pk_51Hx0aBcDeFgHiJkLmNoPq was rotated",
+      "STRIPE_SECRET_KEY=rk_4eC39HqLyjWDarjtT1zdp7dc",
+      "export PORT=3000 # local port",
+      "DATABASE_URL='postgres://app:hunter2@db:5432/app'",
+      "EMPTY_DEFAULT=",
+      'SIGNING_KEY="first line of a multi-line value',
+      "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ",
+      'last line of the value"',
+      "",
+      "FEATURE_FLAGS=checkout,refunds",
+      "not an assignment with secret-value-7f3a9b2c4d5e6f",
+    ].join("\n")
+    const parsed = await parseFixture(".env.example", template)
+
+    expect(parsed.text.split("\n")).toEqual([
+      "# Payment provider",
+      "# Old key (value omitted) was rotated",
+      "STRIPE_SECRET_KEY=(value omitted)",
+      "export PORT=(value omitted) # local port",
+      "DATABASE_URL=(value omitted)",
+      "EMPTY_DEFAULT=",
+      "SIGNING_KEY=(value omitted)",
+      "",
+      "",
+      "",
+      "FEATURE_FLAGS=(value omitted)",
+    ])
+    expect(parsed.sourceLineCoordinates).toBe(true)
+    for (const secret of [
+      "pk_51Hx0",
+      "rk_4eC39",
+      "hunter2",
+      "multi-line value",
+      "MIIEvQIBADAN",
+      "3000",
+      "refunds",
+    ]) {
+      expect(parsed.text).not.toContain(secret)
+    }
+    expect((await parseFixture("env.sample", "API_TOKEN=abc123\n")).text).toBe(
+      "API_TOKEN=(value omitted)",
+    )
+  })
+
   it("refuses a .har file that is not an HTTP Archive", async () => {
     await expect(
       parseFixture("notes.har", JSON.stringify({ entries: [{ cookie: "sid=raw" }] })),

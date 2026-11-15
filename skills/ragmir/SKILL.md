@@ -18,7 +18,10 @@ questions, read the citations you need, and synthesize with your own model.
   for shared knowledge and the nearest nested base for app-specific questions. Pass
   `--project-root /absolute/path/to/base` when the working directory is outside that base.
 - Run the CLI through the project's package manager, such as `pnpm exec rgr doctor`, or through
-  the generated runner, `node .ragmir/run.cjs doctor`.
+  the generated runner, `node .ragmir/run.cjs doctor`. Without either, as in a Python project,
+  run the command Ragmir prints in its next steps, such as
+  `npx --yes @jcode.labs/ragmir@<version> doctor`, or `rgr` inside the official Docker image:
+  `npx rgr` alone only works once the project installs the npm package.
 
 Before using a new package version, run `rgr upgrade --check`. Run `rgr upgrade` when required
 and authorized: it backs up retired configuration and stages any required rebuild, and only a
