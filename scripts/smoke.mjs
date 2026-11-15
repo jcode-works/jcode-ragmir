@@ -158,6 +158,11 @@ try {
     "doctor --fix should ingest supported files when safe",
   )
   assertIncludes(fixedDoctor.stdout, "errors=0", "doctor --fix should surface ingest errors")
+  if (/\blance(?:db)?(?:_\w+)?::/u.test(fixedDoctor.stderr)) {
+    throw new Error(
+      `the first index write should not print LanceDB logs on stderr, got:\n${fixedDoctor.stderr}`,
+    )
+  }
 
   const readyDoctorFix = await runKb(["doctor", "--fix"], tempRoot)
   assertIncludes(

@@ -152,17 +152,18 @@ export async function writeRowsToTable(
   connection?: lancedb.Connection,
 ): Promise<IndexWriteResult> {
   return withConnection(config, connection, async (db) => {
+    const tableExists = (await db.tableNames()).includes(tableName)
     if (rows.length === 0) {
-      const tableNames = await db.tableNames()
-      if (tableNames.includes(tableName)) {
+      if (tableExists) {
         await db.dropTable(tableName)
       }
       return { vectorIndexWarning: null, lexicalIndexWarning: null }
     }
 
     const records = storedRows(rows)
+    // Overwriting a missing table makes LanceDB log a warning on stderr, so create new tables.
     const table = await db.createTable(tableName, records, {
-      mode: "overwrite",
+      mode: tableExists ? "overwrite" : "create",
     })
 
     const lexicalResult = await ensureLexicalIndex(table)
