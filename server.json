@@ -34,6 +34,33 @@
           "format": "filepath"
         }
       ]
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/jcode-works/ragmir:6.5.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--mount",
+          "value": "type=bind,src={project_path},dst=/workspace",
+          "variables": {
+            "project_path": {
+              "description": "Absolute path of the project whose Ragmir base the server reads",
+              "isRequired": true,
+              "format": "filepath"
+            }
+          }
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "serve-mcp"
+        }
+      ]
     }
   ]
 }

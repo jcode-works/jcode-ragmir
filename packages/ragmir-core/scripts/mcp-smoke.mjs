@@ -11,7 +11,14 @@ const cliPath = path.join(packageRoot, "dist", "cli.js")
 const demoSourceRoot = path.join(packageRoot, "examples", "sovereign-rag-demo")
 const tempRoot = await mkdtemp(path.join(tmpdir(), "ragmir-mcp-smoke-"))
 const demoRoot = path.join(tempRoot, "sovereign-rag-demo")
-const requiredTools = ["ragmir_status", "ragmir_search", "ragmir_expand", "ragmir_audit"]
+const requiredTools = [
+  "ragmir_status",
+  "ragmir_search",
+  "ragmir_expand",
+  "ragmir_sources",
+  "ragmir_audit",
+  "ragmir_ingest",
+]
 const requiredResources = ["ragmir://context", "ragmir://sources"]
 
 const client = new Client({ name: "ragmir-mcp-smoke", version: "0.0.0" })
@@ -204,6 +211,35 @@ try {
   if (audit.counts?.missingFromIndex !== 0) throw new Error("MCP audit found unindexed sources")
   if (toolNames.length !== requiredTools.length) throw new Error("Unexpected MCP tool surface")
 
+  const markdownSources = await callJsonTool(client, "ragmir_sources", { paths: ["raw/*.md"] })
+  if (
+    markdownSources.filter?.matchedFiles !== 1 ||
+    markdownSources.indexedFiles?.[0]?.source !== "raw/operations-brief.md"
+  ) {
+    throw new Error(`MCP source listing ignored its glob: ${JSON.stringify(markdownSources)}`)
+  }
+
+  // The demo copy keeps its repository permissions and an unignored raw folder, so the server must
+  // decline to index through MCP and hand the ingest back to the operator.
+  const refresh = await client.callTool(
+    { name: "ragmir_ingest", arguments: { waitSeconds: 60 } },
+    undefined,
+    { timeout: 70_000 },
+  )
+  const refreshText = refresh.content.find((item) => item.type === "text")?.text ?? ""
+  if (
+    refresh.isError !== true ||
+    !refreshText.includes("security warnings") ||
+    !refreshText.includes("`rgr ingest`")
+  ) {
+    throw new Error(`MCP ingest ignored the security warnings: ${refreshText}`)
+  }
+
+  const prompts = await client.listPrompts(undefined, { timeout: 5_000 })
+  if (!prompts.prompts.some((prompt) => prompt.name === "answer")) {
+    throw new Error("Missing MCP prompt: answer")
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -245,7 +281,8 @@ async function callJsonTool(client, name, args) {
 
 function parseJsonToolResult(result, name) {
   if (result.isError) {
-    throw new Error(`${name} returned an MCP error.`)
+    const message = result.content.find((item) => item.type === "text")?.text ?? ""
+    throw new Error(`${name} returned an MCP error: ${message}`)
   }
 
   const textItem = result.content.find((item) => item.type === "text")

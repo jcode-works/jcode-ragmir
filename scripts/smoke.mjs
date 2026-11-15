@@ -733,10 +733,16 @@ async function smokeMcp(cwd) {
 
     const tools = await client.request("tools/list", {})
     assertIncludes(JSON.stringify(tools), "ragmir_status", "MCP should expose ragmir_status")
-    for (const name of ["ragmir_search", "ragmir_expand", "ragmir_audit"]) {
+    for (const name of [
+      "ragmir_search",
+      "ragmir_expand",
+      "ragmir_sources",
+      "ragmir_audit",
+      "ragmir_ingest",
+    ]) {
       assertIncludes(JSON.stringify(tools), name, `MCP should expose ${name}`)
     }
-    if (tools.result?.tools?.length !== 4) throw new Error("Expected exactly four MCP tools")
+    if (tools.result?.tools?.length !== 6) throw new Error("Expected exactly six MCP tools")
 
     const status = await client.request("tools/call", {
       name: "ragmir_status",

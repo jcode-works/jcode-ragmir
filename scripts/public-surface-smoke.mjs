@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { parse as parseYaml } from "yaml"
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const trackedFiles = gitLines(["ls-files"])
@@ -97,6 +98,8 @@ const pluginSkill = await readFile(
 if (pluginSkill !== coreSkill) {
   failures.push("plugins/ragmir/skills/ragmir/SKILL.md differs from the Core retrieval skill")
 }
+// skills.sh and other Agent Skills installers read the root skills/ folder.
+await checkPublishedSkills(coreSkill)
 const pluginManifest = JSON.parse(
   await readFile(path.join(repoRoot, "plugins/ragmir/.claude-plugin/plugin.json"), "utf8"),
 )
@@ -160,12 +163,102 @@ const landingLlms = await readFile(
 if (landingLlms !== rootLlms) {
   failures.push("packages/ragmir-landing/public/llms.txt differs from the root llms.txt")
 }
+// Context7 rejects a context7.json beyond these limits (https://context7.com/schema/context7.json).
+const context7 = JSON.parse(await readFile(path.join(repoRoot, "context7.json"), "utf8"))
+if (typeof context7.description !== "string" || context7.description.length > 500) {
+  failures.push("context7.json: description must be a string of at most 500 characters")
+}
+if (!Array.isArray(context7.rules) || context7.rules.length > 50) {
+  failures.push("context7.json: rules must be an array of at most 50 entries")
+} else {
+  for (const [index, rule] of context7.rules.entries()) {
+    if (typeof rule !== "string" || rule.length === 0 || rule.length > 255) {
+      failures.push(`context7.json: rule ${index + 1} must hold 1 to 255 characters`)
+    }
+  }
+}
 
 if (failures.length > 0) {
   throw new Error(`Public surface smoke failed:\n${failures.join("\n")}`)
 }
 
 console.log("Public surface smoke passed.")
+
+/**
+ * Every skill under skills/ must follow the Agent Skills specification (https://agentskills.io):
+ * a spec-compliant name equal to its folder, a bounded description, a body under 500 lines, and
+ * relative links that resolve. skills.sh.json must group each skill exactly once.
+ */
+async function checkPublishedSkills(coreSkill) {
+  const skillFiles = trackedOrNewFiles("skills").filter((file) => file.endsWith("/SKILL.md"))
+  const skillNames = []
+  for (const file of skillFiles) {
+    const folder = path.basename(path.dirname(file))
+    const content = await readFile(path.join(repoRoot, file), "utf8")
+    const frontmatter = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/u)
+    if (!frontmatter) {
+      failures.push(`${file}: missing YAML frontmatter`)
+      continue
+    }
+    let metadata
+    try {
+      metadata = parseYaml(frontmatter[1])
+    } catch (error) {
+      failures.push(`${file}: invalid YAML frontmatter: ${error.message}`)
+      continue
+    }
+    const { name, description, compatibility } = metadata ?? {}
+    if (typeof name !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(name) || name.length > 64) {
+      failures.push(`${file}: name must be 1-64 lowercase letters, digits, and single hyphens`)
+    } else if (name !== folder) {
+      failures.push(`${file}: name ${name} must match its folder ${folder}`)
+    }
+    if (typeof description !== "string" || description.length === 0 || description.length > 1024) {
+      failures.push(`${file}: description must hold 1 to 1024 characters`)
+    }
+    if (
+      compatibility !== undefined &&
+      (typeof compatibility !== "string" || compatibility.length > 500)
+    ) {
+      failures.push(`${file}: compatibility must be a string of at most 500 characters`)
+    }
+    if (metadata?.metadata?.internal !== undefined) {
+      failures.push(`${file}: published skills must not be internal`)
+    }
+    if (frontmatter[2].split("\n").length > 500) {
+      failures.push(`${file}: keep SKILL.md under 500 lines and move detail to references/`)
+    }
+    for (const match of content.matchAll(/\]\((?!https?:|#)([^)\s]+)\)/gu)) {
+      if (!existsSync(path.join(repoRoot, path.dirname(file), match[1]))) {
+        failures.push(`${file}: broken link ${match[1]}`)
+      }
+    }
+    skillNames.push(name)
+  }
+  if (!skillNames.includes("ragmir")) {
+    failures.push("skills/ragmir/SKILL.md must publish the Core retrieval skill")
+  } else if (
+    (await readFile(path.join(repoRoot, "skills/ragmir/SKILL.md"), "utf8")) !== coreSkill
+  ) {
+    failures.push("skills/ragmir/SKILL.md differs from the Core retrieval skill")
+  }
+
+  const skillsSh = JSON.parse(await readFile(path.join(repoRoot, "skills.sh.json"), "utf8"))
+  const grouped = (skillsSh.groupings ?? []).flatMap((group) => group.skills ?? [])
+  for (const name of skillNames) {
+    const count = grouped.filter((entry) => entry === name).length
+    if (count !== 1) {
+      failures.push(
+        `skills.sh.json must list skill ${name} in exactly one grouping (found ${count})`,
+      )
+    }
+  }
+  for (const entry of grouped) {
+    if (!skillNames.includes(entry)) {
+      failures.push(`skills.sh.json groups ${entry}, which has no skills/${entry}/SKILL.md`)
+    }
+  }
+}
 
 function trackedOrNewFiles(directory) {
   return [

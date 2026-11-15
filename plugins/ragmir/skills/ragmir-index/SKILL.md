@@ -1,6 +1,9 @@
 ---
 name: ragmir-index
 description: Index a project for Ragmir so its MCP tools can answer with citations. Use when ragmir_status reports no knowledge base, no indexed files, or stale sources, or when the user asks to add documents or code to Ragmir.
+license: AGPL-3.0-only
+metadata:
+  internal: "true"
 ---
 
 # Index a project for Ragmir

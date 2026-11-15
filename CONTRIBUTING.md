@@ -77,6 +77,37 @@ metadata before upgrading. Transformers 4.3 is an optional peer and needs the de
 `pnpm-workspace.yaml` lists the audit advisories that have no patched release, with the reason each
 one is unreachable from untrusted input. Remove an entry as soon as a fix ships.
 
+### Python packages
+
+The `ragmir`, `langchain-ragmir`, and `llama-index-retrievers-ragmir` packages live in a
+[uv](https://docs.astral.sh/uv/) workspace under `python/`. With uv installed, run:
+
+```bash
+pnpm python:check
+```
+
+It builds Core, then runs Ruff, strict mypy, and pytest against that build on Python 3.11 or
+later. Change dependencies in a `pyproject.toml` and run `uv lock` in `python/`.
+
+### Coding agents
+
+`AGENTS.md` holds the rules every coding agent follows here, and `CLAUDE.md` imports it for
+Claude Code. The shared `.claude/` folder adds permissions for the routine checks, hooks that
+format edited files and keep the exact copies in sync, rules scoped to Core, the landing, Python,
+the documentation, and the release automation, and the `add-file-format` and `release-ragmir`
+skills. Keep personal settings in `.claude/settings.local.json` and `CLAUDE.local.md`.
+
+The repository dogfoods Ragmir: `ragmir.config.json` defines its base. Build Core once, then index
+and search the code and docs with the local build:
+
+```bash
+pnpm --filter @jcode.labs/ragmir build
+pnpm rgr ingest
+pnpm rgr search "how are MCP results bounded" --compact
+```
+
+`.mcp.json` starts the same base as an MCP server for Claude Code and other clients.
+
 ## Pull Requests
 
 - Branch from `develop` for normal feature work, using `feature/<short-name>`.

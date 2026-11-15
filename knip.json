@@ -4,7 +4,7 @@
     "interface": true,
     "type": true
   },
-  "ignoreBinaries": ["mise", "textutil"],
+  "ignoreBinaries": ["mise", "textutil", "uv"],
   "workspaces": {
     ".": {
       "entry": ["scripts/*.mjs", "tests/public-api-consumer/consumer.ts"],
