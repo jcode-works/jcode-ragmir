@@ -11,6 +11,8 @@ import { integrationTimeout } from "./test-support/timeouts.js"
 import { VERSION } from "./version.js"
 
 const tempDirs: string[] = []
+// A temporary project has no Ragmir install, so its next steps name the pinned release.
+const rgr = `npx --yes @jcode.labs/ragmir@${VERSION}`
 
 afterEach(async () => {
   for (const dir of tempDirs.splice(0)) {
@@ -72,7 +74,7 @@ describe("doctor", { timeout: integrationTimeout(30_000) }, () => {
     expect(uninitialized.agentKitInstalled).toBe(false)
     expect(uninitialized.agentIntegration.ready).toBe(false)
     expect(uninitialized.nextSteps).toEqual([
-      "Run `pnpm exec rgr setup` to initialize Ragmir and install the agent kit.",
+      `Run \`${rgr} setup\` to initialize Ragmir and install the agent kit.`,
     ])
 
     await initProject(root)
@@ -82,8 +84,8 @@ describe("doctor", { timeout: integrationTimeout(30_000) }, () => {
     expect(initialized.cost).toBe("O(1)")
     expect(initialized.supportedFiles).toBe(0)
     expect(initialized.nextSteps).toEqual([
-      "Run `pnpm exec rgr doctor --deep` for an O(corpus) source and security audit.",
-      "Run `pnpm exec rgr ingest` to create a current manifest before relying on status or search.",
+      `Run \`${rgr} doctor --deep\` for an O(corpus) source and security audit.`,
+      `Run \`${rgr} ingest\` to create a current manifest before relying on status or search.`,
     ])
 
     await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
@@ -94,7 +96,7 @@ describe("doctor", { timeout: integrationTimeout(30_000) }, () => {
     expect(withEvidence.supportedFiles).toBe(1)
     expect(withEvidence.chunksIndexed).toBe(0)
     expect(withEvidence.nextSteps).toContain(
-      "Run `pnpm exec rgr doctor --fix` to rebuild stale or missing index data.",
+      `Run \`${rgr} doctor --fix\` to rebuild stale or missing index data.`,
     )
   })
 
@@ -112,9 +114,9 @@ describe("doctor", { timeout: integrationTimeout(30_000) }, () => {
     const report = await doctor(root, { deep: true })
 
     expect(report.securityWarnings.length).toBeGreaterThan(0)
-    expect(report.nextSteps[0]).toMatch(
-      /^Run `pnpm exec rgr ingest` to index stale or missing files\./,
-    )
+    expect(
+      report.nextSteps[0]?.startsWith(`Run \`${rgr} ingest\` to index stale or missing files.`),
+    ).toBe(true)
     expect(report.nextSteps.join("\n")).not.toContain("doctor --fix` to rebuild")
   })
 
@@ -163,7 +165,7 @@ describe("doctor", { timeout: integrationTimeout(30_000) }, () => {
     const ready = await doctor(root)
 
     expect(ready.nextSteps).toContain(
-      "For natural-language Q&A, run `pnpm exec rgr models pull --enable`, then run `pnpm exec rgr ingest --rebuild`.",
+      `For natural-language Q&A, run \`${rgr} models pull --enable\`, then run \`${rgr} ingest --rebuild\`.`,
     )
     expect(ready.indexFreshness.manifestFound).toBe(true)
     expect(ready.indexFreshness.warning).toBeNull()

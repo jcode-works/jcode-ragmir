@@ -45,7 +45,13 @@ describe("PDF OCR onboarding", () => {
       const root = await createTempRoot("ragmir-ocr-config-")
       const binDir = await createFakeTools(root, { tesseract: true, pdftoppm: true })
       process.env.PATH = binDir
-      await writeFile(path.join(root, "package.json"), '{"packageManager":"pnpm@11.9.0"}\n')
+      await writeFile(
+        path.join(root, "package.json"),
+        `${JSON.stringify({
+          packageManager: "pnpm@11.9.0",
+          devDependencies: { "@jcode.labs/ragmir": "^6.12.0" },
+        })}\n`,
+      )
 
       const status = await inspectPdfOcr(root)
       expect(status.recommendedEngine).toBe("tesseract")
