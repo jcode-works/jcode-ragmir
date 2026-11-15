@@ -1,5 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/jcode-works/jcode-ragmir",
+  "public_key": "pk_wqsxhgdJZ9EvJuZoQxvpb",
   "projectTitle": "Ragmir",
   "description": "Open-source retrieval for agentic RAG: search code, docs, PDFs, Office files, and tool exports with exact citations on a laptop or server, through the rgr CLI, MCP, Agent Skills, TypeScript, LangChain, Python, LlamaIndex, and Docker.",
   "excludeFolders": [
