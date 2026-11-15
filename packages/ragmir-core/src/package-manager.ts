@@ -1,9 +1,15 @@
 import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
+import { isRecord } from "./guards.js"
+import { VERSION } from "./version.js"
 
 export type PackageManager = "pnpm" | "npm" | "yarn" | "bun"
 const RGR_CLI_BIN = "rgr"
+const RAGMIR_PACKAGE = "@jcode.labs/ragmir"
+// dist/package-manager.js, or src/ in tests, sits one folder below the package root.
+const PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url))
 export const RGR_RUNNER_FILENAME = "run.cjs"
 export const RGR_RUNNER_PROBE_ARG = "--ragmir-runner-probe"
 
@@ -50,6 +56,26 @@ export async function rgrCommand(cwd: string, args: string[]): Promise<RagmirCom
       display: displayRunnerCommand(root, runnerPath, args),
     }
   }
+  if (!(await projectHasRagmir(root))) {
+    if (isGlobalInstall()) {
+      // The official Docker image and `npm install --global` put this CLI on PATH as `rgr`.
+      return {
+        packageManager,
+        command: RGR_CLI_BIN,
+        args,
+        display: [RGR_CLI_BIN, ...args].map(formatArg).join(" "),
+      }
+    }
+    // Without a project install, `pnpm exec rgr` fails and `npx rgr` asks npm for a package named
+    // `rgr`, so name the release this CLI belongs to, as the generated runner does.
+    const pinnedArgs = ["--yes", `${RAGMIR_PACKAGE}@${VERSION}`, ...args]
+    return {
+      packageManager,
+      command: "npx",
+      args: pinnedArgs,
+      display: `npx ${pinnedArgs.map(formatArg).join(" ")}`,
+    }
+  }
   const commandArgs = commandArgsFor(packageManager, args)
   return {
     packageManager,
@@ -64,6 +90,66 @@ function displayRunnerCommand(root: string, runnerPath: string, args: string[]):
   const relativeRunner = (path.relative(root, runnerPath) || runnerPath).split(path.sep).join("/")
   const suffix = [relativeRunner, ...args].map(formatArg).join(" ")
   return `node ${suffix}`
+}
+
+/**
+ * Whether the package sits in npm's default global folder for this Node.js, as in the official
+ * Docker image or after `npm install --global`. An npx cache or a custom npm prefix does not count.
+ */
+export function isGlobalInstall(packageRoot = PACKAGE_ROOT, execPath = process.execPath): boolean {
+  const globalRoot = path.join(path.dirname(path.dirname(execPath)), "lib", "node_modules")
+  const relative = path.relative(globalRoot, packageRoot)
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
+}
+
+/**
+ * Whether the project's package manager can run the CLI: Ragmir sits in a node_modules folder at or
+ * above the project, its package.json declares it (Yarn Plug'n'Play keeps no node_modules), or the
+ * project is the Ragmir repository itself.
+ */
+async function projectHasRagmir(root: string): Promise<boolean> {
+  if (
+    (await isRagmirPackage(path.join(root, "packages", "ragmir-core"))) ||
+    (await declaresRagmir(path.join(root, "package.json")))
+  ) {
+    return true
+  }
+  let current = root
+  while (true) {
+    if (await isRagmirPackage(path.join(current, "node_modules", ...RAGMIR_PACKAGE.split("/")))) {
+      return true
+    }
+    const parent = path.dirname(current)
+    if (parent === current) {
+      return false
+    }
+    current = parent
+  }
+}
+
+async function isRagmirPackage(packageDir: string): Promise<boolean> {
+  const manifest = await readJsonObject(path.join(packageDir, "package.json"))
+  return manifest?.name === RAGMIR_PACKAGE
+}
+
+async function declaresRagmir(packageJsonPath: string): Promise<boolean> {
+  const manifest = await readJsonObject(packageJsonPath)
+  return ["dependencies", "devDependencies", "optionalDependencies"].some((field) => {
+    const dependencies = manifest?.[field]
+    return isRecord(dependencies) && RAGMIR_PACKAGE in dependencies
+  })
+}
+
+async function readJsonObject(filePath: string): Promise<Record<string, unknown> | null> {
+  if (!existsSync(filePath)) {
+    return null
+  }
+  try {
+    const value: unknown = JSON.parse(await readFile(filePath, "utf8"))
+    return isRecord(value) ? value : null
+  } catch {
+    return null
+  }
 }
 
 /** @deprecated Use `rgrCommand`. @alias */
