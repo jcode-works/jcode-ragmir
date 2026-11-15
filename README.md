@@ -31,6 +31,7 @@
   <a href="#benchmarks">Benchmarks</a> ·
   <a href="./docs/agent-integration.md">Agents and MCP</a> ·
   <a href="./docs/server-deployment.md">Run on a server</a> ·
+  <a href="./docs/docker.md">Docker</a> ·
   <a href="./docs/python.md">Python</a> ·
   <a href="https://ragmir.com">ragmir.com</a>
 </p>
@@ -97,7 +98,8 @@ environment that owns the documents: a laptop for the first cited demo, then the
   checks exact citations, and counts hard negatives that must return nothing.
 - **Any server.** Linux, macOS, and Windows are tested on every release, and Debian or Alpine
   containers run it as a non-root user with a read-only root filesystem and no network. The
-  [server guide](./docs/server-deployment.md) has a working Dockerfile.
+  [server guide](./docs/server-deployment.md) has a working Dockerfile, and the official images
+  run anywhere Docker does ([Docker guide](./docs/docker.md)).
 - **A clean handoff.** One committed `ragmir.config.json`, `rgr doctor` for diagnosis, and upgrades
   that keep the last validated index until its replacement passes.
 
@@ -199,7 +201,7 @@ MCP server for any client, or the TypeScript API.
 | LangChain.js and LangGraph.js | `RagmirRetriever` for chains, `createRagmirTools` for agents, from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever-and-agent-tools)) |
 | Python | `pip install ragmir` for the client, `langchain-ragmir` for LangChain and LangGraph, `llama-index-retrievers-ragmir` for LlamaIndex ([Python guide](./docs/python.md)) |
 | Local models such as Ollama | [Local model example](./docs/agent-integration.md#confidential-chat-local-model-example) |
-| Without Node.js | `docker run -v "$PWD:/workspace" ghcr.io/jcode-works/ragmir` |
+| Docker, without Node.js | `docker run --rm -v "$PWD:/workspace" ghcr.io/jcode-works/ragmir`, or `:full` for semantic retrieval and OCR ([Docker guide](./docs/docker.md)) |
 | Your own application | `createRagmirClient()` from the TypeScript API |
 
 The MCP server exposes `ragmir_search` (one question or up to five related ones in a shared budget,
@@ -454,7 +456,8 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 - [Configuration, sources, and ranking](./docs/configuration.md)
 - [Supported formats](./docs/supported-formats.md)
 - [Agents, MCP, and four workflows](./docs/agent-integration.md)
-- [Run on a server or in a container](./docs/server-deployment.md)
+- [Run on a server](./docs/server-deployment.md)
+- [Run with Docker](./docs/docker.md)
 - [Use Ragmir from Python](./docs/python.md)
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)

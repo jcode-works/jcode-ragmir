@@ -73,6 +73,10 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `RAGMIR_STORAGE_DIR`) at a persistent volume and run `rgr ingest` from a scheduled job. The host
   service owns TLS, authentication, per-user authorization, and rate limits; Ragmir does not filter
   results per user. Writers are serialized per machine, not across machines.
+- Docker: `ghcr.io/jcode-works/ragmir` runs the same CLI and MCP server without Node.js; mount the
+  project at `/workspace` and pass `--user "$(id -u):$(id -g)"` on Linux. `:full` adds the semantic
+  model runtime and local Tesseract OCR. Releases tag `X.Y.Z`, `X.Y`, `X`, and `latest`, plus
+  `-full` variants, for amd64 and arm64 with SBOM and provenance attestations.
 - Python 3.11+: `pip install ragmir` gives a typed client (`Ragmir` sync with async twins,
   `AsyncRagmir`) that keeps one MCP server per project; `init_project`, `add_sources`, and
   `run_cli` prepare a base. `langchain-ragmir` adds `RagmirRetriever` and `RagmirToolkit` for
@@ -92,7 +96,8 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   empty array when the sources hold no evidence. `createRagmirTools({ client })` (or
   `RagmirToolkit`) gives `createAgent` and LangGraph agents `ragmir_search` and `ragmir_expand`
   tools that answer with cited text and keep documents as the tool artifact.
-- The MCP Registry lists the server as `io.github.jcode-works/ragmir`.
+- The MCP Registry lists the server as `io.github.jcode-works/ragmir`, with the npm package and
+  the Docker image.
 - Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
   target one explicitly. Data resolves from the caller's project, never the installation directory.
 - Ingestion is bounded and resumable. Rebuilds stage a replacement and activate it atomically only
@@ -120,6 +125,7 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - [Supported formats](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/supported-formats.md)
 - [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
 - [Run on a server or in a container](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)
+- [Run Ragmir with Docker](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/docker.md)
 - [Use Ragmir from Python](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)
 - [Migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
