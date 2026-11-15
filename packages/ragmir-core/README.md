@@ -129,9 +129,9 @@ scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blo
 
 ## Documents, semantic retrieval, and OCR
 
-Index more than 650 file types: code in over 200 languages, Markdown, PDF, Word, PowerPoint, Excel,
-OpenDocument, EPUB, HTML, mail and mailboxes, Figma, Sketch, Excalidraw, and tldraw files, Postman
-and OpenAPI collections, HAR captures, data models, and diagrams, each cited to its line, page,
+Index more than 900 file types: code in over 250 languages, Markdown, PDF, Word, PowerPoint, Excel,
+OpenDocument, EPUB, HTML, mail and mailboxes, Figma, Sketch, Excalidraw, tldraw, and XMind files,
+Postman and OpenAPI collections, HAR captures, data models, and diagrams, each cited to its line, page,
 slide, cell, or object ([supported formats](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/supported-formats.md)).
 Scanned PDFs, photos, and legacy `.doc` files use local extractors (`rgr ocr setup --images
 --legacy-word`). The default `local-hash` provider needs no model download. For semantic
