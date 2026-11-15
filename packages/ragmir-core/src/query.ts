@@ -28,6 +28,7 @@ import {
   lexicalDocumentScore,
 } from "./lexical-scoring.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
+import { isPathGlob, pathGlobRegexSource } from "./path-globs.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 import type { QueryTermStatistics, RankedRow } from "./ranking.js"
 import {
@@ -769,6 +770,66 @@ async function expandCitationWithinGeneration(
     contextRadius,
     evidence,
     passages: rows.sort(compareChunkRows).map(contextChunkForRow),
+    ...(await documentPaging(
+      table,
+      target.relativePath,
+      minimumChunkIndex,
+      maximumChunkIndex,
+      contextRadius,
+      signal,
+    )),
+  }
+}
+
+/**
+ * The document's chunk count and the citations of the windows just before and after this one, so
+ * an agent reads a long document by expanding `nextCitation` with the same radius.
+ */
+async function documentPaging(
+  table: RowsTable,
+  relativePath: string,
+  minimumChunkIndex: number,
+  maximumChunkIndex: number,
+  contextRadius: number,
+  signal: AbortSignal | undefined,
+): Promise<Pick<ExpandedCitation, "documentChunks" | "previousCitation" | "nextCitation">> {
+  const indexes = (
+    (await table
+      .query()
+      .select(["chunkIndex"])
+      .where(relativePathEquals(relativePath))
+      .toArray()) as Array<Pick<SearchRow, "chunkIndex">>
+  )
+    .map((row) => row.chunkIndex)
+    .sort((left, right) => left - right)
+  throwIfAborted(signal)
+  const after = indexes.findIndex((index) => index > maximumChunkIndex)
+  const firstInWindow = indexes.findIndex((index) => index >= minimumChunkIndex)
+  const before = (firstInWindow < 0 ? indexes.length : firstInWindow) - 1
+  // Each neighbour window is centred so that it starts right where this one ends.
+  const nextIndex =
+    after < 0 ? undefined : indexes[Math.min(indexes.length - 1, after + contextRadius)]
+  const previousIndex = before < 0 ? undefined : indexes[Math.max(0, before - contextRadius)]
+  const wanted = [nextIndex, previousIndex].filter((index) => index !== undefined)
+  const neighbours =
+    wanted.length === 0
+      ? []
+      : ((await table
+          .query()
+          .select(SEARCH_COLUMNS)
+          .where(`${relativePathEquals(relativePath)} AND chunkIndex IN (${wanted.join(", ")})`)
+          .toArray()) as SearchRow[])
+  throwIfAborted(signal)
+  const citationAt = (index: number | undefined) => {
+    const row = neighbours.find((candidate) => candidate.chunkIndex === index)
+    return row ? citationForRow(row) : undefined
+  }
+  const nextCitation = citationAt(nextIndex)
+  const previousCitation = citationAt(previousIndex)
+  return {
+    documentChunks: indexes.length,
+    ...(previousCitation ? { previousCitation } : {}),
+    ...(nextCitation ? { nextCitation } : {}),
   }
 }
 
@@ -1093,8 +1154,16 @@ function normalizePathPrefixes(prefixes: string[] | undefined): string[] {
   return [...new Set((prefixes ?? []).map(canonicalUserPath).filter(Boolean))]
 }
 
-/** Match the canonical path and its decomposed form, which indexes built before 6.2 may hold. */
+/**
+ * A folder or file matches itself and everything below it; a glob such as `**\/*.pdf` matches by
+ * pattern. Both forms also match the decomposed spelling that indexes built before 6.2 may hold.
+ */
 function pathPrefixPredicate(prefix: string): string {
+  if (isPathGlob(prefix)) {
+    return unicodePathVariants(prefix)
+      .map((variant) => `regexp_like(relativePath, ${sqlString(pathGlobRegexSource(variant))})`)
+      .join(" OR ")
+  }
   return unicodePathVariants(prefix)
     .map(
       (variant) =>

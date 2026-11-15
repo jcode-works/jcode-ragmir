@@ -1,11 +1,17 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { ToolMessage } from "@langchain/core/messages"
 import { afterEach, describe, expect, it } from "vitest"
 import { createRagmirClient } from "./client.js"
 import type { RagmirError } from "./errors.js"
 import { initProject } from "./init.js"
-import { RagmirRetriever, ragmirResultToDocument } from "./langchain.js"
+import {
+  createRagmirTools,
+  RagmirRetriever,
+  RagmirToolkit,
+  ragmirResultToDocument,
+} from "./langchain.js"
 import { integrationTimeout } from "./test-support/timeouts.js"
 import type { SearchResult } from "./types.js"
 
@@ -82,6 +88,60 @@ describe("RagmirRetriever", { timeout: integrationTimeout(10_000) }, () => {
     const retriever = new RagmirRetriever()
 
     await expect(retriever.close()).resolves.toBeUndefined()
+  })
+})
+
+describe("RagmirToolkit", { timeout: integrationTimeout(10_000) }, () => {
+  it("gives an agent cited search and expansion with documents as artifacts", async () => {
+    const root = await indexedProject("ragmir-langchain-tools-")
+    const toolkit = new RagmirToolkit({ projectRoot: root, topK: 2 })
+    const [search, expand] = toolkit.getTools()
+    expect(toolkit.getTools().map((tool) => tool.name)).toEqual(["ragmir_search", "ragmir_expand"])
+
+    const searchMessage = await search?.invoke({
+      id: "call-1",
+      name: "ragmir_search",
+      args: { query: "production approval" },
+      type: "tool_call",
+    })
+    expect(searchMessage).toBeInstanceOf(ToolMessage)
+    const searchResult = searchMessage as ToolMessage
+    expect(searchResult.content).toContain("[1] .ragmir/raw/decision.md:L")
+    expect(searchResult.content).toContain("human approval")
+    const [document] = searchResult.artifact as Array<{ metadata: { citation: string } }>
+    expect(document?.metadata.citation).toContain("decision.md:L")
+
+    const expandMessage = (await expand?.invoke({
+      id: "call-2",
+      name: "ragmir_expand",
+      args: { citation: document?.metadata.citation },
+      type: "tool_call",
+    })) as ToolMessage
+    expect(expandMessage.content).toContain("human approval before production deployment")
+    expect(expandMessage.artifact).toMatchObject({ found: true })
+
+    const silent = (await search?.invoke({
+      id: "call-3",
+      name: "ragmir_search",
+      args: { query: "chocolate cake baking temperature" },
+      type: "tool_call",
+    })) as ToolMessage
+    expect(silent.content).toContain("No passage in the indexed documents")
+    expect(silent.artifact).toEqual([])
+
+    await toolkit.close()
+  })
+
+  it("shares a client through createRagmirTools and leaves it open", async () => {
+    const root = await indexedProject("ragmir-langchain-tools-shared-")
+    const client = await createRagmirClient({ cwd: root })
+    const tools = createRagmirTools({ client, includePaths: [".ragmir/raw"] })
+
+    const output = await tools[0]?.invoke({ query: "rollout approval" })
+
+    expect(String(output)).toContain("decision.md")
+    expect(client.isClosed).toBe(false)
+    await client.close()
   })
 })
 

@@ -34,6 +34,9 @@ Choose one of four workflow examples:
 For semantic retrieval, first install optional `@huggingface/transformers`, then explicitly preload
 with `rgr setup --semantic`. For scanned PDFs, run `rgr ocr doctor` then `rgr ocr setup` and ingest.
 
+To let your agent drive the setup, paste the prompt below, or install the `ragmir-setup` skill with
+`npx skills add jcode-works/jcode-ragmir --skill ragmir-setup` and ask the agent to set up Ragmir.
+
 <!-- ragmir-setup-prompt:start -->
 <details>
 <summary>Agent setup prompt</summary>

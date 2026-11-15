@@ -22,7 +22,9 @@ Two files can hold it:
 
 With only `ragmir.config.json`, CLI changes such as `rgr sources add` write to it and `rgr init`
 does not create a local copy. With both files, CLI changes go to `.ragmir/config.json`. A local
-`sources` array replaces the shared one as a whole, like every other key.
+`sources` array replaces the shared one as a whole, like every other key, so the first
+`rgr sources add` copies the shared sources into it before adding the new entries;
+`rgr sources list` shows the list that applies and the file it comes from.
 
 ## Common fields
 
@@ -61,6 +63,7 @@ does not create a local copy. With both files, CLI changes go to `.ragmir/config
 | `mcpAllowedRoots` | `[]` | Workspaces allowed to use this base over MCP. Empty warns instead of refusing. |
 | `mcpSeenResults` | `collapse` | MCP repeats: `collapse` to short stubs, `exclude`, or `include` in full. |
 | `mcpAutoIngest` | `false` | Start one background incremental ingest when MCP results cite changed files. |
+| `mcpIngest` | `true` | Let MCP clients refresh the index with `ragmir_ingest`; `false` keeps the server read-only. |
 
 Configuration arrays and strings have hard size ceilings. Sources are capped at 10,000 entries,
 custom extensions at 128, and external commands at 128 arguments.
@@ -262,8 +265,9 @@ Scopes name path filters that agents and scripts can select instead of repeating
 ```
 
 `rgr search --scope docs`, `search(query, { scope: "docs" })`, and MCP `scope: "docs"` apply them.
-A scope combines with explicit `includePaths` (both must match) and `excludePaths`. MCP
-instructions and tool descriptions list the scope names and descriptions.
+A scope combines with explicit `includePaths` (both must match) and `excludePaths`. Paths are
+folders, files, or globs such as `"**/*.pdf"` or `"specs/{legal,security}/**"`. MCP instructions
+and tool descriptions list the scope names and descriptions.
 
 ## Ranking weights, translations, and large data files
 

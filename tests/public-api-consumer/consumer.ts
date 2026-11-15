@@ -32,9 +32,12 @@ import {
   type SearchOptions,
 } from "@jcode.labs/ragmir"
 import {
+  createRagmirTools,
   RagmirRetriever,
+  RagmirToolkit,
   type RagmirDocumentMetadata,
   type RagmirRetrieverInput,
+  type RagmirToolkitInput,
   ragmirResultToDocument,
 } from "@jcode.labs/ragmir/langchain"
 
@@ -76,9 +79,30 @@ void search("What changed?", searchOptions).then((results) => {
   void workloadQueueMs
 })
 void createRagmirClient({ cwd }).then(async (client: RagmirClient) => {
-  await client.search("What changed?", operationOptions)
+  const [first] = await client.search("What changed?", {
+    ...operationOptions,
+    includePaths: ["docs", "**/*.pdf"],
+  })
+  if (first) {
+    const expanded = await client.expandCitation(first.citation, { contextRadius: 1 })
+    const documentChunks: number | undefined = expanded.documentChunks
+    const nextCitation: string | undefined = expanded.nextCitation
+    const previousCitation: string | undefined = expanded.previousCitation
+    void documentChunks
+    void nextCitation
+    void previousCitation
+  }
   await client.status(operationOptions)
-  await client.sources(operationOptions)
+  const catalog = await client.sources({ ...operationOptions, paths: ["specs/**"], limit: 20 })
+  const matchedFiles: number | undefined = catalog.filter?.matchedFiles
+  void matchedFiles
+  const toolkitInput: RagmirToolkitInput = { client, topK: 3 }
+  const toolkit = new RagmirToolkit(toolkitInput)
+  const toolNames: string[] = toolkit.getTools().map((tool) => tool.name)
+  const sharedTools = createRagmirTools({ client })
+  void toolNames
+  void sharedTools
+  await toolkit.close()
   await client.close()
 })
 void audit(cwd, operationOptions)

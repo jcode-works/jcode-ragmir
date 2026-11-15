@@ -28,7 +28,23 @@ interface JsonNode {
   children: JsonNode[]
 }
 
-const MARKDOWN_EXTENSIONS = new Set([".md", ".mdx", ".markdown"])
+// Markdown and its dialects: Quarto, R Markdown, Markdoc, Livebook, and Cursor rules.
+export const MARKDOWN_EXTENSIONS: ReadonlySet<string> = new Set([
+  ".livemd",
+  ".markdown",
+  ".md",
+  ".mdc",
+  ".mdoc",
+  ".mdown",
+  ".mdtext",
+  ".mdtxt",
+  ".mdwn",
+  ".mdx",
+  ".mkd",
+  ".mkdn",
+  ".qmd",
+  ".rmd",
+])
 const ATX_HEADING_PATTERN = /^ {0,3}(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/u
 const SETEXT_HEADING_PATTERN = /^ {0,3}(=+|-+)\s*$/u
 const FENCE_PATTERN = /^\s*(`{3,}|~{3,})/u

@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use Ragmir in research or a publication, please cite it as below."
+title: "Ragmir: local retrieval with exact citations for coding agents and RAG applications"
+type: software
+authors:
+  - given-names: Jean-Baptiste
+    family-names: Thery
+    affiliation: JCode Works
+repository-code: "https://github.com/jcode-works/jcode-ragmir"
+url: "https://ragmir.com"
+license: AGPL-3.0-only
+abstract: >-
+  Ragmir indexes a project's code, specifications, PDFs, Office files, and tool exports on the
+  machine that runs it, and returns passages with exact citations to lines, pages, slides, cells,
+  or sections. Coding agents query it through MCP, the rgr CLI, or Agent Skills; applications use
+  its TypeScript, LangChain.js, Python, LangChain, and LlamaIndex integrations.
+keywords:
+  - retrieval-augmented generation
+  - citations
+  - model context protocol
+  - coding agents
+  - local-first

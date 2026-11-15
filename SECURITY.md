@@ -2,7 +2,10 @@
 
 ## Supported Versions
 
-Only the latest published version of `@jcode.labs/ragmir` receives security fixes.
+Only the latest published version receives security fixes. Every channel ships the same version:
+the `@jcode.labs/ragmir` npm package, the `ghcr.io/jcode-works/ragmir` images, the `ragmir`,
+`langchain-ragmir`, and `llama-index-retrievers-ragmir` PyPI packages, the agent plugins in this
+repository once they pin that release, and the skills in `skills/`.
 
 ## Reporting A Vulnerability
 

@@ -51,6 +51,9 @@ export interface McpExpandedCitationSummary {
   contextRadius: number
   requestedCitation?: string
   relativePath?: string
+  documentChunks?: number
+  previousCitation?: string
+  nextCitation?: string
   metadataOmitted: boolean
   passages: McpExpandedPassagePreview[]
   omittedPassages: number
@@ -321,12 +324,16 @@ function fitExpandedSummaryMetadata(
   value: ExpandedCitation,
   maxBytes: number,
 ): McpExpandedCitationSummary {
+  // Paging citations matter most when the window was cut: the agent reads on from there.
   const summary: McpExpandedCitationSummary = {
     found: value.found,
     chunkIndex: value.chunkIndex,
     contextRadius: value.contextRadius,
     requestedCitation: value.requestedCitation,
     relativePath: value.relativePath,
+    ...(value.documentChunks === undefined ? {} : { documentChunks: value.documentChunks }),
+    ...(value.previousCitation === undefined ? {} : { previousCitation: value.previousCitation }),
+    ...(value.nextCitation === undefined ? {} : { nextCitation: value.nextCitation }),
     metadataOmitted: false,
     passages: [],
     omittedPassages: value.passages.length,

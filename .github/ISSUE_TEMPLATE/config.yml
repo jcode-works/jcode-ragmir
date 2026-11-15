@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Troubleshooting guide
+    url: https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md
+    about: Most setup problems are solved by rgr doctor and this guide.
   - name: Security vulnerability
     url: mailto:contact@jcode.works
     about: Please report vulnerabilities privately by email.
+  - name: Commercial licensing
+    url: https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md
+    about: Licensing Ragmir outside the AGPL, or help integrating it into a product.

@@ -16,11 +16,13 @@ service decides who may search and where the returned passages go.
 
 ## A container layout
 
-To try Ragmir without building anything, the official image `ghcr.io/jcode-works/ragmir` runs the
-same CLI and MCP server on `node:22-bookworm-slim` for `linux/amd64` and `linux/arm64`: mount the
-project at `/workspace`, for example
+To run Ragmir without building anything, the official image `ghcr.io/jcode-works/ragmir` runs the
+same CLI and MCP server on `node:22-bookworm-slim` for `linux/amd64` and `linux/arm64`, and
+`ghcr.io/jcode-works/ragmir:full` adds the semantic model runtime and local OCR: mount the project
+at `/workspace`, for example
 `docker run --rm -v "$PWD:/workspace" --user "$(id -u):$(id -g)" ghcr.io/jcode-works/ragmir ingest`.
-Build your own image, as below, to bake in a configuration and pin dependencies with a lockfile.
+[Run Ragmir with Docker](./docker.md) covers tags, agents, OCR, and offline use. Build your own
+image, as below, to bake in a configuration and pin dependencies with a lockfile.
 
 The layout below was checked in `node:22-bookworm-slim` and `node:22-alpine` containers, as a
 non-root user, with a read-only root filesystem and no network access. Install and index size depend
@@ -89,8 +91,9 @@ each host its own index, or let one host write and copy the result.
 ## Serve retrieval
 
 **An agent on the same machine.** MCP clients launch `rgr serve-mcp` over stdio, from the project
-folder or with `docker run -i ... serve-mcp`. The server exposes four read-only tools and names the
-base it serves. See [agent integration](./agent-integration.md).
+folder or with `docker run -i ... serve-mcp`. The server names the base it serves, exposes five
+read-only tools and `ragmir_ingest`, which refreshes the index; set `"mcpIngest": false` to keep a
+shared deployment read-only. See [agent integration](./agent-integration.md).
 
 **Your own service.** Embed one client per project root in a long-running process and call it from
 your routes after your own authentication and authorization checks:

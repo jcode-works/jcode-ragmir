@@ -1,0 +1,74 @@
+name: Docker
+
+# Builds both image targets from the latest published npm release whenever the Dockerfile
+# changes, so a broken image never reaches a release.
+on:
+  pull_request:
+    branches: [main, develop]
+    paths: [docker/**, .github/workflows/docker.yml]
+  push:
+    branches: [develop]
+    paths: [docker/**, .github/workflows/docker.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  images:
+    name: Image smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build both targets
+        run: |
+          set -euo pipefail
+          version="$(npm view @jcode.labs/ragmir version)"
+          for target in slim full; do
+            docker build docker --target "$target" --build-arg "RAGMIR_VERSION=${version}" \
+              --tag "ragmir:${target}"
+          done
+
+      - name: Index and search a project with the slim image
+        run: |
+          set -euo pipefail
+          project="$(mktemp -d)"
+          echo "PROJECT=${project}" >> "$GITHUB_ENV"
+          mkdir -p "${project}/docs"
+          printf '# Releases\n\nA production release needs two approvals.\n' \
+            > "${project}/docs/releases.md"
+          run() {
+            docker run --rm --user "$(id -u):$(id -g)" -v "${project}:/workspace" "ragmir:$1" "${@:2}"
+          }
+          run slim --version
+          run slim init
+          run slim sources add "docs/**/*.md"
+          run slim ingest
+          output="$(run slim search "production release approvals" --compact)"
+          echo "$output"
+          grep -q "docs/releases.md" <<<"$output"
+          label="$(docker inspect --format \
+            '{{ index .Config.Labels "io.modelcontextprotocol.server.name" }}' ragmir:slim)"
+          test "$label" = "io.github.jcode-works/ragmir"
+
+      - name: Check the semantic runtime and OCR tools of the full image
+        run: |
+          set -euo pipefail
+          run() {
+            docker run --rm --user "$(id -u):$(id -g)" -v "${PROJECT}:/workspace" ragmir:full "$@"
+          }
+          # The runtime must resolve from Ragmir's own location, the way it loads it.
+          doctor="$(run doctor)"
+          echo "$doctor"
+          grep -q "runtime.dependencies.transformers=@huggingface/transformers@" <<<"$doctor"
+          ocr="$(run ocr doctor)"
+          echo "$ocr"
+          grep -qi "tesseract" <<<"$ocr"
+          docker run --rm --entrypoint sh ragmir:full -c \
+            'tesseract --list-langs | grep -qx fra && command -v pdftoppm && command -v antiword'

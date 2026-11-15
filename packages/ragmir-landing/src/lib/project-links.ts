@@ -20,7 +20,7 @@ export const PROJECT_LINKS = {
   security: `${GITHUB_URL}/blob/main/SECURITY.md`,
   claudePlugin: `${GITHUB_URL}/tree/main/plugins/ragmir`,
   agentPlugins: `${GITHUB_URL}/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents`,
-  langchainRetriever: `${GITHUB_URL}/blob/main/docs/api-reference.md#langchainjs-retriever`,
+  langchainRetriever: `${GITHUB_URL}/blob/main/docs/api-reference.md#langchainjs-retriever-and-agent-tools`,
   mcpGuide: `${GITHUB_URL}/blob/main/docs/agent-integration.md#connect-an-agent-through-mcp`,
 } as const
 

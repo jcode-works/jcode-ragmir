@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ragmir": {
+      "command": "node",
+      "args": ["packages/ragmir-core/dist/cli-entry.js", "serve-mcp"]
+    }
+  }
+}

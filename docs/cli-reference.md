@@ -41,6 +41,7 @@ rgr preview --path docs --max-files 5 --max-chunks 3
 rgr search "migration" --top-k 5 --context-radius 1
 rgr search "migration" --top-k 5 --max-chunks-per-document 2
 rgr search "migration" --include-path docs --exclude-path docs/archive
+rgr search "termination notice" --include-path "**/*.pdf"
 rgr search "migration" --context-path "Guide > Migration" --explain
 rgr search "migration" --scope docs
 rgr search "migration" --exact-vector-search
@@ -50,7 +51,8 @@ Text output marks a result whose file changed or disappeared after indexing
 (`source modified since indexing`) and a result with thin support (`weak evidence`). JSON results
 carry the same information as `sourceStatus` and `weakEvidence`. A search whose first five results are
 all weak prints no result, with any provider: the base holds no evidence for the question. `--scope`
-applies a named scope from the config; `--include-path` accepts backslashes on every platform.
+applies a named scope from the config. `--include-path` and `--exclude-path` take a folder, a file,
+or a glob such as `"**/*.pdf"`, and accept backslashes on every platform.
 
 `sources add` accepts paths, globs, and `!` exclusions. Search accepts `--top-k`,
 `--include-path`, `--exclude-path`, and repeatable `--context-path`. Search accepts
@@ -325,6 +327,50 @@ rgr destroy-index --yes
 - Removed commands (`ask`, `research`, `chat`, `audio`) print their replacement instead of an
   unknown-command error.
 - Add `--json` to machine-readable commands. Do not parse human-readable output in automation.
+
+## Measure retrieval quality
+
+A golden file holds real questions and the evidence each one needs. Commit it next to the
+configuration (and exclude it from `sources` if a glob matches it), then gate CI on the run:
+
+```json
+{
+  "topK": 5,
+  "thresholds": { "recallAt5": 0.8, "maximumFalsePositiveRate": 0.2 },
+  "queries": [
+    { "id": "approval", "query": "Who signs off a production release?", "expectedPaths": ["docs/releases.md"] },
+    {
+      "query": "How long do we keep invoices?",
+      "relevanceJudgments": [{ "kind": "path", "value": "policies/retention.pdf", "relevance": 3 }]
+    },
+    { "query": "Which Helm chart deploys the billing API?", "answerable": false, "category": "negative" }
+  ]
+}
+```
+
+```bash
+rgr evaluate --golden ragmir.golden.json          # exits with status 1 when a threshold fails
+rgr evaluate --golden ragmir.golden.json --json   # adds gates, per-category groups, and fingerprints
+```
+
+- `expectedPaths` lists project-relative files; any of them in the top `topK` is a hit.
+  `expectedCitations` requires exact citations such as `docs/runbook.md:L12-L18#3`, copied from
+  `rgr search --json`; they change when the file is edited, so keep them for facts that must be
+  cited precisely.
+- `relevanceJudgments` grades evidence from 0 to 3 for nDCG. `answerable: false` marks a hard
+  negative whose correct result is no passage. `category` and `locale` group the report.
+- A case can set its own `topK`, `includePaths`, `excludePaths`, and `contextPaths`. `topK`
+  defaults to 3; `--top-k` overrides the file value.
+- `thresholds` accepts `recallAt1`, `recallAt3`, `recallAt5`, `recallAt10`, `precisionAt5`,
+  `meanReciprocalRankAt10`, `ndcgAt10`, and `exactCitationRate` as minimums, and
+  `maximumFalsePositiveRate` as a maximum, all between 0 and 1.
+
+When a case misses, `rgr search "<query>" --explain --top-k 10` shows each result's vector and
+keyword ranks and matched terms, and `rgr preview --path <file> --json` shows how the expected file
+was chunked. Change one setting at a time (`sources`, `sourceWeights`, `maxChunksPerDocument`,
+`retrievalProfile`, chunking, or the embedding model), run `rgr ingest`, and compare the reports.
+The `ragmir-evaluate` [agent skill](../skills/ragmir-evaluate/SKILL.md) walks an agent through the
+same loop.
 
 ## Semantic retrieval and local OCR
 

@@ -24,6 +24,8 @@ jobs:
     environment:
       name: npm-publish
       url: https://www.npmjs.com/package/@jcode.labs/ragmir
+    outputs:
+      version: ${{ steps.published.outputs.version }}
     steps:
       - name: Verify main branch
         run: test "${GITHUB_REF}" = "refs/heads/main"
@@ -101,12 +103,29 @@ jobs:
           docker run --privileged --rm "$BINFMT_IMAGE" --install arm64
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
           docker buildx create --name ragmir-release --use
-          docker buildx build docker \
-            --platform linux/amd64,linux/arm64 \
-            --build-arg "RAGMIR_VERSION=${VERSION}" \
-            --tag "ghcr.io/jcode-works/ragmir:${VERSION}" \
-            --tag ghcr.io/jcode-works/ragmir:latest \
-            --push
+          image=ghcr.io/jcode-works/ragmir
+          minor="${VERSION%.*}"
+          major="${VERSION%%.*}"
+          # slim: 6.11.0, 6.11, 6, latest. full: the same tags with a -full suffix, and full.
+          for target in slim full; do
+            suffix=""
+            moving=latest
+            if [ "$target" = full ]; then
+              suffix=-full
+              moving=full
+            fi
+            docker buildx build docker \
+              --target "$target" \
+              --platform linux/amd64,linux/arm64 \
+              --build-arg "RAGMIR_VERSION=${VERSION}" \
+              --provenance=mode=max \
+              --sbom=true \
+              --tag "${image}:${VERSION}${suffix}" \
+              --tag "${image}:${minor}${suffix}" \
+              --tag "${image}:${major}${suffix}" \
+              --tag "${image}:${moving}" \
+              --push
+          done
           docker logout ghcr.io
 
       - name: Install cosign
@@ -137,6 +156,9 @@ jobs:
             manifest.version = process.env.VERSION
             for (const pkg of manifest.packages ?? []) {
               if (pkg.registryType === "npm") pkg.version = process.env.VERSION
+              if (pkg.registryType === "oci") {
+                pkg.identifier = pkg.identifier.replace(/:[^:/]+$/, ":" + process.env.VERSION)
+              }
             }
             fs.writeFileSync("server.json", `${JSON.stringify(manifest, null, 2)}\n`)
           '
@@ -154,3 +176,49 @@ jobs:
           rm -f "$archive" "$archive.sigstore.json"
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
+
+  # PyPI trusted publishing: uv exchanges each job's OIDC identity for a short-lived upload token,
+  # so no PyPI token is stored. PyPI binds one trusted publisher to a repository, workflow, and
+  # environment, and lets a pending publisher create only one project, so each package publishes
+  # from its own `pypi-<package>` environment, limited to the main branch.
+  pypi:
+    name: Publish ${{ matrix.package }} to PyPI
+    needs: release
+    if: needs.release.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [ragmir, langchain-ragmir, llama-index-retrievers-ragmir]
+    environment:
+      name: pypi-${{ matrix.package }}
+      url: https://pypi.org/project/${{ matrix.package }}/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # --check-url skips files PyPI already holds, so a rerun of the release finishes the rest.
+      - name: Build and publish
+        env:
+          PACKAGE: ${{ matrix.package }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          python -m pip install "uv==0.13.6"
+          node scripts/python-release-version.mjs "$VERSION"
+          cd python
+          uv build --package "$PACKAGE" -o dist
+          uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/*
