@@ -504,6 +504,208 @@ describe("API collections and data exports", () => {
     expect(parsed.text).not.toContain("super-secret-token")
   })
 
+  it("cites HTTP Archive requests and leaves cookies, credentials, and assets out", async () => {
+    const status = {
+      _resourceType: "xhr",
+      request: { method: "GET", url: "https://api.example.com/v1/orders/ord_42/status" },
+      response: {
+        status: 200,
+        content: { mimeType: "application/json", text: '{"state":"paid"}' },
+      },
+    }
+    const parsed = await parseFixture(
+      "checkout.har",
+      JSON.stringify({
+        log: {
+          version: "1.2",
+          creator: { name: "WebInspector", version: "537.36" },
+          browser: { name: "Chrome", version: "131" },
+          pages: [
+            { id: "page_1", title: "https://shop.example.com/checkout?sid=page-secret#step2" },
+          ],
+          entries: [
+            {
+              pageref: "page_1",
+              _resourceType: "fetch",
+              request: {
+                method: "post",
+                url: "https://user:url-password@api.example.com/v1/orders?expand=lines&access_token=query-token-123",
+                headers: [
+                  { name: ":authority", value: "api.example.com" },
+                  { name: "Content-Type", value: "application/json" },
+                  { name: "Authorization", value: "Bearer header-token-456" },
+                  { name: "Cookie", value: "sid=cookie-value-789" },
+                  { name: "X-Request-Id", value: "req-42" },
+                  { name: "sec-fetch-mode", value: "cors" },
+                ],
+                cookies: [{ name: "sid", value: "cookie-value-789" }],
+                postData: {
+                  mimeType: "application/json",
+                  text: JSON.stringify({
+                    sku: "TEA-01",
+                    quantity: 2,
+                    password: "hunter2",
+                    note: "Bearer note-token-000",
+                  }),
+                },
+              },
+              response: {
+                status: 201,
+                statusText: "Created",
+                headers: [
+                  { name: "Set-Cookie", value: "sid=new-cookie-111; HttpOnly" },
+                  { name: "Location", value: "/v1/orders/ord_42" },
+                ],
+                content: {
+                  mimeType: "application/json; charset=utf-8",
+                  text: JSON.stringify({
+                    id: "ord_42",
+                    status: "pending_payment",
+                    refresh_token: "refresh-222",
+                    customer: { email: "ada@example.com" },
+                    receipt: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJl",
+                  }),
+                },
+              },
+            },
+            status,
+            status,
+            {
+              request: { method: "GET", url: "https://api.example.com/v1/catalog" },
+              response: {
+                status: 200,
+                content: {
+                  mimeType: "application/json",
+                  encoding: "base64",
+                  text: Buffer.from('{"items":["green tea"]}').toString("base64"),
+                },
+              },
+            },
+            {
+              _resourceType: "image",
+              request: { method: "GET", url: "https://cdn.example.com/logo.png" },
+              response: { status: 200, content: { mimeType: "image/png", encoding: "base64" } },
+            },
+            {
+              request: { method: "OPTIONS", url: "https://api.example.com/v1/orders" },
+              response: { status: 204, content: {} },
+            },
+            {
+              request: { method: "GET", url: "data:image/png;base64,AAAA" },
+              response: { status: 200, content: { mimeType: "image/png" } },
+            },
+            {
+              _resourceType: "document",
+              request: { method: "GET", url: "https://shop.example.com/help/returns" },
+              response: {
+                status: 200,
+                content: {
+                  mimeType: "text/html",
+                  text: "<html><body><p>Returns are accepted within 30 days.</p></body></html>",
+                },
+              },
+            },
+            {
+              _resourceType: "document",
+              request: {
+                method: "GET",
+                url: "https://shop.example.com/oauth/callback?code=auth-code-333&state=st-444&lang=fr",
+              },
+              response: { status: 302, content: { mimeType: "text/html", text: "" } },
+            },
+            {
+              _resourceType: "fetch",
+              request: {
+                method: "POST",
+                url: "https://shop.example.com/login",
+                postData: {
+                  mimeType: "application/x-www-form-urlencoded",
+                  text: "username=ada&password=hunter3",
+                },
+              },
+              response: { status: 200, content: { mimeType: "text/plain", text: "Welcome back" } },
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(sectionLabels(parsed)).toEqual([
+      "HTTP Archive",
+      "POST https://api.example.com/v1/orders",
+      "GET https://api.example.com/v1/orders/ord_42/status",
+      "GET https://api.example.com/v1/catalog",
+      "GET https://shop.example.com/help/returns",
+      "GET https://shop.example.com/oauth/callback",
+      "POST https://shop.example.com/login",
+    ])
+    const overview = sectionText(parsed, "HTTP Archive")
+    expect(overview).toContain("HTTP Archive recorded with WebInspector 537.36 in Chrome 131")
+    expect(overview).toContain("Pages:\n- https://shop.example.com/checkout")
+    expect(overview).toContain(
+      "Requests: 10, 6 indexed, 3 static assets, preflights, or non-HTTP requests skipped",
+    )
+
+    const order = sectionText(parsed, "POST https://api.example.com/v1/orders")
+    expect(order).toContain("Status: 201 Created")
+    expect(order).toContain("Query parameters:\n- expand: lines\n- access_token: (value omitted)")
+    expect(order).toContain("- Authorization: (value omitted)")
+    expect(order).toContain("- Cookie: (value omitted)")
+    expect(order).toContain("- X-Request-Id: req-42")
+    expect(order).toContain('"sku": "TEA-01"')
+    expect(order).toContain('"password": "(value omitted)"')
+    expect(order).toContain('"note": "(value omitted)"')
+    expect(order).toContain("- Set-Cookie: (value omitted)")
+    expect(order).toContain("Response body (application/json):")
+    expect(order).toContain('"status": "pending_payment"')
+    expect(order).toContain('"refresh_token": "(value omitted)"')
+    expect(order).toContain('"email": "ada@example.com"')
+    expect(order).toContain('"receipt": "(value omitted)"')
+
+    const polling = sectionText(parsed, "GET https://api.example.com/v1/orders/ord_42/status")
+    expect(polling).toContain('"state": "paid"')
+    expect(polling).toContain("Repeated 2 times")
+    expect(sectionText(parsed, "GET https://api.example.com/v1/catalog")).toContain(
+      '"items": [\n    "green tea"\n  ]',
+    )
+    expect(sectionText(parsed, "GET https://shop.example.com/help/returns")).toContain(
+      "Returns are accepted within 30 days.",
+    )
+    expect(sectionText(parsed, "GET https://shop.example.com/oauth/callback")).toContain(
+      "- code: (value omitted)\n- state: (value omitted)\n- lang: fr",
+    )
+    expect(sectionText(parsed, "POST https://shop.example.com/login")).toContain(
+      "username=ada\npassword=(value omitted)",
+    )
+
+    for (const secret of [
+      "url-password",
+      "query-token-123",
+      "header-token-456",
+      "cookie-value-789",
+      "hunter2",
+      "note-token-000",
+      "new-cookie-111",
+      "refresh-222",
+      "eyJhbGciOiJIUzI1NiJ9",
+      "page-secret",
+      "auth-code-333",
+      "st-444",
+      "hunter3",
+      ":authority",
+      "sec-fetch-mode",
+      "logo.png",
+    ]) {
+      expect(parsed.text).not.toContain(secret)
+    }
+  })
+
+  it("refuses a .har file that is not an HTTP Archive", async () => {
+    await expect(
+      parseFixture("notes.har", JSON.stringify({ entries: [{ cookie: "sid=raw" }] })),
+    ).rejects.toThrow("Not an HTTP Archive")
+  })
+
   it("cites Insomnia v4 requests under their folders", async () => {
     const parsed = await parseFixture(
       "insomnia.json",

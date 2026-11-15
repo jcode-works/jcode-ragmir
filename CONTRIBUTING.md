@@ -8,7 +8,7 @@ extraction and local OCR, indexing, search quality, exact citations, and develop
 Consuming agents and chat applications own planning, generation, and model hosting. Local indexing
 is not an end-to-end confidentiality guarantee when a consumer sends excerpts to another service.
 
-Ragmir is maintained by a single developer ([Jean-Baptiste Thery](https://github.com/jb-thery)).
+Ragmir is maintained by [JCode Works](https://jcode.works).
 Be kind, be specific, and keep the scope of each contribution focused so it can be reviewed
 within a reasonable time.
 
