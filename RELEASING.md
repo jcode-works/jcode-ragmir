@@ -14,6 +14,10 @@ Do not publish from a local machine.
 6. Verify the Core npm package, the curated GitHub release notes, and release artifacts.
 7. Build the landing with the released version, deploy `packages/ragmir-landing/dist` through the
    external deployment process, and run the landing checks below.
+8. Sync the GitHub wiki: clone `https://github.com/jcode-works/jcode-ragmir.wiki.git`, run
+   `pnpm wiki:sync <wiki checkout>`, update the counts and tools on its `Home.md` by hand, then
+   commit and push the wiki. Once the plugin pin reaches `main`, refresh the Context7 library from
+   its admin page: Context7 indexes `main` and the wiki.
 
 For every release, verify that npm metadata declares `AGPL-3.0-only` and that each tarball contains
 `LICENSE`, `COMMERCIAL-LICENSE.md`, and `NOTICE`. The protected validation gate enforces this policy.

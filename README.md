@@ -424,8 +424,8 @@ Exports are indexed object by object and cited as `model.pdm:section=Table%20INV
   Obsidian canvases, by frame, artboard, page, or group.
 - **Mail and notes:** `.eml`, `.emlx`, and Outlook `.msg` messages decoded with their attachment
   names, `.mbox` mailboxes message by message, Evernote notes, and saved `.mhtml` pages.
-- **APIs:** OpenAPI and AsyncAPI operations, Postman and Insomnia requests, with secret header
-  values left out.
+- **APIs:** OpenAPI and AsyncAPI operations, Postman and Insomnia requests, and HAR captures from
+  browser DevTools or proxies, with cookies, credentials, and secret header values left out.
 - **Models and diagrams:** PowerDesigner, ERwin, MySQL Workbench, Oracle Data Modeler, draw.io,
   Visio, BPMN, DMN, ArchiMate, UML XMI, Tableau, and Power BI projects.
 - **Data and reports:** GeoJSON features, SARIF security findings, and Office charts with their

@@ -45,6 +45,6 @@
     "Python: pip install ragmir (sync and async client), langchain-ragmir (RagmirRetriever, RagmirToolkit for LangChain and LangGraph), or llama-index-retrievers-ragmir. They drive the Core MCP server through Node.js or Docker.",
     "LangChain.js: RagmirRetriever and createRagmirTools({ client }) from @jcode.labs/ragmir/langchain, with the optional peer @langchain/core 1.x. An empty result means the documents hold no evidence.",
     "Agent Skills: npx skills add jcode-works/jcode-ragmir installs ragmir (cited retrieval), ragmir-setup (install, sources, connection, OCR, upgrades), ragmir-build (applications), and ragmir-evaluate (golden files and rgr evaluate gates).",
-    "Ragmir indexes 650+ file types: code, Markdown, PDF, Office, OpenDocument, EPUB, HTML, email, Evernote, and exports from Figma, Sketch, Excalidraw, tldraw, Postman, Insomnia, OpenAPI, and modeling tools, cited per object."
+    "Ragmir indexes 650+ file types: code, Markdown, PDF, Office, OpenDocument, EPUB, HTML, email, Evernote, and exports from Figma, Sketch, Excalidraw, tldraw, Postman, Insomnia, HAR, OpenAPI, and modeling tools, cited per object."
   ]
 }

@@ -85,6 +85,7 @@ export const SUPPORTED_FORMAT_GROUPS = [
       "Postman",
       "Insomnia",
       "Bruno",
+      "HAR",
       "GraphQL",
       "Protobuf",
       "Avro",
