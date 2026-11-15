@@ -9,7 +9,9 @@ import mammoth = require("mammoth")
 
 import { getDocumentProxy } from "unpdf"
 import YAML from "yaml"
-import { apiDescriptionSections } from "./api-description.js"
+import { jsonExportSections } from "./data-exports.js"
+import { sketchSections } from "./design-formats.js"
+import { figmaFileSections } from "./figma-file.js"
 import { OCR_IMAGE_EXTENSIONS } from "./files.js"
 import { isRecord } from "./guards.js"
 import {
@@ -20,6 +22,8 @@ import {
   MAX_PDF_PAGES,
   MAX_PDF_TEXT_CHARACTERS,
 } from "./limits.js"
+import { emlText, emlxText, mboxSections, mhtmlText } from "./mail.js"
+import { evernoteSections, fictionBookSections } from "./note-exports.js"
 import { MAX_OCR_BATCH_PAGES, pdfOcrCommandIdentity } from "./ocr.js"
 import {
   PDF_OCR_PARSER_POLICY,
@@ -50,12 +54,17 @@ import type {
 const EXTERNAL_COMMAND_KILL_GRACE_MS = 2_000
 const LONG_BASE64_TEXT_PATTERN = /\b[A-Za-z0-9+/]{240,}={0,2}\b/gu
 const OFFICE_TEXT_ENTRY_PATTERN = /\.(?:xml|rels|xhtml|html|htm|opf|twb)$/iu
+// A Sketch document keeps its pages as JSON; previews and images stay compressed.
+const SKETCH_TEXT_ENTRY_PATTERN = /^(?:pages\/[^/]+|document|meta)\.json$/u
+// Flat OpenDocument files hold the body and metadata next to styles and settings, which are noise.
+const FLAT_OPENDOCUMENT_PARTS = /<office:(meta|body)\b[\s\S]*?<\/office:\1>/gu
 // Extensions whose content is a known structured export; generic `.xml` is detected by content.
 const STRUCTURED_XML_EXTENSIONS: Record<string, StructuredXmlFormat> = {
   ".archimate": "archimate",
   ".bpm": "powerdesigner",
   ".bpmn": "bpmn",
   ".cdm": "powerdesigner",
+  ".dio": "drawio",
   ".dmn": "dmn",
   ".drawio": "drawio",
   ".ldm": "powerdesigner",
@@ -110,13 +119,25 @@ export async function parseFile(
     case ".doc":
       text = await parseLegacyWord(file.absolutePath, options)
       break
+    // Macro-enabled documents and templates share the Office Open XML layout of their family.
     case ".docx":
+    case ".docm":
+    case ".dotx":
+    case ".dotm":
       text = await parseDocx(file.absolutePath, options.signal)
       break
     case ".pptx":
+    case ".pptm":
+    case ".potx":
+    case ".potm":
+    case ".ppsx":
+    case ".ppsm":
       ;({ text, regions } = await parsePptx(file.absolutePath, options.signal))
       break
     case ".xlsx":
+    case ".xlsm":
+    case ".xltx":
+    case ".xltm":
       ;({ text, regions } = await parseXlsx(file.absolutePath, options.signal))
       break
     case ".avif":
@@ -135,23 +156,85 @@ export async function parseFile(
     case ".odt":
     case ".ods":
     case ".odp":
+    case ".odg":
+    case ".ott":
+    case ".ots":
+    case ".otp":
+    case ".otg":
       text = await parseOpenDocument(file.absolutePath, options.signal)
+      break
+    case ".fodt":
+    case ".fods":
+    case ".fodp":
+    case ".fodg":
+      text = flatOpenDocumentText(await readFile(file.absolutePath, "utf8"))
       break
     case ".epub":
       ;({ text, regions } = await parseEpub(file.absolutePath, options.signal))
       break
     case ".html":
     case ".htm":
-      text = htmlToText(await readFile(file.absolutePath, "utf8"), HTML_TO_TEXT_OPTIONS)
+    case ".xhtml":
+    case ".xht":
+    case ".shtml":
+      text = renderHtml(decodeText(await readFile(file.absolutePath)))
       break
+    case ".eml":
+      text = emlText(await readFile(file.absolutePath), renderHtml)
+      break
+    case ".emlx":
+      text = emlxText(await readFile(file.absolutePath), renderHtml)
+      break
+    case ".mbox":
+      ;({ text, regions } = sectionRegions(
+        mboxSections(await readFile(file.absolutePath), renderHtml),
+        options.signal,
+      ))
+      break
+    case ".mhtml":
+    case ".mht":
+      text = mhtmlText(await readFile(file.absolutePath), renderHtml)
+      break
+    case ".enex":
+      ;({ text, regions } = sectionRegions(
+        evernoteSections(await readStructuredSource(file), renderHtml),
+        options.signal,
+      ))
+      break
+    case ".fb2":
+      ;({ text, regions } = sectionRegions(
+        fictionBookSections(await readStructuredSource(file)),
+        options.signal,
+      ))
+      break
+    case ".fig":
+      ;({ text, regions } = sectionRegions(
+        figmaFileSections(await readFile(file.absolutePath)),
+        options.signal,
+      ))
+      break
+    case ".sketch": {
+      const entries = unzipOfficeFile(
+        await readFile(file.absolutePath),
+        options.signal,
+        SKETCH_TEXT_ENTRY_PATTERN,
+      )
+      ;({ text, regions } = sectionRegions(sketchSections(entries), options.signal))
+      break
+    }
     case ".json":
     case ".bim":
     case ".pbip":
     case ".pbir":
     case ".pbism":
-    case ".ipynb": {
+    case ".ipynb":
+    case ".geojson":
+    case ".sarif":
+    case ".excalidraw":
+    case ".tldr":
+    case ".canvas": {
       const value: unknown = JSON.parse(await readFile(file.absolutePath, "utf8"))
-      const sections = apiDescriptionSections(value)
+      const sections = jsonExportSections(value)
       if (sections) {
         ;({ text, regions } = sectionRegions(sections, options.signal))
         break
@@ -164,6 +247,7 @@ export async function parseFile(
     case ".bpm":
     case ".bpmn":
     case ".cdm":
+    case ".dio":
     case ".dmn":
     case ".drawio":
     case ".ldm":
@@ -220,7 +304,10 @@ export async function parseFile(
       ))
       break
     }
-    case ".vsdx": {
+    case ".vsdx":
+    case ".vsdm":
+    case ".vstx":
+    case ".vstm": {
       const entries = unzipOfficeFile(await readFile(file.absolutePath), options.signal)
       ;({ text, regions } = sectionRegions(visioSections(entries), options.signal))
       break
@@ -255,7 +342,7 @@ export async function parseFile(
         throw error
       }
       const values = documents.map((document) => document.toJS())
-      const sections = values.length === 1 ? apiDescriptionSections(values[0]) : null
+      const sections = values.length === 1 ? jsonExportSections(values[0]) : null
       if (sections) {
         ;({ text, regions } = sectionRegions(sections, options.signal))
         break
@@ -272,7 +359,7 @@ export async function parseFile(
       text = stripRtf(await readFile(file.absolutePath, "utf8"))
       break
     default:
-      text = await readFile(file.absolutePath, "utf8")
+      text = decodeText(await readFile(file.absolutePath))
       sourceLineCoordinates = true
   }
 
@@ -292,6 +379,35 @@ export async function parseFile(
     document.ocr = ocr
   }
   return document
+}
+
+function renderHtml(html: string): string {
+  return htmlToText(html, HTML_TO_TEXT_OPTIONS)
+}
+
+/**
+ * Text files keep their own encoding: a UTF-16 byte order mark selects UTF-16, as Excel's
+ * "Unicode text" and older Xcode string tables use, and bytes that are not valid UTF-8 are read as
+ * Windows-1252, the usual encoding of legacy CSV, subtitles, and notes, instead of as U+FFFD.
+ */
+function decodeText(buffer: Buffer): string {
+  if (buffer[0] === 0xff && buffer[1] === 0xfe) {
+    return new TextDecoder("utf-16le").decode(buffer.subarray(2))
+  }
+  if (buffer[0] === 0xfe && buffer[1] === 0xff) {
+    return new TextDecoder("utf-16be").decode(buffer.subarray(2))
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer)
+  } catch {
+    return new TextDecoder("windows-1252").decode(buffer)
+  }
+}
+
+/** Text of a flat OpenDocument file (`.fodt`, `.fods`, `.fodp`, `.fodg`): metadata, then body. */
+function flatOpenDocumentText(xml: string): string {
+  const parts = [...xml.matchAll(FLAT_OPENDOCUMENT_PARTS)].map((match) => xmlToText(match[0]))
+  return parts.filter(Boolean).join("\n\n")
 }
 
 /** One located region per structured object, cited as `:section=<label>`. */
@@ -833,12 +949,16 @@ interface OfficeArchiveLimitsState {
   rejected: boolean
 }
 
-function unzipOfficeFile(buffer: Buffer, signal: AbortSignal | undefined): Map<string, string> {
+function unzipOfficeFile(
+  buffer: Buffer,
+  signal: AbortSignal | undefined,
+  entryPattern = OFFICE_TEXT_ENTRY_PATTERN,
+): Map<string, string> {
   const state = officeArchiveLimitsState()
   const unzipped = unzipSync(new Uint8Array(buffer), {
     filter: (file) => {
       throwIfAborted(signal)
-      return includeOfficeTextEntry(file, state)
+      return includeOfficeTextEntry(file, state, entryPattern)
     },
   })
   assertOfficeArchiveLimits(state)
@@ -855,8 +975,12 @@ function officeArchiveLimitsState(): OfficeArchiveLimitsState {
   return { textEntryCount: 0, totalTextBytes: 0, rejected: false }
 }
 
-function includeOfficeTextEntry(file: UnzipFileInfo, state: OfficeArchiveLimitsState): boolean {
-  if (!OFFICE_TEXT_ENTRY_PATTERN.test(file.name)) {
+function includeOfficeTextEntry(
+  file: UnzipFileInfo,
+  state: OfficeArchiveLimitsState,
+  entryPattern: RegExp,
+): boolean {
+  if (!entryPattern.test(file.name)) {
     return false
   }
   if (file.originalSize > MAX_OFFICE_XML_ENTRY_BYTES) {

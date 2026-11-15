@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { markdownFenceSpans, structuralSpans } from "./document-structure.js"
+import { MARKDOWN_EXTENSIONS, markdownFenceSpans, structuralSpans } from "./document-structure.js"
 import { throwIfAborted } from "./operation.js"
 import { identifierParts, normalizeForMatch } from "./text.js"
 import type { ParsedDocument, ParsedPage, ParsedRegion, TextChunk } from "./types.js"
@@ -52,7 +52,7 @@ export function chunkDocument(
             kind: "markdown-section" as const,
           },
         ]
-  const fences = [".md", ".mdx", ".markdown"].includes(document.file.extension)
+  const fences = MARKDOWN_EXTENSIONS.has(document.file.extension)
     ? markdownFenceSpans(document.text)
     : []
   const fenceStarts = new Set(fences.map((fence) => fence.start))
