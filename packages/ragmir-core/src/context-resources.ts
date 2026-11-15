@@ -3,9 +3,12 @@ import { doctorWithConfig } from "./doctor.js"
 import { checkIndexFreshness } from "./freshness.js"
 import { knowledgeBaseIdentity, knowledgeBaseProfile } from "./knowledge-bases.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
-import { readIndexManifestFilePage, readIndexManifestHeader } from "./store.js"
+import { pathMatchesFilter } from "./path-globs.js"
+import { canonicalUserPath } from "./source-paths.js"
+import { readIndexManifest, readIndexManifestFilePage, readIndexManifestHeader } from "./store.js"
 import type {
   Config,
+  IndexManifestFile,
   KnowledgeBaseContextReport,
   KnowledgeBaseSourceCatalog,
   KnowledgeBaseSourceCatalogOptions,
@@ -14,7 +17,14 @@ import type {
 
 const SOURCE_CATALOG_LIMIT = 50
 export const MAX_SOURCE_CATALOG_LIMIT = 100
-const RAGMIR_MCP_TOOLS = ["ragmir_status", "ragmir_search", "ragmir_expand", "ragmir_audit"]
+const RAGMIR_MCP_TOOLS = [
+  "ragmir_status",
+  "ragmir_search",
+  "ragmir_expand",
+  "ragmir_sources",
+  "ragmir_audit",
+  "ragmir_ingest",
+]
 const RAGMIR_MCP_RESOURCES = ["ragmir://context", "ragmir://sources"]
 
 export async function getKnowledgeBaseContext(
@@ -87,9 +97,12 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
   throwIfAborted(signal)
   const offset = sourceCatalogOffset(options.offset)
   const limit = sourceCatalogLimit(options.limit)
+  const filters = [...new Set((options.paths ?? []).map(canonicalUserPath).filter(Boolean))]
   const [manifest, filePage, freshness] = await Promise.all([
     readIndexManifestHeader(config),
-    readIndexManifestFilePage(config, offset, limit),
+    filters.length > 0
+      ? filteredFilePage(config, filters, offset, limit)
+      : readIndexManifestFilePage(config, offset, limit),
     checkIndexFreshness(config, { ...(signal ? { signal } : {}), previewLimit: limit }),
   ])
   throwIfAborted(signal)
@@ -100,6 +113,7 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
     source: file.relativePath,
     chunks: file.chunkCount,
   }))
+  const listedTotal = filePage && "matched" in filePage ? filePage.matched : manifest?.fileCount
   const missingFromIndex = (
     live?.previews.missingFromIndex ??
     health?.previews.missingFromIndex ??
@@ -128,7 +142,7 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
     emptyTextFiles,
     skippedByReason: health?.skippedByReason ?? {},
     omitted: {
-      indexedFiles: Math.max(0, (manifest?.fileCount ?? 0) - indexedFiles.length),
+      indexedFiles: Math.max(0, (listedTotal ?? 0) - indexedFiles.length),
       missingFromIndex: Math.max(
         0,
         (live?.missingFromIndex ?? health?.missingFromIndex ?? 0) - missingFromIndex.length,
@@ -144,6 +158,29 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
       limit,
       nextOffset: filePage?.nextOffset ?? null,
     },
+    ...(filters.length > 0 ? { filter: { paths: filters, matchedFiles: listedTotal ?? 0 } } : {}),
+  }
+}
+
+/** One page of the indexed files under the given folders or matching the given globs. */
+async function filteredFilePage(
+  config: Config,
+  filters: readonly string[],
+  offset: number,
+  limit: number,
+): Promise<{ files: IndexManifestFile[]; matched: number; nextOffset: number | null } | null> {
+  const manifest = await readIndexManifest(config)
+  if (!manifest) {
+    return null
+  }
+  const matching = (manifest.indexedFiles ?? []).filter((file) =>
+    filters.some((filter) => pathMatchesFilter(file.relativePath, filter)),
+  )
+  const files = matching.slice(offset, offset + limit)
+  return {
+    files,
+    matched: matching.length,
+    nextOffset: offset + files.length < matching.length ? offset + files.length : null,
   }
 }
 

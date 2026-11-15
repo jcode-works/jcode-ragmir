@@ -826,14 +826,14 @@ program
     parseNonNegativeInt,
   )
   .option(
-    "--include-path <prefix>",
-    "Search only indexed source paths under this prefix. Repeat for multiple prefixes.",
+    "--include-path <path>",
+    'Search only this folder, file, or glob such as "**/*.pdf". Repeat for alternatives.',
     collectOptionValue,
     [],
   )
   .option(
-    "--exclude-path <prefix>",
-    "Exclude indexed source paths under this prefix. Repeat for multiple prefixes.",
+    "--exclude-path <path>",
+    "Exclude this folder, file, or glob. Repeat for multiple paths.",
     collectOptionValue,
     [],
   )

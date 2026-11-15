@@ -206,6 +206,7 @@ const rawConfigSchema = z
       .max(MAX_CONFIG_ARRAY_ITEMS)
       .default(DEFAULT_CONFIG.mcpAllowedRoots),
     mcpAutoIngest: z.boolean().default(DEFAULT_CONFIG.mcpAutoIngest),
+    mcpIngest: z.boolean().default(DEFAULT_CONFIG.mcpIngest),
     mcpSeenResults: z
       .enum(["collapse", "include", "exclude"])
       .default(DEFAULT_CONFIG.mcpSeenResults),
@@ -402,6 +403,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     maxChunksPerDataFile: effective.maxChunksPerDataFile,
     mcpAllowedRoots: effective.mcpAllowedRoots,
     mcpAutoIngest: effective.mcpAutoIngest,
+    mcpIngest: effective.mcpIngest,
     mcpSeenResults: effective.mcpSeenResults,
   }
   if (Object.keys(config.scopes).length > MAX_SEARCH_SCOPES) {

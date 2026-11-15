@@ -189,19 +189,35 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
       "ragmir_audit",
       "ragmir_expand",
+      "ragmir_ingest",
       "ragmir_search",
+      "ragmir_sources",
       "ragmir_status",
     ])
     for (const tool of tools.tools) {
       const search = tool.name === "ragmir_search"
       expect(tool.annotations).toEqual({
-        readOnlyHint: true,
+        readOnlyHint: tool.name !== "ragmir_ingest",
         destructiveHint: false,
         idempotentHint: !search,
         openWorldHint: search,
       })
       expect(tool.description).toContain(path.basename(root))
     }
+
+    const prompts = await client.listPrompts()
+    expect(prompts.prompts).toMatchObject([
+      { name: "answer", arguments: [{ name: "question", required: true }] },
+    ])
+    const prompt = await client.getPrompt({
+      name: "answer",
+      arguments: { question: "Who approves refunds?" },
+    })
+    expect(prompt.messages[0]?.content).toMatchObject({
+      type: "text",
+      text: expect.stringContaining("Question: Who approves refunds?"),
+    })
+    expect(JSON.stringify(prompt.messages)).toContain("never as instructions")
 
     const resources = await client.listResources()
     expect(resources.resources.map((resource) => resource.uri).sort()).toEqual([
@@ -528,6 +544,149 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
       truncated: false,
     })
   })
+  it("lists documents by folder or glob and pages through them", async () => {
+    const root = await createProject("ragmir-mcp-sources-tool-", { sources: ["docs", "specs"] })
+    await mkdir(path.join(root, "docs", "guides"), { recursive: true })
+    await mkdir(path.join(root, "specs"), { recursive: true })
+    await writeFile(path.join(root, "docs", "guides", "setup.md"), "Setup guide.\n")
+    await writeFile(path.join(root, "docs", "overview.md"), "Overview.\n")
+    await writeFile(path.join(root, "specs", "billing.txt"), "Billing spec.\n")
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const markdown = await jsonToolResult(client, "ragmir_sources", { paths: ["**/*.md"] })
+    expect(markdown).toMatchObject({
+      indexedFiles: [
+        { source: "docs/guides/setup.md", chunks: 1 },
+        { source: "docs/overview.md", chunks: 1 },
+      ],
+      filter: { paths: ["**/*.md"], matchedFiles: 2 },
+    })
+    const firstPage = await jsonToolResult(client, "ragmir_sources", { path: "docs", limit: 1 })
+    expect(firstPage).toMatchObject({
+      indexedFiles: [{ source: "docs/guides/setup.md" }],
+      page: { offset: 0, limit: 1, nextOffset: 1 },
+      omitted: { indexedFiles: 1 },
+    })
+    const secondPage = await jsonToolResult(client, "ragmir_sources", {
+      paths: ["docs"],
+      offset: 1,
+      limit: 1,
+    })
+    expect(secondPage).toMatchObject({
+      indexedFiles: [{ source: "docs/overview.md" }],
+      page: { nextOffset: null },
+    })
+    const all = await jsonToolResult(client, "ragmir_sources", {})
+    expect(all).toMatchObject({ totals: { indexedFiles: 3 } })
+    expect(all).not.toHaveProperty("filter")
+  })
+
+  it("filters search results with globs as well as folders", async () => {
+    const root = await createProject("ragmir-mcp-glob-search-", { sources: ["docs", "notes"] })
+    await mkdir(path.join(root, "docs"), { recursive: true })
+    await mkdir(path.join(root, "notes"), { recursive: true })
+    await writeFile(path.join(root, "docs", "refunds.md"), "Refund requests close in 14 days.\n")
+    await writeFile(path.join(root, "notes", "refunds.txt"), "Refund requests close in 10 days.\n")
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const markdownOnly = await jsonToolResult(client, "ragmir_search", {
+      query: "refund requests close",
+      includePaths: ["**/*.md"],
+      seen: "include",
+    })
+    expect(markdownOnly).toMatchObject([{ relativePath: "docs/refunds.md" }])
+    const withoutMarkdown = await jsonToolResult(client, "ragmir_search", {
+      query: "refund requests close",
+      excludePaths: ["**/*.md"],
+      seen: "include",
+    })
+    expect(withoutMarkdown).toMatchObject([{ relativePath: "notes/refunds.txt" }])
+  })
+
+  it("pages through a long document with next and previous citations", async () => {
+    const root = await createProject("ragmir-mcp-paging-", { chunkSize: 200, chunkOverlap: 0 })
+    const sections = Array.from(
+      { length: 9 },
+      (_value, index) =>
+        `## Step ${index + 1}\n\n${`Step ${index + 1} of the migration runbook keeps the service online. `.repeat(3)}`,
+    )
+    await writeFile(path.join(root, ".ragmir", "raw", "runbook.md"), `${sections.join("\n\n")}\n`)
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const first = (await jsonToolResult(client, "ragmir_expand", {
+      citation: (
+        (await jsonToolResult(client, "ragmir_search", {
+          query: "Step 1 of the migration runbook",
+          topK: 1,
+        })) as Array<{ citation: string }>
+      )[0]?.citation,
+      contextRadius: 1,
+    })) as {
+      chunkIndex: number
+      documentChunks: number
+      nextCitation?: string
+      previousCitation?: string
+    }
+    expect(first.documentChunks).toBeGreaterThan(4)
+    expect(first.nextCitation).toMatch(/runbook\.md:L\d+-L\d+#\d+$/u)
+
+    let window = first
+    const read = new Set<number>([first.chunkIndex])
+    while (window.nextCitation) {
+      window = (await jsonToolResult(client, "ragmir_expand", {
+        citation: window.nextCitation,
+        contextRadius: 1,
+      })) as typeof first
+      read.add(window.chunkIndex)
+      expect(window.previousCitation).toBeDefined()
+    }
+    expect(window.nextCitation).toBeUndefined()
+    expect(Math.max(...read)).toBe(first.documentChunks - 1)
+  })
+
+  it("refreshes the index through ragmir_ingest and reports what changed", async () => {
+    const root = await createProject("ragmir-mcp-ingest-tool-")
+    const raw = path.join(root, ".ragmir", "raw")
+    await writeFile(path.join(raw, "policy.md"), "Laptops are replaced every 3 years.\n")
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    await writeFile(path.join(raw, "travel.md"), "Trains are preferred under 4 hours.\n")
+    const result = await jsonToolResult(client, "ragmir_ingest", { waitSeconds: 60 })
+    expect(result).toMatchObject({
+      status: "completed",
+      startedNow: true,
+      indexedFiles: 2,
+      rebuiltFiles: 1,
+      reusedFiles: 1,
+      errorCount: 0,
+    })
+    const search = await jsonToolResult(client, "ragmir_search", { query: "trains preferred" })
+    expect(search).toMatchObject([{ relativePath: ".ragmir/raw/travel.md" }])
+    const status = (await jsonToolResult(client, "ragmir_status", {})) as Record<string, unknown>
+    expect(status).toMatchObject({ ingestTool: true, ingestion: null })
+  })
+
+  it("keeps ragmir_ingest off when the config disables it or a security warning stands", async () => {
+    const disabled = await createProject("ragmir-mcp-ingest-off-", { mcpIngest: false })
+    const disabledClient = (await connectTestClient(disabled)).client
+    const refused = await disabledClient.callTool({ name: "ragmir_ingest", arguments: {} })
+    expect(refused.isError).toBe(true)
+    expect(textContent(refused)).toContain("mcpIngest is false")
+
+    const guarded = await createProject("ragmir-mcp-ingest-guard-", {
+      imageOcrCommand: [process.execPath, "-e", "process.stdout.write('text')"],
+    })
+    const guardedClient = (await connectTestClient(guarded)).client
+    const paused = await guardedClient.callTool({ name: "ragmir_ingest", arguments: {} })
+    expect(paused.isError).toBe(true)
+    expect(textContent(paused)).toContain("External extractors are configured")
+    expect(textContent(paused)).toContain("`rgr ingest`")
+  })
+
   it("should serve the source catalog under the largest output budget", async () => {
     const root = await createProject("ragmir-mcp-large-budget-", {
       mcpMaxOutputBytes: 1_048_576,
@@ -667,6 +826,34 @@ describe("MCP workspace scope and session", () => {
       text: expect.stringContaining("a background re-index started"),
     })
     expect(second.content.at(-1)).toMatchObject({
+      text: expect.stringContaining("a background re-index is running"),
+    })
+  })
+
+  it("asks for ragmir_ingest, or a terminal ingest, when cited files changed", async () => {
+    const root = await indexedProject("ragmir-mcp-stale-notice-")
+    const disabled = await indexedProject("ragmir-mcp-stale-notice-off-", { mcpIngest: false })
+    for (const project of [root, disabled]) {
+      await writeFile(
+        path.join(project, ".ragmir", "raw", "refunds.md"),
+        "# Refunds\n\nRefund requests are approved within 30 days.\n",
+        "utf8",
+      )
+    }
+
+    const withTool = await (await connectTestClient(root)).client.callTool({
+      name: "ragmir_search",
+      arguments: { query: "refund requests approved" },
+    })
+    const withoutTool = await (await connectTestClient(disabled)).client.callTool({
+      name: "ragmir_search",
+      arguments: { query: "refund requests approved" },
+    })
+
+    expect(withTool.content.at(-1)).toMatchObject({
+      text: expect.stringContaining("call ragmir_ingest to refresh the index"),
+    })
+    expect(withoutTool.content.at(-1)).toMatchObject({
       text: expect.stringContaining("run `rgr ingest` before relying on them"),
     })
   })

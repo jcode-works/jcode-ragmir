@@ -115,6 +115,7 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   maxChunksPerDataFile: null,
   mcpAllowedRoots: [],
   mcpAutoIngest: false,
+  mcpIngest: true,
   mcpSeenResults: "collapse",
 }
 
