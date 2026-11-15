@@ -1,0 +1,107 @@
+/**
+ * Format families shown on the landing. Names stay untranslated; the complete extension list lives
+ * in docs/supported-formats.md, which a Core test keeps in step with the indexer.
+ */
+export const SUPPORTED_FORMAT_GROUPS = [
+  {
+    labelKey: "formats_group_documents",
+    formats: [
+      "PDF",
+      "Word",
+      "PowerPoint",
+      "Excel",
+      "OpenDocument",
+      "EPUB",
+      "RTF",
+      "HTML",
+      "Markdown",
+      "AsciiDoc",
+      "reStructuredText",
+      "LaTeX",
+    ],
+  },
+  {
+    labelKey: "formats_group_data_models",
+    formats: [
+      "PowerDesigner",
+      "ERwin",
+      "MySQL Workbench",
+      "Oracle Data Modeler",
+      "SQL",
+      "PL/SQL",
+      "DBML",
+      "Prisma",
+    ],
+  },
+  {
+    labelKey: "formats_group_diagrams",
+    formats: [
+      "draw.io",
+      "Visio",
+      "BPMN",
+      "DMN",
+      "ArchiMate",
+      "UML XMI",
+      "Mermaid",
+      "PlantUML",
+      "D2",
+      "Structurizr",
+      "SVG",
+    ],
+  },
+  {
+    labelKey: "formats_group_apis",
+    formats: [
+      "OpenAPI",
+      "Swagger",
+      "AsyncAPI",
+      "GraphQL",
+      "Protobuf",
+      "Avro",
+      "Thrift",
+      "XSD",
+      "WSDL",
+      ".http",
+    ],
+  },
+  {
+    labelKey: "formats_group_data",
+    formats: ["CSV", "TSV", "JSON", "JSONL", "YAML", "TOML", "XML", "INI", "Jupyter", "Logs"],
+  },
+  {
+    labelKey: "formats_group_bi",
+    formats: ["Tableau", "Power BI (TMDL)", "JasperReports"],
+  },
+  {
+    labelKey: "formats_group_mail",
+    formats: ["Outlook .msg", ".eml", "iCalendar", "SRT", "WebVTT", "RSS", "Atom"],
+  },
+  {
+    labelKey: "formats_group_code",
+    formats: [
+      "TypeScript",
+      "JavaScript",
+      "Python",
+      "Java",
+      "Kotlin",
+      "Swift",
+      "Go",
+      "Rust",
+      "C#",
+      "C/C++",
+      "PHP",
+      "Ruby",
+      "Dart",
+      "Scala",
+      "Terraform",
+      "Helm",
+      "Dockerfile",
+      "Shell",
+      "COBOL",
+    ],
+  },
+  {
+    labelKey: "formats_group_extractors",
+    formats: ["PDF OCR", "PNG", "JPEG", "TIFF", "WebP", "HEIC", ".doc"],
+  },
+] as const

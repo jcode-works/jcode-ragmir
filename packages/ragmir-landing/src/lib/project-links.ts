@@ -8,6 +8,7 @@ export const PROJECT_LINKS = {
   npm: NPM_URL,
   docs: `${GITHUB_URL}/wiki`,
   apiReference: `${GITHUB_URL}/blob/main/docs/api-reference.md`,
+  supportedFormats: `${GITHUB_URL}/blob/main/docs/supported-formats.md`,
   serverGuide: `${GITHUB_URL}/blob/main/docs/server-deployment.md`,
   pythonGuide: `${GITHUB_URL}/blob/main/docs/python.md`,
   benchmarks: `${GITHUB_URL}#benchmarks`,
@@ -31,6 +32,7 @@ export const PROJECT_LINK_LABEL_KEYS: Record<ProjectLinkKey, string> = {
   npm: "footer_link_npm",
   docs: "footer_link_docs",
   apiReference: "footer_link_api",
+  supportedFormats: "footer_link_formats",
   serverGuide: "footer_link_server_guide",
   pythonGuide: "footer_link_python_guide",
   benchmarks: "footer_link_benchmarks",
@@ -74,7 +76,15 @@ export const FOOTER_SECTIONS: readonly FooterSection[] = [
   },
   {
     titleKey: "nav_section_docs",
-    links: ["docs", "apiReference", "serverGuide", "benchmarks", "changelog", "releases"],
+    links: [
+      "docs",
+      "apiReference",
+      "supportedFormats",
+      "serverGuide",
+      "benchmarks",
+      "changelog",
+      "releases",
+    ],
   },
   {
     titleKey: "nav_section_project",

@@ -102,10 +102,10 @@ textarea {
     0 0 1.25rem rgba(139, 71, 255, 0.2);
 }
 
-/* Container widths: 1000px for standard sections, 1320px for wide califourchou sections */
+/* Container widths: 1050px for standard sections, 1320px for wide califourchou sections */
 .container-default {
   width: 100%;
-  max-width: 62.5rem; /* 1000px */
+  max-width: 65.625rem; /* 1050px */
   margin-inline: auto;
 }
 
@@ -113,6 +113,20 @@ textarea {
   width: 100%;
   max-width: 82.5rem; /* 1320px */
   margin-inline: auto;
+}
+
+/* Standard width on phones and tablets, edge to edge on desktop (deploy and data control). */
+.container-full-desktop {
+  width: 100%;
+  max-width: 65.625rem; /* 1050px */
+  margin-inline: auto;
+}
+
+@media (min-width: 64rem) {
+  .container-full-desktop {
+    max-width: none;
+    padding-inline: 3rem;
+  }
 }
 
 /* Navbar: wider than section-wide on large screens, full-width feel without edge kissing */

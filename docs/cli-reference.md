@@ -181,7 +181,8 @@ sampling stay disabled.
 
 Citation coordinates are emitted only when they are verifiable: `:L10-L12` for source-preserving
 text, `:p3` for PDF pages, `:slide12` for PPTX, `:sheet=Finance%20Ops:cells=A7-D7` for XLSX, and
-`:spine2` for EPUB. Character offsets refer to parsed indexed text. Transformed formats omit invented source lines.
+`:spine2` for EPUB, and `:section=Table%20INVOICE` for one object of a data model, diagram, or API
+description. Character offsets refer to parsed indexed text. Transformed formats omit invented source lines.
 
 If a changed file fails during parsing, embedding, or its LanceDB write, incremental ingestion keeps
 the previous rows searchable and records the current error, last-good checksum, and stale state.

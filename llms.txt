@@ -25,7 +25,10 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   models; `embeddingProvider: "openai-compatible"` with `embeddingEndpoint` embeds through Ollama,
   vLLM, or any OpenAI-compatible endpoint instead (opt-in: passage text goes to that endpoint).
 - Text, Markdown, structured files, PDF, Office (with chart titles, series, and values), EPUB, Helm
-  templates, and configured local extractors are supported.
+  templates, Outlook .msg, and configured local extractors are supported. Data models and diagrams
+  are cited object by object (`:section=Table%20INVOICE`): PowerDesigner, ERwin, MySQL Workbench,
+  Oracle Data Modeler, draw.io, Visio, BPMN, DMN, ArchiMate, UML XMI, Tableau, and OpenAPI or
+  AsyncAPI operations. PL/SQL, Kotlin, Swift, Terraform, Protobuf, GraphQL, and DBML keep lines.
   `rgr audit --unsupported` reports gaps. Do not claim universal binary support.
 - Paths are stored and cited with forward slashes and in Unicode NFC on every platform, so
   exclusions also match accented names stored decomposed. `rgr audit` reports source rules that
@@ -99,6 +102,7 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 - [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
+- [Supported formats](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/supported-formats.md)
 - [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
 - [Run on a server or in a container](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)
 - [Use Ragmir from Python](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)
