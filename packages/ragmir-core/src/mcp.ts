@@ -656,14 +656,17 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       // Repeats do not count toward topK, so ask for a few extra rows to fill it with new evidence.
       const extra = seenMode === "include" ? 0 : Math.min(sessionMemory.size, topK)
       const client = await clientLifecycle.getClient(config)
-      const resultLists = await Promise.all(
-        queries.map((query) =>
-          client.search(query, {
-            ...options,
-            ...(input.scope === undefined ? {} : { scope: input.scope }),
-            topK: Math.min(topK + extra, MAX_SEARCH_TOP_K),
-            signal,
-          }),
+      const resultLists = await withRebuildHint(
+        config,
+        Promise.all(
+          queries.map((query) =>
+            client.search(query, {
+              ...options,
+              ...(input.scope === undefined ? {} : { scope: input.scope }),
+              topK: Math.min(topK + extra, MAX_SEARCH_TOP_K),
+              signal,
+            }),
+          ),
         ),
       )
       const returnedInBatch = new Set<string>()
@@ -760,13 +763,16 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         MAX_MCP_CONTEXT_RADIUS,
       )
       const client = await clientLifecycle.getClient(config)
-      const expanded = await client.expandCitation(input.citation, {
-        signal,
-        ...(input.expectedEvidenceId === undefined
-          ? {}
-          : { expectedEvidenceId: input.expectedEvidenceId }),
-        ...(contextRadius === undefined ? {} : { contextRadius }),
-      })
+      const expanded = await withRebuildHint(
+        config,
+        client.expandCitation(input.citation, {
+          signal,
+          ...(input.expectedEvidenceId === undefined
+            ? {}
+            : { expectedEvidenceId: input.expectedEvidenceId }),
+          ...(contextRadius === undefined ? {} : { contextRadius }),
+        }),
+      )
       sessionMemory.remember([
         expanded.requestedCitation,
         ...expanded.passages.map((passage) => passage.citation),
@@ -1053,6 +1059,25 @@ function citedAnswerPrompt(baseName: string, question: string): string {
     "",
     `Question: ${question}`,
   ].join("\n")
+}
+
+/**
+ * An index built by another Ragmir version or policy needs a rebuild before it answers. Over MCP,
+ * ragmir_ingest stages that rebuild, so the agent can repair it without a terminal.
+ */
+async function withRebuildHint<T>(config: Config, operation: Promise<T>): Promise<T> {
+  try {
+    return await operation
+  } catch (error) {
+    if (
+      config.mcpIngest &&
+      error instanceof Error &&
+      /Run `rgr upgrade` to (?:rebuild|refresh|stage)/u.test(error.message)
+    ) {
+      error.message = `${error.message} Over MCP, call ragmir_ingest to stage the same rebuild.`
+    }
+    throw error
+  }
 }
 
 function pathList(value: unknown): string[] | undefined {

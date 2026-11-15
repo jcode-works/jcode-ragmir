@@ -670,6 +670,33 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
     expect(status).toMatchObject({ ingestTool: true, ingestion: null })
   })
 
+  it("repairs an index built with another policy through ragmir_ingest", async () => {
+    const root = await createProject("ragmir-mcp-ingest-repair-")
+    await writeFile(path.join(root, ".ragmir", "raw", "policy.md"), "Badges expire yearly.\n")
+    await ingest({ cwd: root })
+    await writeFile(
+      path.join(root, ".ragmir", "config.json"),
+      `${JSON.stringify({ ...DEFAULT_CONFIG, chunkSize: 900 }, null, 2)}\n`,
+      "utf8",
+    )
+    const { client } = await connectTestClient(root)
+
+    const blocked = await client.callTool({
+      name: "ragmir_search",
+      arguments: { query: "badges expire" },
+    })
+    expect(blocked.isError).toBe(true)
+    expect(textContent(blocked)).toContain("call ragmir_ingest to stage the same rebuild")
+
+    expect(await jsonToolResult(client, "ragmir_ingest", { waitSeconds: 60 })).toMatchObject({
+      status: "completed",
+      policyRebuild: true,
+    })
+    expect(await jsonToolResult(client, "ragmir_search", { query: "badges expire" })).toMatchObject(
+      [{ relativePath: ".ragmir/raw/policy.md" }],
+    )
+  })
+
   it("keeps ragmir_ingest off when the config disables it or a security warning stands", async () => {
     const disabled = await createProject("ragmir-mcp-ingest-off-", { mcpIngest: false })
     const disabledClient = (await connectTestClient(disabled)).client
