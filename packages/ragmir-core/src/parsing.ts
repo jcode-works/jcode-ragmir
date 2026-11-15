@@ -11,6 +11,7 @@ import { getDocumentProxy } from "unpdf"
 import YAML from "yaml"
 import { jsonExportSections } from "./data-exports.js"
 import { sketchSections } from "./design-formats.js"
+import { isDotenvTemplateName, maskedDotenvText } from "./dotenv-template.js"
 import { figmaFileSections } from "./figma-file.js"
 import { OCR_IMAGE_EXTENSIONS } from "./files.js"
 import { isRecord } from "./guards.js"
@@ -371,6 +372,10 @@ export async function parseFile(
       break
     default:
       text = decodeText(await readFile(file.absolutePath))
+      // Dotenv templates keep their names and comments on the same lines, every value masked.
+      if (isDotenvTemplateName(path.basename(file.absolutePath))) {
+        text = maskedDotenvText(text)
+      }
       sourceLineCoordinates = true
   }
 

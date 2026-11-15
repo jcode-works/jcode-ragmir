@@ -185,35 +185,40 @@ describe("listSourceFiles", () => {
     )
   })
 
-  it("skips additional secret-like files by name and extension", async () => {
+  it("skips secret-like files by name and extension and keeps dotenv templates", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-secrets-"))
     tempDirs.push(root)
 
-    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
-    await writeFile(path.join(root, ".ragmir", "raw", ".env.development"), "TOKEN=dev\n", "utf8")
-    await writeFile(path.join(root, ".ragmir", "raw", ".env.example"), "TOKEN=changeme\n", "utf8")
-    await writeFile(path.join(root, ".ragmir", "raw", "id_rsa"), "PRIVATE\n", "utf8")
-    await writeFile(path.join(root, ".ragmir", "raw", "credentials"), "aws creds\n", "utf8")
-    await writeFile(path.join(root, ".ragmir", "raw", "service.p8"), "apple key\n", "utf8")
-    await writeFile(path.join(root, ".ragmir", "raw", "keep.md"), "safe evidence\n", "utf8")
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(path.join(raw, ".env.development"), "TOKEN=dev\n", "utf8")
+    await writeFile(path.join(raw, ".env.local"), "TOKEN=local\n", "utf8")
+    await writeFile(path.join(raw, ".env.example"), "TOKEN=changeme\n", "utf8")
+    await writeFile(path.join(raw, ".env.local.sample"), "TOKEN=changeme\n", "utf8")
+    await writeFile(path.join(raw, "env.template"), "TOKEN=changeme\n", "utf8")
+    await writeFile(path.join(raw, "id_rsa"), "PRIVATE\n", "utf8")
+    await writeFile(path.join(raw, "credentials"), "aws creds\n", "utf8")
+    await writeFile(path.join(raw, "service.p8"), "apple key\n", "utf8")
+    await writeFile(path.join(raw, "keep.md"), "safe evidence\n", "utf8")
 
     const inventory = await inventorySourceFiles(testConfig(root))
 
-    expect(inventory.supportedFiles.map((file) => file.relativePath)).toEqual([
+    expect(inventory.supportedFiles.map((file) => file.relativePath).sort()).toEqual([
+      ".ragmir/raw/.env.example",
+      ".ragmir/raw/.env.local.sample",
+      ".ragmir/raw/env.template",
       ".ragmir/raw/keep.md",
     ])
     const sensitive = inventory.skippedFiles
       .filter((file) => file.reason === "sensitive-name")
       .map((file) => file.relativePath)
-    expect(sensitive).toEqual(
-      expect.arrayContaining([
-        ".ragmir/raw/.env.development",
-        ".ragmir/raw/.env.example",
-        ".ragmir/raw/credentials",
-        ".ragmir/raw/id_rsa",
-        ".ragmir/raw/service.p8",
-      ]),
-    )
+    expect(sensitive.sort()).toEqual([
+      ".ragmir/raw/.env.development",
+      ".ragmir/raw/.env.local",
+      ".ragmir/raw/credentials",
+      ".ragmir/raw/id_rsa",
+      ".ragmir/raw/service.p8",
+    ])
   })
 
   it("indexes image files only when an OCR command is configured", async () => {
