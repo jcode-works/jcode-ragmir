@@ -2,7 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
+import {
+  detectPackageManager,
+  isGlobalInstall,
+  kbCommand,
+  ragmirCommand,
+  rgrCommand,
+} from "./package-manager.js"
 import { VERSION } from "./version.js"
 
 const tempDirs: string[] = []
@@ -31,6 +37,20 @@ describe("package manager detection", () => {
       args: ["--yes", `@jcode.labs/ragmir@${VERSION}`, "search", "release approvals"],
       display: `npx --yes @jcode.labs/ragmir@${VERSION} search "release approvals"`,
     })
+  })
+
+  it("recognizes npm's global folder next to Node.js, as in the official Docker image", () => {
+    const node = path.resolve("/usr/local/bin/node")
+    const global = path.resolve("/usr/local/lib/node_modules/@jcode.labs/ragmir")
+    const npxCache = path.resolve("/home/dev/.npm/_npx/4f1c/node_modules/@jcode.labs/ragmir")
+
+    expect(isGlobalInstall(global, node)).toBe(true)
+    expect(isGlobalInstall(npxCache, node)).toBe(false)
+    expect(isGlobalInstall(path.resolve("/srv/app/node_modules/@jcode.labs/ragmir"), node)).toBe(
+      false,
+    )
+    // The tests run from the repository checkout, which is no global install.
+    expect(isGlobalInstall()).toBe(false)
   })
 
   it("runs the package manager when node_modules above the project holds Ragmir", async () => {

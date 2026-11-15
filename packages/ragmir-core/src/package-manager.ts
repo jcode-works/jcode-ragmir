@@ -1,12 +1,15 @@
 import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { isRecord } from "./guards.js"
 import { VERSION } from "./version.js"
 
 export type PackageManager = "pnpm" | "npm" | "yarn" | "bun"
 const RGR_CLI_BIN = "rgr"
 const RAGMIR_PACKAGE = "@jcode.labs/ragmir"
+// dist/package-manager.js, or src/ in tests, sits one folder below the package root.
+const PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url))
 export const RGR_RUNNER_FILENAME = "run.cjs"
 export const RGR_RUNNER_PROBE_ARG = "--ragmir-runner-probe"
 
@@ -54,6 +57,15 @@ export async function rgrCommand(cwd: string, args: string[]): Promise<RagmirCom
     }
   }
   if (!(await projectHasRagmir(root))) {
+    if (isGlobalInstall()) {
+      // The official Docker image and `npm install --global` put this CLI on PATH as `rgr`.
+      return {
+        packageManager,
+        command: RGR_CLI_BIN,
+        args,
+        display: [RGR_CLI_BIN, ...args].map(formatArg).join(" "),
+      }
+    }
     // Without a project install, `pnpm exec rgr` fails and `npx rgr` asks npm for a package named
     // `rgr`, so name the release this CLI belongs to, as the generated runner does.
     const pinnedArgs = ["--yes", `${RAGMIR_PACKAGE}@${VERSION}`, ...args]
@@ -78,6 +90,16 @@ function displayRunnerCommand(root: string, runnerPath: string, args: string[]):
   const relativeRunner = (path.relative(root, runnerPath) || runnerPath).split(path.sep).join("/")
   const suffix = [relativeRunner, ...args].map(formatArg).join(" ")
   return `node ${suffix}`
+}
+
+/**
+ * Whether the package sits in npm's default global folder for this Node.js, as in the official
+ * Docker image or after `npm install --global`. An npx cache or a custom npm prefix does not count.
+ */
+export function isGlobalInstall(packageRoot = PACKAGE_ROOT, execPath = process.execPath): boolean {
+  const globalRoot = path.join(path.dirname(path.dirname(execPath)), "lib", "node_modules")
+  const relative = path.relative(globalRoot, packageRoot)
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
 }
 
 /**
