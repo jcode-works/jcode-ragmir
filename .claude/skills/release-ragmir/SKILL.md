@@ -79,8 +79,8 @@ curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.jc
 ```
 
 Check that the npm license is `AGPL-3.0-only` and the tarball holds `LICENSE`,
-`COMMERCIAL-LICENSE.md`, and `NOTICE`. The landing deploys through its external process with
-`PUBLIC_RAGMIR_VERSION` set to the release.
+`COMMERCIAL-LICENSE.md`, and `NOTICE`. Build the landing with `PUBLIC_RAGMIR_VERSION` set to the
+release, deploy it through its external process, and run the landing checks in `RELEASING.md`.
 
 ## 5. Pin the agent plugins
 

@@ -12,8 +12,8 @@ Do not publish from a local machine.
 4. Let the `Release npm` workflow run on `main`, or dispatch it manually from `main`.
 5. Approve the protected `npm-publish` environment when GitHub asks for review.
 6. Verify the Core npm package, the curated GitHub release notes, and release artifacts.
-7. Build and deploy the static landing through the external deployment process, then verify the
-   published package version and canonical site URL.
+7. Build the landing with the released version, deploy `packages/ragmir-landing/dist` through the
+   external deployment process, and run the landing checks below.
 
 For every release, verify that npm metadata declares `AGPL-3.0-only` and that each tarball contains
 `LICENSE`, `COMMERCIAL-LICENSE.md`, and `NOTICE`. The protected validation gate enforces this policy.
@@ -48,6 +48,17 @@ The repository intentionally contains no cloud-vendor landing configuration and 
 does not deploy the site. The external deployment must build with the released version in
 `PUBLIC_RAGMIR_VERSION`. Production must use `PUBLIC_RAGMIR_LANDING_URL=https://ragmir.com`; staging
 must use its own public URL so canonical and robots metadata cannot fall back to production.
+
+```bash
+PUBLIC_RAGMIR_VERSION=<version> PUBLIC_RAGMIR_LANDING_URL=https://ragmir.com \
+  pnpm --filter @jcode.labs/ragmir-landing build
+```
+
+The host serves `dist/` as static assets, answers an unknown path with `404.html` and status 404,
+and redirects a directory path to its trailing slash (`/fr` to `/fr/`). After each deployment,
+check that `/`, `/fr/`, and `/team/` answer 200 and show the released version, that an unknown
+path answers 404 with the error page, and that `/llms.txt` and `/ai.txt` match the root
+`llms.txt`.
 
 ## Release Notes Contract
 

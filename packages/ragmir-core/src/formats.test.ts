@@ -781,6 +781,43 @@ describe("text formats and encodings", () => {
     ])
   })
 
+  it("indexes .NET projects, Godot scenes, modern languages, and build manifests", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-linguist-"))
+    tempDirs.push(root)
+    const sources: Record<string, string> = {
+      "App.csproj": '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup /></Project>\n',
+      "App.sln": "Microsoft Visual Studio Solution File, Format Version 12.00\n",
+      "Directory.Build.props": "<Project><PropertyGroup /></Project>\n",
+      "player.gd": "extends CharacterBody2D\n",
+      "level.tscn": '[gd_scene format=3]\n[node name="Level" type="Node2D"]\n',
+      "Game.luau": "local speed: number = 16\n",
+      "Proof.lean": "theorem two_eq : 2 = 2 := rfl\n",
+      "page.templ": "templ Hello(name string) { <p>{ name }</p> }\n",
+      "config.kdl": 'service "checkout" { retries 3 }\n',
+      "go.mod": "module example.com/checkout\n\ngo 1.24\n",
+      "meson.build": "project('checkout', 'c')\n",
+      PKGBUILD: "pkgname=checkout\n",
+      ".rspec": "--require spec_helper\n",
+      "strings.res": "not text",
+    }
+    for (const [name, content] of Object.entries(sources)) {
+      await writeFile(path.join(root, name), content)
+    }
+
+    const files = await listSourceFiles(testConfig(root, { rawDir: root }))
+    const listed = files.map((file) => file.relativePath).sort()
+
+    // A binary Windows resource shares `.res` with ReScript, so it stays out.
+    expect(listed).toEqual(
+      Object.keys(sources)
+        .filter((name) => name !== "strings.res")
+        .sort(),
+    )
+    const godot = await parseFixture("level.tscn", sources["level.tscn"] ?? "")
+    expect(godot.sourceLineCoordinates).toBe(true)
+    expect(godot.text).toContain('[node name="Level" type="Node2D"]')
+  })
+
   it("reads UTF-16 and Windows-1252 text files with line citations", async () => {
     const utf16 = await parseFixture(
       "Localizable.strings",
