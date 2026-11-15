@@ -14,6 +14,7 @@ import { sketchSections } from "./design-formats.js"
 import { figmaFileSections } from "./figma-file.js"
 import { OCR_IMAGE_EXTENSIONS } from "./files.js"
 import { isRecord } from "./guards.js"
+import { harSections } from "./http-archive.js"
 import {
   MAX_EXTERNAL_TEXT_STDIO_BYTES,
   MAX_OFFICE_TEXT_ENTRY_COUNT,
@@ -220,6 +221,16 @@ export async function parseFile(
         SKETCH_TEXT_ENTRY_PATTERN,
       )
       ;({ text, regions } = sectionRegions(sketchSections(entries), options.signal))
+      break
+    }
+    case ".har": {
+      // A file that is not an HTTP Archive fails instead of being indexed raw, cookies included.
+      const value: unknown = JSON.parse(await readFile(file.absolutePath, "utf8"))
+      const sections = harSections(value, renderHtml, options.signal)
+      if (!sections) {
+        throw new Error("Not an HTTP Archive: the file has no log.entries list.")
+      }
+      ;({ text, regions } = sectionRegions(sections, options.signal))
       break
     }
     case ".json":

@@ -600,6 +600,7 @@ const DEFAULT_SUPPORTED_EXTENSIONS = new Set([
   ".rest",
   ".hurl",
   ".bru",
+  ".har",
   ".raml",
   ".smithy",
   ".tsp",
