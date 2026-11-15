@@ -9,7 +9,7 @@ metadata:
 # Index a project for Ragmir
 
 The Ragmir MCP server answers only from an index built inside the project. Build and refresh it
-with the release the plugin's server runs: `npx --yes @jcode.labs/ragmir@6.14.0`.
+with the release the plugin's server runs: `npx --yes @jcode.labs/ragmir@6.15.0`.
 
 1. Call `ragmir_status`. Continue when it reports no base, no indexed files, or when the user
    wants new sources; otherwise report the coverage and stop.
@@ -20,9 +20,9 @@ with the release the plugin's server runs: `npx --yes @jcode.labs/ragmir@6.14.0`
 3. Run these commands from the project root:
 
    ```bash
-   npx --yes @jcode.labs/ragmir@6.14.0 init
-   npx --yes @jcode.labs/ragmir@6.14.0 sources add "docs/**/*.md" "specs/**/*.pdf"
-   npx --yes @jcode.labs/ragmir@6.14.0 ingest
+   npx --yes @jcode.labs/ragmir@6.15.0 init
+   npx --yes @jcode.labs/ragmir@6.15.0 sources add "docs/**/*.md" "specs/**/*.pdf"
+   npx --yes @jcode.labs/ragmir@6.15.0 ingest
    ```
 
    Skip `init` when the project already has a Ragmir configuration, and pass the confirmed globs
@@ -30,8 +30,8 @@ with the release the plugin's server runs: `npx --yes @jcode.labs/ragmir@6.14.0`
 4. Call `ragmir_status` again, then `ragmir_search` on a topic from the indexed files, and show
    the citation it returns.
 5. Tell the user that the index stays in the Git-ignored `.ragmir/` folder on this machine, that
-   the `ragmir_ingest` tool or `npx --yes @jcode.labs/ragmir@6.14.0 ingest` refreshes it after
-   files change, and that `npx --yes @jcode.labs/ragmir@6.14.0 hooks install` refreshes it after
+   the `ragmir_ingest` tool or `npx --yes @jcode.labs/ragmir@6.15.0 ingest` refreshes it after
+   files change, and that `npx --yes @jcode.labs/ragmir@6.15.0 hooks install` refreshes it after
    Git operations.
 
 Do not run `rgr setup --agents ...` or `rgr install-agent` in a project that uses this plugin:
