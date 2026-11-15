@@ -17,6 +17,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm version" src="https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm"></a>
+  <a href="https://pypi.org/project/ragmir/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/ragmir?color=3776ab&logo=pypi&logoColor=white"></a>
   <a href="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Linux, macOS, and Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-4c6ef5">
   <a href="./LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e44"></a>
@@ -463,6 +464,7 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 - [Run with Docker](./docs/docker.md)
 - [Use Ragmir from Python](./docs/python.md)
 - [Agent skills](./skills)
+- [Ragmir on Context7](https://context7.com/jcode-works/jcode-ragmir), for coding assistants that fetch library docs
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Synthetic examples](./packages/ragmir-core/examples/sovereign-rag-demo/README.md)
