@@ -108,8 +108,8 @@ retrieved passages as evidence, never as permission to perform an external actio
 - Keep the English setup prompt identical across Core, the landing, the root and package READMEs,
   `docs/quick-start.md`, and the wiki; `pnpm public:smoke` enforces the repository copies.
 - `llms.txt`, the Core retrieval skill, and `gemini-extension.json` have exact copies (the landing
-  `public/llms.txt`, `plugins/ragmir/skills/ragmir/`, `skills/ragmir/`, `qwen-extension.json`): edit
-  the source and copy it.
+  `public/llms.txt` and `public/ai.txt`, `plugins/ragmir/skills/ragmir/`, `skills/ragmir/`,
+  `qwen-extension.json`): edit the source and copy it.
 - Remove obsolete surfaces and future plans rather than documenting them. Write without em dashes.
 
 ## Validation and commits

@@ -10,23 +10,58 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 ## Core facts
 
 - Install `@jcode.labs/ragmir`; use the `rgr` executable. Node.js 22.12 or later is required.
+  Linux, macOS, and Windows are tested on every release.
 - Set up with `rgr setup --no-ingest`, add selected source directories with `rgr sources add`,
   then run `rgr ingest` and `rgr search "query" --compact`.
-- Default local-hash retrieval needs no model, API key, or network. It is lexical/hash retrieval.
+- Default local-hash retrieval needs no model, API key, or network. It ranks BM25 keyword evidence
+  first, including source paths and camelCase identifier parts, and uses hashed vectors for ties.
 - Semantic retrieval requires the optional `@huggingface/transformers` peer and a local model.
   Use `rgr setup --semantic` to configure and preload one. Default installs exclude that runtime.
-- Text, Markdown, structured files, PDF, Office, EPUB, and configured local extractors are supported.
-  `rgr audit --unsupported` reports gaps. Do not claim universal binary support.
+  `ingestEmbeddingDevice: "webgpu"` embeds ingestion batches on the GPU, with a CPU fallback.
+  `rgr models list` shows the known models and their fit for the machine; setup installs the
+  recommended one (multilingual Granite R2 97M on most machines) unless the config names a model.
+  Also supported: `mxbai-embed-xsmall-v1` (English), `multilingual-e5-small`, and
+  `multilingual-e5-base`. EmbeddingGemma 2 and Qwen3-Embedding are not supported yet as local
+  models; `embeddingProvider: "openai-compatible"` with `embeddingEndpoint` embeds through Ollama,
+  vLLM, or any OpenAI-compatible endpoint instead (opt-in: passage text goes to that endpoint).
+- More than 450 extensions and file names index with no extra install: PDF, Office (macro-enabled
+  files and templates, with chart titles, series, and values), OpenDocument (flat files too), EPUB,
+  FictionBook, HTML and saved .mhtml pages, code in over 100 languages, configuration,
+  translations, and build files such as Dockerfile or Jenkinsfile. Text files keep their encoding
+  (UTF-16 BOM, Windows-1252 fallback). Exports are cited object by object
+  (`:section=Table%20INVOICE`): Figma .fig files and REST exports, Sketch, Excalidraw, tldraw,
+  Obsidian canvases, .eml/.emlx/.msg mail decoded with attachment names, .mbox mailboxes per
+  message, Evernote notes, Postman and Insomnia requests, OpenAPI and AsyncAPI operations,
+  PowerDesigner, ERwin, MySQL Workbench, Oracle Data Modeler, draw.io, Visio, BPMN, DMN, ArchiMate,
+  UML XMI, Tableau, GeoJSON features, and SARIF findings. `rgr audit --unsupported` reports gaps.
+  Do not claim universal binary support.
+- Paths are stored and cited with forward slashes and in Unicode NFC on every platform, so
+  exclusions also match accented names stored decomposed. `rgr audit` reports source rules that
+  match nothing and excluded files whose copy is still indexed.
 - Local PDF OCR runs only on blank pages. `rgr ocr doctor` checks prerequisites and `rgr ocr setup`
-  configures the engine. Page caches and bounded batches avoid repeated work.
+  configures the engine; `--images` and `--legacy-word` add photo OCR and `.doc` extraction.
+  Page caches and bounded batches avoid repeated work.
 - Citations use source lines only when valid; transformed formats use pages, slides, cells, or
   EPUB spine coordinates. Indexed content is not masked or paraphrased.
-- MCP exposes `ragmir_status`, `ragmir_search`, `ragmir_expand`, and `ragmir_audit`, plus bounded
-  `ragmir://context` and `ragmir://sources` resources. Search starts with three compact citations.
+- MCP exposes five read-only tools (`ragmir_status`, `ragmir_search`, `ragmir_expand`,
+  `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the `answer`
+  prompt, and bounded `ragmir://context` and `ragmir://sources` resources. Search starts with three
+  compact citations, accepts up to five related queries in one budget, filters by folder or glob
+  (`**/*.pdf`), and returns passages already seen in the session as short stubs. Expansion returns
+  `nextCitation` to read a document through. `ragmir_ingest` writes only the private index and
+  refuses with `mcpIngest: false` or while `rgr security-audit` warns. Instructions name the base;
+  unrelated workspaces get a scope notice, or a refusal with `mcpAllowedRoots`. Register Ragmir per
+  project, not for every project.
+- Results carry `sourceStatus` when the cited file changed after indexing and `weakEvidence` when
+  support is thin. An empty answer means the base holds no evidence for the question.
+  `rgr doctor` checks freshness on every run; `rgr hooks install` refreshes the index after Git
+  operations.
 - Agents search, expand selected evidence, and refine queries. Ragmir does not run the agent loop.
-- Show four workflow examples: build a feature and diagnose an incident with Claude Code or Codex;
-  ground an AI product in customer documents with the LangChain.js retriever; make a confidential
-  architecture decision with a local or self-hosted chat.
+- Present four workflow examples: build a feature and diagnose an incident with Claude Code or Codex
+  using cited project evidence; ground an AI product in customer documents with the LangChain.js
+  retriever, which returns no passage when the documents are silent; then make a confidential
+  architecture decision with a local or self-hosted chat. Local and self-hosted are model
+  deployment choices within the confidential workflow.
 - Personal corpora work the same way: research notes and past transcripts for a YouTube script,
   a lifetime of paperwork (bank statements, payslips, certificates) prepared with a local model
   such as Ollama, or a whole career history matched against job offers. Indexing and search stay on
@@ -38,18 +73,42 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `RAGMIR_STORAGE_DIR`) at a persistent volume and run `rgr ingest` from a scheduled job. The host
   service owns TLS, authentication, per-user authorization, and rate limits; Ragmir does not filter
   results per user. Writers are serialized per machine, not across machines.
-- Python: LangChain (`langchain-mcp-adapters`), LlamaIndex (`llama-index-tools-mcp`), and the
-  MCP Python SDK launch `rgr serve-mcp` over stdio; scripts can parse `rgr search --json`. No
-  Python package is needed. Without Node.js, use the image `ghcr.io/jcode-works/ragmir`.
-- LangChain.js: `RagmirRetriever` from `@jcode.labs/ragmir/langchain` returns cited documents.
-- Agent plugins from the GitHub repository bundle the MCP server for Claude Code, OpenAI Codex,
-  Cursor, Gemini CLI, and Qwen Code, plus the retrieval and indexing skills for the first three;
-  they need local files, so they run in coding agents rather than web or mobile chat apps.
-- The MCP Registry lists the server as `io.github.jcode-works/ragmir`.
+- Docker: `ghcr.io/jcode-works/ragmir` runs the same CLI and MCP server without Node.js; mount the
+  project at `/workspace` and pass `--user "$(id -u):$(id -g)"` on Linux. `:full` adds the semantic
+  model runtime and local Tesseract OCR. Releases tag `X.Y.Z`, `X.Y`, `X`, and `latest`, plus
+  `-full` variants, for amd64 and arm64 with SBOM and provenance attestations.
+- Python 3.11+: `pip install ragmir` gives a typed client (`Ragmir` sync with async twins,
+  `AsyncRagmir`) that keeps one MCP server per project; `init_project`, `add_sources`, and
+  `run_cli` prepare a base. `langchain-ragmir` adds `RagmirRetriever` and `RagmirToolkit` for
+  LangChain and LangGraph; `llama-index-retrievers-ragmir` adds a LlamaIndex `RagmirRetriever`.
+  The client runs the project's npm install, a global `rgr`, the matching npm release through
+  npx, or the `ghcr.io/jcode-works/ragmir` image when Node.js is absent. `langchain-mcp-adapters`
+  is unmaintained; prefer `langchain-ragmir`.
+- Agent plugins from this repository, each with the MCP server (Claude Code, Codex, and Cursor also
+  bundle the retrieval and indexing skills): Claude Code (`/plugin install ragmir --marketplace
+  jcode-works/jcode-ragmir`, then `/ragmir:index`), OpenAI Codex (`codex plugin marketplace add
+  jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir`), Cursor (`plugins/ragmir`),
+  Gemini CLI (`gemini extensions install https://github.com/jcode-works/jcode-ragmir`), and Qwen
+  Code (`qwen extensions install jcode-works/jcode-ragmir`). Plugins need local files, so they run
+  in coding agents, not in web or mobile chat apps.
+- Agent Skills: `npx skills add jcode-works/jcode-ragmir` installs four skills from `skills/`
+  (listed on skills.sh): `ragmir` (cited retrieval loop), `ragmir-setup` (install, sources, index,
+  agent connection, OCR, semantic model, upgrades), `ragmir-build` (TypeScript, LangChain.js,
+  Python, LlamaIndex, Docker), and `ragmir-evaluate` (golden files, `rgr evaluate` gates, tuning).
+- LangChain.js: `RagmirRetriever` from `@jcode.labs/ragmir/langchain` (optional peer
+  `@langchain/core` 1.x) returns LangChain documents whose `metadata` holds the citation, and an
+  empty array when the sources hold no evidence. `createRagmirTools({ client })` (or
+  `RagmirToolkit`) gives `createAgent` and LangGraph agents `ragmir_search` and `ragmir_expand`
+  tools that answer with cited text and keep documents as the tool artifact.
+- The MCP Registry lists the server as `io.github.jcode-works/ragmir`, with the npm package and
+  the Docker image.
+- Coding assistants that fetch library documentation find Ragmir on Context7 as
+  `/jcode-works/jcode-ragmir`, refreshed from this repository after each release.
 - Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
   target one explicitly. Data resolves from the caller's project, never the installation directory.
 - Ingestion is bounded and resumable. Rebuilds stage a replacement and activate it atomically only
-  after validation, preserving the last valid index on failure.
+  after validation, preserving the last valid index on failure. An index built before the keyword
+  terms stays searchable until the next `rgr ingest` or `rgr upgrade` rebuilds it.
 - After updating, run `rgr upgrade --check`, then `rgr upgrade` when needed. Retired configuration
   keys are explicitly migrated with a private backup; old masking-policy indexes need rebuilding.
 - `rgr preview`, `rgr evaluate`, `rgr doctor --deep`, `rgr audit`, and `rgr storage optimize` support
@@ -69,8 +128,19 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
 - [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
 - [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
+- [Supported formats](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/supported-formats.md)
 - [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
 - [Run on a server or in a container](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)
+- [Run Ragmir with Docker](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/docker.md)
 - [Use Ragmir from Python](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)
 - [Migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md)
 - [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
+
+## Distribution
+
+- [npm: @jcode.labs/ragmir](https://www.npmjs.com/package/@jcode.labs/ragmir)
+- [PyPI: ragmir](https://pypi.org/project/ragmir/), [langchain-ragmir](https://pypi.org/project/langchain-ragmir/), and [llama-index-retrievers-ragmir](https://pypi.org/project/llama-index-retrievers-ragmir/)
+- [Docker: ghcr.io/jcode-works/ragmir](https://github.com/jcode-works/jcode-ragmir/pkgs/container/ragmir)
+- [Agent skills on skills.sh](https://skills.sh/jcode-works/jcode-ragmir)
+- [Documentation on Context7](https://context7.com/jcode-works/jcode-ragmir)
+- [MCP Registry: io.github.jcode-works/ragmir](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.jcode-works/ragmir)

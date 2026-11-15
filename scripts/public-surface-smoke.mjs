@@ -163,6 +163,13 @@ const landingLlms = await readFile(
 if (landingLlms !== rootLlms) {
   failures.push("packages/ragmir-landing/public/llms.txt differs from the root llms.txt")
 }
+const landingAi = await readFile(
+  path.join(repoRoot, "packages/ragmir-landing/public/ai.txt"),
+  "utf8",
+)
+if (landingAi !== rootLlms) {
+  failures.push("packages/ragmir-landing/public/ai.txt differs from the root llms.txt")
+}
 // Context7 rejects a context7.json beyond these limits (https://context7.com/schema/context7.json).
 const context7 = JSON.parse(await readFile(path.join(repoRoot, "context7.json"), "utf8"))
 if (typeof context7.description !== "string" || context7.description.length > 500) {
