@@ -24,6 +24,8 @@ jobs:
     environment:
       name: npm-publish
       url: https://www.npmjs.com/package/@jcode.labs/ragmir
+    outputs:
+      version: ${{ steps.published.outputs.version }}
     steps:
       - name: Verify main branch
         run: test "${GITHUB_REF}" = "refs/heads/main"
@@ -126,27 +128,6 @@ jobs:
           done
           docker logout ghcr.io
 
-      - name: Set up Python
-        if: steps.published.outputs.version != ''
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-
-      # PyPI trusted publishing: uv exchanges this job's OIDC identity for a short-lived upload
-      # token, so no PyPI token is stored. Each of the three PyPI projects lists this workflow
-      # file and the npm-publish environment as its trusted publisher.
-      - name: Publish the Python packages
-        if: steps.published.outputs.version != ''
-        env:
-          VERSION: ${{ steps.published.outputs.version }}
-        run: |
-          set -euo pipefail
-          python -m pip install "uv==0.13.6"
-          node scripts/python-release-version.mjs "$VERSION"
-          cd python
-          uv build --all-packages -o dist
-          uv publish --trusted-publishing always dist/*
-
       - name: Install cosign
         if: steps.published.outputs.version != ''
         env:
@@ -195,3 +176,49 @@ jobs:
           rm -f "$archive" "$archive.sigstore.json"
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
+
+  # PyPI trusted publishing: uv exchanges each job's OIDC identity for a short-lived upload token,
+  # so no PyPI token is stored. PyPI binds one trusted publisher to a repository, workflow, and
+  # environment, and lets a pending publisher create only one project, so each package publishes
+  # from its own `pypi-<package>` environment, limited to the main branch.
+  pypi:
+    name: Publish ${{ matrix.package }} to PyPI
+    needs: release
+    if: needs.release.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [ragmir, langchain-ragmir, llama-index-retrievers-ragmir]
+    environment:
+      name: pypi-${{ matrix.package }}
+      url: https://pypi.org/project/${{ matrix.package }}/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # --check-url skips files PyPI already holds, so a rerun of the release finishes the rest.
+      - name: Build and publish
+        env:
+          PACKAGE: ${{ matrix.package }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          python -m pip install "uv==0.13.6"
+          node scripts/python-release-version.mjs "$VERSION"
+          cd python
+          uv build --package "$PACKAGE" -o dist
+          uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/*
