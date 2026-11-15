@@ -1,5 +1,5 @@
 ---
-import { ArrowUpRight, Bot, Library, SquareTerminal } from "@lucide/astro"
+import { ArrowUpRight, Bot, Library, Puzzle, SquareTerminal } from "@lucide/astro"
 import { INTEGRATION_LOGOS, type IntegrationLogoKey } from "../../content/integration-logos"
 import { SectionHeader } from "../section-header"
 import { GITHUB_URL, NPM_URL } from "../../lib/project-links"
@@ -20,7 +20,7 @@ interface Integration {
   kind: string
   href: string
   logo?: IntegrationLogoKey
-  fallback?: "terminal" | "library" | "bot"
+  fallback?: "terminal" | "library" | "bot" | "skills"
 }
 
 const groups: { title: string; items: Integration[] }[] = [
@@ -62,6 +62,12 @@ const groups: { title: string; items: Integration[] }[] = [
         kind: t("integrations_kind_mcp"),
         href: docsUrl("agent-integration.md", "connect-an-agent-through-mcp"),
         logo: "mcp",
+      },
+      {
+        name: "Agent Skills",
+        kind: t("integrations_kind_skills"),
+        href: docsUrl("agent-integration.md", "agent-skills-for-any-agent"),
+        fallback: "skills",
       },
       { name: "Python", kind: t("integrations_kind_python_client"), href: docsUrl("python.md"), logo: "python" },
       { name: "npm", kind: t("integrations_kind_cli"), href: NPM_URL, logo: "npm" },
@@ -122,6 +128,8 @@ const groups: { title: string; items: Integration[] }[] = [
                       <Library class="size-5" aria-hidden="true" />
                     ) : item.fallback === "bot" ? (
                       <Bot class="size-5" aria-hidden="true" />
+                    ) : item.fallback === "skills" ? (
+                      <Puzzle class="size-5" aria-hidden="true" />
                     ) : (
                       <SquareTerminal class="size-5" aria-hidden="true" />
                     )}

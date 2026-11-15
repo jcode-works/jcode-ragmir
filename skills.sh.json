@@ -1,0 +1,15 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "groupings": [
+    {
+      "title": "Work with a Ragmir base",
+      "description": "Retrieve cited evidence, set up and connect the index, and measure its retrieval quality.",
+      "skills": ["ragmir", "ragmir-setup", "ragmir-evaluate"]
+    },
+    {
+      "title": "Build with Ragmir",
+      "description": "Add cited retrieval to TypeScript, LangChain, Python, and LlamaIndex applications and services.",
+      "skills": ["ragmir-build"]
+    }
+  ]
+}

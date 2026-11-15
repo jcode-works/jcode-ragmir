@@ -74,7 +74,8 @@ jcode-works/jcode-ragmir`), OpenAI Codex, or Cursor, or as an extension for Gemi
 Code; the [plugin
 guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents)
 lists every install command. Without a plugin, `rgr setup --agents claude,codex` prepares a project
-MCP server and a retrieval skill. The server exposes `ragmir_search` (one question or up to five
+MCP server and a retrieval skill, and `npx skills add jcode-works/jcode-ragmir` installs the
+retrieval, setup, build, and evaluation skills for any agent. The server exposes `ragmir_search` (one question or up to five
 related ones sharing a budget, with folder or glob filters and named scopes), `ragmir_expand` (a
 citation with its neighbours and the next window of the document), `ragmir_sources`,
 `ragmir_status`, `ragmir_audit`, and `ragmir_ingest` to refresh the index after files change.
@@ -84,7 +85,7 @@ integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-in
 connection steps and local or self-hosted model examples. Python applications install
 `ragmir`, `langchain-ragmir`, or `llama-index-retrievers-ragmir` from PyPI ([Python
 guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)), and
-`ghcr.io/jcode-works/ragmir` runs Ragmir without Node.js. LangChain.js chains use
+`ghcr.io/jcode-works/ragmir` runs Ragmir without Node.js (`:full` adds semantic search and OCR). LangChain.js chains use
 `RagmirRetriever`, and LangChain or LangGraph agents use `createRagmirTools`, both from
 `@jcode.labs/ragmir/langchain` with the optional peer `@langchain/core`.
 

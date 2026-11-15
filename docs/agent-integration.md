@@ -128,6 +128,28 @@ code shipped by the repository it opens. Skip `rgr setup --agents ...` in a proj
 plugin, since that registers a second, project-level server. Plugins need local files, so they
 run in these coding agents and not in web or mobile chat apps.
 
+### Agent skills for any agent
+
+The [`skills`](../skills) folder publishes four [Agent Skills](https://agentskills.io) on
+[skills.sh](https://skills.sh/jcode-works/jcode-ragmir), for the agents that load skill folders
+(Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, and many more):
+
+| Skill | Teaches the agent to |
+| --- | --- |
+| `ragmir` | Retrieve cited evidence: the search, expand, and refine loop, freshness, and boundaries. |
+| `ragmir-setup` | Install Ragmir, choose sources, index, connect the agent, enable OCR or a semantic model, upgrade, and troubleshoot. |
+| `ragmir-build` | Build cited RAG into an application with the TypeScript client, LangChain.js, the Python packages, LlamaIndex, or Docker. |
+| `ragmir-evaluate` | Write a golden file with hard negatives, gate CI on `rgr evaluate`, diagnose misses, and tune ranking. |
+
+```bash
+npx skills add jcode-works/jcode-ragmir                      # choose the skills and agents
+npx skills add jcode-works/jcode-ragmir --skill ragmir-setup  # one skill
+```
+
+The skills drive a project install of `@jcode.labs/ragmir`, so the project's lockfile decides
+the release they run. `rgr setup` already links the `ragmir` skill into the agents it prepares;
+the others are optional.
+
 ### One base, one project
 
 Register Ragmir per project: `claude mcp add --scope project`, a committed `.mcp.json`, or Codex's
