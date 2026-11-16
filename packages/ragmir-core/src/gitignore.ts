@@ -25,7 +25,9 @@ export async function ensureRagmirGitignore(
     return false
   }
 
-  const hasRagmirHeader = currentLines.has("# Ragmir") || currentLines.has("# JCode Ragmir")
+  // Earlier releases wrote the header with a prefix before the name: any comment that ends with
+  // "Ragmir" already introduces the block.
+  const hasRagmirHeader = [...currentLines].some((line) => /^#(?:.*\s)?Ragmir$/.test(line))
   const block = [hasRagmirHeader ? undefined : "# Ragmir", ...missingEntries]
     .filter((line) => line !== undefined)
     .join("\n")

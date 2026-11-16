@@ -5,10 +5,10 @@ citations, OCR, and integration with developer agents.
 
 ## Repository renamed to jcode-works/ragmir (6.15.1)
 
-The GitHub repository moved from `jcode-works/jcode-ragmir` to
-[`jcode-works/ragmir`](https://github.com/jcode-works/ragmir). GitHub redirects the old URLs,
-clones, and plugin marketplace sources, so existing installs keep working. Use the new name in new
-commands, and update a saved Git remote when convenient:
+The GitHub repository is now [`jcode-works/ragmir`](https://github.com/jcode-works/ragmir).
+GitHub redirects the previous repository URLs, clones, and plugin marketplace sources, so existing
+installs keep working. Use the new name in new commands, and update a saved Git remote when
+convenient:
 
 ```bash
 git remote set-url origin https://github.com/jcode-works/ragmir.git
