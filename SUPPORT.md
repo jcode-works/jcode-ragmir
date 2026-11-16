@@ -16,7 +16,7 @@ and searches refused after an update.
 
 ## Ask a question or report a bug
 
-- **Questions and bugs:** open an [issue](https://github.com/jcode-works/jcode-ragmir/issues/new/choose)
+- **Questions and bugs:** open an [issue](https://github.com/jcode-works/ragmir/issues/new/choose)
   with the Ragmir version, how you run it (CLI, plugin, MCP client, Python, or Docker), and a
   minimal reproduction. Never attach private documents, indexes, or credentials.
 - **Feature requests:** describe the problem first; see [CONTRIBUTING.md](./CONTRIBUTING.md).

@@ -41,10 +41,10 @@ dependencies = ["mcp>=2.3,<3"]
 
 [project.urls]
 Homepage = "https://ragmir.com"
-Documentation = "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md"
-Repository = "https://github.com/jcode-works/jcode-ragmir"
-Issues = "https://github.com/jcode-works/jcode-ragmir/issues"
-Changelog = "https://github.com/jcode-works/jcode-ragmir/releases"
+Documentation = "https://github.com/jcode-works/ragmir/blob/main/docs/python.md"
+Repository = "https://github.com/jcode-works/ragmir"
+Issues = "https://github.com/jcode-works/ragmir/issues"
+Changelog = "https://github.com/jcode-works/ragmir/releases"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ragmir"]

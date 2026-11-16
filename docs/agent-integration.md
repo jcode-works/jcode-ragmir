@@ -104,10 +104,10 @@ release from npm against the project the agent has open.
 
 | Agent | Install |
 | --- | --- |
-| Claude Code | `/plugin install ragmir --marketplace jcode-works/jcode-ragmir` |
-| OpenAI Codex | `codex plugin marketplace add jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir` |
-| Gemini CLI | `gemini extensions install https://github.com/jcode-works/jcode-ragmir` |
-| Qwen Code | `qwen extensions install jcode-works/jcode-ragmir` |
+| Claude Code | `/plugin install ragmir --marketplace jcode-works/ragmir` |
+| OpenAI Codex | `codex plugin marketplace add jcode-works/ragmir`, then `codex plugin add ragmir@ragmir` |
+| Gemini CLI | `gemini extensions install https://github.com/jcode-works/ragmir` |
+| Qwen Code | `qwen extensions install jcode-works/ragmir` |
 | Cursor | Cursor Marketplace once listed; until then, copy `plugins/ragmir` to `~/.cursor/plugins/local/ragmir` |
 
 Index each project once. In Claude Code, run `/ragmir:index`: Claude proposes the sources, asks
@@ -131,7 +131,7 @@ run in these coding agents and not in web or mobile chat apps.
 ### Agent skills for any agent
 
 The [`skills`](../skills) folder publishes four [Agent Skills](https://agentskills.io) on
-[skills.sh](https://skills.sh/jcode-works/jcode-ragmir), for the agents that load skill folders
+[skills.sh](https://skills.sh/jcode-works/ragmir), for the agents that load skill folders
 (Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, and many more):
 
 | Skill | Teaches the agent to |
@@ -142,8 +142,8 @@ The [`skills`](../skills) folder publishes four [Agent Skills](https://agentskil
 | `ragmir-evaluate` | Write a golden file with hard negatives, gate CI on `rgr evaluate`, diagnose misses, and tune ranking. |
 
 ```bash
-npx skills add jcode-works/jcode-ragmir                      # choose the skills and agents
-npx skills add jcode-works/jcode-ragmir --skill ragmir-setup  # one skill
+npx skills add jcode-works/ragmir                      # choose the skills and agents
+npx skills add jcode-works/ragmir --skill ragmir-setup  # one skill
 ```
 
 The skills drive a project install of `@jcode.labs/ragmir`, so the project's lockfile decides
@@ -151,7 +151,7 @@ the release they run. `rgr setup` already links the `ragmir` skill into the agen
 the others are optional.
 
 Coding assistants that fetch library documentation, such as the Context7 MCP server, find this
-repository's guides and rules as [`/jcode-works/jcode-ragmir`](https://context7.com/jcode-works/jcode-ragmir),
+repository's guides and rules as [`/jcode-works/ragmir`](https://context7.com/jcode-works/ragmir),
 refreshed from `context7.json` after each release.
 
 ### One base, one project

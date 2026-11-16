@@ -89,12 +89,12 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   is unmaintained; prefer `langchain-ragmir`.
 - Agent plugins from this repository, each with the MCP server (Claude Code, Codex, and Cursor also
   bundle the retrieval and indexing skills): Claude Code (`/plugin install ragmir --marketplace
-  jcode-works/jcode-ragmir`, then `/ragmir:index`), OpenAI Codex (`codex plugin marketplace add
-  jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir`), Cursor (`plugins/ragmir`),
-  Gemini CLI (`gemini extensions install https://github.com/jcode-works/jcode-ragmir`), and Qwen
-  Code (`qwen extensions install jcode-works/jcode-ragmir`). Plugins need local files, so they run
+  jcode-works/ragmir`, then `/ragmir:index`), OpenAI Codex (`codex plugin marketplace add
+  jcode-works/ragmir`, then `codex plugin add ragmir@ragmir`), Cursor (`plugins/ragmir`),
+  Gemini CLI (`gemini extensions install https://github.com/jcode-works/ragmir`), and Qwen
+  Code (`qwen extensions install jcode-works/ragmir`). Plugins need local files, so they run
   in coding agents, not in web or mobile chat apps.
-- Agent Skills: `npx skills add jcode-works/jcode-ragmir` installs four skills from `skills/`
+- Agent Skills: `npx skills add jcode-works/ragmir` installs four skills from `skills/`
   (listed on skills.sh): `ragmir` (cited retrieval loop), `ragmir-setup` (install, sources, index,
   agent connection, OCR, semantic model, upgrades), `ragmir-build` (TypeScript, LangChain.js,
   Python, LlamaIndex, Docker), and `ragmir-evaluate` (golden files, `rgr evaluate` gates, tuning).
@@ -106,7 +106,7 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - The MCP Registry lists the server as `io.github.jcode-works/ragmir`, with the npm package and
   the Docker image.
 - Coding assistants that fetch library documentation find Ragmir on Context7 as
-  `/jcode-works/jcode-ragmir`, refreshed from this repository after each release.
+  `/jcode-works/ragmir`, refreshed from this repository after each release.
 - Monorepos select the nearest configured base; inspect `rgr bases` and use `--project-root` to
   target one explicitly. Data resolves from the caller's project, never the installation directory.
 - Ingestion is bounded and resumable. Rebuilds stage a replacement and activate it atomically only
@@ -127,23 +127,23 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 
 ## Documentation
 
-- [Quick start](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md)
-- [CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md)
-- [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md)
-- [Configuration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/configuration.md)
-- [Supported formats](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/supported-formats.md)
-- [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md)
-- [Run on a server or in a container](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)
-- [Run Ragmir with Docker](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/docker.md)
-- [Use Ragmir from Python](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)
-- [Migration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md)
-- [Troubleshooting](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md)
+- [Quick start](https://github.com/jcode-works/ragmir/blob/main/docs/quick-start.md)
+- [CLI reference](https://github.com/jcode-works/ragmir/blob/main/docs/cli-reference.md)
+- [API reference](https://github.com/jcode-works/ragmir/blob/main/docs/api-reference.md)
+- [Configuration](https://github.com/jcode-works/ragmir/blob/main/docs/configuration.md)
+- [Supported formats](https://github.com/jcode-works/ragmir/blob/main/docs/supported-formats.md)
+- [Agent integration: local, self-hosted, or cloud](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md)
+- [Run on a server or in a container](https://github.com/jcode-works/ragmir/blob/main/docs/server-deployment.md)
+- [Run Ragmir with Docker](https://github.com/jcode-works/ragmir/blob/main/docs/docker.md)
+- [Use Ragmir from Python](https://github.com/jcode-works/ragmir/blob/main/docs/python.md)
+- [Migration](https://github.com/jcode-works/ragmir/blob/main/docs/migration.md)
+- [Troubleshooting](https://github.com/jcode-works/ragmir/blob/main/docs/troubleshooting.md)
 
 ## Distribution
 
 - [npm: @jcode.labs/ragmir](https://www.npmjs.com/package/@jcode.labs/ragmir)
 - [PyPI: ragmir](https://pypi.org/project/ragmir/), [langchain-ragmir](https://pypi.org/project/langchain-ragmir/), and [llama-index-retrievers-ragmir](https://pypi.org/project/llama-index-retrievers-ragmir/)
-- [Docker: ghcr.io/jcode-works/ragmir](https://github.com/jcode-works/jcode-ragmir/pkgs/container/ragmir)
-- [Agent skills on skills.sh](https://skills.sh/jcode-works/jcode-ragmir)
-- [Documentation on Context7](https://context7.com/jcode-works/jcode-ragmir)
+- [Docker: ghcr.io/jcode-works/ragmir](https://github.com/jcode-works/ragmir/pkgs/container/ragmir)
+- [Agent skills on skills.sh](https://skills.sh/jcode-works/ragmir)
+- [Documentation on Context7](https://context7.com/jcode-works/ragmir)
 - [MCP Registry: io.github.jcode-works/ragmir](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.jcode-works/ragmir)

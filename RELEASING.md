@@ -14,7 +14,7 @@ Do not publish from a local machine.
 6. Verify the Core npm package, the curated GitHub release notes, and release artifacts.
 7. Build the landing with the released version, deploy `packages/ragmir-landing/dist` through the
    external deployment process, and run the landing checks below.
-8. Sync the GitHub wiki: clone `https://github.com/jcode-works/jcode-ragmir.wiki.git`, run
+8. Sync the GitHub wiki: clone `https://github.com/jcode-works/ragmir.wiki.git`, run
    `pnpm wiki:sync <wiki checkout>`, update the counts and tools on its `Home.md` by hand, then
    commit and push the wiki. Once the plugin pin reaches `main`, refresh the Context7 library from
    its admin page: Context7 indexes `main` and the wiki.
@@ -34,7 +34,7 @@ is private and is not published to npm.
 Publishing uses npm trusted publishing: `pnpm publish` exchanges the release job's GitHub OIDC
 identity for a short-lived token, so the repository stores no npm token. The npm package settings
 must list one trusted publisher with these values: organization `jcode-works`, repository
-`jcode-ragmir`, workflow `npm-publish.yml`, and environment `npm-publish`. Renaming the workflow,
+`ragmir`, workflow `npm-publish.yml`, and environment `npm-publish`. Renaming the workflow,
 the environment, or the repository requires updating that entry on npmjs.com first.
 
 PyPI uses trusted publishing the same way: after the release job, one `pypi` job per package
@@ -42,7 +42,7 @@ runs `uv publish --trusted-publishing always`, which exchanges the job's OIDC id
 repository stores no PyPI token. PyPI lets a pending publisher create only one project per
 repository, workflow, and environment, so each package publishes from its own environment: on
 pypi.org, `ragmir`, `langchain-ragmir`, and `llama-index-retrievers-ragmir` each list one trusted
-publisher with owner `jcode-works`, repository `jcode-ragmir`, workflow `npm-publish.yml`, and
+publisher with owner `jcode-works`, repository `ragmir`, workflow `npm-publish.yml`, and
 environment `pypi-<package>` (for example `pypi-ragmir`). Those GitHub environments only accept
 deployments from `main`. A project that does not exist yet needs that pending publisher before
 its first release, and `--check-url` lets a rerun skip files PyPI already holds. The `Docker` workflow builds and smoke-tests both image targets whenever `docker/`
@@ -121,7 +121,7 @@ GitHub release. Keep the plugin's `skills/ragmir/SKILL.md` identical to the Core
 `pnpm public:smoke` enforces the identical skill, the shared pin, the aligned plugin versions, and
 the identical Gemini and Qwen manifests.
 
-The Agent Skills in `skills/` have no publish step: `npx skills add jcode-works/jcode-ragmir`
+The Agent Skills in `skills/` have no publish step: `npx skills add jcode-works/ragmir`
 installs them from the default branch, and skills.sh lists them from those installs, grouped by
 `skills.sh.json`. They run the project's own install of the npm package, so they need no version
 pin. `pnpm public:smoke` checks them against the Agent Skills specification, keeps

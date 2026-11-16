@@ -14,7 +14,7 @@ within a reasonable time.
 
 ## Reporting Issues
 
-Use the [issue templates](https://github.com/jcode-works/jcode-ragmir/issues/new/choose):
+Use the [issue templates](https://github.com/jcode-works/ragmir/issues/new/choose):
 
 - **Bug report**: include the Ragmir version, a minimal reproduction (commands + sample files,
   no private documents or secrets), and the expected behavior.
@@ -22,7 +22,7 @@ Use the [issue templates](https://github.com/jcode-works/jcode-ragmir/issues/new
   Explain how it improves cited retrieval for developers and stays compatible with Ragmir's
   local-first, zero-telemetry posture.
 
-Before opening a new issue, search [existing issues](https://github.com/jcode-works/jcode-ragmir/issues)
+Before opening a new issue, search [existing issues](https://github.com/jcode-works/ragmir/issues)
 to avoid duplicates. Security vulnerabilities must not be reported through public issues. Follow
 [`SECURITY.md`](./SECURITY.md).
 

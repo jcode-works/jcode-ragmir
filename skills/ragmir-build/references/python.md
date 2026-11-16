@@ -145,4 +145,4 @@ export RAGMIR_COMMAND="docker run --rm -i -v $PWD:/workspace -w /workspace ghcr.
 Keep `-i`, which the MCP server needs for stdin. Pass `command=[...]` to `Ragmir` to choose it in
 code instead.
 
-Reference: https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md
+Reference: https://github.com/jcode-works/ragmir/blob/main/docs/python.md

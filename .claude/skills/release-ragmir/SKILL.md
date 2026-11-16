@@ -22,7 +22,7 @@ git diff --stat origin/main origin/develop
 - semantic-release derives the version from those Conventional Commits: `feat` gives a minor,
   `fix` and `docs` a patch, `!` or `BREAKING CHANGE:` a major; `scope: landing` publishes nothing.
 - A new PyPI project, or a renamed workflow, environment, or repository, needs its trusted
-  publisher on pypi.org first (owner `jcode-works`, repository `jcode-ragmir`, workflow
+  publisher on pypi.org first (owner `jcode-works`, repository `ragmir`, workflow
   `npm-publish.yml`, environment `pypi-<package>`, one per project). npm has the same entry on
   npmjs.com, with environment `npm-publish`. Only the maintainer can sign in there.
 
@@ -82,7 +82,7 @@ Check that the npm license is `AGPL-3.0-only` and the tarball holds `LICENSE`,
 `COMMERCIAL-LICENSE.md`, and `NOTICE`. Build the landing with `PUBLIC_RAGMIR_VERSION` set to the
 release, deploy it through its external process, and run the landing checks in `RELEASING.md`.
 Then sync the GitHub wiki with `pnpm wiki:sync <wiki checkout>` (a clone of
-`jcode-ragmir.wiki.git`), review its `Home.md`, and push it.
+`ragmir.wiki.git`), review its `Home.md`, and push it.
 
 ## 5. Pin the agent plugins
 
