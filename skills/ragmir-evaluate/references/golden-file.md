@@ -57,4 +57,4 @@ fingerprints of the ranking policy, index, and golden file, every metric, `gates
 threshold's actual value, `passed`, `groups` by category and locale, latency percentiles, and one
 entry per case with its returned paths and citations, matches, rank, and abstention.
 
-Reference: https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md
+Reference: https://github.com/jcode-works/ragmir/blob/main/docs/cli-reference.md

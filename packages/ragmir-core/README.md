@@ -12,16 +12,16 @@
 
 <p align="center">
   94% of real developer questions find the right file in the top 10 · 36 ms median search on a
-  30,171-chunk monorepo · <a href="https://github.com/jcode-works/jcode-ragmir#benchmarks">benchmarks</a>
+  30,171-chunk monorepo · <a href="https://github.com/jcode-works/ragmir#benchmarks">benchmarks</a>
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm version" src="https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm"></a>
   <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@jcode.labs/ragmir?color=cb3837"></a>
-  <a href="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e44"></a>
+  <a href="https://github.com/jcode-works/ragmir/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jcode-works/ragmir/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/jcode-works/ragmir/blob/main/LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e44"></a>
   <a href="https://nodejs.org"><img alt="Node.js 22.12+" src="https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white"></a>
-  <a href="https://github.com/jcode-works/jcode-ragmir"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jcode-works/jcode-ragmir?style=social"></a>
+  <a href="https://github.com/jcode-works/ragmir"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jcode-works/ragmir?style=social"></a>
 </p>
 
 Ragmir indexes the code, specifications, and office documents you choose, then returns precise
@@ -33,7 +33,7 @@ model you choose. Ragmir does not bundle a chat model or host your documents.
   camelCase identifiers and boosts the code that defines what you ask about.
 - **Fast on real repositories:** 36 ms median search on a 30,171-chunk monorepo, with the right
   source in the top 10 for 94% of real developer questions
-  ([benchmarks](https://github.com/jcode-works/jcode-ragmir#benchmarks)).
+  ([benchmarks](https://github.com/jcode-works/ragmir#benchmarks)).
 - **Ahead of the usual RAG stacks:** the right file reaches the top 3 for 83% of this repository's
   developer questions, against 63% for a LangChain.js pipeline and 79% for MiniSearch BM25.
 - **Evidence you can verify:** citations point to source lines or native page, slide, sheet/cell,
@@ -46,7 +46,7 @@ model you choose. Ragmir does not bundle a chat model or host your documents.
 - **Ready for the customer's server:** parsing, embeddings, the index, and search run in one Node.js
   process, so forward deployed engineers and AI-native teams can ship RAG on a VPS, an on-premise
   server, or a container without network access
-  ([server guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md)).
+  ([server guide](https://github.com/jcode-works/ragmir/blob/main/docs/server-deployment.md)).
 
 ## Install and search
 
@@ -62,29 +62,29 @@ npx rgr search "authentication contract" --compact
 
 `rgr setup` creates ignored local state under `.ragmir/` and installs the selected agent helpers.
 A committed `ragmir.config.json` shares sources and settings with your team. The
-[quick start](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/quick-start.md) also
+[quick start](https://github.com/jcode-works/ragmir/blob/main/docs/quick-start.md) also
 covers pnpm and guided setup.
 
 ## Connect your agent
 
-[![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=flat-square&logo=claude&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-111111?style=flat-square)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Cursor](https://img.shields.io/badge/Cursor-111111?style=flat-square&logo=cursor&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Qwen Code](https://img.shields.io/badge/Qwen_Code-6950EF?style=flat-square&logo=qwen&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![LangChain.js](https://img.shields.io/badge/LangChain.js-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md#langchainjs-retriever-and-agent-tools) [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md#langchain-and-langgraph) [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-6D28D9?style=flat-square)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md#llamaindex) [![MCP](https://img.shields.io/badge/MCP-111111?style=flat-square&logo=modelcontextprotocol&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#connect-an-agent-through-mcp) [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md) [![Ollama](https://img.shields.io/badge/Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#confidential-chat-local-model-example)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=flat-square&logo=claude&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-111111?style=flat-square)](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Cursor](https://img.shields.io/badge/Cursor-111111?style=flat-square&logo=cursor&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Qwen Code](https://img.shields.io/badge/Qwen_Code-6950EF?style=flat-square&logo=qwen&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![LangChain.js](https://img.shields.io/badge/LangChain.js-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/api-reference.md#langchainjs-retriever-and-agent-tools) [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/python.md#langchain-and-langgraph) [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-6D28D9?style=flat-square)](https://github.com/jcode-works/ragmir/blob/main/docs/python.md#llamaindex) [![MCP](https://img.shields.io/badge/MCP-111111?style=flat-square&logo=modelcontextprotocol&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#connect-an-agent-through-mcp) [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/python.md) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/api-reference.md) [![Ollama](https://img.shields.io/badge/Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#confidential-chat-local-model-example)
 
 Install Ragmir as a plugin for Claude Code (`/plugin install ragmir --marketplace
-jcode-works/jcode-ragmir`), OpenAI Codex, or Cursor, or as an extension for Gemini CLI and Qwen
+jcode-works/ragmir`), OpenAI Codex, or Cursor, or as an extension for Gemini CLI and Qwen
 Code; the [plugin
-guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents)
+guide](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents)
 lists every install command. Without a plugin, `rgr setup --agents claude,codex` prepares a project
-MCP server and a retrieval skill, and `npx skills add jcode-works/jcode-ragmir` installs the
+MCP server and a retrieval skill, and `npx skills add jcode-works/ragmir` installs the
 retrieval, setup, build, and evaluation skills for any agent. The server exposes `ragmir_search` (one question or up to five
 related ones sharing a budget, with folder or glob filters and named scopes), `ragmir_expand` (a
 citation with its neighbours and the next window of the document), `ragmir_sources`,
 `ragmir_status`, `ragmir_audit`, and `ragmir_ingest` to refresh the index after files change.
 Passages already returned in a session come back as one-line stubs. Its instructions name the base
 it serves, and it warns or refuses agents working in unrelated projects. See [agent
-integration](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md) for
+integration](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md) for
 connection steps and local or self-hosted model examples. Python applications install
 `ragmir`, `langchain-ragmir`, or `llama-index-retrievers-ragmir` from PyPI ([Python
-guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md)), and
+guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md)), and
 `ghcr.io/jcode-works/ragmir` runs Ragmir without Node.js (`:full` adds semantic search and OCR). LangChain.js chains use
 `RagmirRetriever`, and LangChain or LangGraph agents use `createRagmirTools`, both from
 `@jcode.labs/ragmir/langchain` with the optional peer `@langchain/core`.
@@ -113,7 +113,7 @@ try {
 ```
 
 The library also exports top-level `ingest`, `search`, and `expandCitation` functions for one-shot
-scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md).
+scripts. See the [API reference](https://github.com/jcode-works/ragmir/blob/main/docs/api-reference.md).
 
 ## Four workflow examples
 
@@ -132,13 +132,13 @@ scripts. See the [API reference](https://github.com/jcode-works/jcode-ragmir/blo
 Index more than 900 file types: code in over 250 languages, Markdown, PDF, Word, PowerPoint, Excel,
 OpenDocument, EPUB, HTML, mail and mailboxes, Figma, Sketch, Excalidraw, tldraw, and XMind files,
 Postman and OpenAPI collections, HAR captures, data models, and diagrams, each cited to its line, page,
-slide, cell, or object ([supported formats](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/supported-formats.md)).
+slide, cell, or object ([supported formats](https://github.com/jcode-works/ragmir/blob/main/docs/supported-formats.md)).
 Scanned PDFs, photos, and legacy `.doc` files use local extractors (`rgr ocr setup --images
 --legacy-word`). The default `local-hash` provider needs no model download. For semantic
 embeddings, install `@huggingface/transformers` and run `npx rgr setup --semantic`: it installs the
 model this machine suits (multilingual Granite R2 on most) and records it in the project config, and
 `npx rgr models list` compares the options. `mxbai-embed-xsmall-v1` stays the lightest for English,
-and `multilingual-e5-small` remains supported for existing indexes. See [choosing an embedding model](https://github.com/jcode-works/jcode-ragmir#choosing-an-embedding-model).
+and `multilingual-e5-small` remains supported for existing indexes. See [choosing an embedding model](https://github.com/jcode-works/ragmir#choosing-an-embedding-model).
 
 For guided setup, give your agent this prompt:
 
@@ -183,18 +183,18 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 
 ## Project and licensing
 
-Read the [full documentation](https://github.com/jcode-works/jcode-ragmir#readme),
-[CLI reference](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/cli-reference.md),
-[server guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md),
-[Python guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md),
-[migration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md), and
-[troubleshooting guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/troubleshooting.md).
+Read the [full documentation](https://github.com/jcode-works/ragmir#readme),
+[CLI reference](https://github.com/jcode-works/ragmir/blob/main/docs/cli-reference.md),
+[server guide](https://github.com/jcode-works/ragmir/blob/main/docs/server-deployment.md),
+[Python guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md),
+[migration guide](https://github.com/jcode-works/ragmir/blob/main/docs/migration.md), and
+[troubleshooting guide](https://github.com/jcode-works/ragmir/blob/main/docs/troubleshooting.md).
 Ask questions and report bugs in
-[GitHub Issues](https://github.com/jcode-works/jcode-ragmir/issues); contributions are welcome
-through [CONTRIBUTING](https://github.com/jcode-works/jcode-ragmir/blob/main/CONTRIBUTING.md). If
-Ragmir saves your agents time, [star the repository](https://github.com/jcode-works/jcode-ragmir)
+[GitHub Issues](https://github.com/jcode-works/ragmir/issues); contributions are welcome
+through [CONTRIBUTING](https://github.com/jcode-works/ragmir/blob/main/CONTRIBUTING.md). If
+Ragmir saves your agents time, [star the repository](https://github.com/jcode-works/ragmir)
 so other teams find it.
 
-Ragmir is open source under [AGPL-3.0-only](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE).
-JCode Works also offers a [commercial license](https://github.com/jcode-works/jcode-ragmir/blob/main/COMMERCIAL-LICENSE.md)
+Ragmir is open source under [AGPL-3.0-only](https://github.com/jcode-works/ragmir/blob/main/LICENSE).
+JCode Works also offers a [commercial license](https://github.com/jcode-works/ragmir/blob/main/COMMERCIAL-LICENSE.md)
 for proprietary software or hosted services that the AGPL does not fit.

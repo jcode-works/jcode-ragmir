@@ -10,7 +10,7 @@ in CI, on a server, or for an agent connected through MCP.
 
 Each release publishes `X.Y.Z`, `X.Y`, `X`, and `latest` for the standard image, and the same tags
 with a `-full` suffix (plus `full`) for the full one, for `linux/amd64` and `linux/arm64`, with SBOM
-and provenance attestations; the [package page](https://github.com/jcode-works/jcode-ragmir/pkgs/container/ragmir)
+and provenance attestations; the [package page](https://github.com/jcode-works/ragmir/pkgs/container/ragmir)
 lists every tag. Pin an exact version in production. The images run as the
 unprivileged `node` user, use `/workspace` as the working directory, and start `rgr`.
 

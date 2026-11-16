@@ -36,5 +36,5 @@ boundary.
 
 ## Contact
 
-Open an issue at <https://github.com/jcode-works/jcode-ragmir/issues>, or follow
+Open an issue at <https://github.com/jcode-works/ragmir/issues>, or follow
 [SECURITY.md](./SECURITY.md) for security reports.

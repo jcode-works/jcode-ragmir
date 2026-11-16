@@ -1,11 +1,11 @@
-// Copies the docs/ guides into a checkout of the GitHub wiki (jcode-ragmir.wiki.git).
+// Copies the docs/ guides into a checkout of the GitHub wiki (ragmir.wiki.git).
 // Usage: pnpm wiki:sync <wiki checkout>, then review `git diff` there, update Home.md by hand,
 // commit, and push. Links to a guide that has a wiki page stay in the wiki; other relative links
 // point to main on GitHub.
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 
-const REPOSITORY = "https://github.com/jcode-works/jcode-ragmir"
+const REPOSITORY = "https://github.com/jcode-works/ragmir"
 const GUIDE_PAGES = {
   "agent-integration.md": "Agent-Integration",
   "api-reference.md": "TypeScript-API",
@@ -23,7 +23,7 @@ const ROOT_PAGES = { "SECURITY-HARDENING.md": "Security-Hardening" }
 
 const wikiDir = process.argv[2]
 if (!wikiDir || !existsSync(path.join(wikiDir, "_Sidebar.md"))) {
-  console.error("Usage: pnpm wiki:sync <checkout of jcode-ragmir.wiki.git>")
+  console.error("Usage: pnpm wiki:sync <checkout of ragmir.wiki.git>")
   process.exit(1)
 }
 const repoDir = path.resolve(import.meta.dirname, "..")

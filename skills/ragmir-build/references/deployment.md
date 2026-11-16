@@ -82,4 +82,4 @@ Returned passages contain document text. Log citations rather than passages for 
 corpora, check access before calling search, and give each audience its own base: Ragmir does not
 apply per-user permissions. Sending passages to a cloud model sends them to that provider.
 
-Reference: https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md
+Reference: https://github.com/jcode-works/ragmir/blob/main/docs/server-deployment.md

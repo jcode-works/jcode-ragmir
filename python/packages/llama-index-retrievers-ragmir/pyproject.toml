@@ -29,9 +29,9 @@ dependencies = ["ragmir", "llama-index-core>=0.13,<0.15"]
 
 [project.urls]
 Homepage = "https://ragmir.com"
-Documentation = "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md"
-Repository = "https://github.com/jcode-works/jcode-ragmir"
-Issues = "https://github.com/jcode-works/jcode-ragmir/issues"
+Documentation = "https://github.com/jcode-works/ragmir/blob/main/docs/python.md"
+Repository = "https://github.com/jcode-works/ragmir"
+Issues = "https://github.com/jcode-works/ragmir/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/llama_index"]
