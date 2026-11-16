@@ -1,6 +1,6 @@
 # ragmir
 
-Cited local retrieval for Python agents and RAG apps. [Ragmir](https://github.com/jcode-works/jcode-ragmir)
+Cited local retrieval for Python agents and RAG apps. [Ragmir](https://github.com/jcode-works/ragmir)
 indexes a project's code, PDFs, Office files, mail, and design files on your machine, and returns
 passages cited to lines, pages, slides, cells, or objects. A question the documents cannot answer
 returns nothing, so your application can say so instead of guessing.
@@ -50,5 +50,5 @@ any thread, a notebook, or a web framework, and each method has an async twin (`
 - [`llama-index-retrievers-ragmir`](https://pypi.org/project/llama-index-retrievers-ragmir/): a
   LlamaIndex retriever.
 
-Read the [Python guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md).
+Read the [Python guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md).
 Ragmir is open source under AGPL-3.0-only, with a commercial license available from JCode Works.

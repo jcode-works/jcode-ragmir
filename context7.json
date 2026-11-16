@@ -1,6 +1,6 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
-  "url": "https://context7.com/jcode-works/jcode-ragmir",
+  "url": "https://context7.com/jcode-works/ragmir",
   "public_key": "pk_wqsxhgdJZ9EvJuZoQxvpb",
   "projectTitle": "Ragmir",
   "description": "Open-source retrieval for agentic RAG: search code, docs, PDFs, Office files, and tool exports with exact citations on a laptop or server, through the rgr CLI, MCP, Agent Skills, TypeScript, LangChain, Python, LlamaIndex, and Docker.",
@@ -44,7 +44,7 @@
     "Paths are cited with forward slashes and in Unicode NFC on Linux, macOS, and Windows; exclusions match decomposed and case-variant names. A committed ragmir.config.json holds shared settings and .ragmir/config.json overrides it locally.",
     "Python: pip install ragmir (sync and async client), langchain-ragmir (RagmirRetriever, RagmirToolkit for LangChain and LangGraph), or llama-index-retrievers-ragmir. They drive the Core MCP server through Node.js or Docker.",
     "LangChain.js: RagmirRetriever and createRagmirTools({ client }) from @jcode.labs/ragmir/langchain, with the optional peer @langchain/core 1.x. An empty result means the documents hold no evidence.",
-    "Agent Skills: npx skills add jcode-works/jcode-ragmir installs ragmir (cited retrieval), ragmir-setup (install, sources, connection, OCR, upgrades), ragmir-build (applications), and ragmir-evaluate (golden files and rgr evaluate gates).",
+    "Agent Skills: npx skills add jcode-works/ragmir installs ragmir (cited retrieval), ragmir-setup (install, sources, connection, OCR, upgrades), ragmir-build (applications), and ragmir-evaluate (golden files and rgr evaluate gates).",
     "Ragmir indexes 900+ file types: code, Markdown, PDF, Office, OpenDocument, EPUB, HTML, email, Evernote, and exports from Figma, Sketch, Excalidraw, tldraw, XMind, Postman, Insomnia, HAR, OpenAPI, and modeling tools, cited per object.",
     "Ragmir always skips credential files such as .env, .env.local, .npmrc, .tfvars, SSH keys, and .pem files; dotenv templates (.env.example, .env.sample, env.template) index variable names and comments with every value masked."
   ]

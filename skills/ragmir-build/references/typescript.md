@@ -126,4 +126,4 @@ shutdown.
 `connectMcpServer(transport, cwd)` connects it to an MCP SDK transport. Close the handle when the
 host stops. A network-facing host owns authentication, authorization, TLS, and rate limits.
 
-Reference: https://github.com/jcode-works/jcode-ragmir/blob/main/docs/api-reference.md
+Reference: https://github.com/jcode-works/ragmir/blob/main/docs/api-reference.md

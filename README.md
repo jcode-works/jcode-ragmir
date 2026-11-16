@@ -18,13 +18,13 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm version" src="https://img.shields.io/npm/v/@jcode.labs/ragmir?color=cb3837&logo=npm"></a>
   <a href="https://pypi.org/project/ragmir/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/ragmir?color=3776ab&logo=pypi&logoColor=white"></a>
-  <a href="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jcode-works/jcode-ragmir/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/jcode-works/ragmir/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jcode-works/ragmir/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Linux, macOS, and Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-4c6ef5">
   <a href="./LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e44"></a>
   <a href="https://nodejs.org"><img alt="Node.js 22.12+" src="https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=node.js&logoColor=white"></a>
   <a href="https://www.npmjs.com/package/@jcode.labs/ragmir"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@jcode.labs/ragmir?color=cb3837"></a>
-  <a href="https://skills.sh/jcode-works/jcode-ragmir"><img alt="skills.sh" src="https://skills.sh/b/jcode-works/jcode-ragmir"></a>
-  <a href="https://github.com/jcode-works/jcode-ragmir"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jcode-works/jcode-ragmir?style=social"></a>
+  <a href="https://skills.sh/jcode-works/ragmir"><img alt="skills.sh" src="https://skills.sh/b/jcode-works/ragmir"></a>
+  <a href="https://github.com/jcode-works/ragmir"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jcode-works/ragmir?style=social"></a>
 </p>
 
 <p align="center">
@@ -193,14 +193,14 @@ LangChain.js retriever, the MCP server for any client, or the TypeScript API.
 
 | Agent or framework | Setup |
 | --- | --- |
-| Claude Code | `/plugin install ragmir --marketplace jcode-works/jcode-ragmir`, then `/ragmir:index` ([plugins](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents)); or `rgr setup --agents claude` for a project MCP server |
-| OpenAI Codex | `codex plugin marketplace add jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir`; or `rgr setup --agents codex` |
+| Claude Code | `/plugin install ragmir --marketplace jcode-works/ragmir`, then `/ragmir:index` ([plugins](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents)); or `rgr setup --agents claude` for a project MCP server |
+| OpenAI Codex | `codex plugin marketplace add jcode-works/ragmir`, then `codex plugin add ragmir@ragmir`; or `rgr setup --agents codex` |
 | Cursor | Cursor plugin in [`plugins/ragmir`](./plugins/ragmir) ([plugins](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents)) |
-| Gemini CLI | `gemini extensions install https://github.com/jcode-works/jcode-ragmir` |
-| Qwen Code | `qwen extensions install jcode-works/jcode-ragmir` |
+| Gemini CLI | `gemini extensions install https://github.com/jcode-works/ragmir` |
+| Qwen Code | `qwen extensions install jcode-works/ragmir` |
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
 | Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
-| Any agent that loads skills | `npx skills add jcode-works/jcode-ragmir` installs the retrieval, setup, build, and evaluation [skills](./skills) ([skills.sh](https://skills.sh/jcode-works/jcode-ragmir)) |
+| Any agent that loads skills | `npx skills add jcode-works/ragmir` installs the retrieval, setup, build, and evaluation [skills](./skills) ([skills.sh](https://skills.sh/jcode-works/ragmir)) |
 | LangChain.js and LangGraph.js | `RagmirRetriever` for chains, `createRagmirTools` for agents, from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever-and-agent-tools)) |
 | Python | `pip install ragmir` for the client, `langchain-ragmir` for LangChain and LangGraph, `llama-index-retrievers-ragmir` for LlamaIndex ([Python guide](./docs/python.md)) |
 | Local models such as Ollama | [Local model example](./docs/agent-integration.md#confidential-chat-local-model-example) |
@@ -467,7 +467,7 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 - [Run with Docker](./docs/docker.md)
 - [Use Ragmir from Python](./docs/python.md)
 - [Agent skills](./skills)
-- [Ragmir on Context7](https://context7.com/jcode-works/jcode-ragmir), for coding assistants that fetch library docs
+- [Ragmir on Context7](https://context7.com/jcode-works/ragmir), for coding assistants that fetch library docs
 - [Migration guide](./docs/migration.md)
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Synthetic examples](./packages/ragmir-core/examples/sovereign-rag-demo/README.md)
@@ -475,11 +475,11 @@ then run `rgr ingest`. Monorepos can keep separate bases, selected with `rgr bas
 ## Community
 
 Ask questions, propose ideas, and report bugs in
-[GitHub Issues](https://github.com/jcode-works/jcode-ragmir/issues) ([support](./SUPPORT.md)); report
+[GitHub Issues](https://github.com/jcode-works/ragmir/issues) ([support](./SUPPORT.md)); report
 vulnerabilities privately through [SECURITY](./SECURITY.md). Ragmir collects no data; the
 [privacy policy](./PRIVACY.md) describes what stays on your machine. Follow releases on
-[GitHub](https://github.com/jcode-works/jcode-ragmir/releases), and if Ragmir saves your agents
-time, [star the repository](https://github.com/jcode-works/jcode-ragmir) so other teams find it.
+[GitHub](https://github.com/jcode-works/ragmir/releases), and if Ragmir saves your agents
+time, [star the repository](https://github.com/jcode-works/ragmir) so other teams find it.
 
 ## Contributing
 

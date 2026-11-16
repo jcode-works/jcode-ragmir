@@ -11,9 +11,9 @@ ARG RAGMIR_VERSION
 
 LABEL org.opencontainers.image.title="Ragmir" \
       org.opencontainers.image.description="Cited local retrieval for agents: rgr CLI and stdio MCP server" \
-      org.opencontainers.image.source="https://github.com/jcode-works/jcode-ragmir" \
+      org.opencontainers.image.source="https://github.com/jcode-works/ragmir" \
       org.opencontainers.image.url="https://ragmir.com" \
-      org.opencontainers.image.documentation="https://github.com/jcode-works/jcode-ragmir/blob/main/docs/docker.md" \
+      org.opencontainers.image.documentation="https://github.com/jcode-works/ragmir/blob/main/docs/docker.md" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.vendor="JCode Works" \
       org.opencontainers.image.version="${RAGMIR_VERSION}" \

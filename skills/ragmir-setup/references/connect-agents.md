@@ -65,10 +65,10 @@ an index (setup steps 3 and 4).
 
 | Agent | Install |
 | --- | --- |
-| Claude Code | `/plugin install ragmir --marketplace jcode-works/jcode-ragmir`, then `/ragmir:index` |
-| Codex | `codex plugin marketplace add jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir` |
-| Gemini CLI | `gemini extensions install https://github.com/jcode-works/jcode-ragmir` |
-| Qwen Code | `qwen extensions install jcode-works/jcode-ragmir` |
+| Claude Code | `/plugin install ragmir --marketplace jcode-works/ragmir`, then `/ragmir:index` |
+| Codex | `codex plugin marketplace add jcode-works/ragmir`, then `codex plugin add ragmir@ragmir` |
+| Gemini CLI | `gemini extensions install https://github.com/jcode-works/ragmir` |
+| Qwen Code | `qwen extensions install jcode-works/ragmir` |
 
 ## Docker
 

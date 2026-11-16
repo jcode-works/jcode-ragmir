@@ -5,7 +5,7 @@ Ragmir is available through two licensing paths.
 ## Open-source path
 
 The source code is available under the
-[GNU Affero General Public License v3.0 only](https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE)
+[GNU Affero General Public License v3.0 only](https://github.com/jcode-works/ragmir/blob/main/LICENSE)
 (`AGPL-3.0-only`). This path allows use, modification, and redistribution under the terms of that
 license, including its source-availability requirements for modified software used over a network.
 
@@ -28,7 +28,7 @@ code released from `v3.0.0` onward is `AGPL-3.0-only` unless an individual file 
 
 Third-party dependencies, model files, and other separately identified material keep their own
 licenses. Code contributions require the rights described in
-[CONTRIBUTING.md](https://github.com/jcode-works/jcode-ragmir/blob/main/CONTRIBUTING.md) so the
+[CONTRIBUTING.md](https://github.com/jcode-works/ragmir/blob/main/CONTRIBUTING.md) so the
 project can continue to offer both licensing paths.
 
 The AGPL license does not grant trademark rights in the Ragmir, JCode Labs, or JCode Works names or

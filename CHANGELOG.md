@@ -1,7 +1,7 @@
 # Changelog
 
 Ragmir publishes its canonical version history through
-[GitHub Releases](https://github.com/jcode-works/jcode-ragmir/releases). Each release is generated
+[GitHub Releases](https://github.com/jcode-works/ragmir/releases). Each release is generated
 by semantic-release from the Conventional Commits merged into `main`, after the repository
 validation workflow passes.
 
@@ -10,8 +10,8 @@ the version history.
 
 ## Release history
 
-- [Latest release](https://github.com/jcode-works/jcode-ragmir/releases/latest)
-- [All releases and version comparisons](https://github.com/jcode-works/jcode-ragmir/releases)
+- [Latest release](https://github.com/jcode-works/ragmir/releases/latest)
+- [All releases and version comparisons](https://github.com/jcode-works/ragmir/releases)
 - [Current TypeScript API reference](./docs/api-reference.md)
 
 Each GitHub release contains generated feature, fix, and compatibility notes plus the verification

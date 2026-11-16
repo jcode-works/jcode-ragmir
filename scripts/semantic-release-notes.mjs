@@ -1,4 +1,4 @@
-const REPOSITORY_URL = "https://github.com/jcode-works/jcode-ragmir"
+const REPOSITORY_URL = "https://github.com/jcode-works/ragmir"
 const SECTION_LABELS = {
   "Release highlights": "highlights",
   "Release details": "details",

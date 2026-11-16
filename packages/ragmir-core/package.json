@@ -36,12 +36,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jcode-works/jcode-ragmir.git",
+    "url": "git+https://github.com/jcode-works/ragmir.git",
     "directory": "packages/ragmir-core"
   },
-  "homepage": "https://github.com/jcode-works/jcode-ragmir#readme",
+  "homepage": "https://github.com/jcode-works/ragmir#readme",
   "bugs": {
-    "url": "https://github.com/jcode-works/jcode-ragmir/issues"
+    "url": "https://github.com/jcode-works/ragmir/issues"
   },
   "engines": {
     "node": ">=22.12.0"

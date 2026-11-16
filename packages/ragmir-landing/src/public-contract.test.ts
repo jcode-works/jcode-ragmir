@@ -159,12 +159,12 @@ describe("landing public contract", () => {
     expect([fr.hero_proof_recall_value, fr.hero_proof_speed_value]).toEqual(["94 %", "36 ms"])
     expect(en.hero_proof_speed_label).toContain("30,171-chunk monorepo")
     expect(heroSource).toContain('t("hero_proof_recall_value")')
-    expect(PROJECT_LINKS.benchmarks).toBe("https://github.com/jcode-works/jcode-ragmir#benchmarks")
+    expect(PROJECT_LINKS.benchmarks).toBe("https://github.com/jcode-works/ragmir#benchmarks")
     expect(heroSource).toContain("PROJECT_LINKS.benchmarks")
   })
 
   it("should send visitors to GitHub and npm from the navbar, its drawer, and the footer", () => {
-    expect(PROJECT_LINKS.github).toBe("https://github.com/jcode-works/jcode-ragmir")
+    expect(PROJECT_LINKS.github).toBe("https://github.com/jcode-works/ragmir")
     expect(PROJECT_LINKS.npm).toBe("https://www.npmjs.com/package/@jcode.labs/ragmir")
     for (const source of [navbarSource, footerSource]) {
       expect(source).toContain('t("hero_github_cta")')
@@ -232,7 +232,7 @@ describe("landing public contract", () => {
     expect(deploySource).toContain('id="deploy"')
     expect(deploySource).toContain("PROJECT_LINKS.serverGuide")
     expect(PROJECT_LINKS.serverGuide).toBe(
-      "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/server-deployment.md",
+      "https://github.com/jcode-works/ragmir/blob/main/docs/server-deployment.md",
     )
     expect(navbarSource).toContain('t("nav_deploy")')
     expect(en.deploy_text).toContain("Forward deployed engineers")
@@ -244,7 +244,7 @@ describe("landing public contract", () => {
       expect(source).toContain("docs/python.md")
     }
     expect(PROJECT_LINKS.pythonGuide).toBe(
-      "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md",
+      "https://github.com/jcode-works/ragmir/blob/main/docs/python.md",
     )
   })
 
@@ -317,9 +317,7 @@ describe("landing public contract", () => {
     expect(fr.footer_link_commercial_license).toBe("Licence commerciale")
     expect(closingCtaSource).toContain('t("closing_open_source")')
     expect(PROJECT_LINKS.commercialLicense).toContain("COMMERCIAL-LICENSE.md")
-    expect(PROJECT_LINKS.license).toBe(
-      "https://github.com/jcode-works/jcode-ragmir/blob/main/LICENSE",
-    )
+    expect(PROJECT_LINKS.license).toBe("https://github.com/jcode-works/ragmir/blob/main/LICENSE")
     expect(FOOTER_LINK_KEYS).toContain("commercialLicense")
     expect(FOOTER_LINK_KEYS).toContain("license")
     expect(homePageSource).toContain("license: PROJECT_LINKS.license")

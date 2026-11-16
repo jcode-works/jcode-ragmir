@@ -6,7 +6,7 @@
 ...         print(passage.citation, passage.text)
 
 Ragmir runs locally through Node.js (a project install, a global ``rgr``, or the pinned npm
-release through npx) or the official Docker image. See https://github.com/jcode-works/jcode-ragmir.
+release through npx) or the official Docker image. See https://github.com/jcode-works/ragmir.
 """
 
 from ._client import DEFAULT_TIMEOUT, AsyncRagmir, Ragmir

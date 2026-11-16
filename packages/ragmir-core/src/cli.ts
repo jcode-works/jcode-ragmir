@@ -1580,7 +1580,7 @@ for (const [name, replacement] of RETIRED_COMMANDS) {
     .allowExcessArguments()
     .action(() => {
       console.error(
-        `\`rgr ${name}\` was removed: Ragmir now returns cited evidence and your agent writes the result. ${replacement} See https://github.com/jcode-works/jcode-ragmir/blob/main/docs/migration.md`,
+        `\`rgr ${name}\` was removed: Ragmir now returns cited evidence and your agent writes the result. ${replacement} See https://github.com/jcode-works/ragmir/blob/main/docs/migration.md`,
       )
       process.exitCode = 1
     })

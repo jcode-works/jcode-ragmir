@@ -1,18 +1,18 @@
 {
-  "name": "jcode-ragmir",
+  "name": "ragmir",
   "version": "0.4.12",
   "private": true,
   "description": "Open-source retrieval for agentic RAG: document search with exact citations on your laptop or servers, with OCR, CLI, MCP, and TypeScript.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": "JCode Works <contact@jcode.works> (https://jcode.works)",
-  "homepage": "https://github.com/jcode-works/jcode-ragmir#readme",
+  "homepage": "https://github.com/jcode-works/ragmir#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jcode-works/jcode-ragmir.git"
+    "url": "git+https://github.com/jcode-works/ragmir.git"
   },
   "bugs": {
-    "url": "https://github.com/jcode-works/jcode-ragmir/issues"
+    "url": "https://github.com/jcode-works/ragmir/issues"
   },
   "keywords": [
     "ragmir",
