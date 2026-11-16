@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://ragmir.com">
-    <img src="https://ragmir.com/og/ragmir-og.png" width="640" alt="Ragmir: local retrieval with exact citations for coding agents">
+    <img src="https://ragmir.com/og/ragmir-og.png" width="640" alt="Ragmir: agentic RAG on your infrastructure with exact citations">
   </a>
 </p>
 
