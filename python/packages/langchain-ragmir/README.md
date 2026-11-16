@@ -1,6 +1,6 @@
 # langchain-ragmir
 
-LangChain and LangGraph integration for [Ragmir](https://github.com/jcode-works/jcode-ragmir):
+LangChain and LangGraph integration for [Ragmir](https://github.com/jcode-works/ragmir):
 cited local retrieval over a project's code, PDFs, Office files, and more. Every document carries
 its citation, and a question the documents cannot answer returns nothing.
 
@@ -46,5 +46,5 @@ tool message artifact. `ragmir_expand` reads a citation with its neighbours and 
 read on. Retrievers and tools over the same project share one Ragmir server; pass
 `client=ragmir.Ragmir(...)` to manage it yourself.
 
-Read the [Python guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md).
+Read the [Python guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md).
 Open source under AGPL-3.0-only, with a commercial license available from JCode Works.

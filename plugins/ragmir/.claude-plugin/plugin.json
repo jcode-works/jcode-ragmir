@@ -7,7 +7,7 @@
     "url": "https://github.com/jb-thery"
   },
   "homepage": "https://ragmir.com",
-  "repository": "https://github.com/jcode-works/jcode-ragmir",
+  "repository": "https://github.com/jcode-works/ragmir",
   "license": "AGPL-3.0-only",
   "keywords": [
     "rag",
@@ -17,7 +17,7 @@
     "local-first",
     "documents"
   ],
-  "documentationUrl": "https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents",
-  "supportUrl": "https://github.com/jcode-works/jcode-ragmir/issues",
-  "privacyPolicyUrl": "https://github.com/jcode-works/jcode-ragmir/blob/main/PRIVACY.md"
+  "documentationUrl": "https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents",
+  "supportUrl": "https://github.com/jcode-works/ragmir/issues",
+  "privacyPolicyUrl": "https://github.com/jcode-works/ragmir/blob/main/PRIVACY.md"
 }

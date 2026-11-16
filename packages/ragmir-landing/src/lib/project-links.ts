@@ -1,6 +1,6 @@
 // Public project destinations. The hero, the mobile drawer, and the footer read this one list, so
 // a link added or moved here reaches every surface at once.
-export const GITHUB_URL = "https://github.com/jcode-works/jcode-ragmir"
+export const GITHUB_URL = "https://github.com/jcode-works/ragmir"
 export const NPM_URL = "https://www.npmjs.com/package/@jcode.labs/ragmir"
 
 export const PROJECT_LINKS = {
@@ -13,8 +13,8 @@ export const PROJECT_LINKS = {
   pythonGuide: `${GITHUB_URL}/blob/main/docs/python.md`,
   dockerGuide: `${GITHUB_URL}/blob/main/docs/docker.md`,
   pypi: "https://pypi.org/project/ragmir/",
-  agentSkills: "https://skills.sh/jcode-works/jcode-ragmir",
-  context7: "https://context7.com/jcode-works/jcode-ragmir",
+  agentSkills: "https://skills.sh/jcode-works/ragmir",
+  context7: "https://context7.com/jcode-works/ragmir",
   benchmarks: `${GITHUB_URL}#benchmarks`,
   releases: `${GITHUB_URL}/releases/latest`,
   changelog: `${GITHUB_URL}/blob/main/CHANGELOG.md`,

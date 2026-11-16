@@ -1,6 +1,6 @@
 # llama-index-retrievers-ragmir
 
-LlamaIndex retriever for [Ragmir](https://github.com/jcode-works/jcode-ragmir): cited local
+LlamaIndex retriever for [Ragmir](https://github.com/jcode-works/ragmir): cited local
 retrieval over a project's code, PDFs, Office files, and more. Every node carries its citation,
 and a question the documents cannot answer returns no node.
 
@@ -27,5 +27,5 @@ Node metadata holds `source`, `citation`, `context_path`, line or page ranges, `
 `source_status` when the file changed after indexing; only the citation and its context reach the
 LLM prompt. Nodes keep Ragmir's ranking order without a similarity score.
 
-Read the [Python guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/python.md).
+Read the [Python guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md).
 Open source under AGPL-3.0-only, with a commercial license available from JCode Works.

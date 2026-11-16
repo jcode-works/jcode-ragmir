@@ -8,7 +8,7 @@ with no account, API key, or hosted store.
 ## Install
 
 ```text
-/plugin install ragmir --marketplace jcode-works/jcode-ragmir
+/plugin install ragmir --marketplace jcode-works/ragmir
 ```
 
 Then, in each project, run the indexing command once and confirm the sources Claude may read:
@@ -30,10 +30,10 @@ The plugin works in Claude Code, where the project files live on your machine. T
 desktop chat, and mobile apps cannot reach local files, so they cannot use it.
 
 The same folder also installs in OpenAI Codex (`codex plugin marketplace add
-jcode-works/jcode-ragmir`, then `codex plugin add ragmir@ragmir`), Cursor (copy it to
+jcode-works/ragmir`, then `codex plugin add ragmir@ragmir`), Cursor (copy it to
 `~/.cursor/plugins/local/ragmir`), Gemini CLI, and Qwen Code; the
-[agent integration guide](https://github.com/jcode-works/jcode-ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents)
+[agent integration guide](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents)
 lists every command.
 
 Ragmir is open source under AGPL-3.0, with a commercial license available. Documentation:
-<https://github.com/jcode-works/jcode-ragmir>.
+<https://github.com/jcode-works/ragmir>.

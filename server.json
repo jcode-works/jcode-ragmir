@@ -5,7 +5,7 @@
   "description": "Cited local retrieval for agents: search code, PDFs, and Office files with exact citations.",
   "websiteUrl": "https://ragmir.com",
   "repository": {
-    "url": "https://github.com/jcode-works/jcode-ragmir",
+    "url": "https://github.com/jcode-works/ragmir",
     "source": "github",
     "subfolder": "packages/ragmir-core"
   },

@@ -3,6 +3,21 @@
 This is a breaking surface change. Ragmir now concentrates on local indexing, search, exact
 citations, OCR, and integration with developer agents.
 
+## Repository renamed to jcode-works/ragmir (6.15.1)
+
+The GitHub repository moved from `jcode-works/jcode-ragmir` to
+[`jcode-works/ragmir`](https://github.com/jcode-works/ragmir). GitHub redirects the old URLs,
+clones, and plugin marketplace sources, so existing installs keep working. Use the new name in new
+commands, and update a saved Git remote when convenient:
+
+```bash
+git remote set-url origin https://github.com/jcode-works/ragmir.git
+```
+
+Package names do not change: `@jcode.labs/ragmir` on npm, `ragmir`, `langchain-ragmir`, and
+`llama-index-retrievers-ragmir` on PyPI, the `ghcr.io/jcode-works/ragmir` image, and the MCP
+Registry entry `io.github.jcode-works/ragmir`. The Context7 library is now `/jcode-works/ragmir`.
+
 ## XMind maps and more than 230 new file types (6.15)
 
 The next `rgr ingest` indexes file types that Ragmir skipped before: XMind maps (one section per
