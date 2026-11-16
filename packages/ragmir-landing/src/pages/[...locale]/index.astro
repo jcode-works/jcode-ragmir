@@ -191,10 +191,15 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
 
     <UseCases translations={translations} />
 
-    <LibrarySection
-      client:visible
-      translations={pickTranslations(translations, LIBRARY_TRANSLATIONS)}
-    />
+    <div class="relative isolate overflow-hidden">
+      <div aria-hidden="true" class="absolute inset-0">
+        <RagmirBackground client:visible behindContent={false} height="100%" />
+      </div>
+      <LibrarySection
+        client:visible
+        translations={pickTranslations(translations, LIBRARY_TRANSLATIONS)}
+      />
+    </div>
 
     <Integrations translations={translations} />
 
