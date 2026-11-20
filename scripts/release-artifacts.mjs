@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import YAML from "yaml"
@@ -10,6 +11,16 @@ const artifactsDir = path.join(repoRoot, "release-artifacts")
 const corePackageDir = "packages/ragmir-core"
 const packageDirs = [corePackageDir]
 const requiredLicenseFiles = ["LICENSE", "COMMERCIAL-LICENSE.md", "NOTICE"]
+// Gemini CLI and Qwen Code install the release asset whose name starts with their platform, and
+// unpack the source tree only when none matches: that tree still pins the previous release.
+const extensionPlatforms = ["darwin", "linux", "win32"]
+const extensionEntries = [
+  "gemini-extension.json",
+  "qwen-extension.json",
+  "plugins/ragmir",
+  "skills",
+  ...requiredLicenseFiles,
+]
 const corePackageJson = await readPackageJson(corePackageDir)
 
 await rm(artifactsDir, { recursive: true, force: true })
@@ -57,6 +68,8 @@ await writeFile(
   "utf8",
 )
 
+const extensionAssets = await buildAgentExtension(corePackageJson.version)
+
 const checksums = await sha256Files(artifactsDir)
 await writeFile(
   path.join(artifactsDir, "SHA256SUMS"),
@@ -72,6 +85,7 @@ await writeFile(
       version: corePackageJson.version,
       packages,
       sbom: sbomFile,
+      agentExtension: { version: corePackageJson.version, assets: extensionAssets },
       checksums: "SHA256SUMS",
       provenance: "pnpm publish --provenance is enforced by the protected GitHub Actions workflow.",
     },
@@ -82,6 +96,60 @@ await writeFile(
 )
 
 console.log(`Release artifacts written to ${path.relative(repoRoot, artifactsDir)}`)
+
+/**
+ * The Gemini CLI and Qwen Code extension with every Ragmir pin stamped to this release, packed
+ * once per platform name those agents look for.
+ */
+async function buildAgentExtension(version) {
+  const stage = await mkdtemp(path.join(os.tmpdir(), "ragmir-extension-"))
+  try {
+    for (const entry of extensionEntries) {
+      await cp(path.join(repoRoot, entry), path.join(stage, entry), { recursive: true })
+    }
+    const launcher = await readFile(
+      path.join(stage, "plugins/ragmir/scripts/serve-mcp.mjs"),
+      "utf8",
+    )
+    const pin = /RAGMIR_VERSION = "([^"]+)"/u.exec(launcher)?.[1]
+    if (!pin) {
+      throw new Error("plugins/ragmir/scripts/serve-mcp.mjs must pin a Ragmir version")
+    }
+    for (const file of await listFiles(stage)) {
+      if (![".json", ".md", ".mjs"].includes(path.extname(file))) {
+        continue
+      }
+      const text = await readFile(file, "utf8")
+      let stamped = text
+        .replaceAll(`RAGMIR_VERSION = "${pin}"`, `RAGMIR_VERSION = "${version}"`)
+        .replaceAll(`@jcode.labs/ragmir@${pin}`, `@jcode.labs/ragmir@${version}`)
+      if (/^(gemini|qwen)-extension\.json$/u.test(path.basename(file))) {
+        stamped = `${JSON.stringify({ ...JSON.parse(stamped), version }, null, 2)}\n`
+      }
+      const stale = /@jcode\.labs\/ragmir@(\d+\.\d+\.\d+)/gu.exec(stamped)
+      if (stale && stale[1] !== version) {
+        throw new Error(`${path.relative(stage, file)} pins Ragmir ${stale[1]}, not ${version}`)
+      }
+      if (stamped !== text) {
+        await writeFile(file, stamped, "utf8")
+      }
+    }
+    const assets = extensionPlatforms.map((platform) => `${platform}.ragmir.tar.gz`)
+    for (const asset of assets) {
+      run("tar", ["-czf", path.join(artifactsDir, asset), "-C", stage, "."])
+    }
+    return assets
+  } finally {
+    await rm(stage, { recursive: true, force: true })
+  }
+}
+
+async function listFiles(directory) {
+  const entries = await readdir(directory, { recursive: true, withFileTypes: true })
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(entry.parentPath, entry.name))
+}
 
 function packagePath(directory) {
   return path.join(repoRoot, directory)
@@ -105,6 +173,8 @@ function run(command, args, cwd = repoRoot) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
+    // macOS tar would otherwise add AppleDouble `._*` files for extended attributes.
+    env: { ...process.env, COPYFILE_DISABLE: "1" },
     stdio: ["ignore", "pipe", "pipe"],
   })
   if (result.status !== 0) {
