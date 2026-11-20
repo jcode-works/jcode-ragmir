@@ -60,6 +60,15 @@ def test_search_fuses_formulations_and_drops_exclusions(rag: Ragmir) -> None:
         rag.search("refund", searches=[{"type": "lex", "query": "-portal"}])
 
 
+def test_knowledge_audit_reports_pages_without_changing_them(rag: Ragmir) -> None:
+    report = rag.knowledge_audit(paths=["docs"])
+
+    assert report["pages"] == 4
+    assert {item["path"] for item in report["findings"]["unlinkedPages"]["items"]} >= {
+        "docs/refunds.md"
+    }
+
+
 def test_search_many_answers_each_question(rag: Ragmir) -> None:
     answers = rag.search_many(["refund approval", "return label expiry"])
 

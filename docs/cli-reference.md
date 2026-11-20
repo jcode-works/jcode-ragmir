@@ -25,7 +25,7 @@ rgr search "release decision"
 | `preview` | Parse and chunk selected sources without writing the index. |
 | `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY] [--metrics] [--json]` | Index configured sources through bounded windows with per-file durable progress; optionally return privacy-safe phase and throughput metrics. |
 | `search <query>` | Return ranked cited passages. |
-| `audit [--unsupported]` | Compare sources with the index, list skipped files, and diagnose source rules and index concentration. |
+| `audit [--unsupported] [--knowledge]` | Compare sources with the index, list skipped files, and diagnose source rules and index concentration; `--knowledge` audits the Markdown pages instead. |
 | `hooks install\|uninstall\|status` | Refresh the index in the background after commits, merges, checkouts, and rebases. |
 | `bases` | List root and nested monorepo bases and mark the active one. |
 | `status` | Show the base name and scopes, configuration, live freshness, indexed chunk count, and the latest ingestion progress. |
@@ -112,6 +112,44 @@ required facts, exceptions, and current decisions are actually present.
 `preview` uses the active extraction and chunking configuration without changing the search index.
 It can populate the local OCR cache and returns extracted chunk text. `audit` reports min, mean,
 p50, p95, and max chunk sizes plus structural-context coverage.
+
+### Knowledge audit
+
+`rgr audit --knowledge` audits the indexed Markdown pages as a knowledge base, such as a wiki that
+agents maintain from raw sources. It reads the index, changes nothing, and every finding is
+deterministic:
+
+```bash
+rgr audit --knowledge
+rgr audit --knowledge --path wiki --json
+rgr audit --knowledge --assume-removed wiki/old-runbook.md
+```
+
+| Finding | Meaning |
+| --- | --- |
+| `brokenLinks` | A relative link reaches no indexed file; `suggestion` names the one file with that name. |
+| `missingPages` | `[[Wikilinks]]` to pages that do not exist, most referenced first, each counted once. |
+| `unlinkedPages` | Pages that no other page links to; a link to itself does not count. |
+| `duplicateTitles` | Pages sharing a title, from front matter or a level-1 heading. |
+| `brokenCitations` | Ragmir citations written in a page whose passage moved (`changed`) or left the index (`missing`). |
+| `stalePages` | Pages whose front matter `sources` record a `sha256` the source no longer has. |
+| `lostSources` | Pages whose every declared source left the index. |
+
+A page declares what it was written from in its front matter, as a path, a path with the SHA-256
+of the version it used, or a citation with the `evidence` id that `rgr search --json` returned:
+
+```yaml
+sources:
+  - raw/incident-42.md
+  - path: raw/vendor-sla.pdf
+    sha256: 9f2c...
+  - citation: raw/notes.md:L12-L18#3
+    evidence: 4b1e...
+```
+
+`--path` restricts the audit to some pages, which then form the knowledge base on their own.
+`--assume-removed` adds the links that removing a page would break and the pages it would leave
+unlinked. Each finding lists its first 20 items and keeps its full count.
 
 ## Freshness
 

@@ -215,7 +215,8 @@ likely-answer formulations fused into one ranking), `ragmir_expand` (a citation 
 the next window to read a document through, up to five citations at once, and a Markdown page's
 links and backlinks), `ragmir_sources` (the indexed documents with their page titles, or one
 document's outline),
-`ragmir_status`, `ragmir_audit`, and `ragmir_ingest`, which refreshes the index after files change
+`ragmir_status`, `ragmir_audit` (also a read-only audit of Markdown pages: broken links, missing
+pages, changed citations), and `ragmir_ingest`, which refreshes the index after files change
 and writes nothing but Ragmir's private index. Search excerpts start at the lines that hold the
 question's words, results say what their folder is when the configuration describes it, and a
 notice names question words that no indexed passage holds. An `answer` prompt asks for a fully

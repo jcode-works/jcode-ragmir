@@ -899,6 +899,65 @@ export interface DocumentLinks {
   }
 }
 
+export interface KnowledgeAuditOptions extends OperationOptions {
+  /** Audit only the Markdown pages under these folders or files, or matching these globs. */
+  paths?: string[]
+  /** Also report what removing these pages would break; nothing is removed. */
+  assumeRemoved?: string[]
+  /** Items listed per finding; counts stay complete. Default 20. */
+  previewLimit?: number
+}
+
+/** One kind of finding: how many there are, and the first of them. */
+export interface KnowledgeFinding<Item> {
+  count: number
+  items: Item[]
+}
+
+/**
+ * A deterministic audit of the indexed Markdown pages as a knowledge base. It reads the index and
+ * changes nothing: fixes are left to the agent or the author.
+ */
+export interface KnowledgeAuditReport {
+  pages: number
+  links: number
+  /** Ragmir citations written in the pages, in their text or front matter `sources`. */
+  citations: number
+  findings: {
+    /** Relative links to no indexed file; `suggestion` names the one file with that name. */
+    brokenLinks: KnowledgeFinding<{
+      source: string
+      line: number
+      target: string
+      citation: string
+      suggestion?: string
+    }>
+    /** Wikilinks to pages that do not exist, most referenced first. */
+    missingPages: KnowledgeFinding<{ target: string; references: number; sources: string[] }>
+    /** Pages no other page links to. */
+    unlinkedPages: KnowledgeFinding<{ path: string }>
+    /** Pages that share a title, from front matter or a level-1 heading. */
+    duplicateTitles: KnowledgeFinding<{ title: string; paths: string[] }>
+    /** Written citations whose passage moved (`changed`) or left the index (`missing`). */
+    brokenCitations: KnowledgeFinding<{
+      source: string
+      line: number
+      citation: string
+      status: "changed" | "missing"
+    }>
+    /** Pages whose front matter `sources` record a `sha256` the source no longer has. */
+    stalePages: KnowledgeFinding<{ path: string; changedSources: string[] }>
+    /** Pages whose every declared source left the index. */
+    lostSources: KnowledgeFinding<{ path: string }>
+  }
+  /** With `assumeRemoved`: the links that would break and the pages left unlinked. */
+  assumeRemoved?: {
+    paths: string[]
+    brokenLinks: KnowledgeAuditReport["findings"]["brokenLinks"]
+    unlinkedPages: KnowledgeAuditReport["findings"]["unlinkedPages"]
+  }
+}
+
 export interface CompactSearchResult {
   source: string
   relativePath: string

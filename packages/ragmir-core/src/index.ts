@@ -53,7 +53,7 @@ export { configurePdfOcr, extractPdfPage, extractPdfPages, inspectPdfOcr } from 
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
 export { previewChunks } from "./preview.js"
-export { expandCitation, search, searchReport } from "./query.js"
+export { expandCitation, knowledgeAudit, search, searchReport } from "./query.js"
 export type { ExcerptFocus } from "./search-output.js"
 export { compactSearchResults } from "./search-output.js"
 export { securityAudit } from "./security.js"
@@ -135,12 +135,15 @@ export type {
   IngestionThroughputMetrics,
   IngestOptions,
   IngestResult,
+  KnowledgeAuditOptions,
+  KnowledgeAuditReport,
   KnowledgeBaseContextReport,
   KnowledgeBaseIdentity,
   KnowledgeBaseInfo,
   KnowledgeBaseInventory,
   KnowledgeBaseSourceCatalog,
   KnowledgeBaseSourceCatalogOptions,
+  KnowledgeFinding,
   McpOutputTool,
   OperationOptions,
   ParsedPage,

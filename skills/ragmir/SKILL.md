@@ -56,6 +56,7 @@ validated replacement activates, so never delete `.ragmir/storage/` as the first
 | Full passage, read a document through | `ragmir_expand` | `rgr search "query" --json` |
 | List indexed documents | `ragmir_sources` | |
 | Missing, stale, or skipped files | `ragmir_audit`, `ragmir://sources` | `rgr audit --unsupported` |
+| Broken links, missing pages, stale citations in Markdown | `ragmir_audit` with `knowledge: true` | `rgr audit --knowledge` |
 | Refresh after files change | `ragmir_ingest` | `rgr ingest` |
 | Why a passage ranked where it did | | `rgr search "query" --explain` |
 | Retrieval quality on known questions | | `rgr evaluate --golden <file>` |

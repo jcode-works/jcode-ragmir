@@ -6,6 +6,8 @@ import { markdownFenceSpans } from "./document-structure.js"
 export interface MarkdownLink {
   /** Line of the link in the page, from 1. */
   line: number
+  /** Character offset of the link in the text it was read from. */
+  offset: number
   /** The target as written, without its `#anchor` or query. */
   target: string
   /** `[[target]]` (Obsidian), resolved by file name; otherwise a relative path. */
@@ -32,7 +34,7 @@ const INLINE_CODE_PATTERN = /(`+)[\s\S]*?\1/gu
 export function markdownLinks(text: string): MarkdownLink[] {
   const masked = withoutCode(text)
   const lineStarts = lineStartOffsets(text, undefined)
-  const links: Array<MarkdownLink & { offset: number }> = []
+  const links: MarkdownLink[] = []
   const add = (offset: number, written: string | undefined, wikilink: boolean): void => {
     const target = linkTarget(written ?? "", wikilink)
     if (target !== null) {
@@ -43,9 +45,41 @@ export function markdownLinks(text: string): MarkdownLink[] {
     for (const match of masked.matchAll(pattern)) add(match.index, match[1] ?? match[2], false)
   }
   for (const match of masked.matchAll(WIKILINK_PATTERN)) add(match.index, match[1], true)
-  return links
-    .sort((left, right) => left.offset - right.offset)
-    .map(({ offset: _offset, ...link }) => link)
+  return links.sort((left, right) => left.offset - right.offset)
+}
+
+/** An indexed passage of a Markdown page, as far as its links are concerned. */
+export interface LinkedPassage {
+  relativePath: string
+  chunkIndex: number
+  text: string
+  /** First source line of the passage, when it has line coordinates. */
+  lineStart?: number | null
+  /** Offset of the passage in its page, when known. */
+  charStart?: number | null
+}
+
+/**
+ * The links written in indexed passages, each once although neighbouring chunks overlap, with its
+ * line in the page and the first passage that holds it.
+ */
+export function linksInPassages<Passage extends LinkedPassage>(
+  passages: readonly Passage[],
+): Array<{ link: MarkdownLink; line: number; passage: Passage }> {
+  const found = new Map<string, { link: MarkdownLink; line: number; passage: Passage }>()
+  for (const passage of [...passages].sort((left, right) => left.chunkIndex - right.chunkIndex)) {
+    const firstLine = typeof passage.lineStart === "number" ? passage.lineStart : 1
+    for (const link of markdownLinks(passage.text)) {
+      const line = firstLine + link.line - 1
+      // Overlapping chunks hold the same link at the same offset of the page.
+      const key =
+        typeof passage.charStart === "number"
+          ? `${passage.relativePath}\0${passage.charStart + link.offset}`
+          : `${passage.relativePath}\0${line}\0${link.target}`
+      if (!found.has(key)) found.set(key, { link, line, passage })
+    }
+  }
+  return [...found.values()]
 }
 
 /**

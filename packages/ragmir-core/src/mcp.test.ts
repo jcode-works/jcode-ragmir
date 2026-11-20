@@ -708,6 +708,29 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
     expect(textContent(refused)).toMatch(/searches refine one question/u)
   })
 
+  it("audits Markdown pages as a knowledge base on request", async () => {
+    const root = await createProject("ragmir-mcp-knowledge-")
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "index.md"),
+      "# Index\nSee [retries](retries.md) and [[Incident 42]].\n",
+    )
+    await writeFile(path.join(root, ".ragmir", "raw", "retries.md"), "# Retries\nBack off.\n")
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const report = (await jsonToolResult(client, "ragmir_audit", { knowledge: true })) as {
+      pages: number
+      findings: {
+        missingPages: { count: number; items: Array<{ target: string }> }
+        unlinkedPages: { count: number; items: Array<{ path: string }> }
+      }
+    }
+
+    expect(report.pages).toBe(2)
+    expect(report.findings.missingPages.items.map((item) => item.target)).toEqual(["Incident 42"])
+    expect(report.findings.unlinkedPages.items).toEqual([{ path: ".ragmir/raw/index.md" }])
+  })
+
   it("pages through a long document with next and previous citations", async () => {
     const root = await createProject("ragmir-mcp-paging-", { chunkSize: 200, chunkOverlap: 0 })
     const sections = Array.from(

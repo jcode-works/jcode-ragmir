@@ -54,6 +54,7 @@ import type {
   Config,
   IngestionProgress,
   IngestResult,
+  KnowledgeAuditReport,
   McpSeenResults,
   SearchResult,
 } from "./types.js"
@@ -185,6 +186,18 @@ const auditToolInputSchema = z
       .boolean()
       .optional()
       .describe("true lists every affected path instead of counts and the first examples."),
+    knowledge: z
+      .boolean()
+      .optional()
+      .describe(
+        "true audits the indexed Markdown pages instead: broken links, missing and unlinked pages, duplicate titles, broken citations, and pages whose declared sources changed or left.",
+      ),
+    paths: pathListSchema
+      .optional()
+      .describe("With knowledge: audit only these pages, folders, files, or globs."),
+    assumeRemoved: pathListSchema
+      .optional()
+      .describe("With knowledge: also report what removing these pages would break."),
   })
   .loose()
 
@@ -915,7 +928,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_audit",
     {
       title: `Ragmir audit: ${profile.name}`,
-      description: `Diagnose the "${profile.name}" sources rather than search them: compare files on disk with the index for coverage, missing or stale files, source rules that match nothing, and index concentration. Use it when results look incomplete; ragmir_status is the quicker readiness check. Returns a summary unless detail:true.`,
+      description: `Diagnose the "${profile.name}" sources rather than search them: compare files on disk with the index for coverage, missing or stale files, source rules that match nothing, and index concentration. Use it when results look incomplete; ragmir_status is the quicker readiness check. With knowledge:true it audits the indexed Markdown pages as a knowledge base instead: broken links, missing and unlinked pages, duplicate titles, broken citations, and derived pages whose sources changed. Returns a summary unless detail:true.`,
       inputSchema: auditToolInputSchema,
       annotations: READ_ONLY_TOOL_ANNOTATIONS,
     },
@@ -945,11 +958,29 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
           MAX_MCP_OUTPUT_BYTES,
         ),
       )
-      const report = await abortableMcpOperation(
-        auditWithConfig(config, {
+      const previewLimit = input.detail === true ? mcpPreviewLimit(budget) : 10
+      if (input.knowledge === true) {
+        const paths = pathList(input.paths)
+        const assumeRemoved = pathList(input.assumeRemoved)
+        const client = await clientLifecycle.getClient(config)
+        const knowledge = await abortableMcpOperation(
+          client.knowledgeAudit({
+            signal,
+            previewLimit,
+            ...(paths === undefined ? {} : { paths }),
+            ...(assumeRemoved === undefined ? {} : { assumeRemoved }),
+          }),
           signal,
-          previewLimit: input.detail === true ? mcpPreviewLimit(budget) : 10,
-        }),
+        )
+        return withNotices(
+          boundedJsonResult(knowledge, budget, "ragmir_audit", compactKnowledgeAudit(knowledge)),
+          [workspaceScopeNotice(verdict, current.name, config.projectRoot)],
+          adjustments,
+          verdict,
+        )
+      }
+      const report = await abortableMcpOperation(
+        auditWithConfig(config, { signal, previewLimit }),
         signal,
       )
       const compact = compactAuditOutput(report)
@@ -1519,6 +1550,20 @@ interface BoundedJsonResult {
   [key: string]: unknown
   content: Array<{ type: "text"; text: string }>
   _meta: { [key: string]: unknown; "ragmir/output": BoundedJsonMetadata }
+}
+
+/** The knowledge audit's counts when its examples do not fit the output budget. */
+function compactKnowledgeAudit(report: KnowledgeAuditReport): CompactJsonValue {
+  const findings = Object.fromEntries(
+    Object.entries(report.findings).map(([name, finding]) => [name, { count: finding.count }]),
+  )
+  return {
+    value: { pages: report.pages, links: report.links, citations: report.citations, findings },
+    omittedItems: Object.values(report.findings).reduce(
+      (sum, finding) => sum + finding.items.length,
+      0,
+    ),
+  }
 }
 
 function boundedJsonResult(

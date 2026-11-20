@@ -10,6 +10,7 @@ import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import {
   expandCitation,
+  knowledgeAudit,
   lexicalCandidateLimit,
   QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL,
   search,
@@ -378,6 +379,49 @@ describe("search", { timeout: integrationTimeout(20_000) }, () => {
     expect(
       (await expandCitation(backoff[0]?.citation ?? "", { cwd: root })).links?.incoming.count,
     ).toBe(1)
+  })
+
+  it("should audit written citations against the index as their sources change", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-knowledge-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(path.join(raw, "wiki"), { recursive: true })
+    await writeFile(path.join(raw, "notes.md"), "Refunds are approved within 14 days.\n")
+    await ingest({ cwd: root })
+    const [source] = await search("refunds approved days", { cwd: root, topK: 1 })
+    await writeFile(
+      path.join(raw, "wiki", "refunds.md"),
+      [
+        "---",
+        "sources:",
+        `  - citation: ${source?.citation}`,
+        `    evidence: ${source?.evidence?.id}`,
+        "---",
+        `# Refunds\nApproved within 14 days (${source?.citation}). See [[Chargebacks]].`,
+      ].join("\n"),
+    )
+    await ingest({ cwd: root })
+
+    const before = await knowledgeAudit(root)
+    await writeFile(path.join(raw, "notes.md"), "Refunds are approved within 30 days.\n")
+    await ingest({ cwd: root })
+    const after = await knowledgeAudit(root, { paths: [".ragmir/raw/wiki"] })
+
+    expect(before).toMatchObject({ pages: 2, citations: 1 })
+    expect(before.findings.brokenCitations.count).toBe(0)
+    expect(before.findings.missingPages.items).toEqual([
+      { target: "Chargebacks", references: 1, sources: [".ragmir/raw/wiki/refunds.md"] },
+    ])
+    expect(after.pages).toBe(1)
+    expect(after.findings.brokenCitations.items).toEqual([
+      {
+        source: ".ragmir/raw/wiki/refunds.md",
+        line: 3,
+        citation: source?.citation,
+        status: "changed",
+      },
+    ])
   })
 
   it("should size candidate pools from the fusion bound with a profile margin", () => {

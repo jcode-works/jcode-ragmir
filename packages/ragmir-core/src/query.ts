@@ -21,6 +21,7 @@ import { RagmirError } from "./errors.js"
 import { acquireGenerationReadLease } from "./generation-retention.js"
 import { indexFreshnessWarning } from "./index-diagnostics.js"
 import { lexicalPolicyCurrent } from "./index-policy.js"
+import { auditKnowledge, type KnowledgePassage, writtenCitations } from "./knowledge-audit.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import {
   addLexicalDocument,
@@ -28,10 +29,10 @@ import {
   lexicalDocument,
   lexicalDocumentScore,
 } from "./lexical-scoring.js"
-import { linkResolver, type MarkdownLink, markdownLinks } from "./markdown-links.js"
+import { linkResolver, linksInPassages } from "./markdown-links.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { defaultExcludedScopePaths, pathContextResolver } from "./path-contexts.js"
-import { isPathGlob, pathGlobRegexSource } from "./path-globs.js"
+import { isPathGlob, pathGlobRegexSource, pathMatchesFilter } from "./path-globs.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 import type { FormulationList, QueryTermStatistics, RankedRow } from "./ranking.js"
 import {
@@ -82,6 +83,8 @@ import type {
   ExpandCitationOptions,
   ExpandedCitation,
   IndexManifest,
+  KnowledgeAuditOptions,
+  KnowledgeAuditReport,
   OperationOptions,
   RetrievalProfile,
   SearchContextChunk,
@@ -980,6 +983,104 @@ export function documentOutlineWithConfig(
   })
 }
 
+export async function knowledgeAudit(
+  cwd = process.cwd(),
+  options: KnowledgeAuditOptions = {},
+): Promise<KnowledgeAuditReport> {
+  return knowledgeAuditWithConfig(await loadConfig(cwd), options)
+}
+
+const KNOWLEDGE_PAGE_BATCH = 100
+const DEFAULT_KNOWLEDGE_PREVIEW = 20
+
+/**
+ * Audit the indexed Markdown pages as a knowledge base: their links, titles, written citations,
+ * and declared sources, checked against the active index. Read-only.
+ */
+export function knowledgeAuditWithConfig(
+  config: Config,
+  options: KnowledgeAuditOptions = {},
+): Promise<KnowledgeAuditReport> {
+  const signal = operationSignal(options)
+  return readGeneration(config, undefined, undefined, async (snapshot) => {
+    const files = (await readIndexManifest(config))?.indexedFiles ?? []
+    const filters = (options.paths ?? []).map(canonicalUserPath).filter(Boolean)
+    const pagePaths = files
+      .map((file) => file.relativePath)
+      .filter((relativePath) =>
+        MARKDOWN_EXTENSIONS.has(path.posix.extname(relativePath).toLowerCase()),
+      )
+      .filter(
+        (relativePath) =>
+          filters.length === 0 || filters.some((filter) => pathMatchesFilter(relativePath, filter)),
+      )
+    const knowledgeBaseId = knowledgeBaseIdentity(config.projectRoot)?.id ?? null
+    const rowsOf = async (paths: readonly string[]): Promise<SearchRow[]> => {
+      const rows: SearchRow[] = []
+      for (
+        let offset = 0;
+        snapshot.table && offset < paths.length;
+        offset += KNOWLEDGE_PAGE_BATCH
+      ) {
+        const batch = paths.slice(offset, offset + KNOWLEDGE_PAGE_BATCH)
+        rows.push(
+          ...plainRows(
+            await snapshot.table
+              .query()
+              .select(SEARCH_COLUMNS)
+              .where(`relativePath IN (${batch.map(sqlString).join(", ")})`)
+              .toArray(),
+          ),
+        )
+        throwIfAborted(signal)
+      }
+      return rows
+    }
+    const passagesByPage = new Map<string, KnowledgePassage[]>()
+    for (const row of await rowsOf(pagePaths)) {
+      const passages = passagesByPage.get(row.relativePath) ?? []
+      passages.push({
+        relativePath: row.relativePath,
+        chunkIndex: row.chunkIndex,
+        text: row.text,
+        lineStart: nullableLineNumber(row.lineStart),
+        charStart: nullableNumber(row.charStart),
+        contextPath: row.contextPath,
+        citation: citationForRow(row),
+      })
+      passagesByPage.set(row.relativePath, passages)
+    }
+    const pages = [...passagesByPage].map(([pagePath, passages]) => ({ path: pagePath, passages }))
+    const citedPaths = [
+      ...new Set(
+        pages.flatMap(writtenCitations).map((written) => written.key.replace(/#\d+$/u, "")),
+      ),
+    ]
+    const cited = new Map(
+      (await rowsOf(citedPaths)).map((row) => [
+        `${row.relativePath}#${row.chunkIndex}`,
+        {
+          citation: citationForRow(row),
+          evidence: evidenceVersionForRow(row, snapshot, knowledgeBaseId).id,
+        },
+      ]),
+    )
+    return auditKnowledge(
+      pages,
+      {
+        checksums: new Map(files.map((file) => [file.relativePath, file.checksum])),
+        passages: cited,
+      },
+      {
+        previewLimit: options.previewLimit ?? DEFAULT_KNOWLEDGE_PREVIEW,
+        ...(options.assumeRemoved === undefined
+          ? {}
+          : { assumeRemoved: options.assumeRemoved.map(canonicalUserPath) }),
+      },
+    )
+  })
+}
+
 /** Read one index generation while holding its lease, so cleanup never removes it mid-read. */
 async function readGeneration<T>(
   config: Config,
@@ -1143,7 +1244,7 @@ async function documentLinks(
     await table.query().select(SEARCH_COLUMNS).where(relativePathEquals(relativePath)).toArray(),
   )
   throwIfAborted(signal)
-  const outgoing = linksOfRows(pageRows).map(({ link, line }) => ({
+  const outgoing = linksInPassages(pageRows).map(({ link, line }) => ({
     target: link.target,
     line,
     path: resolve(link, relativePath),
@@ -1160,13 +1261,17 @@ async function documentLinks(
           `NOT (${relativePathEquals(relativePath)})`,
         ).catch(() => [])
   throwIfAborted(signal)
-  const incoming = linksOfRows(
+  const incoming = linksInPassages(
     candidates.filter((row) =>
       MARKDOWN_EXTENSIONS.has(path.posix.extname(row.relativePath).toLowerCase()),
     ),
   )
-    .filter(({ link, row }) => resolve(link, row.relativePath) === relativePath)
-    .map(({ row, line }) => ({ source: row.relativePath, line, citation: citationForRow(row) }))
+    .filter(({ link, passage }) => resolve(link, passage.relativePath) === relativePath)
+    .map(({ passage, line }) => ({
+      source: passage.relativePath,
+      line,
+      citation: citationForRow(passage),
+    }))
   const uniqueIncoming = [
     ...new Map(incoming.map((item) => [`${item.source}\0${item.line}`, item])).values(),
   ]
@@ -1178,22 +1283,6 @@ async function documentLinks(
       items: uniqueIncoming.slice(0, MAX_LINK_ITEMS),
     },
   }
-}
-
-/** Links found in indexed passages, once each although neighbouring chunks overlap. */
-function linksOfRows(
-  rows: readonly SearchRow[],
-): Array<{ link: MarkdownLink; line: number; row: SearchRow }> {
-  const found = new Map<string, { link: MarkdownLink; line: number; row: SearchRow }>()
-  for (const row of [...rows].sort(compareChunkRows)) {
-    const firstLine = nullableLineNumber(row.lineStart) ?? 1
-    for (const link of markdownLinks(row.text)) {
-      const line = firstLine + link.line - 1
-      const key = `${row.relativePath}\0${line}\0${link.target}`
-      if (!found.has(key)) found.set(key, { link, line, row })
-    }
-  }
-  return [...found.values()]
 }
 
 /** Every indexed path of the active generation, read once per manifest. */

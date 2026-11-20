@@ -209,6 +209,7 @@ sheet/cell, EPUB, or named section coordinates. They are not byte offsets into a
 | `discoverKnowledgeBases(...)` | Discover root and nested project bases. |
 | `securityAudit(cwd?, options?)` | Inspect permissions, Git exclusions, providers, and extractor authority. |
 | `inspectUpgrade(cwd?)`, `upgradeProject(options?)` | Inspect compatibility or migrate and rebuild safely. |
+| `knowledgeAudit(cwd?, options?)`, `client.knowledgeAudit(options?)` | Audit the indexed Markdown pages as a knowledge base: links, missing and unlinked pages, titles, written citations, and declared sources; read-only. |
 | `evaluateGoldenQueries(options)` | Measure retrieval against an explicit golden-query file; `baselinePath` adds signed deltas against an earlier report and `retriever` evaluates one channel. |
 | `destroyIndex(cwd?)` | Explicitly remove managed local index storage. |
 

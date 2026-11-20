@@ -8,7 +8,12 @@ import {
 import { retainEmbeddingModel } from "./embeddings.js"
 import { normalizeRagmirError, RagmirError } from "./errors.js"
 import { ingestWithConfig } from "./ingest.js"
-import { expandCitationWithConfig, searchReportWithConfig, searchWithConfig } from "./query.js"
+import {
+  expandCitationWithConfig,
+  knowledgeAuditWithConfig,
+  searchReportWithConfig,
+  searchWithConfig,
+} from "./query.js"
 import type { IndexReadSnapshot } from "./store.js"
 import {
   closeIndexReadSnapshot,
@@ -23,6 +28,8 @@ import type {
   ExpandedCitation,
   IngestOptions,
   IngestResult,
+  KnowledgeAuditOptions,
+  KnowledgeAuditReport,
   KnowledgeBaseContextReport,
   KnowledgeBaseSourceCatalog,
   KnowledgeBaseSourceCatalogOptions,
@@ -165,6 +172,11 @@ export class RagmirClient {
     options: KnowledgeBaseSourceCatalogOptions = {},
   ): Promise<KnowledgeBaseSourceCatalog> {
     return this.run(() => getKnowledgeBaseSourceCatalogWithConfig(this.config, options))
+  }
+
+  /** Audit the indexed Markdown pages as a knowledge base; read-only. */
+  async knowledgeAudit(options: KnowledgeAuditOptions = {}): Promise<KnowledgeAuditReport> {
+    return this.run(() => knowledgeAuditWithConfig(this.config, options))
   }
 
   async close(): Promise<void> {

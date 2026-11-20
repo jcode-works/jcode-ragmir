@@ -192,6 +192,30 @@ class AsyncRagmir:
         )
         return dict(_mapping(data))
 
+    async def knowledge_audit(
+        self,
+        *,
+        paths: Sequence[str] | None = None,
+        assume_removed: Sequence[str] | None = None,
+        detail: bool = False,
+    ) -> dict[str, Any]:
+        """Audit the indexed Markdown pages as a knowledge base, without changing anything.
+
+        Findings cover broken links, missing and unlinked pages, duplicate titles, written Ragmir
+        citations that changed, and pages whose declared sources changed or disappeared.
+        ``assume_removed`` adds what removing those pages would break.
+        """
+        arguments: dict[str, Any] = {
+            "knowledge": True,
+            "detail": detail,
+            "maxBytes": _MAX_OUTPUT_BYTES,
+        }
+        if paths is not None:
+            arguments["paths"] = list(paths)
+        if assume_removed is not None:
+            arguments["assumeRemoved"] = list(assume_removed)
+        return dict(_mapping(await self._call_json("ragmir_audit", arguments)))
+
     async def ingest(self, *, wait: bool = True) -> IngestReport:
         """Refresh the index incrementally: only new and changed files are read again.
 
@@ -508,6 +532,30 @@ class Ragmir:
     async def aaudit(self, *, detail: bool = False) -> dict[str, Any]:
         """Async twin of ``audit``."""
         return await self._arun(self._async.audit(detail=detail))
+
+    def knowledge_audit(
+        self,
+        *,
+        paths: Sequence[str] | None = None,
+        assume_removed: Sequence[str] | None = None,
+        detail: bool = False,
+    ) -> dict[str, Any]:
+        """Audit the indexed Markdown pages as a knowledge base, without changing anything."""
+        return self._run(
+            self._async.knowledge_audit(paths=paths, assume_removed=assume_removed, detail=detail)
+        )
+
+    async def aknowledge_audit(
+        self,
+        *,
+        paths: Sequence[str] | None = None,
+        assume_removed: Sequence[str] | None = None,
+        detail: bool = False,
+    ) -> dict[str, Any]:
+        """Async twin of ``knowledge_audit``."""
+        return await self._arun(
+            self._async.knowledge_audit(paths=paths, assume_removed=assume_removed, detail=detail)
+        )
 
     def ingest(self, *, wait: bool = True) -> IngestReport:
         """Refresh the index incrementally; only new and changed files are read again."""

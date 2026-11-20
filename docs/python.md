@@ -69,7 +69,8 @@ when the file changed after indexing), and `evidence_id`. An empty list means th
 evidence: let your application say so instead of answering from memory. `include_paths` and
 `exclude_paths` take folders, files, or globs such as `"**/*.pdf"`; `scope` selects a named scope
 from the project's configuration. `search_many()` answers up to five related questions in one call,
-`status()` reports readiness, and `audit()` lists missing or stale sources.
+`status()` reports readiness, `audit()` lists missing or stale sources, and `knowledge_audit()`
+audits the Markdown pages as a knowledge base (broken links, missing pages, stale citations).
 
 When the question's own words may miss the answer, add `searches`: up to five formulations of the
 same need (`SearchFormulation`), fused with the question into one ranking.

@@ -50,7 +50,9 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   page without a level-1 heading, and `ragmir_sources` lists each page's title and description.
   `ragmir_expand` adds a Markdown page's outgoing links (broken ones with `path: null`) and the
   pages linking to it; `ragmir_sources` with `outline: true` returns one document's sections with
-  their first citations. Links navigate; they are not evidence.
+  their first citations. Links navigate; they are not evidence. `rgr audit --knowledge` (or
+  `ragmir_audit` with `knowledge: true`) audits Markdown pages read-only: broken links, missing and
+  unlinked pages, duplicate titles, written citations that changed, and stale declared sources.
 - MCP exposes five read-only tools (`ragmir_status`, `ragmir_search`, `ragmir_expand`,
   `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the `answer`
   prompt, and bounded `ragmir://context` and `ragmir://sources` resources. Search starts with three

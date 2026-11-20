@@ -193,7 +193,7 @@ this in three ways:
 | `ragmir_search` | Find cited passages for one question or up to five related ones | Read-only |
 | `ragmir_expand` | Read one citation with its neighbours; page through a document | Read-only |
 | `ragmir_sources` | List the indexed documents by folder or glob, with chunk counts and page titles | Read-only |
-| `ragmir_audit` | Find missing, stale, unsupported, or duplicated sources | Read-only |
+| `ragmir_audit` | Find missing, stale, unsupported, or duplicated sources; with `knowledge: true`, audit Markdown pages | Read-only |
 | `ragmir_ingest` | Refresh the index after files changed | Writes Ragmir's private index only |
 
 The `answer` prompt (`/mcp__ragmir__answer` in Claude Code) asks the model to answer one question
@@ -275,6 +275,13 @@ keyword text names the file, and `complete: false` says some were left unread. A
 navigation, not evidence. `ragmir_sources` with `paths` naming one file and `outline: true`
 returns its outline: each heading path with the citation of its first passage, to expand one
 section of a long document directly.
+
+`ragmir_audit` with `knowledge: true` audits the indexed Markdown pages as a knowledge base and
+changes nothing: broken links (with a suggestion when one file carries the target's name),
+wikilinks to missing pages, unlinked pages, duplicate titles, written Ragmir citations whose
+passage changed or left the index, and pages whose front matter `sources` changed or disappeared.
+`paths` limits it to some pages and `assumeRemoved` reports what removing pages would break. The
+[CLI reference](./cli-reference.md#knowledge-audit) lists the findings and the `sources` format.
 
 `ragmir_ingest` runs an incremental ingest: only new and changed files are parsed, and the previous
 index stays searchable until the new one passes validation. It waits up to `waitSeconds` (30 by

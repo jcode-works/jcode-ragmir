@@ -58,6 +58,7 @@ const FENCE_PATTERN = /^\s*(`{3,}|~{3,})/u
 const FRONTMATTER_MAX_CHARACTERS = 16_384
 const FRONTMATTER_TITLE_MAX_CHARACTERS = 200
 const FRONTMATTER_DESCRIPTION_MAX_CHARACTERS = 500
+const FRONTMATTER_MAX_SOURCES = 200
 // Its first line is a key, which tells it apart from prose between two thematic breaks.
 const YAML_KEY_LINE_PATTERN = /^["']?[\p{L}\p{N}_][^:\n]*:(?:\s|$)/u
 const TOML_KEY_LINE_PATTERN = /^(?:\[[^\]\n]+\]|["']?[\p{L}\p{N}_][\w.-]*["']?\s*=)/u
@@ -68,6 +69,18 @@ export interface MarkdownFrontmatter {
   end: number
   title?: string
   description?: string
+  /**
+   * The sources a derived page declares: a path, a path with the `sha256` it was written from, or
+   * a Ragmir `citation` with its `evidence` id.
+   */
+  sources?: FrontmatterSource[]
+}
+
+export interface FrontmatterSource {
+  path?: string
+  sha256?: string
+  citation?: string
+  evidence?: string
 }
 
 export function structuralSpans(
@@ -146,7 +159,9 @@ export function markdownFrontmatter(text: string): MarkdownFrontmatter | null {
   return { end: closing.end, ...fields }
 }
 
-function yamlFrontmatterFields(body: string): Pick<MarkdownFrontmatter, "title" | "description"> {
+function yamlFrontmatterFields(
+  body: string,
+): Pick<MarkdownFrontmatter, "title" | "description" | "sources"> {
   let data: unknown
   try {
     data = YAML.parse(body)
@@ -162,10 +177,29 @@ function yamlFrontmatterFields(body: string): Pick<MarkdownFrontmatter, "title" 
     data.description ?? data.summary,
     FRONTMATTER_DESCRIPTION_MAX_CHARACTERS,
   )
+  const sources = Array.isArray(data.sources)
+    ? data.sources.slice(0, FRONTMATTER_MAX_SOURCES).flatMap(frontmatterSource)
+    : []
   return {
     ...(title === null ? {} : { title }),
     ...(description === null ? {} : { description }),
+    ...(sources.length === 0 ? {} : { sources }),
   }
+}
+
+function frontmatterSource(value: unknown): FrontmatterSource[] {
+  if (typeof value === "string") {
+    return value.trim() === "" ? [] : [{ path: value.trim() }]
+  }
+  if (!isRecord(value)) {
+    return []
+  }
+  const source: FrontmatterSource = {}
+  for (const key of ["path", "sha256", "citation", "evidence"] as const) {
+    const field = value[key]
+    if (typeof field === "string" && field.trim() !== "") source[key] = field.trim()
+  }
+  return source.path === undefined && source.citation === undefined ? [] : [source]
 }
 
 function frontmatterText(value: unknown, maxCharacters: number): string | null {

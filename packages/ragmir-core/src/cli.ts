@@ -62,7 +62,7 @@ import {
 } from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
 import { previewChunks } from "./preview.js"
-import { searchReport } from "./query.js"
+import { knowledgeAudit, searchReport } from "./query.js"
 import { compactSearchResults, searchExcerptFocus } from "./search-output.js"
 import { securityAudit } from "./security.js"
 import { enableSemanticEmbeddings } from "./semantic-config.js"
@@ -89,6 +89,7 @@ import {
 import type {
   EvaluationComparison,
   IncrementalFailurePolicy,
+  KnowledgeAuditReport,
   PreviewChunksOptions,
   SearchOptions,
   SearchRetriever,
@@ -1097,81 +1098,123 @@ program
   .command("audit")
   .description("Run a deep O(corpus) comparison of source files and the current vector index.")
   .option("--unsupported", "List skipped file paths and reasons.")
+  .option(
+    "--knowledge",
+    "Audit the indexed Markdown pages instead: links, missing pages, titles, citations, sources.",
+  )
+  .option(
+    "--path <path>",
+    "With --knowledge: audit only these pages, a folder, file, or glob. Repeatable.",
+    collectOptionValue,
+    [],
+  )
+  .option(
+    "--assume-removed <path>",
+    "With --knowledge: also report what removing this page would break. Repeatable.",
+    collectOptionValue,
+    [],
+  )
   .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { unsupported?: boolean; json?: boolean }, command: Command) => {
-    const cwd = projectRoot(command)
-    const report = await audit(cwd)
-    if (options.json) {
-      console.log(JSON.stringify(report, null, 2))
-      return
-    }
-    console.log(`mode=${report.mode}`)
-    console.log(`cost=${report.cost}`)
-    console.log(`inventoryVerified=${report.inventoryVerified}`)
-    console.log(`discoveredFiles=${report.discoveredFiles}`)
-    console.log(`supportedFiles=${report.supportedFiles.length}`)
-    console.log(`supportedBytes=${report.supportedBytes}`)
-    console.log(`largestFileBytes=${report.largestFileBytes}`)
-    console.log(`skippedFiles=${report.skippedFiles.length}`)
-    console.log(
-      `unsupportedFiles=${countSkippedByReason(report.skippedFiles, "unsupported-extension")}`,
-    )
-    console.log(`oversizedFiles=${countSkippedByReason(report.skippedFiles, "oversized")}`)
-    console.log(`sensitiveFiles=${countSkippedByReason(report.skippedFiles, "sensitive-name")}`)
-    console.log(`indexedFiles=${report.indexedFiles.length}`)
-    console.log(`totalChunks=${report.totalChunks}`)
-    console.log(`chunkStats.minChars=${report.chunkStats.minChars}`)
-    console.log(`chunkStats.averageChars=${report.chunkStats.averageChars.toFixed(1)}`)
-    console.log(`chunkStats.p50Chars=${report.chunkStats.p50Chars}`)
-    console.log(`chunkStats.p95Chars=${report.chunkStats.p95Chars}`)
-    console.log(`chunkStats.maxChars=${report.chunkStats.maxChars}`)
-    console.log(`chunkStats.contextualChunks=${report.chunkStats.contextualChunks}`)
-    console.log(`chunkStats.contextualRatio=${report.chunkStats.contextualRatio.toFixed(3)}`)
-    console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
-    console.log(`missingFromIndex=${report.missingFromIndex.length}`)
-    console.log(`staleInIndex=${report.staleInIndex.length}`)
-    console.log(`duplicateCandidates=${report.sourceDiagnostics.duplicateCandidates.length}`)
-    console.log(`archiveCandidates=${report.sourceDiagnostics.archiveCandidates.length}`)
-    console.log(`mirrorCandidates=${report.sourceDiagnostics.mirrorCandidates.length}`)
-    printUnsupportedSummary(report.unsupportedExtensions)
+  .action(
+    async (
+      options: {
+        unsupported?: boolean
+        knowledge?: boolean
+        path: string[]
+        assumeRemoved: string[]
+        json?: boolean
+      },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      if (!options.knowledge && (options.path.length > 0 || options.assumeRemoved.length > 0)) {
+        throw new Error("--path and --assume-removed audit pages: add --knowledge.")
+      }
+      if (options.knowledge) {
+        const report = await knowledgeAudit(cwd, {
+          ...(options.path.length === 0 ? {} : { paths: options.path }),
+          ...(options.assumeRemoved.length === 0 ? {} : { assumeRemoved: options.assumeRemoved }),
+        })
+        if (options.json) {
+          console.log(JSON.stringify(report, null, 2))
+        } else {
+          printKnowledgeAudit(report)
+        }
+        return
+      }
+      const report = await audit(cwd)
+      if (options.json) {
+        console.log(JSON.stringify(report, null, 2))
+        return
+      }
+      console.log(`mode=${report.mode}`)
+      console.log(`cost=${report.cost}`)
+      console.log(`inventoryVerified=${report.inventoryVerified}`)
+      console.log(`discoveredFiles=${report.discoveredFiles}`)
+      console.log(`supportedFiles=${report.supportedFiles.length}`)
+      console.log(`supportedBytes=${report.supportedBytes}`)
+      console.log(`largestFileBytes=${report.largestFileBytes}`)
+      console.log(`skippedFiles=${report.skippedFiles.length}`)
+      console.log(
+        `unsupportedFiles=${countSkippedByReason(report.skippedFiles, "unsupported-extension")}`,
+      )
+      console.log(`oversizedFiles=${countSkippedByReason(report.skippedFiles, "oversized")}`)
+      console.log(`sensitiveFiles=${countSkippedByReason(report.skippedFiles, "sensitive-name")}`)
+      console.log(`indexedFiles=${report.indexedFiles.length}`)
+      console.log(`totalChunks=${report.totalChunks}`)
+      console.log(`chunkStats.minChars=${report.chunkStats.minChars}`)
+      console.log(`chunkStats.averageChars=${report.chunkStats.averageChars.toFixed(1)}`)
+      console.log(`chunkStats.p50Chars=${report.chunkStats.p50Chars}`)
+      console.log(`chunkStats.p95Chars=${report.chunkStats.p95Chars}`)
+      console.log(`chunkStats.maxChars=${report.chunkStats.maxChars}`)
+      console.log(`chunkStats.contextualChunks=${report.chunkStats.contextualChunks}`)
+      console.log(`chunkStats.contextualRatio=${report.chunkStats.contextualRatio.toFixed(3)}`)
+      console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
+      console.log(`missingFromIndex=${report.missingFromIndex.length}`)
+      console.log(`staleInIndex=${report.staleInIndex.length}`)
+      console.log(`duplicateCandidates=${report.sourceDiagnostics.duplicateCandidates.length}`)
+      console.log(`archiveCandidates=${report.sourceDiagnostics.archiveCandidates.length}`)
+      console.log(`mirrorCandidates=${report.sourceDiagnostics.mirrorCandidates.length}`)
+      printUnsupportedSummary(report.unsupportedExtensions)
 
-    for (const file of report.missingFromIndex) {
-      console.log(pc.yellow(`missing: ${file}`))
-    }
-    for (const file of report.staleInIndex) {
-      console.log(pc.red(`stale: ${file}`))
-    }
-    if (options.unsupported) {
-      for (const file of report.skippedFiles) {
-        console.log(
-          pc.yellow(
-            `skipped: ${file.relativePath} reason=${file.reason} recommendation=${file.recommendation}`,
-          ),
-        )
+      for (const file of report.missingFromIndex) {
+        console.log(pc.yellow(`missing: ${file}`))
       }
-      for (const candidate of report.sourceDiagnostics.duplicateCandidates) {
-        console.log(
-          pc.yellow(`duplicate-candidate: ${candidate.key} files=${candidate.files.join(",")}`),
-        )
+      for (const file of report.staleInIndex) {
+        console.log(pc.red(`stale: ${file}`))
       }
-      for (const candidate of report.sourceDiagnostics.archiveCandidates) {
-        console.log(
-          pc.yellow(`archive-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
-        )
+      if (options.unsupported) {
+        for (const file of report.skippedFiles) {
+          console.log(
+            pc.yellow(
+              `skipped: ${file.relativePath} reason=${file.reason} recommendation=${file.recommendation}`,
+            ),
+          )
+        }
+        for (const candidate of report.sourceDiagnostics.duplicateCandidates) {
+          console.log(
+            pc.yellow(`duplicate-candidate: ${candidate.key} files=${candidate.files.join(",")}`),
+          )
+        }
+        for (const candidate of report.sourceDiagnostics.archiveCandidates) {
+          console.log(
+            pc.yellow(`archive-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
+          )
+        }
+        for (const candidate of report.sourceDiagnostics.mirrorCandidates) {
+          console.log(
+            pc.yellow(`mirror-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
+          )
+        }
+      } else if (report.skippedFiles.length > 0) {
+        console.log(pc.yellow("Run `rgr audit --unsupported` to list skipped file paths."))
       }
-      for (const candidate of report.sourceDiagnostics.mirrorCandidates) {
-        console.log(
-          pc.yellow(`mirror-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
-        )
-      }
-    } else if (report.skippedFiles.length > 0) {
-      console.log(pc.yellow("Run `rgr audit --unsupported` to list skipped file paths."))
-    }
 
-    if (report.missingFromIndex.length > 0 || report.staleInIndex.length > 0) {
-      process.exitCode = 1
-    }
-  })
+      if (report.missingFromIndex.length > 0 || report.staleInIndex.length > 0) {
+        process.exitCode = 1
+      }
+    },
+  )
 
 program
   .command("limits")
@@ -2193,6 +2236,60 @@ function printConfigurationPrompt(prompt: string): void {
   console.log("-----BEGIN RAGMIR CONFIGURATION PROMPT-----")
   console.log(prompt)
   console.log("-----END RAGMIR CONFIGURATION PROMPT-----")
+}
+
+function printKnowledgeAudit(report: KnowledgeAuditReport): void {
+  console.log(`pages=${report.pages} links=${report.links} citations=${report.citations}`)
+  const { findings } = report
+  const section = <Item>(
+    name: string,
+    finding: { count: number; items: Item[] },
+    line: (item: Item) => string,
+  ): void => {
+    console.log(`${name}=${finding.count}`)
+    for (const item of finding.items) console.log(`  ${line(item)}`)
+    if (finding.count > finding.items.length) {
+      console.log(pc.dim(`  ... ${finding.count - finding.items.length} more (use --json)`))
+    }
+  }
+  section(
+    "brokenLinks",
+    findings.brokenLinks,
+    (item) =>
+      `${item.source}:${item.line} -> ${item.target}${item.suggestion ? ` (did you mean ${item.suggestion}?)` : ""}`,
+  )
+  section(
+    "missingPages",
+    findings.missingPages,
+    (item) =>
+      `[[${item.target}]] referenced ${item.references} time(s), first in ${item.sources[0] ?? ""}`,
+  )
+  section("unlinkedPages", findings.unlinkedPages, (item) => item.path)
+  section(
+    "duplicateTitles",
+    findings.duplicateTitles,
+    (item) => `"${item.title}": ${item.paths.join(", ")}`,
+  )
+  section(
+    "brokenCitations",
+    findings.brokenCitations,
+    (item) => `${item.source}:${item.line} ${item.citation} (${item.status})`,
+  )
+  section(
+    "stalePages",
+    findings.stalePages,
+    (item) => `${item.path}: ${item.changedSources.join(", ")} changed`,
+  )
+  section("lostSources", findings.lostSources, (item) => item.path)
+  if (report.assumeRemoved) {
+    console.log(`Removing ${report.assumeRemoved.paths.join(", ")} would break:`)
+    section(
+      "  brokenLinks",
+      report.assumeRemoved.brokenLinks,
+      (item) => `${item.source}:${item.line} -> ${item.target}`,
+    )
+    section("  unlinkedPages", report.assumeRemoved.unlinkedPages, (item) => item.path)
+  }
 }
 
 function printUnsupportedSummary(extensions: Array<{ extension: string; count: number }>): void {

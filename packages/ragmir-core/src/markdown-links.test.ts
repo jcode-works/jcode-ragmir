@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { linkResolver, markdownLinks } from "./markdown-links.js"
 
+const linksOf = (text: string) =>
+  markdownLinks(text).map(({ offset: _offset, ...link }) => link)
+
 describe("markdownLinks", () => {
   it("reads inline, reference, and wiki links with their lines", () => {
     const text = [
@@ -11,7 +14,7 @@ describe("markdownLinks", () => {
       '[spec]: <../specs/api spec.md> "API"',
     ].join("\n")
 
-    expect(markdownLinks(text)).toEqual([
+    expect(linksOf(text)).toEqual([
       { line: 2, target: "./retries.md", wikilink: false },
       { line: 2, target: "img/flow.png", wikilink: false },
       { line: 3, target: "Refund Policy", wikilink: true },
@@ -31,7 +34,7 @@ describe("markdownLinks", () => {
       "[encoded](notes/caf%C3%A9.md?raw=1)",
     ].join("\n")
 
-    expect(markdownLinks(text)).toEqual([{ line: 6, target: "notes/café.md", wikilink: false }])
+    expect(linksOf(text)).toEqual([{ line: 6, target: "notes/café.md", wikilink: false }])
   })
 })
 
@@ -47,7 +50,7 @@ describe("linkResolver", () => {
     "notes/a/same.md",
     "notes/b/same.md",
   ])
-  const link = (target: string, wikilink = false) => ({ line: 1, target, wikilink })
+  const link = (target: string, wikilink = false) => ({ line: 1, offset: 0, target, wikilink })
 
   it("resolves relative links from the page, with or without .md", () => {
     expect(resolve(link("./retries.md"), "docs/payments.md")).toBe("docs/retries.md")

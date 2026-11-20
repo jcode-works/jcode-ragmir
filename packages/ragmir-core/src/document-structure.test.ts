@@ -79,6 +79,7 @@ describe("structuralSpans", () => {
       end: spans[0]?.charEnd,
       title: "Payment retries",
       description: "How failed payments are retried.",
+      sources: [{ path: "raw/incident-42.md" }],
     })
   })
 
