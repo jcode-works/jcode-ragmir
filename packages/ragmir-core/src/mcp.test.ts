@@ -1,5 +1,5 @@
 import { subscribe, unsubscribe } from "node:diagnostics_channel"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -738,6 +738,39 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
     expect(report.pages).toBe(2)
     expect(report.findings.missingPages.items.map((item) => item.target)).toEqual(["Incident 42"])
     expect(report.findings.unlinkedPages.items).toEqual([{ path: ".ragmir/raw/index.md" }])
+  })
+
+  it("only names tools that exist in its instructions, prompts, skills, and agent guide", async () => {
+    const root = await createProject("ragmir-mcp-tool-names-")
+    const { client } = await connectTestClient(root)
+    const tools = new Set((await client.listTools()).tools.map((tool) => tool.name))
+    const repository = path.resolve(import.meta.dirname, "../../..")
+    const skillFiles = await Promise.all(
+      [
+        "packages/ragmir-core/skills/ragmir/SKILL.md",
+        ...(await readdir(path.join(repository, "skills"))).map(
+          (name) => `skills/${name}/SKILL.md`,
+        ),
+        "plugins/ragmir/README.md",
+        "docs/agent-integration.md",
+      ].map((file) => readFile(path.join(repository, file), "utf8")),
+    )
+    const prompts = await Promise.all(
+      [
+        { name: "answer", arguments: { question: "q" } },
+        { name: "compile-source", arguments: { source: "raw/a.md" } },
+        { name: "audit-knowledge" },
+      ].map(async (request) => JSON.stringify((await client.getPrompt(request)).messages)),
+    )
+    const named = [client.getInstructions() ?? "", ...prompts, ...skillFiles]
+      .join("\n")
+      .matchAll(/\bragmir_[a-z]+(?:_[a-z]+)*\b/gu)
+
+    const unknown = [...new Set([...named].map((match) => match[0]))].filter(
+      (name) => !tools.has(name),
+    )
+    expect(unknown).toEqual([])
+    expect(tools.size).toBe(6)
   })
 
   it("pages through a long document with next and previous citations", async () => {

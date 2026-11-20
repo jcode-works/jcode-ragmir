@@ -1164,10 +1164,14 @@ async function expandCitationWithinGeneration(
       chunkIndex: target.chunkIndex,
       contextRadius,
       passages: [],
+      ...(await missingCitationHints(table, target, await indexedPathsOf(config, snapshot))),
     }
   }
-  if (canonicalUserPath(citationForRow(targetRow)) !== canonicalUserPath(requestedCitation)) {
-    throw new Error("Citation coordinates do not match the indexed passage.")
+  const currentCitation = citationForRow(targetRow)
+  if (canonicalUserPath(currentCitation) !== canonicalUserPath(requestedCitation)) {
+    throw new Error(
+      `Citation coordinates do not match the indexed passage, now cited as ${currentCitation}: expand that citation, or search again.`,
+    )
   }
   const evidence = evidenceVersionForRow(
     targetRow,
@@ -1224,6 +1228,67 @@ async function expandCitationWithinGeneration(
         }
       : {}),
   }
+}
+
+const MAX_SIMILAR_PATHS = 3
+
+/**
+ * Where to look when a citation finds nothing: in a document still indexed, its chunk count and
+ * the nearest passage; otherwise the indexed files whose names come closest to the one cited.
+ */
+async function missingCitationHints(
+  table: RowsTable,
+  target: { relativePath: string; chunkIndex: number },
+  indexedPaths: readonly string[],
+): Promise<Pick<ExpandedCitation, "documentChunks" | "suggestedCitation" | "similarPaths">> {
+  const rows = plainRows(
+    await table
+      .query()
+      .select(SEARCH_COLUMNS)
+      .where(relativePathEquals(target.relativePath))
+      .toArray(),
+  )
+  const offset = (row: SearchRow): number => Math.abs(row.chunkIndex - target.chunkIndex)
+  const nearest = rows.reduce<SearchRow | undefined>(
+    (best, row) => (best === undefined || offset(row) < offset(best) ? row : best),
+    undefined,
+  )
+  if (nearest) {
+    return { documentChunks: rows.length, suggestedCitation: citationForRow(nearest) }
+  }
+  const name = path.posix.basename(target.relativePath).toLowerCase()
+  const similarPaths = indexedPaths
+    .map((candidate) => ({
+      candidate,
+      distance: editDistance(name, path.posix.basename(candidate).toLowerCase()),
+    }))
+    .filter(({ distance }) => distance <= Math.max(2, Math.floor(name.length / 3)))
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.candidate.length - right.candidate.length ||
+        left.candidate.localeCompare(right.candidate),
+    )
+    .slice(0, MAX_SIMILAR_PATHS)
+    .map(({ candidate }) => candidate)
+  return similarPaths.length === 0 ? {} : { similarPaths }
+}
+
+/** Levenshtein distance between two short strings, such as file names. */
+function editDistance(left: string, right: string): number {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row]
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitution =
+        (previous[column - 1] ?? 0) + (left[row - 1] === right[column - 1] ? 0 : 1)
+      current.push(
+        Math.min((previous[column] ?? 0) + 1, (current[column - 1] ?? 0) + 1, substitution),
+      )
+    }
+    previous = current
+  }
+  return previous[right.length] ?? 0
 }
 
 const MAX_LINK_ITEMS = 10

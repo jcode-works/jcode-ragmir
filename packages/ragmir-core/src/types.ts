@@ -892,6 +892,10 @@ export interface ExpandedCitation {
   nextCitation?: string
   /** For a Markdown page: the files it links to and the pages that link to it. */
   links?: DocumentLinks
+  /** When not found in a document still indexed: the citation of its nearest passage. */
+  suggestedCitation?: string
+  /** When the cited file is not indexed: the indexed files whose names come closest. */
+  similarPaths?: string[]
 }
 
 /**

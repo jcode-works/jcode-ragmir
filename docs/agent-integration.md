@@ -275,7 +275,10 @@ base holds no evidence for the question: say so instead of answering from the ne
 `nextCitation` and `previousCitation`: expand them with the same `contextRadius` to read the
 neighbouring windows, until `nextCitation` is absent. Pass `citations` (up to five) instead of
 `citation` to read several passages in one output budget; a citation that cannot be expanded
-returns `found: false` without failing the others. This reads PDFs, Office files, and long
+returns `found: false` without failing the others. When the document is still indexed,
+`found: false` comes with `suggestedCitation`, its nearest passage; when the file is not indexed,
+with `similarPaths`, the indexed files whose names come closest. A citation whose lines moved
+fails with the passage's current citation in the message. This reads PDFs, Office files, and long
 specifications through without filesystem access.
 
 For a Markdown page, `ragmir_expand` also returns `links`, read from the index. `outgoing` lists the

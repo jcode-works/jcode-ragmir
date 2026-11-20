@@ -35,6 +35,13 @@ scope or `~/.codex/config.toml`). Remove that registration and register the serv
 set `mcpAllowedRoots` in the base's config to refuse unrelated workspaces. Results already carry a
 scope notice when the workspace is unrelated.
 
+## The agent follows outdated Ragmir guidance
+
+After an update, `rgr doctor` warns when the skill in `.ragmir/skills/` or a Ragmir-managed copy in
+an agent folder differs from the skill the installed Ragmir ships. Run `rgr upgrade` to refresh
+them; edits made to these copies are replaced, so keep your own guidance in a skill of another
+name. Agent folders that link to `.ragmir/skills/` follow it on their own.
+
 ## Claude Code does not show the Ragmir tools
 
 A server declared in `.mcp.json` only starts after approval. `rgr doctor` reports `approval=pending`

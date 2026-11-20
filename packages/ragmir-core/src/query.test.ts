@@ -1371,6 +1371,29 @@ describe("expandCitation", () => {
     )
   })
 
+  it("should point a citation that finds nothing at the nearest passage or similar files", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-expand-hints-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(path.join(raw, "release-policy.md"), "# Releases\nTwo approvals are required.\n")
+    await ingest({ cwd: root })
+
+    const beyond = await expandCitation(".ragmir/raw/release-policy.md:L1-L2#9", { cwd: root })
+    const misspelt = await expandCitation(".ragmir/raw/releases-policy.md:L1-L2#0", { cwd: root })
+
+    expect(beyond).toMatchObject({
+      found: false,
+      documentChunks: 1,
+      suggestedCitation: ".ragmir/raw/release-policy.md:L1-L2#0",
+    })
+    expect(misspelt).toMatchObject({
+      found: false,
+      similarPaths: [".ragmir/raw/release-policy.md"],
+    })
+  })
+
   it("should return no passages when the cited chunk does not exist", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-expand-missing-"))
     tempDirs.push(root)

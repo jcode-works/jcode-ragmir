@@ -148,7 +148,9 @@ whether there is an answer, so formulations never turn a refusal into one. With
 
 `expandCitation` returns the cited chunk and its neighbours, `documentChunks` (the chunk count of the
 cited document), and `nextCitation` / `previousCitation`: expand them with the same `contextRadius`
-to read the neighbouring windows of a long document. `client.sources({ paths, offset, limit })`
+to read the neighbouring windows of a long document. A citation that finds nothing returns
+`found: false` with `suggestedCitation` (the nearest passage of a document still indexed) or
+`similarPaths` (the indexed files whose names come closest). `client.sources({ paths, offset, limit })`
 lists indexed files under folders or matching globs, with chunk counts, the `title` and
 `description` of a Markdown page's front matter, `page.nextOffset`, and the number of matching
 files in `filter.matchedFiles`; with `outline: true` and paths matching one file, it adds that
