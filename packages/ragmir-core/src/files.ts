@@ -9,7 +9,6 @@ import { DEFAULT_CONFIG, LEGACY_KB_DIR, LEGACY_PRIVATE_DIR, RAGMIR_DIR } from ".
 import { isDotenvTemplateName } from "./dotenv-template.js"
 import { activeIngestionMetrics } from "./ingestion-metrics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
-import { sourceEntryLeavesProject } from "./trust.js"
 import {
   readSourceFingerprintCache,
   reusableSourceFingerprint,
@@ -27,6 +26,7 @@ import {
   sourcePathKey,
   unicodeGlobVariants,
 } from "./source-paths.js"
+import { sourceEntryLeavesProject } from "./trust.js"
 import type {
   Config,
   OperationOptions,
