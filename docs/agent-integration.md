@@ -116,9 +116,9 @@ bundled `ragmir-index` skill, and Gemini CLI and Qwen Code follow `GEMINI.md`; o
 yourself from the project root:
 
 ```bash
-npx --yes @jcode.labs/ragmir@6.17.1 init
-npx --yes @jcode.labs/ragmir@6.17.1 sources add "docs/**/*.md" "specs/**/*.pdf" "src/**/*.ts"
-npx --yes @jcode.labs/ragmir@6.17.1 ingest
+npx --yes @jcode.labs/ragmir@6.17.2 init
+npx --yes @jcode.labs/ragmir@6.17.2 sources add "docs/**/*.md" "specs/**/*.pdf" "src/**/*.ts"
+npx --yes @jcode.labs/ragmir@6.17.2 ingest
 ```
 
 The Claude Code server receives the open project as `CLAUDE_PROJECT_DIR`; Codex, Gemini CLI, and
