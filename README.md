@@ -7,7 +7,13 @@
 <h1 align="center">Ragmir</h1>
 
 <p align="center">
-  <strong>Cited retrieval for coding agents and the RAG systems you ship. Local, fast, and offline by default.</strong>
+  <strong>Agentic RAG. Your infrastructure. Exact citations.</strong>
+</p>
+
+<p align="center">
+  The open-source retrieval layer for coding agents and the RAG systems you ship. Index code,
+  Office files, PDFs, and scans where they live, then give Claude Code, Codex, LangChain,
+  LlamaIndex, or your own application cited passages. Any model, no GPU, no vector database to run.
 </p>
 
 <p align="center">
@@ -29,21 +35,22 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
-  <a href="#what-your-agent-sees">What your agent sees</a> ·
+  <a href="#why-not-let-claude-code-or-codex-read-the-files">Why Ragmir</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#system-requirements">Requirements</a> ·
   <a href="#benchmarks">Benchmarks</a> ·
   <a href="./docs/agent-integration.md">Agents and MCP</a> ·
+  <a href="#python">Python</a> ·
   <a href="./docs/server-deployment.md">Run on a server</a> ·
-  <a href="./docs/docker.md">Docker</a> ·
-  <a href="./docs/python.md">Python</a> ·
   <a href="https://ragmir.com">ragmir.com</a>
 </p>
 
-Ragmir turns your code, specifications, and office documents into a local search index. Claude
-Code, Codex, or your own application queries it through MCP, the `rgr` CLI, or a TypeScript API,
-and every passage comes back with a citation the agent can open and check. Your agent plans,
-reasons, and writes with the model you choose; Ragmir finds the evidence. The same index runs on a
-laptop for the first demo, then on a VPS, an on-premise server, or a network without internet
-access.
+Ragmir turns your code, specifications, Office files, and PDFs into a local search index. Claude
+Code, Codex, Cursor, or your own application queries it through MCP, the `rgr` CLI, TypeScript, or
+Python, and every passage comes back with a citation the agent can open and check. Your agent
+plans, reasons, and writes with the model you choose; Ragmir finds the evidence. The same index
+runs on a laptop for the first demo, then on a VPS, an on-premise server, or a network without
+internet access.
 
 ```bash
 npm install -D @jcode.labs/ragmir
@@ -53,43 +60,73 @@ npx rgr ingest
 npx rgr search "how are permissions checked?" --compact
 ```
 
-| Without Ragmir | With Ragmir |
-| --- | --- |
-| Code search misses the specs, spreadsheets, and scanned PDFs around the code. | One local index for code and documents, with optional local OCR. |
-| Whole files pasted into the prompt, then pasted again on the next question. | A few compact citations per question; passages already seen come back as one-line stubs. |
-| Answers you cannot trace, from files that may have changed since. | Citations to lines, pages, slides, and cells, flagged when their file changed. |
-| An agent in one repository reading another project's documents. | Each server names its base and warns or refuses unrelated workspaces. |
+## Why not let Claude Code or Codex read the files?
 
-## Why Ragmir
+They can, on a few text files. On hundreds of PDFs, Office files, and scans, Ragmir gives them a
+search index built for documents.
 
-- **Code and documents in one index.** Hybrid BM25 and vector search understands paths and
-  camelCase identifiers and boosts the code that defines what you ask about, so "how are
-  permissions checked" reaches `PermissionService.java`, not only its tests and notes.
-- **Fast on real repositories.** Median search takes 36 ms on a 30,171-chunk Java and TypeScript
-  monorepo with Office files, and the right file reaches the top 10 for 94% of 101 real developer
-  questions. GPU ingestion rebuilds this repository's index twice as fast on Apple silicon.
+| | Claude Code or Codex alone | With Ragmir |
+| --- | --- | --- |
+| **PDF, Office, scans** | Opened one at a time; grep cannot search inside them | 900+ file types indexed once, scans through optional local OCR, each passage cited to its line, page, slide, cell, or object |
+| **Different words** | Only exact words match: searching "cancel" misses a clause that says "terminate" | Up to five rewordings in one search, a notice naming the words no file contains, and an optional local model that matches meaning |
+| **Context window** | Whole files, read again in every new session | Three compact citations by default within a 32 KB budget per call; passages already seen come back as one-line stubs |
+| **Not in the documents** | Partial matches can still become an answer | Nothing returned when the evidence is weak: in benchmarks on three real bases, 68 of 90 off-topic questions returned nothing and no correct answer was refused |
+| **Sent to the model** | Everything the agent opens | Only compact excerpts and the passages the agent expands |
+| **Quality** | No built-in way to measure what the agent finds | `rgr evaluate` scores your own questions and fails a CI job when retrieval regresses |
+
+On a small code repository, the agent's own search is often enough, and grep stays the tool to list
+every occurrence or match a regex: Ragmir returns ranked passages.
+
+## What teams shipping RAG get
+
+- **Retrieval your agents call.** One MCP server, plugins for Claude Code, Codex, and Cursor,
+  extensions for Gemini CLI and Qwen Code, and Agent Skills for any agent. The agent decides when
+  to search, open a citation, or rephrase; Ragmir returns the evidence.
+- **Your infrastructure, your data.** Parsing, embeddings, the index, and search run where Ragmir
+  runs: a laptop, a VPS, an on-premise server, or a network without internet access. There is no
+  account, telemetry, or hosted store, so the index stays in the country, cloud, and network you
+  choose.
+- **Answers you can trace.** Citations point to source lines, PDF pages, slides, sheet cells, EPUB
+  sections, or exported objects. Results say when their file changed after indexing
+  (`sourceStatus`) and when their support is thin (`weakEvidence`), and questions your sources
+  cannot answer return nothing instead of noise.
+- **Quality you can measure.** `rgr evaluate` scores your golden questions with recall, MRR, nDCG,
+  citation accuracy, and the false-positive rate on questions that must return nothing. It shows
+  the change against a baseline run and fails a CI job below your thresholds.
+- **Any model, any framework.** The index does not depend on the model that writes the answer:
+  move between Claude, GPT, Gemini, Mistral, or a local model without re-indexing. Use it from
+  TypeScript, LangChain.js, Python, LangChain and LangGraph, LlamaIndex, the CLI, or MCP.
+- **Low running cost.** The default `local-hash` retrieval runs offline on the CPU, with no GPU,
+  embedding API, or database server: the index is an embedded LanceDB store in the git-ignored
+  `.ragmir/` folder. A local semantic model is one command away.
 - **Ahead of the usual RAG stacks.** On this repository, the right file reaches the top 3 for 83%
   of developer questions, against 63% for a LangChain.js pipeline and 79% for MiniSearch BM25 with
   the same embedding model, and Ragmir refuses 24 of 30 off-topic questions, 28 without a model,
-  where they refuse at most 2.
-- **Evidence you can verify.** Citations point to source lines, PDF pages, slides, sheet cells, or
-  EPUB sections. Results say when their file changed after indexing (`sourceStatus`) and when
-  their support is thin (`weakEvidence`). Questions your sources cannot answer return nothing
-  instead of noise: 68 of 90 off-topic and 26 of 100 near-domain questions on three real bases, up
-  from 54 and 23 in 6.4, and 65 and 27 without any model, up from 12 and 1, with no correct answer
-  refused.
-- **Always current.** `rgr doctor` compares the files on disk with the index on every run, and
-  `rgr hooks install` refreshes it in the background after commits, merges, and checkouts.
-- **Private by default.** No account, telemetry, or hosted storage. The default `local-hash`
-  provider runs offline without a model download; local semantic embeddings are one command away.
-  A cloned or pulled config cannot run a command, reach an embedding server, send a secret, or read
-  outside the project until you approve it on your machine with `rgr trust`.
-- **The same on every platform.** Paths are cited with forward slashes and in one Unicode form on
-  macOS, Linux, and Windows, so an exclusion written as `Études` also excludes a folder stored
-  decomposed, and every release is tested on all three systems.
+  where they refuse at most 2. Median search takes 36 ms on a 30,171-chunk monorepo
+  ([benchmarks](#benchmarks)).
+- **Current, safe to share, the same everywhere.** `rgr doctor` compares the files on disk with the
+  index on every run, and `rgr hooks install` refreshes it after commits, merges, and checkouts. A
+  cloned or pulled config cannot run a command, reach an embedding server, send a secret, or read
+  outside the project until you approve it with `rgr trust`. Paths and citations are the same on
+  macOS, Linux, and Windows, and every release is tested on all three.
 
 Open source under [AGPL-3.0-only](./LICENSE). JCode Works also offers a
 [commercial license](./COMMERCIAL-LICENSE.md).
+
+## Features
+
+Everything between your files and a cited answer, on your machine.
+
+| Area | What Ragmir does |
+| --- | --- |
+| **Index** | More than 900 file types: code in 250+ languages, Office, PDF, mail, design and API exports. Local OCR for scans, photos, and legacy Word files when you enable it. Only changed files are read again, and Git hooks keep the index fresh. `.env` files, keys, and certificates never reach the index. |
+| **Search** | Keywords and vectors in an embedded index, with no API key, GPU, or vector database. A local semantic model sized for your machine, or Ollama and vLLM. The agent's keywords, paraphrases, and likely answers fused into one ranking. Excerpts that start at the lines that answer, and the words no file contains. |
+| **Cite** | Lines, PDF pages, slides, spreadsheet cells, or exported objects. Neighbouring passages, or a whole document window by window. Weak support, edited files, and moved passages flagged. No passage when the documents do not cover the question. |
+| **Maintain** | Markdown wiki pages with titles, descriptions, and sources from front matter. Links, backlinks, and document outlines. The files edited since an agent's last pass. A knowledge audit for broken links, missing pages, outdated citations, and stale sources. |
+| **Connect** | Plugins and extensions for Claude Code, Codex, Cursor, Gemini CLI, and Qwen Code. An MCP server with six tools and cited-answer prompts, listed in the MCP Registry. TypeScript, LangChain.js, Python, LangChain, and LlamaIndex. Agent Skills for retrieval, setup, build, evaluation, and wiki work. |
+| **Measure** | `rgr evaluate` scores retrieval and exact citations on your own questions. Questions that must return nothing stay refused. The signed change per metric and category against a baseline. Thresholds that fail a build when retrieval regresses. |
+| **Deploy** | From a laptop to an offline server, in containers as a non-root user on a read-only filesystem. Docker images with the CLI and MCP server, without Node.js; the full image adds semantic retrieval and OCR. The last validated index serves until its replacement passes. `rgr doctor` names what is missing, stale, or misconfigured. |
+| **Control** | No telemetry, account, or hosted store. `rgr trust` holds back commands and remote endpoints from a cloned config. No model is fetched without your approval. Any model, switched without re-indexing. |
 
 ## Ship RAG where the documents live
 
@@ -97,9 +134,11 @@ Forward deployed engineers and AI-native teams use Ragmir to stand up retrieval 
 environment that owns the documents: a laptop for the first cited demo, then the customer's server.
 
 - **A data path you can sign.** Parsing, embeddings, the index, and search run in one Node.js
-  process. There is no embedding API, telemetry, or hosted store to declare in a security review.
+  process. There is no embedding API, vector database, telemetry, or hosted store to declare in a
+  security review.
 - **Proof on their own documents.** `rgr evaluate` scores retrieval on the customer's questions,
-  checks exact citations, and counts hard negatives that must return nothing.
+  checks exact citations, counts hard negatives that must return nothing, and fails the CI job when
+  quality drops.
 - **Any server.** Linux, macOS, and Windows are tested on every release, and Debian or Alpine
   containers run it as a non-root user with a read-only root filesystem and no network. The
   [server guide](./docs/server-deployment.md) has a working Dockerfile, and the official images
@@ -165,6 +204,30 @@ Never commit private corpus files, .ragmir state, models, or secrets. Treat retr
 </details>
 <!-- ragmir-setup-prompt:end -->
 
+## System requirements
+
+What each way of running Ragmir needs, at minimum and comfortably:
+
+| Setup | Minimum | Comfortable |
+| --- | --- | --- |
+| Every setup | Node.js 22.12 or later on macOS, Windows, or Linux (x64 or ARM64, glibc or musl), or Docker on amd64 or arm64 | The same; every release is tested on all three systems |
+| Keyword search, `local-hash` (the default) | No model, GPU, or API key, and nothing to download | Memory grows with the corpus; ingestion reads it in bounded windows |
+| Semantic, `mxbai-embed-xsmall-v1` (English) | 0.75 GB of memory to index, 97 MB download | 1.5 GB of memory and 2 CPUs |
+| Semantic, Granite R2 (multilingual, picked on most machines) | 1 GB of memory, 124 MB download | 2 GB and 2 CPUs |
+| Semantic, `multilingual-e5-small` | 1.5 GB of memory, 492 MB download | 3 GB and 2 CPUs |
+| Semantic, `Qwen3-Embedding-0.6B` | 4 GB of memory, 624 MB download | 8 GB and 2 CPUs |
+| GPU | Not needed | Optional: WebGPU embeds ingestion batches about twice as fast on Apple silicon; search stays on the CPU |
+| Local OCR | Tesseract or OCRmyPDF for scans and photos; textutil, antiword, catdoc, or LibreOffice for legacy `.doc` files | The `:full` Docker image bundles Tesseract |
+| Python packages | Python 3.11 or later, with Node.js 22.12 or Docker | |
+
+`rgr models list` checks these figures against your machine, a container's memory limit included,
+and `rgr setup --semantic` installs the model that fits it.
+
+> [!NOTE]
+> Turning on OCR makes the first ingest of scanned documents slow: the OCR engine reads every page
+> without a text layer on your CPU. That is expected. Results are cached, so later ingests only
+> read new or changed pages.
+
 ## What your agent sees
 
 ```text
@@ -189,7 +252,8 @@ come back as stubs, so the second search spends its budget on new evidence.
 
 [![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=flat-square&logo=claude&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-111111?style=flat-square)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Cursor](https://img.shields.io/badge/Cursor-111111?style=flat-square&logo=cursor&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![Qwen Code](https://img.shields.io/badge/Qwen_Code-6950EF?style=flat-square&logo=qwen&logoColor=white)](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents) [![LangChain.js](https://img.shields.io/badge/LangChain.js-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](./docs/api-reference.md#langchainjs-retriever-and-agent-tools) [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](./docs/python.md#langchain-and-langgraph) [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-6D28D9?style=flat-square)](./docs/python.md#llamaindex) [![MCP](https://img.shields.io/badge/MCP-111111?style=flat-square&logo=modelcontextprotocol&logoColor=white)](./docs/agent-integration.md#connect-an-agent-through-mcp) [![Agent Skills](https://img.shields.io/badge/Agent_Skills-111111?style=flat-square)](./skills) [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](./docs/python.md) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](./docs/api-reference.md) [![Ollama](https://img.shields.io/badge/Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](./docs/agent-integration.md#confidential-chat-local-model-example)
 
-The same local index and the same citations serve every integration: a plugin for Claude Code,
+The same local index and the same citations serve every integration, so you can change tools
+without re-indexing: a plugin for Claude Code,
 OpenAI Codex, or Cursor, an extension for Gemini CLI or Qwen Code, Agent Skills for any agent, a
 LangChain.js retriever, the MCP server for any client, or the TypeScript API.
 
@@ -224,6 +288,56 @@ notice names question words that no indexed passage holds. Prompts ask for a ful
 knowledge audit finds (`audit-knowledge`).
 Its instructions name the base it serves. Register it per project: a server registered for every
 project answers unrelated workspaces too, and `rgr doctor` flags it.
+
+## Python
+
+```bash
+pip install ragmir                          # client: index, search, expand, audit
+pip install langchain-ragmir                # LangChain and LangGraph retriever and tools
+pip install llama-index-retrievers-ragmir   # LlamaIndex retriever
+```
+
+```python
+from ragmir import Ragmir, add_sources, init_project
+
+init_project("my-project")
+add_sources("my-project", ["docs/**/*.md", "contracts/**/*.pdf"])
+
+with Ragmir("my-project") as rag:
+    rag.ingest()  # incremental: only new and changed files are read again
+    for passage in rag.search("termination notice period", top_k=3):
+        print(passage.citation, passage.weak_evidence, passage.text)
+```
+
+The client keeps one Ragmir server running per project and gives every method an async twin. It
+uses the project's npm install, a global `rgr`, the matching npm release through `npx`, or the
+Docker image when Node.js is absent. LangChain and LangGraph agents get `RagmirToolkit` tools, and
+LlamaIndex query engines take `RagmirRetriever`. See the [Python guide](./docs/python.md).
+
+## TypeScript
+
+```ts
+import { createRagmirClient } from "@jcode.labs/ragmir"
+
+const ragmir = await createRagmirClient({ cwd: process.cwd() })
+try {
+  await ragmir.ingest()
+  const passages = await ragmir.search("authentication contract", { topK: 3 })
+  for (const passage of passages) {
+    console.log(passage.citation, passage.weakEvidence ? "(verify)" : "", passage.text)
+  }
+  if (passages[0]) {
+    console.log(await ragmir.expandCitation(passages[0].citation, {
+      expectedEvidenceId: passages[0].evidence?.id,
+    }))
+  }
+} finally {
+  await ragmir.close()
+}
+```
+
+Keep one client per project root in a long-running Node.js process. Top-level `ingest`, `search`,
+and `expandCitation` are available for one-shot scripts. See the [API reference](./docs/api-reference.md).
 
 ## Four workflow examples
 
@@ -263,22 +377,13 @@ in one process.
 | This repository: 237 files, 2,541 chunks, 89 developer questions | mxbai-embed-xsmall | 51% → **54%** | 81% → **83%** | 100% → **100%** | 21 → **23** of 30 | 6 → **6** of 40 | 6 → **4** of 89 | 23 → **17 ms** |
 | The same three corpora with `local-hash`, the monorepo without OCR text | none | 28 to 83% → **35 to 88%** | 46 to 90% → **63 to 90%** | 79 to 99% → **84 to 98%** | 12 → **65** of 90 | 1 → **27** of 100 | 15 of 222 → **9** of 226 | 20 to 31 → **16 to 30 ms** |
 
-Measured on November 1, 2026 on an Apple M3 Max with Node.js 24 and LanceDB 0.30, with the
-`quality` profile these projects use. Near-domain questions pair the project's own vocabulary with
-an integration, service, or format it does not have, and each was checked absent from every
-indexed file. 6.5 refuses no correct answer and ranks the right file first more often on all six
-indexes: the keyword query weights function words such as "de" or "what" at 0.3, and passages
-whose file name or heading path holds words of the question gain up to 20%. The one loss is
-`local-hash` on this repository: three fewer questions find their file in the top 5, and one fewer
-in the top 10. It refuses more because a passage that only the keyword search returned now needs
-half of the question's weighted words: one shared everyday word ("height", "capital") no longer
-makes an off-topic question look answered. Without a model, `local-hash` now also answers nothing
-when none of its first five passages holds 30% of the question's weighted words, or when words
-found nowhere in the index carry half of the question's weight, as in a question about an
-integration the project lacks. A long-running process remembers the query-independent work done
-per passage, so warm searches are faster. This repository's question set moved ten questions about
-the retired Chat and TTS packages to the near-domain list. The two private corpora are described
-rather than published. Run the [benchmarks](./packages/ragmir-core/benchmarks/README.md) and
+Measured on November 1, 2026 with Ragmir 6.5 on an Apple M3 Max with Node.js 24 and LanceDB 0.30,
+using the `quality` profile these projects use. Near-domain questions pair the project's own
+vocabulary with an integration, service, or format it does not have, and each was checked absent
+from every indexed file. 6.5 refuses no correct answer and ranks the right file first more often on
+all six indexes; the one loss is `local-hash` on this repository, where three fewer questions find
+their file in the top 5 and one fewer in the top 10. The two private corpora are described rather
+than published. Run the [benchmarks](./packages/ragmir-core/benchmarks/README.md) and
 `rgr evaluate` on your own corpus before relying on any number.
 
 ### Ingestion on the GPU
@@ -311,31 +416,6 @@ and none ranks the answering file as high: it reaches the top 3 for 83 to 88% of
 against 63% with the LangChain.js pipeline and 79% with MiniSearch. Measured on the same machine on
 November 1, 2026; [the benchmark guide](./packages/ragmir-core/benchmarks/README.md) explains every
 setting.
-
-## TypeScript
-
-```ts
-import { createRagmirClient } from "@jcode.labs/ragmir"
-
-const ragmir = await createRagmirClient({ cwd: process.cwd() })
-try {
-  await ragmir.ingest()
-  const passages = await ragmir.search("authentication contract", { topK: 3 })
-  for (const passage of passages) {
-    console.log(passage.citation, passage.weakEvidence ? "(verify)" : "", passage.text)
-  }
-  if (passages[0]) {
-    console.log(await ragmir.expandCitation(passages[0].citation, {
-      expectedEvidenceId: passages[0].evidence?.id,
-    }))
-  }
-} finally {
-  await ragmir.close()
-}
-```
-
-Keep one client per project root in a long-running Node.js process. Top-level `ingest`, `search`,
-and `expandCitation` are available for one-shot scripts. See the [API reference](./docs/api-reference.md).
 
 ## Where your data goes
 
@@ -376,9 +456,10 @@ cache. Normal retrieval keeps remote model loading disabled.
 
 ### Choosing an embedding model
 
-Start without one: `local-hash` needs no download and put the answering file in the top 3 for 90%
-of this repository's developer questions. Add a model when questions use words your sources do not
-(synonyms, paraphrases, another language) or when refusals should follow meaning, not keywords.
+Start without one: `local-hash` needs no download and, in the benchmarks above, put the answering
+file in the top 3 for 88% of this repository's developer questions. Add a model when questions use
+words your sources do not (synonyms, paraphrases, another language) or when refusals should follow
+meaning, not keywords.
 
 | Your sources | Model | Why |
 | --- | --- | --- |
@@ -502,9 +583,10 @@ time, [star the repository](https://github.com/jcode-works/ragmir) so other team
 
 Issues and pull requests are welcome; read [CONTRIBUTING](./CONTRIBUTING.md) and the
 [code of conduct](./CODE_OF_CONDUCT.md) first. Report vulnerabilities through
-[SECURITY](./SECURITY.md). The workspace holds the library in `packages/ragmir-core`, the
-bilingual site in `packages/ragmir-landing`, and the Python packages in `python/`; `pnpm validate`
-runs every check, and [RELEASING](./RELEASING.md) describes the release flow. Coding agents follow
+[SECURITY](./SECURITY.md). The workspace holds the library in `packages/ragmir-core`, the site in
+English, French, Spanish, and Chinese in `packages/ragmir-landing`, and the Python packages in
+`python/`; `pnpm validate` runs every check, and [RELEASING](./RELEASING.md) describes the release
+flow. Coding agents follow
 [AGENTS.md](./AGENTS.md), and Claude Code also loads the shared `.claude/` settings, hooks, rules,
 and skills.
 

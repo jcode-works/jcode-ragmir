@@ -1,6 +1,8 @@
 # Quick start
 
-Install with the existing package manager and Node.js 22.12+:
+Install with the existing package manager and Node.js 22.12+ on macOS, Windows, or Linux. The
+default search needs no model or GPU; the [system requirements](../README.md#system-requirements)
+list the memory each semantic model needs and what local OCR adds.
 
 ```bash
 pnpm add -D @jcode.labs/ragmir

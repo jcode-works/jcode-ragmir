@@ -7,7 +7,12 @@
 <h1 align="center">@jcode.labs/ragmir</h1>
 
 <p align="center">
-  <strong>Cited retrieval for coding agents and the RAG systems you ship. Local, fast, and offline by default.</strong>
+  <strong>Agentic RAG. Your infrastructure. Exact citations.</strong>
+</p>
+
+<p align="center">
+  The open-source retrieval layer for coding agents and the RAG systems you ship.
+  Any model, no GPU, no vector database to run.
 </p>
 
 <p align="center">
@@ -24,29 +29,51 @@
   <a href="https://github.com/jcode-works/ragmir"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jcode-works/ragmir?style=social"></a>
 </p>
 
-Ragmir indexes the code, specifications, and office documents you choose, then returns precise
+Ragmir indexes the code, specifications, Office files, and PDFs you choose, then returns precise
 passages with checkable citations through a TypeScript library, the `rgr` CLI, or a local MCP
 server. Claude Code, Codex, or your own application decides what to search and generates with the
 model you choose. Ragmir does not bundle a chat model or host your documents.
 
-- **Code and documents in one index:** hybrid BM25 and vector search that understands paths and
-  camelCase identifiers and boosts the code that defines what you ask about.
-- **Fast on real repositories:** 36 ms median search on a 30,171-chunk monorepo, with the right
-  source in the top 10 for 94% of real developer questions
-  ([benchmarks](https://github.com/jcode-works/ragmir#benchmarks)).
-- **Ahead of the usual RAG stacks:** the right file reaches the top 3 for 83% of this repository's
-  developer questions, against 63% for a LangChain.js pipeline and 79% for MiniSearch BM25.
-- **Evidence you can verify:** citations point to source lines or native page, slide, sheet/cell,
-  and EPUB coordinates. Results flag changed files (`sourceStatus`) and thin support
-  (`weakEvidence`); questions your sources cannot answer return nothing instead of noise.
-- **Always current:** `rgr doctor` checks the files on disk on every run, and `rgr hooks install`
-  refreshes the index after commits, merges, and checkouts.
-- **Private and portable:** offline by default, with no account or telemetry, and the same paths,
-  exclusions, and citations on Linux, macOS, and Windows.
-- **Ready for the customer's server:** parsing, embeddings, the index, and search run in one Node.js
-  process, so forward deployed engineers and AI-native teams can ship RAG on a VPS, an on-premise
-  server, or a container without network access
+## Why not let Claude Code or Codex read the files?
+
+They can, on a few text files. On hundreds of PDFs, Office files, and scans, Ragmir gives them a
+search index built for documents.
+
+| | Claude Code or Codex alone | With Ragmir |
+| --- | --- | --- |
+| **PDF, Office, scans** | Opened one at a time; grep cannot search inside them | 900+ file types indexed once, scans through optional local OCR, each passage cited to its line, page, slide, cell, or object |
+| **Different words** | Only exact words match: searching "cancel" misses a clause that says "terminate" | Up to five rewordings in one search, a notice naming the words no file contains, and an optional local model that matches meaning |
+| **Context window** | Whole files, read again in every new session | Three compact citations by default within a 32 KB budget per call; passages already seen come back as one-line stubs |
+| **Not in the documents** | Partial matches can still become an answer | Nothing returned when the evidence is weak: in benchmarks on three real bases, 68 of 90 off-topic questions returned nothing and no correct answer was refused |
+| **Sent to the model** | Everything the agent opens | Only compact excerpts and the passages the agent expands |
+| **Quality** | No built-in way to measure what the agent finds | `rgr evaluate` scores your own questions and fails a CI job when retrieval regresses |
+
+On a small code repository, the agent's own search is often enough, and grep stays the tool to list
+every occurrence or match a regex: Ragmir returns ranked passages.
+
+## Why teams ship RAG with Ragmir
+
+- **Your infrastructure, your data:** parsing, embeddings, the index, and search run in one Node.js
+  process on a laptop, a VPS, an on-premise server, or a container without network access, with no
+  account, telemetry, or hosted store
   ([server guide](https://github.com/jcode-works/ragmir/blob/main/docs/server-deployment.md)).
+- **Answers you can trace:** citations point to source lines or native page, slide, sheet and cell,
+  EPUB, or object coordinates. Results flag changed files (`sourceStatus`) and thin support
+  (`weakEvidence`); questions your sources cannot answer return nothing instead of noise.
+- **Quality you can measure:** `rgr evaluate` scores your golden questions (recall, MRR, nDCG,
+  citation accuracy, false positives), compares a run with a baseline, and fails CI below your
+  thresholds.
+- **Any model, any framework:** the index does not depend on the model that writes the answer, so
+  you move between Claude, GPT, Gemini, Mistral, or a local model without re-indexing, from
+  TypeScript, LangChain.js, Python, LangChain, LlamaIndex, the CLI, or MCP.
+- **Low running cost:** the default `local-hash` retrieval runs offline on the CPU, with no GPU,
+  embedding API, or database server; the index is an embedded store under `.ragmir/`.
+- **Ahead of the usual RAG stacks:** the right file reaches the top 3 for 83% of this repository's
+  developer questions, against 63% for a LangChain.js pipeline and 79% for MiniSearch BM25
+  ([benchmarks](https://github.com/jcode-works/ragmir#benchmarks)).
+- **Always current:** `rgr doctor` checks the files on disk on every run, and `rgr hooks install`
+  refreshes the index after commits, merges, and checkouts, with the same paths and citations on
+  Linux, macOS, and Windows.
 
 ## Install and search
 
@@ -64,6 +91,24 @@ npx rgr search "authentication contract" --compact
 A committed `ragmir.config.json` shares sources and settings with your team. The
 [quick start](https://github.com/jcode-works/ragmir/blob/main/docs/quick-start.md) also
 covers pnpm and guided setup.
+
+## System requirements
+
+| Setup | Minimum | Comfortable |
+| --- | --- | --- |
+| Every setup | Node.js 22.12 or later on macOS, Windows, or Linux (x64 or ARM64, glibc or musl), or Docker on amd64 or arm64 | The same; every release is tested on all three systems |
+| Keyword search, `local-hash` (the default) | No model, GPU, or API key, and nothing to download | Memory grows with the corpus; ingestion reads it in bounded windows |
+| Semantic, `mxbai-embed-xsmall-v1` (English) | 0.75 GB of memory to index, 97 MB download | 1.5 GB of memory and 2 CPUs |
+| Semantic, Granite R2 (multilingual, picked on most machines) | 1 GB of memory, 124 MB download | 2 GB and 2 CPUs |
+| Semantic, `multilingual-e5-small` | 1.5 GB of memory, 492 MB download | 3 GB and 2 CPUs |
+| Semantic, `Qwen3-Embedding-0.6B` | 4 GB of memory, 624 MB download | 8 GB and 2 CPUs |
+| GPU | Not needed | Optional: WebGPU embeds ingestion batches about twice as fast on Apple silicon |
+| Local OCR | Tesseract or OCRmyPDF for scans and photos; textutil, antiword, catdoc, or LibreOffice for legacy `.doc` files | The `:full` Docker image bundles Tesseract |
+
+`npx rgr models list` checks these figures against your machine, a container's memory limit
+included. **About OCR:** turning it on makes the first ingest of scanned documents slow, because the
+OCR engine reads every page without a text layer on your CPU. That is expected; results are cached,
+so later ingests only read new or changed pages.
 
 ## Connect your agent
 
@@ -118,6 +163,12 @@ try {
 
 The library also exports top-level `ingest`, `search`, and `expandCitation` functions for one-shot
 scripts. See the [API reference](https://github.com/jcode-works/ragmir/blob/main/docs/api-reference.md).
+
+## Python
+
+Python 3.11 or later: `pip install ragmir` for the client, `langchain-ragmir` for LangChain and
+LangGraph, or `llama-index-retrievers-ragmir` for LlamaIndex. They drive the same index through this
+package or the Docker image ([Python guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md)).
 
 ## Four workflow examples
 
