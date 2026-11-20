@@ -148,12 +148,15 @@ export interface KnowledgeBaseProfile {
   name: string
   description: string | null
   projectRoot: string
-  scopes: Array<{ name: string; description: string | null }>
+  scopes: Array<{ name: string; description: string | null; searchByDefault?: false }>
+  /** What the documents under each folder or glob are, returned with matching results. */
+  pathContexts: Array<{ path: string; description: string }>
 }
 
 /** Name, purpose, and scopes that tell an agent which project this base answers for. */
 export function knowledgeBaseProfile(
-  config: Pick<Config, "projectRoot" | "name" | "description" | "scopes">,
+  config: Pick<Config, "projectRoot" | "name" | "description" | "scopes"> &
+    Partial<Pick<Config, "pathContexts">>,
 ): KnowledgeBaseProfile {
   return {
     name: config.name ?? (path.basename(config.projectRoot) || config.projectRoot),
@@ -162,6 +165,11 @@ export function knowledgeBaseProfile(
     scopes: Object.entries(config.scopes).map(([name, scope]) => ({
       name,
       description: scope.description ?? null,
+      ...(scope.searchByDefault === false ? { searchByDefault: false as const } : {}),
+    })),
+    pathContexts: Object.entries(config.pathContexts ?? {}).map(([pathFilter, description]) => ({
+      path: pathFilter,
+      description,
     })),
   }
 }

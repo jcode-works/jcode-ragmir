@@ -135,12 +135,23 @@ export async function securityAuditWithConfig(
       "External extractors are configured and execute with the operator's filesystem and process authority.",
     )
   }
+  const configTrust = config.configTrust ?? {
+    status: "not-needed" as const,
+    settings: [],
+    fingerprint: null,
+  }
+  if (configTrust.status === "untrusted") {
+    warnings.push(
+      `Project config files set ${configTrust.settings.map((setting) => setting.name).join(", ")}, which stay inactive until this machine approves them: review them with \`rgr trust\`.`,
+    )
+  }
 
   throwIfAborted(signal)
   return {
     projectRoot: config.projectRoot,
     zeroTelemetry: true,
     retrievalProfile: config.retrievalProfile,
+    configTrust,
     providers: {
       embedding: config.embeddingProvider,
       embeddingModel: config.embeddingModel,

@@ -49,8 +49,17 @@ def passages_text(passages: list[Passage]) -> str:
 
 def expanded_text(expanded: ExpandedCitation) -> str:
     if not expanded.found:
-        return f"{expanded.citation} is no longer in the index. Search again for current evidence."
+        return f"{expanded.citation} is no longer in the index. {_missing_citation_hint(expanded)}"
     blocks = [f"[{passage.citation}]\n{passage.text}" for passage in expanded.passages]
     if expanded.next_citation:
         blocks.append(f"Continue reading: {expanded.next_citation}")
     return "\n\n".join(blocks)
+
+
+def _missing_citation_hint(expanded: ExpandedCitation) -> str:
+    """The agent's next step when a citation finds nothing: the hint Ragmir gave, or a search."""
+    if expanded.suggested_citation:
+        return f"Its document is still indexed: expand {expanded.suggested_citation} instead."
+    if expanded.similar_paths:
+        return f"Indexed files with a close name: {', '.join(expanded.similar_paths)}."
+    return "Search again for current evidence."

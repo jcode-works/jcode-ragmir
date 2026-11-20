@@ -163,15 +163,25 @@ describe("landing public contract", () => {
     expect(heroSource).toContain("PROJECT_LINKS.benchmarks")
   })
 
-  it("should send visitors to GitHub and npm from the navbar, its drawer, and the footer", () => {
+  it("should send visitors to GitHub, npm, and PyPI from the navbar and the footer", () => {
     expect(PROJECT_LINKS.github).toBe("https://github.com/jcode-works/ragmir")
     expect(PROJECT_LINKS.npm).toBe("https://www.npmjs.com/package/@jcode.labs/ragmir")
+    expect(PROJECT_LINKS.pypi).toBe("https://pypi.org/project/ragmir/")
     for (const source of [navbarSource, footerSource]) {
       expect(source).toContain('t("hero_github_cta")')
       expect(source).toContain('t("hero_npm_cta")')
+      expect(source).toContain('t("hero_pypi_cta")')
     }
-    expect([en.hero_github_cta, en.hero_npm_cta]).toEqual(["View on GitHub", "View on npm"])
-    expect([fr.hero_github_cta, fr.hero_npm_cta]).toEqual(["Voir sur GitHub", "Voir sur npm"])
+    expect([en.hero_github_cta, en.hero_npm_cta, en.hero_pypi_cta]).toEqual([
+      "View on GitHub",
+      "View on npm",
+      "View on PyPI",
+    ])
+    expect([fr.hero_github_cta, fr.hero_npm_cta, fr.hero_pypi_cta]).toEqual([
+      "Voir sur GitHub",
+      "Voir sur npm",
+      "Voir sur PyPI",
+    ])
   })
 
   it("should list every project link in the footer and label it in both locales", () => {
@@ -497,9 +507,24 @@ describe("landing public contract", () => {
     }
   })
 
+  it("should present the cited wiki with the commands that keep it honest", () => {
+    for (const answer of [en.faq_wiki_answer, fr.faq_wiki_answer]) {
+      for (const command of [
+        "rgr audit --knowledge",
+        "ragmir_expand",
+        "changedSince",
+        "npx skills add jcode-works/ragmir",
+      ]) {
+        expect(answer).toContain(command)
+      }
+    }
+    expect(en.agents_text).toContain("up to five phrasings")
+    expect(fr.agents_text).toContain("jusqu’à cinq formulations")
+  })
+
   it("should keep visible localized FAQs without FAQPage structured data", () => {
-    expect(getFaqItems(en)).toHaveLength(12)
-    expect(getFaqItems(fr)).toHaveLength(12)
+    expect(getFaqItems(en)).toHaveLength(13)
+    expect(getFaqItems(fr)).toHaveLength(13)
     expect(homePageSource).toContain("<Faq translations={translations} />")
     expect(homePageSource).not.toContain('"@type": "FAQPage"')
     expect(homePageSource).not.toContain("mainEntity: faqItems.map")

@@ -99,7 +99,7 @@ that calls the library; an Ollama or other model endpoint does not itself attach
 The repository ships one plugin, in `plugins/ragmir`, with manifests for each agent that installs
 plugins from GitHub. Claude Code, Codex, and Cursor bundle the retrieval and indexing skills; Gemini CLI and Qwen
 Code read `plugins/ragmir/GEMINI.md`. Every variant exposes the same MCP server (five read-only
-tools, `ragmir_ingest` to refresh the index, and the `answer` prompt) and runs a pinned Ragmir
+tools, `ragmir_ingest` to refresh the index, and three prompts) and runs a pinned Ragmir
 release from npm against the project the agent has open.
 
 | Agent | Install |
@@ -130,7 +130,7 @@ run in these coding agents and not in web or mobile chat apps.
 
 ### Agent skills for any agent
 
-The [`skills`](../skills) folder publishes four [Agent Skills](https://agentskills.io) on
+The [`skills`](../skills) folder publishes five [Agent Skills](https://agentskills.io) on
 [skills.sh](https://skills.sh/jcode-works/ragmir), for the agents that load skill folders
 (Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, and many more):
 
@@ -140,6 +140,7 @@ The [`skills`](../skills) folder publishes four [Agent Skills](https://agentskil
 | `ragmir-setup` | Install Ragmir, choose sources, index, connect the agent, enable OCR or a semantic model, upgrade, and troubleshoot. |
 | `ragmir-build` | Build cited RAG into an application with the TypeScript client, LangChain.js, the Python packages, LlamaIndex, or Docker. |
 | `ragmir-evaluate` | Write a golden file with hard negatives, gate CI on `rgr evaluate`, diagnose misses, and tune ranking. |
+| `ragmir-wiki` | Maintain a cited Markdown wiki on Ragmir: compile sources into pages, link them, and lint them with `rgr audit --knowledge`. |
 
 ```bash
 npx skills add jcode-works/ragmir                      # choose the skills and agents
@@ -182,8 +183,9 @@ this in three ways:
    `queries`. Defaults return at most three compact citations per question.
 3. Call `ragmir_expand` on a selected citation for the indexed passage and bounded neighbors.
    Follow its `nextCitation` to read a long document through.
-4. Refine the query, list the documents with `ragmir_sources`, or inspect `ragmir_audit` if evidence
-   is incomplete. Call `ragmir_ingest` when files changed since indexing.
+4. Refine the query or add `searches` (your own keywords, a paraphrase, or a likely answer), list
+   the documents with `ragmir_sources`, or inspect `ragmir_audit` if evidence is incomplete. Call
+   `ragmir_ingest` when files changed since indexing.
 5. Generate an answer with source markers, identify gaps, and verify citations before taking action.
 
 | Tool | Use it to | Effect |
@@ -191,12 +193,22 @@ this in three ways:
 | `ragmir_status` | Check readiness, freshness, scopes, limits, and a running ingest | Read-only |
 | `ragmir_search` | Find cited passages for one question or up to five related ones | Read-only |
 | `ragmir_expand` | Read one citation with its neighbours; page through a document | Read-only |
-| `ragmir_sources` | List the indexed documents by folder or glob, with chunk counts | Read-only |
-| `ragmir_audit` | Find missing, stale, unsupported, or duplicated sources | Read-only |
+| `ragmir_sources` | List the indexed documents by folder or glob, with chunk counts and page titles | Read-only |
+| `ragmir_audit` | Find missing, stale, unsupported, or duplicated sources; with `knowledge: true`, audit Markdown pages | Read-only |
 | `ragmir_ingest` | Refresh the index after files changed | Writes Ragmir's private index only |
 
 The `answer` prompt (`/mcp__ragmir__answer` in Claude Code) asks the model to answer one question
 from the base with a citation for every claim, and to say so when the documents hold no evidence.
+`compile-source` walks the model through turning one source into cited Markdown pages with their
+front matter `sources`, and `audit-knowledge` through proposing fixes for what the knowledge audit
+finds. They serve MCP clients that load no skills, such as desktop chat apps; Ragmir never writes
+the pages itself.
+
+Besides the text notices meant for the model, results carry structured signals for programs:
+`_meta["ragmir/output"]` reports budget trimming, `_meta["ragmir/gaps"]` the question words no
+passage holds, `_meta["ragmir/input"]` the argument spellings read or limited,
+`_meta["ragmir/workspace"]` how the client's workspace relates to the base, and each result its
+`sourceStatus` and `weakEvidence`.
 
 Example search arguments:
 
@@ -215,6 +227,44 @@ questions appears once. Within one MCP session, passages already returned come b
 `seen: "include"` to receive them in full again, `seen: "exclude"` to drop them, or set
 `mcpSeenResults` in the config. `ragmir_expand` always returns full text.
 
+Each compact result holds an excerpt from the passage lines that contain the most of the
+question's words (its opening when the passage matched by meaning), `excerptLine` for the first of
+those lines, and `pathContext` when the configuration describes the folder it comes from. When
+some words of the question appear in no indexed passage, a notice names them (and
+`_meta["ragmir/gaps"]` lists them per question): rephrase with the project's own terms, or report
+that the documents do not cover them.
+
+When the question's own words may miss the answer, add `searches`: up to five formulations of the
+same need, fused with the question into one ranking. Send them with `query`, not with `queries`.
+
+```json
+{
+  "query": "How are API requests throttled?",
+  "searches": [
+    { "type": "lex", "query": "\"rate limit\" quota -deprecated" },
+    { "type": "vec", "query": "limits on how many calls a client may send" },
+    { "type": "hyde", "query": "Each API key may send 600 requests per minute." }
+  ],
+  "intent": "gateway configuration"
+}
+```
+
+- `lex` searches keywords: plain words rank passages, `"an exact phrase"` must appear, and `-word`
+  or `-"a phrase"` removes every passage that holds it, including passages the question found.
+  Quote a term that starts with a hyphen, such as `"--top-k"`.
+- `vec` adds a paraphrase and `hyde` a short passage written as the answer might be. Ragmir
+  searches their words, which reach passages the question's own words miss; with a semantic
+  model, the question's vector already carries its meaning.
+- Each formulation weighs half as much as the question's own lists (a `hyde` passage, with its
+  many words, a quarter), so it reorders and completes the answer without displacing what the
+  question found. Evidence rules still judge every passage
+  against the question, and only the question decides whether there is an answer: formulations
+  never turn a refusal into one. When the documents never mention the question's words, rephrase
+  the question itself.
+- `intent` says in a few words what the question is about. It picks the excerpt lines and never
+  searches on its own; excerpts also favor the lines that hold a `lex` formulation's words.
+- With `explain: true`, each result lists the formulations that found it and its rank in each.
+
 Results flag two conditions. `sourceStatus: "modified"` or `"missing"` means the cited file changed
 after indexing: call `ragmir_ingest`, or set `mcpAutoIngest: true` so the server starts one
 background incremental ingest (at most once a minute). `weakEvidence: true` means the passage holds
@@ -223,8 +273,32 @@ base holds no evidence for the question: say so instead of answering from the ne
 
 `ragmir_expand` returns `documentChunks`, the number of indexed chunks in the cited document, and
 `nextCitation` and `previousCitation`: expand them with the same `contextRadius` to read the
-neighbouring windows, until `nextCitation` is absent. This reads PDFs, Office files, and long
+neighbouring windows, until `nextCitation` is absent. Pass `citations` (up to five) instead of
+`citation` to read several passages in one output budget; a citation that cannot be expanded
+returns `found: false` without failing the others. When the document is still indexed,
+`found: false` comes with `suggestedCitation`, its nearest passage; when the file is not indexed,
+with `similarPaths`, the indexed files whose names come closest. A citation whose lines moved
+fails with the passage's current citation in the message. This reads PDFs, Office files, and long
 specifications through without filesystem access.
+
+For a Markdown page, `ragmir_expand` also returns `links`, read from the index. `outgoing` lists the
+links the page writes (inline, reference, and `[[wikilinks]]`, never those inside code), each with
+the indexed file it reaches or `path: null` when it is broken. `incoming` lists the pages that link
+to it, each with the citation of the passage holding the link; Ragmir reads the pages whose
+keyword text names the file, and `complete: false` says some were left unread. A link is
+navigation, not evidence. `ragmir_sources` with `paths` naming one file and `outline: true`
+returns its outline: each heading path with the citation of its first passage, to expand one
+section of a long document directly. To resume work, pass `changedSince` (an ISO date or time,
+such as your last pass): `changes` lists the indexed files modified since then, by the time
+recorded when they were indexed, and the files the last ingest removed; `complete: false` means an
+earlier ingest may have removed others.
+
+`ragmir_audit` with `knowledge: true` audits the indexed Markdown pages as a knowledge base and
+changes nothing: broken links (with a suggestion when one file carries the target's name),
+wikilinks to missing pages, unlinked pages, duplicate titles, written Ragmir citations whose
+passage changed or left the index, and pages whose front matter `sources` changed or disappeared.
+`paths` limits it to some pages and `assumeRemoved` reports what removing pages would break. The
+[CLI reference](./cli-reference.md#knowledge-audit) lists the findings and the `sources` format.
 
 `ragmir_ingest` runs an incremental ingest: only new and changed files are parsed, and the previous
 index stays searchable until the new one passes validation. It waits up to `waitSeconds` (30 by

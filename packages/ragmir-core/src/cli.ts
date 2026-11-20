@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 import path from "node:path"
+import { createInterface } from "node:readline/promises"
 import { Command } from "commander"
 import pc from "picocolors"
 import {
+  collectFormulation,
   parseAgentInstallMode,
   parseAgentInstallScope,
   parseIncrementalFailurePolicy,
   parseNonNegativeInt,
   parsePositiveInt,
   parseRecallThreshold,
+  parseRetriever,
 } from "./cli-options.js"
 import { loadConfig } from "./config.js"
 import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js"
@@ -59,8 +62,8 @@ import {
 } from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
 import { previewChunks } from "./preview.js"
-import { search } from "./query.js"
-import { compactSearchResults } from "./search-output.js"
+import { knowledgeAudit, searchReport } from "./query.js"
+import { compactSearchResults, searchExcerptFocus } from "./search-output.js"
 import { securityAudit } from "./security.js"
 import { enableSemanticEmbeddings } from "./semantic-config.js"
 import { repairProject, setupProject } from "./setup.js"
@@ -74,7 +77,23 @@ import {
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { optimizeStorage } from "./storage-maintenance.js"
 import { readIndexManifestHeader } from "./store.js"
-import type { IncrementalFailurePolicy, PreviewChunksOptions } from "./types.js"
+import {
+  approveConfigTrust,
+  type ConfigTrustState,
+  type GatedSetting,
+  listConfigTrust,
+  revokeConfigTrust,
+  TRUST_PROJECT_CONFIG_ENV,
+  trustStorePath,
+} from "./trust.js"
+import type {
+  EvaluationComparison,
+  IncrementalFailurePolicy,
+  KnowledgeAuditReport,
+  PreviewChunksOptions,
+  SearchOptions,
+  SearchRetriever,
+} from "./types.js"
 import { inspectUpgrade, upgradeProject } from "./upgrade.js"
 import { VERSION } from "./version.js"
 
@@ -274,6 +293,7 @@ ocrCommand
       command: Command,
     ) => {
       const cwd = projectRoot(command)
+      const trustBefore = (await loadConfig(cwd)).configTrust
       let pdf: Awaited<ReturnType<typeof configurePdfOcr>> | null = null
       if (options.pdf) {
         const configureOptions: Parameters<typeof configurePdfOcr>[0] = {
@@ -294,6 +314,7 @@ ocrCommand
               ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
             })
           : null
+      await approveOwnConfigWrites(cwd, trustBefore)
       if (options.json) {
         console.log(JSON.stringify({ pdf, local }, null, 2))
         return
@@ -653,7 +674,9 @@ sourcesCommand
   .option("--json", "Print machine-readable JSON.")
   .action(async (entries: string[], options: { json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
+    const trustBefore = (await loadConfig(cwd)).configTrust
     const result = await addSourceEntries({ cwd, entries })
+    await approveOwnConfigWrites(cwd, trustBefore)
     if (options.json) {
       console.log(JSON.stringify(result, null, 2))
       return
@@ -692,6 +715,7 @@ program
       command: Command,
     ) => {
       const cwd = projectRoot(command)
+      await reviewProjectConfigTrust(cwd, options.json === true)
       const ingestOptions: Parameters<typeof ingest>[0] = { cwd }
       addOption(ingestOptions, "rebuild", options.rebuild)
       addOption(ingestOptions, "batchSize", options.batchSize)
@@ -846,21 +870,37 @@ program
   .option("--scope <name>", "Search a named scope from the config's `scopes`.")
   .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
   .option("--exact-vector-search", "Bypass ANN and use exhaustive vector search for diagnostics.")
+  .option(
+    "--retriever <channel>",
+    "Diagnostics: rank with hybrid (default), lexical, or vector candidates only.",
+    parseRetriever,
+  )
+  .option(
+    "--lex <keywords>",
+    'Also search these keywords: words rank, "exact phrase" must appear, -word must not. Repeatable.',
+    collectFormulation("lex"),
+    [],
+  )
+  .option(
+    "--vec <paraphrase>",
+    "Also search a paraphrase of the question. Repeatable.",
+    collectFormulation("vec"),
+    [],
+  )
+  .option(
+    "--hyde <passage>",
+    "Also search a short passage that would answer the question. Repeatable.",
+    collectFormulation("hyde"),
+    [],
+  )
+  .option("--intent <words>", "With --compact: what the question is about, to pick excerpt lines.")
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
       query: string,
-      options: {
-        topK?: number
-        maxChunksPerDocument?: number
-        contextRadius?: number
-        includePath: string[]
-        excludePath: string[]
-        contextPath: string[]
-        scope?: string
-        explain?: boolean
-        exactVectorSearch?: boolean
+      options: SearchCommandOptions & {
+        intent?: string
         compact?: boolean
         json?: boolean
       },
@@ -869,17 +909,38 @@ program
       if (query.trim() === "") {
         throw new Error("Search query must not be empty.")
       }
+      if (options.intent !== undefined && !options.compact) {
+        throw new Error("--intent picks the lines of compact excerpts: add --compact.")
+      }
       const cwd = projectRoot(command)
-      const results = await search(query, withSearchOptions(cwd, options))
-      const outputResults = options.compact ? compactSearchResults(results) : results
+      await reviewProjectConfigTrust(cwd, options.json === true)
+      const searchOptions = withSearchOptions(cwd, options)
+      const report = await searchReport(query, searchOptions)
+      const results = report.results
+      const outputResults = options.compact
+        ? compactSearchResults(
+            results,
+            undefined,
+            searchExcerptFocus(query, searchOptions.searches, options.intent),
+          )
+        : results
       if (options.json) {
-        console.log(JSON.stringify({ query, results: outputResults }, null, 2))
+        console.log(
+          JSON.stringify(
+            { query, results: outputResults, absentTerms: report.absentTerms },
+            null,
+            2,
+          ),
+        )
         if (results.length === 0) {
           process.exitCode = 1
         }
         return
       }
 
+      if (report.absentTerms.length > 0) {
+        console.error(pc.yellow(`No indexed passage holds: ${report.absentTerms.join(", ")}.`))
+      }
       if (results.length === 0) {
         const manifest = await readIndexManifestHeader(await loadConfig(cwd))
         if ((manifest?.chunkCount ?? 0) > 0) {
@@ -907,6 +968,9 @@ program
         console.log(
           `\n${pc.cyan(`[${index + 1}] ${result.citation}`)} chunk=${result.chunkIndex} distance=${distance}${flags.length > 0 ? ` ${flags.join(" ")}` : ""}`,
         )
+        if (result.pathContext) {
+          console.log(pc.dim(`context: ${result.pathContext}`))
+        }
         console.log(
           "snippet" in result ? result.snippet : result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH),
         )
@@ -940,18 +1004,37 @@ program
     "Legacy average-recall gate from 0 to 1, combined with golden-file quality gates.",
     parseRecallThreshold,
   )
+  .option(
+    "--baseline <report>",
+    "Earlier `rgr evaluate --json` report of the same golden file: print signed deltas.",
+  )
+  .option(
+    "--retriever <channel>",
+    "Evaluate hybrid (default), lexical, or vector candidates only. Never stored as verified.",
+    parseRetriever,
+  )
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
-      options: { golden: string; topK?: number; failUnder?: number; json?: boolean },
+      options: {
+        golden: string
+        topK?: number
+        failUnder?: number
+        baseline?: string
+        retriever?: SearchRetriever
+        json?: boolean
+      },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
+      await reviewProjectConfigTrust(cwd, options.json === true)
       const evaluationOptions: Parameters<typeof evaluateGoldenQueries>[0] = {
         cwd,
         goldenPath: options.golden,
       }
       addOption(evaluationOptions, "topK", options.topK)
+      addOption(evaluationOptions, "baselinePath", options.baseline)
+      addOption(evaluationOptions, "retriever", options.retriever)
       const result = await evaluateGoldenQueries(evaluationOptions)
       const minimumRecall = options.failUnder
       const legacyRecallPassed = minimumRecall === undefined || result.recall >= minimumRecall
@@ -981,6 +1064,9 @@ program
             `failedGate=${gate.metric} direction=${gate.direction} threshold=${gate.threshold.toFixed(3)} actual=${gate.actual?.toFixed(3) ?? "n/a"}`,
           ),
         )
+      }
+      if (result.comparison) {
+        printEvaluationComparison(result.comparison)
       }
       for (const testCase of result.cases) {
         const label = testCase.id ? `${testCase.id}: ${testCase.query}` : testCase.query
@@ -1012,81 +1098,123 @@ program
   .command("audit")
   .description("Run a deep O(corpus) comparison of source files and the current vector index.")
   .option("--unsupported", "List skipped file paths and reasons.")
+  .option(
+    "--knowledge",
+    "Audit the indexed Markdown pages instead: links, missing pages, titles, citations, sources.",
+  )
+  .option(
+    "--path <path>",
+    "With --knowledge: audit only these pages, a folder, file, or glob. Repeatable.",
+    collectOptionValue,
+    [],
+  )
+  .option(
+    "--assume-removed <path>",
+    "With --knowledge: also report what removing this page would break. Repeatable.",
+    collectOptionValue,
+    [],
+  )
   .option("--json", "Print machine-readable JSON.")
-  .action(async (options: { unsupported?: boolean; json?: boolean }, command: Command) => {
-    const cwd = projectRoot(command)
-    const report = await audit(cwd)
-    if (options.json) {
-      console.log(JSON.stringify(report, null, 2))
-      return
-    }
-    console.log(`mode=${report.mode}`)
-    console.log(`cost=${report.cost}`)
-    console.log(`inventoryVerified=${report.inventoryVerified}`)
-    console.log(`discoveredFiles=${report.discoveredFiles}`)
-    console.log(`supportedFiles=${report.supportedFiles.length}`)
-    console.log(`supportedBytes=${report.supportedBytes}`)
-    console.log(`largestFileBytes=${report.largestFileBytes}`)
-    console.log(`skippedFiles=${report.skippedFiles.length}`)
-    console.log(
-      `unsupportedFiles=${countSkippedByReason(report.skippedFiles, "unsupported-extension")}`,
-    )
-    console.log(`oversizedFiles=${countSkippedByReason(report.skippedFiles, "oversized")}`)
-    console.log(`sensitiveFiles=${countSkippedByReason(report.skippedFiles, "sensitive-name")}`)
-    console.log(`indexedFiles=${report.indexedFiles.length}`)
-    console.log(`totalChunks=${report.totalChunks}`)
-    console.log(`chunkStats.minChars=${report.chunkStats.minChars}`)
-    console.log(`chunkStats.averageChars=${report.chunkStats.averageChars.toFixed(1)}`)
-    console.log(`chunkStats.p50Chars=${report.chunkStats.p50Chars}`)
-    console.log(`chunkStats.p95Chars=${report.chunkStats.p95Chars}`)
-    console.log(`chunkStats.maxChars=${report.chunkStats.maxChars}`)
-    console.log(`chunkStats.contextualChunks=${report.chunkStats.contextualChunks}`)
-    console.log(`chunkStats.contextualRatio=${report.chunkStats.contextualRatio.toFixed(3)}`)
-    console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
-    console.log(`missingFromIndex=${report.missingFromIndex.length}`)
-    console.log(`staleInIndex=${report.staleInIndex.length}`)
-    console.log(`duplicateCandidates=${report.sourceDiagnostics.duplicateCandidates.length}`)
-    console.log(`archiveCandidates=${report.sourceDiagnostics.archiveCandidates.length}`)
-    console.log(`mirrorCandidates=${report.sourceDiagnostics.mirrorCandidates.length}`)
-    printUnsupportedSummary(report.unsupportedExtensions)
+  .action(
+    async (
+      options: {
+        unsupported?: boolean
+        knowledge?: boolean
+        path: string[]
+        assumeRemoved: string[]
+        json?: boolean
+      },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      if (!options.knowledge && (options.path.length > 0 || options.assumeRemoved.length > 0)) {
+        throw new Error("--path and --assume-removed audit pages: add --knowledge.")
+      }
+      if (options.knowledge) {
+        const report = await knowledgeAudit(cwd, {
+          ...(options.path.length === 0 ? {} : { paths: options.path }),
+          ...(options.assumeRemoved.length === 0 ? {} : { assumeRemoved: options.assumeRemoved }),
+        })
+        if (options.json) {
+          console.log(JSON.stringify(report, null, 2))
+        } else {
+          printKnowledgeAudit(report)
+        }
+        return
+      }
+      const report = await audit(cwd)
+      if (options.json) {
+        console.log(JSON.stringify(report, null, 2))
+        return
+      }
+      console.log(`mode=${report.mode}`)
+      console.log(`cost=${report.cost}`)
+      console.log(`inventoryVerified=${report.inventoryVerified}`)
+      console.log(`discoveredFiles=${report.discoveredFiles}`)
+      console.log(`supportedFiles=${report.supportedFiles.length}`)
+      console.log(`supportedBytes=${report.supportedBytes}`)
+      console.log(`largestFileBytes=${report.largestFileBytes}`)
+      console.log(`skippedFiles=${report.skippedFiles.length}`)
+      console.log(
+        `unsupportedFiles=${countSkippedByReason(report.skippedFiles, "unsupported-extension")}`,
+      )
+      console.log(`oversizedFiles=${countSkippedByReason(report.skippedFiles, "oversized")}`)
+      console.log(`sensitiveFiles=${countSkippedByReason(report.skippedFiles, "sensitive-name")}`)
+      console.log(`indexedFiles=${report.indexedFiles.length}`)
+      console.log(`totalChunks=${report.totalChunks}`)
+      console.log(`chunkStats.minChars=${report.chunkStats.minChars}`)
+      console.log(`chunkStats.averageChars=${report.chunkStats.averageChars.toFixed(1)}`)
+      console.log(`chunkStats.p50Chars=${report.chunkStats.p50Chars}`)
+      console.log(`chunkStats.p95Chars=${report.chunkStats.p95Chars}`)
+      console.log(`chunkStats.maxChars=${report.chunkStats.maxChars}`)
+      console.log(`chunkStats.contextualChunks=${report.chunkStats.contextualChunks}`)
+      console.log(`chunkStats.contextualRatio=${report.chunkStats.contextualRatio.toFixed(3)}`)
+      console.log(`emptyTextFiles=${report.emptyTextFiles.length}`)
+      console.log(`missingFromIndex=${report.missingFromIndex.length}`)
+      console.log(`staleInIndex=${report.staleInIndex.length}`)
+      console.log(`duplicateCandidates=${report.sourceDiagnostics.duplicateCandidates.length}`)
+      console.log(`archiveCandidates=${report.sourceDiagnostics.archiveCandidates.length}`)
+      console.log(`mirrorCandidates=${report.sourceDiagnostics.mirrorCandidates.length}`)
+      printUnsupportedSummary(report.unsupportedExtensions)
 
-    for (const file of report.missingFromIndex) {
-      console.log(pc.yellow(`missing: ${file}`))
-    }
-    for (const file of report.staleInIndex) {
-      console.log(pc.red(`stale: ${file}`))
-    }
-    if (options.unsupported) {
-      for (const file of report.skippedFiles) {
-        console.log(
-          pc.yellow(
-            `skipped: ${file.relativePath} reason=${file.reason} recommendation=${file.recommendation}`,
-          ),
-        )
+      for (const file of report.missingFromIndex) {
+        console.log(pc.yellow(`missing: ${file}`))
       }
-      for (const candidate of report.sourceDiagnostics.duplicateCandidates) {
-        console.log(
-          pc.yellow(`duplicate-candidate: ${candidate.key} files=${candidate.files.join(",")}`),
-        )
+      for (const file of report.staleInIndex) {
+        console.log(pc.red(`stale: ${file}`))
       }
-      for (const candidate of report.sourceDiagnostics.archiveCandidates) {
-        console.log(
-          pc.yellow(`archive-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
-        )
+      if (options.unsupported) {
+        for (const file of report.skippedFiles) {
+          console.log(
+            pc.yellow(
+              `skipped: ${file.relativePath} reason=${file.reason} recommendation=${file.recommendation}`,
+            ),
+          )
+        }
+        for (const candidate of report.sourceDiagnostics.duplicateCandidates) {
+          console.log(
+            pc.yellow(`duplicate-candidate: ${candidate.key} files=${candidate.files.join(",")}`),
+          )
+        }
+        for (const candidate of report.sourceDiagnostics.archiveCandidates) {
+          console.log(
+            pc.yellow(`archive-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
+          )
+        }
+        for (const candidate of report.sourceDiagnostics.mirrorCandidates) {
+          console.log(
+            pc.yellow(`mirror-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
+          )
+        }
+      } else if (report.skippedFiles.length > 0) {
+        console.log(pc.yellow("Run `rgr audit --unsupported` to list skipped file paths."))
       }
-      for (const candidate of report.sourceDiagnostics.mirrorCandidates) {
-        console.log(
-          pc.yellow(`mirror-candidate: ${candidate.relativePath} reason=${candidate.reason}`),
-        )
-      }
-    } else if (report.skippedFiles.length > 0) {
-      console.log(pc.yellow("Run `rgr audit --unsupported` to list skipped file paths."))
-    }
 
-    if (report.missingFromIndex.length > 0 || report.staleInIndex.length > 0) {
-      process.exitCode = 1
-    }
-  })
+      if (report.missingFromIndex.length > 0 || report.staleInIndex.length > 0) {
+        process.exitCode = 1
+      }
+    },
+  )
 
 program
   .command("limits")
@@ -1291,6 +1419,98 @@ program
       process.exitCode = 1
     }
   })
+
+program
+  .command("trust")
+  .description(
+    "Review and approve project config settings that run programs, send data off this machine, or read outside the project.",
+  )
+  .option("--yes", "Approve the current settings without a prompt (CI, servers, scripts).")
+  .option("--revoke", "Remove this machine's approval for the project.")
+  .option("--list", "List every project approved on this machine.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (
+      options: { yes?: boolean; revoke?: boolean; list?: boolean; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      if (options.list) {
+        const approvals = await listConfigTrust()
+        if (options.json) {
+          console.log(JSON.stringify({ store: trustStorePath(), approvals }, null, 2))
+          return
+        }
+        console.log(`store=${trustStorePath()}`)
+        for (const approval of approvals) {
+          console.log(
+            `${approval.projectRoot} approvedAt=${approval.approvedAt} settings=${approval.settings.join(",")}`,
+          )
+        }
+        return
+      }
+      const config = await loadConfig(cwd)
+      if (options.revoke) {
+        const revoked = await revokeConfigTrust(config.projectRoot)
+        if (options.json) {
+          console.log(JSON.stringify({ projectRoot: config.projectRoot, revoked }, null, 2))
+          return
+        }
+        console.log(revoked ? pc.green("Approval removed.") : "No approval was recorded.")
+        return
+      }
+      const trust = config.configTrust ?? { status: "not-needed", settings: [], fingerprint: null }
+      let approved = trust.status === "trusted"
+      if (trust.status === "untrusted") {
+        printGatedSettings(trust.settings)
+        approved =
+          options.yes === true ||
+          (!options.json &&
+            isInteractiveTerminal() &&
+            (await askYesNo("Approve these settings on this machine? [y/N] ")))
+        if (approved) {
+          await approveConfigTrust(config.projectRoot, trust.settings)
+        }
+      }
+      if (options.json) {
+        console.log(
+          JSON.stringify(
+            {
+              projectRoot: config.projectRoot,
+              status: approved && trust.status === "untrusted" ? "trusted" : trust.status,
+              settings: trust.settings,
+              fingerprint: trust.fingerprint,
+              store: trustStorePath(),
+            },
+            null,
+            2,
+          ),
+        )
+        return
+      }
+      if (trust.status === "not-needed") {
+        console.log("No project config setting needs approval.")
+      } else if (trust.status === "trusted") {
+        console.log(
+          pc.green(
+            trust.grantedBy === "environment"
+              ? `Approved by ${TRUST_PROJECT_CONFIG_ENV}=1.`
+              : "These settings are approved on this machine.",
+          ),
+        )
+        printGatedSettings(trust.settings)
+      } else if (approved) {
+        console.log(pc.green("Approved. Changing any of these settings asks again."))
+      } else {
+        console.log(
+          pc.yellow(
+            "Not approved: these settings stay inactive. Run `rgr trust --yes` after reviewing them.",
+          ),
+        )
+        process.exitCode = 1
+      }
+    },
+  )
 
 const storageCommand = program.command("storage").description("Inspect and maintain local storage.")
 
@@ -1610,44 +1830,26 @@ function explicitProjectRoot(command: Command): string | undefined {
   return options.projectRoot ? path.resolve(options.projectRoot) : undefined
 }
 
-function withSearchOptions(
-  cwd: string,
-  options: {
-    topK?: number
-    maxChunksPerDocument?: number
-    contextRadius?: number
-    includePath?: string[]
-    excludePath?: string[]
-    contextPath?: string[]
-    scope?: string
-    explain?: boolean
-    exactVectorSearch?: boolean
-  },
-): {
-  cwd: string
+interface SearchCommandOptions {
   topK?: number
   maxChunksPerDocument?: number
   contextRadius?: number
-  includePaths?: string[]
-  excludePaths?: string[]
-  contextPaths?: string[]
+  includePath?: string[]
+  excludePath?: string[]
+  contextPath?: string[]
   scope?: string
   explain?: boolean
-  vectorSearchMode?: "exact"
-} {
-  const result: {
-    cwd: string
-    topK?: number
-    maxChunksPerDocument?: number
-    contextRadius?: number
-    includePaths?: string[]
-    excludePaths?: string[]
-    contextPaths?: string[]
-    scope?: string
-    explain?: boolean
-    vectorSearchMode?: "exact"
-  } = { cwd }
+  exactVectorSearch?: boolean
+  retriever?: SearchRetriever
+  lex?: string[]
+  vec?: string[]
+  hyde?: string[]
+}
+
+function withSearchOptions(cwd: string, options: SearchCommandOptions): SearchOptions {
+  const result: SearchOptions = { cwd }
   addOption(result, "scope", options.scope)
+  addOption(result, "retriever", options.retriever)
   addOption(result, "topK", options.topK)
   addOption(result, "maxChunksPerDocument", options.maxChunksPerDocument)
   addOption(result, "contextRadius", options.contextRadius)
@@ -1656,7 +1858,111 @@ function withSearchOptions(
   if (options.exactVectorSearch) {
     result.vectorSearchMode = "exact"
   }
+  const searches = (["lex", "vec", "hyde"] as const).flatMap((type) =>
+    (options[type] ?? []).map((query) => ({ type, query })),
+  )
+  if (searches.length > 0) {
+    result.searches = searches
+  }
   return result
+}
+
+function printGatedSettings(settings: readonly GatedSetting[]): void {
+  for (const setting of settings) {
+    const value = Array.isArray(setting.value) ? setting.value.join(" ") : String(setting.value)
+    console.log(`  ${pc.bold(setting.name)} = ${value}`)
+    console.log(pc.dim(`    ${setting.reason}`))
+  }
+}
+
+function isInteractiveTerminal(): boolean {
+  return process.stdin.isTTY === true && process.stdout.isTTY === true
+}
+
+async function askYesNo(question: string): Promise<boolean> {
+  const prompt = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    return /^y(?:es)?$/iu.test((await prompt.question(question)).trim())
+  } finally {
+    prompt.close()
+  }
+}
+
+/**
+ * Before a command that may run extractors or send embeddings: settings a clone or a pull brought in
+ * stay off until approved. A terminal asks once; scripts, hooks, and agents get a notice and run
+ * without them.
+ */
+async function reviewProjectConfigTrust(cwd: string, json: boolean): Promise<void> {
+  const config = await loadConfig(cwd)
+  const trust = config.configTrust
+  if (trust?.status !== "untrusted") {
+    return
+  }
+  if (!json && isInteractiveTerminal()) {
+    console.log(
+      pc.yellow("Project config files set these settings, which this machine has not approved:"),
+    )
+    printGatedSettings(trust.settings)
+    if (await askYesNo("Approve them on this machine? [y/N] ")) {
+      await approveConfigTrust(config.projectRoot, trust.settings)
+      console.log(pc.green("Approved. Changing any of these settings asks again."))
+      return
+    }
+    console.log(pc.yellow("Continuing without them. Run `rgr trust` to review them later."))
+    return
+  }
+  console.error(
+    pc.yellow(
+      `Project config files set ${trust.settings.map((setting) => setting.name).join(", ")}, inactive until this machine approves them: run \`rgr trust\`.`,
+    ),
+  )
+}
+
+/**
+ * A command that writes gated settings on the operator's request approves what it wrote, as long as
+ * the project had nothing else awaiting approval: an unapproved setting from a clone still needs a
+ * review of its own.
+ */
+async function approveOwnConfigWrites(
+  cwd: string,
+  before: ConfigTrustState | undefined,
+): Promise<void> {
+  if (before?.status === "untrusted") {
+    return
+  }
+  const after = await loadConfig(cwd)
+  if (after.configTrust?.status === "untrusted") {
+    await approveConfigTrust(after.projectRoot, after.configTrust.settings)
+  }
+}
+
+/** One line per metric: baseline, current, and the signed change, then the per-category changes. */
+function printEvaluationComparison(comparison: EvaluationComparison): void {
+  const format = (value: number | null, latency: boolean): string =>
+    value === null ? "n/a" : latency ? value.toFixed(1) : value.toFixed(3)
+  const signed = (value: number | null, latency: boolean): string =>
+    value === null ? "n/a" : `${value >= 0 ? "+" : ""}${format(value, latency)}`
+  console.log(
+    `baseline=${comparison.baselinePath} comparable=${comparison.comparable} differences=${comparison.differences.join(",") || "none"}`,
+  )
+  if (!comparison.comparable) {
+    console.log(
+      pc.yellow("The baseline evaluated another golden file; its deltas compare different cases."),
+    )
+  }
+  for (const [metric, delta] of Object.entries(comparison.metrics)) {
+    const latency = metric.endsWith("LatencyMs")
+    console.log(
+      `${metric}: ${format(delta.baseline, latency)} -> ${format(delta.current, latency)} (${signed(delta.delta, latency)})`,
+    )
+  }
+  for (const [category, metrics] of Object.entries(comparison.categories)) {
+    const changes = Object.entries(metrics)
+      .filter(([, delta]) => delta.delta !== null && delta.delta !== 0)
+      .map(([metric, delta]) => `${metric}=${signed(delta.delta, false)}`)
+    console.log(`category=${category} ${changes.join(" ") || "unchanged"}`)
+  }
 }
 
 function addPathFilters(
@@ -1930,6 +2236,60 @@ function printConfigurationPrompt(prompt: string): void {
   console.log("-----BEGIN RAGMIR CONFIGURATION PROMPT-----")
   console.log(prompt)
   console.log("-----END RAGMIR CONFIGURATION PROMPT-----")
+}
+
+function printKnowledgeAudit(report: KnowledgeAuditReport): void {
+  console.log(`pages=${report.pages} links=${report.links} citations=${report.citations}`)
+  const { findings } = report
+  const section = <Item>(
+    name: string,
+    finding: { count: number; items: Item[] },
+    line: (item: Item) => string,
+  ): void => {
+    console.log(`${name}=${finding.count}`)
+    for (const item of finding.items) console.log(`  ${line(item)}`)
+    if (finding.count > finding.items.length) {
+      console.log(pc.dim(`  ... ${finding.count - finding.items.length} more (use --json)`))
+    }
+  }
+  section(
+    "brokenLinks",
+    findings.brokenLinks,
+    (item) =>
+      `${item.source}:${item.line} -> ${item.target}${item.suggestion ? ` (did you mean ${item.suggestion}?)` : ""}`,
+  )
+  section(
+    "missingPages",
+    findings.missingPages,
+    (item) =>
+      `[[${item.target}]] referenced ${item.references} time(s), first in ${item.sources[0] ?? ""}`,
+  )
+  section("unlinkedPages", findings.unlinkedPages, (item) => item.path)
+  section(
+    "duplicateTitles",
+    findings.duplicateTitles,
+    (item) => `"${item.title}": ${item.paths.join(", ")}`,
+  )
+  section(
+    "brokenCitations",
+    findings.brokenCitations,
+    (item) => `${item.source}:${item.line} ${item.citation} (${item.status})`,
+  )
+  section(
+    "stalePages",
+    findings.stalePages,
+    (item) => `${item.path}: ${item.changedSources.join(", ")} changed`,
+  )
+  section("lostSources", findings.lostSources, (item) => item.path)
+  if (report.assumeRemoved) {
+    console.log(`Removing ${report.assumeRemoved.paths.join(", ")} would break:`)
+    section(
+      "  brokenLinks",
+      report.assumeRemoved.brokenLinks,
+      (item) => `${item.source}:${item.line} -> ${item.target}`,
+    )
+    section("  unlinkedPages", report.assumeRemoved.unlinkedPages, (item) => item.path)
+  }
 }
 
 function printUnsupportedSummary(extensions: Array<{ extension: string; count: number }>): void {

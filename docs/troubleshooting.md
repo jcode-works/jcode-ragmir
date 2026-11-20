@@ -35,6 +35,13 @@ scope or `~/.codex/config.toml`). Remove that registration and register the serv
 set `mcpAllowedRoots` in the base's config to refuse unrelated workspaces. Results already carry a
 scope notice when the workspace is unrelated.
 
+## The agent follows outdated Ragmir guidance
+
+After an update, `rgr doctor` warns when the skill in `.ragmir/skills/` or a Ragmir-managed copy in
+an agent folder differs from the skill the installed Ragmir ships. Run `rgr upgrade` to refresh
+them; edits made to these copies are replaced, so keep your own guidance in a skill of another
+name. Agent folders that link to `.ragmir/skills/` follow it on their own.
+
 ## Claude Code does not show the Ragmir tools
 
 A server declared in `.mcp.json` only starts after approval. `rgr doctor` reports `approval=pending`
@@ -141,6 +148,14 @@ and stages the required index rebuild. Source text is now preserved. See [migrat
 `rgr security-audit --strict` exits with an error when warnings are present. Inspect the named file
 permissions, Git exclusions, or external extractor. Warnings are separate from operational readiness.
 OCR remains usable while its explicit external-process advisory is reported.
+
+## `UNTRUSTED_CONFIG`, or OCR stopped after a pull
+
+A project config file sets a command, an embedding endpoint, an API key variable, or a source
+outside the project that this machine has not approved. Run `rgr trust` to review the values and
+approve them (`rgr trust --yes` in CI). Changing any of them asks again. Until then Ragmir indexes
+without them and never contacts the endpoint. See
+[Settings that need approval](./configuration.md#settings-that-need-approval-on-each-machine).
 
 ## Two workstations return different results
 

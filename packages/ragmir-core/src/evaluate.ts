@@ -6,6 +6,7 @@ import { z } from "zod"
 import { loadConfig } from "./config.js"
 import { retainEmbeddingModel } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
+import { answerRatesAt, compareWithBaseline } from "./evaluation-comparison.js"
 import { acquireGenerationReadLease, type GenerationReadLease } from "./generation-retention.js"
 import { withIndexWriteLock } from "./index-write-lock.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
@@ -24,6 +25,7 @@ import {
   readIndexManifest,
   writeIndexManifest,
 } from "./store.js"
+import { searchFormulationsSchema } from "./typed-search.js"
 import type {
   Config,
   EvaluationCaseResult,
@@ -90,6 +92,7 @@ const goldenQuerySchema = z
     includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     contextPaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+    searches: searchFormulationsSchema.optional(),
     topK: z.number().int().positive().optional(),
   })
   .strict()
@@ -290,6 +293,7 @@ async function evaluateGoldenQueriesWithConfig(
   throwIfAborted(signal)
   const goldenPath = path.resolve(cwd, String(options.goldenPath))
   const goldenFile = await readGoldenFile(goldenPath, signal)
+  const retriever = options.retriever ?? "hybrid"
   const defaultTopK = boundedTopK(options.topK ?? goldenFile.topK ?? 3, options.maxTopK)
   const caseDetailLimit = evaluationCaseDetailLimit(options.caseDetailLimit)
   const cases: EvaluationCaseResult[] = []
@@ -314,6 +318,7 @@ async function evaluateGoldenQueriesWithConfig(
         cwd,
         topK: boundedTopK(goldenQuery.topK ?? defaultTopK, options.maxTopK),
         contextRadius: 0,
+        retriever,
         ...(signal === undefined ? {} : { signal }),
       }),
     )
@@ -330,6 +335,7 @@ async function evaluateGoldenQueriesWithConfig(
               cwd,
               topK: evaluationDepth,
               contextRadius: 0,
+              retriever,
               ...(signal === undefined ? {} : { signal }),
               ...(goldenQuery.includePaths === undefined
                 ? {}
@@ -340,6 +346,7 @@ async function evaluateGoldenQueriesWithConfig(
               ...(goldenQuery.contextPaths === undefined
                 ? {}
                 : { contextPaths: goldenQuery.contextPaths }),
+              ...(goldenQuery.searches === undefined ? {} : { searches: goldenQuery.searches }),
             })
             throwIfAborted(signal)
             return evaluateCase(
@@ -368,7 +375,10 @@ async function evaluateGoldenQueriesWithConfig(
   const passed = gates.every((gate) => gate.passed)
   const requiredThresholdSet = completeThresholdSet(thresholds)
   const relativeGoldenPath = projectRelativePath(config.projectRoot, goldenPath)
+  // A one-channel diagnostic run measures a configuration that searches never use, so it cannot
+  // stand as the verified quality of the index.
   const verificationEligible =
+    retriever === "hybrid" &&
     initialManifest !== null &&
     (initialManifest.staleFiles?.length ?? 0) === 0 &&
     relativeGoldenPath !== null &&
@@ -417,7 +427,7 @@ async function evaluateGoldenQueriesWithConfig(
   throwIfAborted(signal)
   const returnedCases = caseDetailLimit === undefined ? cases : cases.slice(0, caseDetailLimit)
   const omittedCases = cases.length - returnedCases.length
-  return {
+  const result: EvaluationResult = {
     goldenPath,
     embeddingProvider: config.embeddingProvider,
     embeddingModel: config.embeddingModel,
@@ -428,6 +438,7 @@ async function evaluateGoldenQueriesWithConfig(
     rankingPolicyFingerprint: activeRankingPolicyFingerprint,
     indexFingerprint,
     goldenFingerprint: goldenFile.fingerprint,
+    retriever,
     topK: defaultTopK,
     total: cases.length,
     hits,
@@ -443,6 +454,7 @@ async function evaluateGoldenQueriesWithConfig(
       5: metrics.recallAt5,
       10: metrics.recallAt10,
     },
+    answerRateAt: answerRatesAt(answerableCases),
     precisionAt5: metrics.precisionAt5,
     meanReciprocalRankAt10: metrics.meanReciprocalRankAt10,
     ndcgAt10: metrics.ndcgAt10,
@@ -464,6 +476,15 @@ async function evaluateGoldenQueriesWithConfig(
     cases: returnedCases,
     ...(omittedCases === 0 ? {} : { omittedCases }),
   }
+  if (options.baselinePath === undefined) {
+    return result
+  }
+  const comparison = await compareWithBaseline(
+    result,
+    path.resolve(cwd, String(options.baselinePath)),
+    signal,
+  )
+  return { ...result, comparison }
 }
 
 function evaluationCaseDetailLimit(value: number | undefined): number | undefined {
@@ -548,6 +569,7 @@ function normalizeGoldenQuery(value: z.infer<typeof goldenQuerySchema>): GoldenQ
     ...(value.includePaths === undefined ? {} : { includePaths: value.includePaths }),
     ...(value.excludePaths === undefined ? {} : { excludePaths: value.excludePaths }),
     ...(value.contextPaths === undefined ? {} : { contextPaths: value.contextPaths }),
+    ...(value.searches === undefined ? {} : { searches: value.searches }),
   }
 }
 
@@ -640,6 +662,9 @@ function evaluateCase(
   }
   if (goldenQuery.contextPaths !== undefined) {
     result.contextPaths = goldenQuery.contextPaths
+  }
+  if (goldenQuery.searches !== undefined) {
+    result.searches = goldenQuery.searches
   }
   return result
 }

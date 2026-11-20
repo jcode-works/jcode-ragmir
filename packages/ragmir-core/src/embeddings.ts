@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { MAX_EMBEDDING_BATCH_SIZE } from "./defaults.js"
 import { type EmbeddingPooling, embeddingDtype, embeddingPooling } from "./embedding-models.js"
+import { RagmirError } from "./errors.js"
 import { removeTree, renameWithRetry } from "./fs-retry.js"
 import { throwIfAborted } from "./operation.js"
 import { ensurePrivateDirectory } from "./permissions.js"
@@ -309,6 +310,19 @@ async function embedWithOpenAiCompatible(
   if (!config.embeddingEndpoint) {
     throw new Error(
       'embeddingProvider "openai-compatible" needs embeddingEndpoint, for example "http://localhost:11434/v1" for Ollama.',
+    )
+  }
+  const unapproved = (
+    config.configTrust?.status === "untrusted" ? config.configTrust.settings : []
+  ).filter(
+    (setting) => setting.name === "embeddingEndpoint" || setting.name === "embeddingApiKeyEnv",
+  )
+  if (unapproved.length > 0) {
+    // Checked before any request: an unapproved endpoint or key name from a cloned or pulled
+    // config must not receive a passage, a query, or the secret it names.
+    throw new RagmirError(
+      "UNTRUSTED_CONFIG",
+      `The project config sets ${unapproved.map((setting) => setting.name).join(" and ")}, which this machine has not approved. Review the settings and run \`rgr trust\` to send embeddings to ${config.embeddingEndpoint}.`,
     )
   }
   const headers: Record<string, string> = { "content-type": "application/json" }

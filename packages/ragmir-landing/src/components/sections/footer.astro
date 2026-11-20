@@ -1,6 +1,5 @@
 ---
-import { GithubIcon } from "../github-icon"
-import { NpmIcon } from "../npm-icon"
+import { GithubIcon, NpmIcon, PypiIcon } from "../brand-icons"
 import RagmirLogo from "../ragmir-logo.astro"
 import { RagmirBackground } from "../ragmir-background"
 import {
@@ -9,6 +8,7 @@ import {
   NPM_URL,
   PROJECT_LINK_LABEL_KEYS,
   PROJECT_LINKS,
+  PYPI_URL,
 } from "../../lib/project-links"
 
 interface Props {
@@ -117,6 +117,15 @@ const marqueeCopy =
             aria-label={t("hero_npm_cta")}
           >
             <NpmIcon className="size-4" />
+          </a>
+          <a
+            class={iconLinkClass}
+            href={PYPI_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t("hero_pypi_cta")}
+          >
+            <PypiIcon className="size-4" />
           </a>
           {version && (
             <a

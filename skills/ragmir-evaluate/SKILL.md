@@ -66,8 +66,9 @@ The first line summarizes the run: hit rate, Recall@1/3/5/10, Precision@5, MRR@1
 citation rate, false-positive rate on hard negatives, `passed`, and p50 and p95 latency. Each case
 follows with its rank; a miss lists the expected and returned citations. A failed threshold
 prints `failedGate=<metric>` and exits with status 1, so the same command gates CI. The JSON report
-adds per-category and per-locale `groups`, the `gates`, and the fingerprints of the ranking policy,
-index, and golden file.
+adds per-category and per-locale `groups`, the `gates`, the fingerprints of the ranking policy,
+index, and golden file, and `answerRateAt`: the share of answerable cases with a relevant passage
+in the first 1, 3, 5, or 10 results.
 
 A passing suite with at least 100 cases, graded relevance, exact citations, hard negatives, and
 every threshold stores its report in the index: `rgr doctor --deep` then reports retrieval quality
@@ -97,11 +98,18 @@ as verified while the golden file, corpus, model, and ranking policy stay the sa
 
 ## 4. Tune one change at a time
 
-1. Run the golden file and keep the JSON report as the baseline.
+1. Run the golden file and keep the JSON report as the baseline:
+   `rgr evaluate --golden ragmir.golden.json --json > baseline.json`.
 2. Change one setting in `ragmir.config.json`. Run `rgr ingest`: it stages and validates a rebuild
    when the change requires one, while the previous index keeps serving.
-3. Run the same golden file and compare the metrics, the categories, and the false-positive rate
-   with the baseline. Keep the change only if it improves them without new false positives.
+3. Run `rgr evaluate --golden ragmir.golden.json --baseline baseline.json`. It prints each metric
+   before and after with the signed change, then the changes per category, and lists the
+   settings that differ between the runs. Keep the change only if it improves them without new
+   false positives.
+
+To see what each channel contributes, run `rgr evaluate --golden ragmir.golden.json --retriever
+lexical` or `--retriever vector`. A one-channel run is a diagnostic: it never stores a verified
+quality report.
 
 Never edit expectations or lower thresholds to make a change pass, and never add the golden
 questions' wording to the documents. Report the baseline, each change, and its measured effect.

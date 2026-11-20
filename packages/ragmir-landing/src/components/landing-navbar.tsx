@@ -28,10 +28,10 @@ import {
   PROJECT_LINK_LABEL_KEYS,
   PROJECT_LINKS,
   type ProjectLinkKey,
+  PYPI_URL,
 } from "../lib/project-links"
 import { cn } from "../lib/utils"
-import { GithubIcon } from "./github-icon"
-import { NpmIcon } from "./npm-icon"
+import { GithubIcon, NpmIcon, PypiIcon } from "./brand-icons"
 import { Button } from "./ui/button"
 
 interface AlternateLocale {
@@ -99,7 +99,7 @@ const DRAWER_SECTIONS: ReadonlyArray<{
 const DRAWER_ROW_CLASS_NAME =
   "flex min-h-11 items-center gap-3 px-4 font-semibold text-foreground text-sm transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-foreground/10"
 
-/** GitHub and npm in the bar: bare icons, like the social icons of the WorkoutGen bar. */
+/** GitHub, npm, and PyPI in the bar: bare icons, like the social icons of the WorkoutGen bar. */
 const HEADER_ICON_CLASS_NAME =
   "flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
@@ -317,12 +317,13 @@ export function LandingNavbar({
             <a aria-label="Ragmir" className="flex items-center" href={localizedHomeUrl}>
               <RagmirLogo />
             </a>
+            {/* Below 360px the three brand icons need its room; the drawer still shows the version. */}
             {version && (
               <a
                 href={NPM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground"
+                className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground max-[360px]:hidden"
               >
                 v{version}
               </a>
@@ -345,6 +346,14 @@ export function LandingNavbar({
               {...externalLinkProps}
             >
               <NpmIcon className="size-[18px]" />
+            </a>
+            <a
+              aria-label={t("hero_pypi_cta")}
+              className={HEADER_ICON_CLASS_NAME}
+              href={PYPI_URL}
+              {...externalLinkProps}
+            >
+              <PypiIcon className="size-[18px]" />
             </a>
             <button
               aria-expanded={menuOpen}

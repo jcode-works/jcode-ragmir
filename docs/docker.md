@@ -87,6 +87,12 @@ rebuilds the index with semantic vectors.
 blank PDF pages, images, and legacy `.doc` files. Run that ingest with `rgr ingest`:
 MCP clients cannot start an ingest while external extractors are configured.
 
+Commands and endpoints in a project config run only on a machine that approved them, and a
+container forgets approvals between runs. After reviewing the project's configuration, pass
+`-e RAGMIR_TRUST_PROJECT_CONFIG=1`, or keep approvals across runs by mounting a folder as
+`RAGMIR_TRUST_DIR`. See
+[Settings that need approval](./configuration.md#settings-that-need-approval-on-each-machine).
+
 ## Servers and CI
 
 Run `rgr ingest` from a scheduled job after the documents change, with the index on the mounted

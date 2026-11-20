@@ -28,6 +28,7 @@ silently.
 | `topK` | integer | This case's passage count. |
 | `includePaths`, `excludePaths` | arrays, up to 20 | Search filters for this case: folders, files, or globs. |
 | `contextPaths` | array, up to 20 | Structural context filters, such as `"Guide > Migration"`. |
+| `searches` | array, up to 5 | Formulations searched with the query, as an agent sends them: `{ "type": "lex", "vec", or "hyde", "query": "..." }`. Reports repeat them per case. |
 | `maximumVectorDistance` | number | Drops passages farther than this vector distance before scoring. |
 
 An answerable case needs at least one expected path, expected citation, or positive relevance

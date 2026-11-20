@@ -119,6 +119,10 @@ approval, run `rgr ocr setup --language eng+fra --images --legacy-word`, keeping
 needed, then `rgr ingest` from a terminal: agents cannot start an ingest while external extractors
 are configured.
 
+In a cloned project whose config already sets OCR commands, an embedding endpoint, or sources
+outside the project, those settings stay inactive until the user approves them on this machine.
+Show the user `rgr trust` and let them decide; never run `rgr trust --yes` on their behalf.
+
 ## Without Node.js
 
 Use the official image, which runs the same CLI and MCP server; `:full` adds the semantic runtime
