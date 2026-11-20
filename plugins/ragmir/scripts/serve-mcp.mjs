@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Starts the Ragmir MCP server for the project the agent has open: Claude Code passes it as
-// CLAUDE_PROJECT_DIR, and Gemini CLI or Qwen Code start this script in the workspace folder.
+// CLAUDE_PROJECT_DIR, Cursor starts this script in the home folder and lists the open folders in
+// WORKSPACE_FOLDER_PATHS, and Gemini CLI or Qwen Code start it in the workspace folder.
 //
 // The server always comes from the pinned npm release below, run from the plugin's data folder,
 // so opening a repository never executes code that repository ships. The project is passed as
@@ -13,7 +14,10 @@ import path from "node:path"
 const RAGMIR_VERSION = "6.17.0"
 
 const projectRoot = path.resolve(
-  process.env.RAGMIR_PROJECT_ROOT || process.env.CLAUDE_PROJECT_DIR || process.cwd(),
+  process.env.RAGMIR_PROJECT_ROOT ||
+    process.env.CLAUDE_PROJECT_DIR ||
+    process.env.WORKSPACE_FOLDER_PATHS?.split(path.delimiter)[0] ||
+    process.cwd(),
 )
 const workDir = process.env.CLAUDE_PLUGIN_DATA || path.join(os.tmpdir(), "ragmir-claude-plugin")
 mkdirSync(workDir, { recursive: true })
