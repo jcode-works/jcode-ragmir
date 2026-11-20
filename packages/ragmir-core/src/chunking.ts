@@ -120,9 +120,10 @@ export function chunkDocument(
       if (end >= region.charEnd) {
         break
       }
-      cursor = fenceStarts.has(end)
+      const next = fenceStarts.has(end)
         ? end
         : Math.max(end - chunkOverlap, cursor + 1, region.charStart)
+      cursor = splitsSurrogatePair(document.text, next) ? next + 1 : next
     }
   }
 
@@ -244,7 +245,17 @@ function chooseChunkEnd(
     return cursor + whitespace
   }
 
-  return hardEnd
+  return splitsSurrogatePair(text, hardEnd) ? hardEnd - 1 : hardEnd
+}
+
+/**
+ * Whether an offset falls between the two halves of a surrogate pair, such as an emoji: a chunk
+ * cut there holds a lone half, which embedding endpoints reject as invalid text.
+ */
+function splitsSurrogatePair(text: string, offset: number): boolean {
+  const before = text.charCodeAt(offset - 1)
+  const after = text.charCodeAt(offset)
+  return before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff
 }
 
 function lastSentenceBreakEnd(text: string): number {
