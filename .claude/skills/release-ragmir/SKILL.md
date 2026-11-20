@@ -93,10 +93,15 @@ non-publishing promotion:
    (`plugins/ragmir/scripts/serve-mcp.mjs`), `plugins/ragmir/codex.mcp.json`, every
    `@jcode.labs/ragmir@<version>` in `plugins/ragmir/` and `docs/agent-integration.md`, and
    `gemini-extension.json` and `qwen-extension.json`; bump the three plugin manifests' `version`
-   together. Update the plugin README, `GEMINI.md`, and `commands/index.md` for any new tools.
-2. Run `pnpm public:smoke`, merge into `develop`, then promote with a `chore(plugin): ...` commit,
-   which publishes nothing.
-3. Once that promotion lands, refresh the Context7 library from its admin page; Context7 indexes
-   `main` and the wiki. Only the maintainer's signed-in browser can do it.
+   together. Update the plugin README, `GEMINI.md`, and `commands/index.md` for any new tools,
+   here and never in the feature work: Gemini CLI and Qwen Code install the latest GitHub release,
+   whose tree carries the previous pin, so `GEMINI.md` must keep describing that pinned server.
+2. Run `pnpm public:smoke` and `claude plugin validate plugins/ragmir`, merge into `develop`, then
+   promote with a `chore(plugin): ...` commit, which publishes nothing. Its `Release npm` run still
+   waits for the `npm-publish` approval and then reports no release.
+3. Once that promotion lands, refresh the Context7 library: `POST
+   https://context7.com/api/v1/refresh` with `{"libraryName": "/jcode-works/ragmir"}` and the
+   maintainer's Context7 API key as the bearer token (or the Refresh button of its admin page).
+   Context7 indexes `main` and the wiki.
 
 Report the version, each channel's verification, and anything left for the maintainer.

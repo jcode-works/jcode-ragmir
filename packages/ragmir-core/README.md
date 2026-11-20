@@ -142,7 +142,8 @@ Scanned PDFs, photos, and legacy `.doc` files use local extractors (`rgr ocr set
 embeddings, install `@huggingface/transformers` and run `npx rgr setup --semantic`: it installs the
 model this machine suits (multilingual Granite R2 on most) and records it in the project config, and
 `npx rgr models list` compares the options. `mxbai-embed-xsmall-v1` stays the lightest for English,
-and `multilingual-e5-small` remains supported for existing indexes. See [choosing an embedding model](https://github.com/jcode-works/ragmir#choosing-an-embedding-model).
+`multilingual-e5-small` remains supported for existing indexes, and `Qwen3-Embedding-0.6B` is the
+heaviest option. See [choosing an embedding model](https://github.com/jcode-works/ragmir#choosing-an-embedding-model).
 
 For guided setup, give your agent this prompt:
 
