@@ -386,19 +386,26 @@ of this repository's developer questions. Add a model when questions use words y
 | English code and documentation | `mixedbread-ai/mxbai-embed-xsmall-v1` | Smallest and fastest; pinned revision and calibrated abstention bundled. |
 | Existing e5 indexes | `intfloat/multilingual-e5-small`, the previous default | Multilingual with 512-token passages; still supported, pinned and calibrated. |
 | Large mixed-language monorepo | `intfloat/multilingual-e5-base` | On a 30,171-chunk French and Java monorepo it ranked answers above e5-small, while e5-large scored lower. Pin its revision and digest yourself. |
+| Long multilingual documents, when indexing time is no concern | `onnx-community/Qwen3-Embedding-0.6B-ONNX` | Qwen3-Embedding 0.6B with its query instruction and last-token pooling: 32k-token context, a 624 MB download, eight times slower to index than Granite R2; pinned, with abstention from each index's noise floor. |
 
 `rgr models list` shows each known model with its download, the memory indexing needs, and how it
 fits this machine (memory, container limit, CPUs, Apple Silicon or Rosetta). `rgr setup --semantic`
 keeps a model the project already chose; otherwise it installs the recommendation for this machine
 and records it in the project config. In a project that commits `ragmir.config.json`, the choice
 lands there, so every workstation indexes with the same model. `--embedding-model <id>` overrides. Peak memory while indexing on Apple Silicon:
-Granite R2 0.66 GB, e5-small 1.06 GB, mxbai 0.49 GB.
+Granite R2 0.66 GB, e5-small 1.06 GB, mxbai 0.49 GB; Qwen3-Embedding 2.8 GB where Granite R2 took
+0.8 GB in the same run.
 
 Granite R2 runs with the CLS pooling it was trained for, from the Transformers.js export quantized
-to 8 bits. On Ragmir's developer-evidence set it matches e5-small: 13 of 17 answers complete in the
-top 5 and 4 of 5 unanswerable questions refused. Google's EmbeddingGemma 2 and Qwen3-Embedding-0.6B
-(Apache-2.0) score higher still, but need task prompts or last-token pooling that Ragmir does not
-apply yet: do not configure them. Jina embeddings use a non-commercial license.
+to 8 bits. Qwen3-Embedding-0.6B (Apache-2.0) runs with its query instruction and last-token
+pooling. Measured side by side on this repository's 89 developer questions, Qwen3 put the answer in
+the top 3 for 66 against 63 for Granite R2, with the same 26 of 70 unanswerable questions refused,
+but took 18 minutes to index what Granite R2 indexes in 2. On Ragmir's developer-evidence set it
+completed 17 of 17 answers in the top 5 against 14, and refused 2 of 5 unanswerable questions
+against 3. Fixed evidence thresholds did not beat each index's noise floor, so none ship for it.
+Google's EmbeddingGemma needs the projection its ONNX export applies after pooling, which Ragmir
+does not read, and the Gemma Terms of Use: do not configure it. Jina embeddings use a
+non-commercial license.
 
 A model is code you run on your sources, so treat it as a dependency. Ragmir loads only ONNX
 weights through Transformers.js (no pickled objects, no remote code), pins a 40-character revision,

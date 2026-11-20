@@ -20,10 +20,12 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `ingestEmbeddingDevice: "webgpu"` embeds ingestion batches on the GPU, with a CPU fallback.
   `rgr models list` shows the known models and their fit for the machine; setup installs the
   recommended one (multilingual Granite R2 97M on most machines) unless the config names a model.
-  Also supported: `mxbai-embed-xsmall-v1` (English), `multilingual-e5-small`, and
-  `multilingual-e5-base`. EmbeddingGemma 2 and Qwen3-Embedding are not supported yet as local
-  models; `embeddingProvider: "openai-compatible"` with `embeddingEndpoint` embeds through Ollama,
-  vLLM, or any OpenAI-compatible endpoint instead (opt-in: passage text goes to that endpoint).
+  Also supported: `mxbai-embed-xsmall-v1` (English), `multilingual-e5-small`,
+  `multilingual-e5-base`, and `Qwen3-Embedding-0.6B` (its query instruction and last-token pooling
+  apply, but it indexes eight times slower than Granite R2). EmbeddingGemma is not supported as a
+  local model; `embeddingProvider: "openai-compatible"` with `embeddingEndpoint` embeds through
+  Ollama, vLLM, or any OpenAI-compatible endpoint instead (opt-in: passage text goes to that
+  endpoint).
 - More than 900 extensions and file names index with no extra install: PDF, Office (macro-enabled
   files and templates, with chart titles, series, and values), OpenDocument (flat files too), EPUB,
   FictionBook, HTML and saved .mhtml pages, code in over 250 languages, C++ and Perl modules,

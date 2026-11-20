@@ -172,7 +172,8 @@ distinctive word counts more than a common one:
   packs every text into a narrow distance band and uses a limit of 0.4;
   `mxbai-embed-xsmall-v1` uses 1.1; Granite R2 (`onnx-community/granite-embedding-97m-multilingual-r2-ONNX`) uses 0.42,
   with 0.28 as its strong-evidence distance. Other models keep the previous rule: any related query
-  word, or a distance up to 1.1.
+  word, or a distance up to 1.1. Qwen3-Embedding stays on it: fixed thresholds measured on this
+  repository answered no better than each index's noise floor.
 
 Every Transformers index also measures its own noise floor: `rgr ingest` embeds 24 fixed off-topic
 probe questions (sports, cooking, geography, nonsense, in English and French) and stores the

@@ -30,7 +30,7 @@ export interface EmbeddingModelProfile {
   downloadMegabytes: number
   /**
    * Memory a CPU ingestion needs, with a margin over the peak resident size measured while
-   * indexing on Apple Silicon (Granite R2 0.66 GB, e5-small 1.06 GB, mxbai 0.49 GB).
+   * indexing on Apple Silicon (Granite R2 0.66 GB, e5-small 1.06 GB, mxbai 0.49 GB, Qwen3 2.8 GB).
    */
   memoryBytes: number
   /** Search evidence thresholds measured for this model ship with Ragmir. */
@@ -88,8 +88,8 @@ export const EMBEDDING_MODELS: readonly EmbeddingModelProfile[] = [
     calibrated: true,
     summary: "The lightest option, for English corpora on small machines.",
   },
-  // Listed last so the setup never picks it over Granite R2: six times the parameters and a
-  // 1,024-dimension vector make indexing much slower for the gain it measured.
+  // Listed last so the setup never picks it over Granite R2: on this repository it indexed eight
+  // times slower for no clear gain, and its evidence stays on the noise floor of each index.
   {
     id: "onnx-community/Qwen3-Embedding-0.6B-ONNX",
     revision: "c25a394dd583836952667c12f008335071b3f43d",
@@ -102,10 +102,11 @@ export const EMBEDDING_MODELS: readonly EmbeddingModelProfile[] = [
     pooling: "last_token",
     queryPrompt:
       "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
-    downloadMegabytes: 628,
-    memoryBytes: 3 * GIB,
+    downloadMegabytes: 624,
+    memoryBytes: 4 * GIB,
     calibrated: false,
-    summary: "Qwen3-Embedding 0.6B: multilingual with a 32k-token context, the heaviest option.",
+    summary:
+      "Qwen3-Embedding 0.6B: multilingual, 32k-token context; eight times slower to index than Granite R2.",
   },
 ]
 
