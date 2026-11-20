@@ -2,6 +2,7 @@
 // a link added or moved here reaches every surface at once.
 export const GITHUB_URL = "https://github.com/jcode-works/ragmir"
 export const NPM_URL = "https://www.npmjs.com/package/@jcode.labs/ragmir"
+export const PYPI_URL = "https://pypi.org/project/ragmir/"
 
 export const PROJECT_LINKS = {
   github: GITHUB_URL,
@@ -12,7 +13,7 @@ export const PROJECT_LINKS = {
   serverGuide: `${GITHUB_URL}/blob/main/docs/server-deployment.md`,
   pythonGuide: `${GITHUB_URL}/blob/main/docs/python.md`,
   dockerGuide: `${GITHUB_URL}/blob/main/docs/docker.md`,
-  pypi: "https://pypi.org/project/ragmir/",
+  pypi: PYPI_URL,
   agentSkills: "https://skills.sh/jcode-works/ragmir",
   context7: "https://context7.com/jcode-works/ragmir",
   benchmarks: `${GITHUB_URL}#benchmarks`,

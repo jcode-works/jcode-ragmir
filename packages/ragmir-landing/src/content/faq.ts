@@ -8,6 +8,7 @@ const FAQ_ITEM_KEYS = [
   ["faq_observability_question", "faq_observability_answer"],
   ["faq_compare_question", "faq_compare_answer"],
   ["faq_role_question", "faq_role_answer"],
+  ["faq_wiki_question", "faq_wiki_answer"],
   ["faq_formats_question", "faq_formats_answer"],
   ["faq_server_question", "faq_server_answer"],
   ["faq_license_question", "faq_license_answer"],
