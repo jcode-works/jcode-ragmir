@@ -25,7 +25,7 @@ const deployItems = [
 >
   <div class="mb-10 md:mb-14">
     <SectionHeader
-      num="006"
+      num="007"
       label={t("deploy_eyebrow")}
       title={t("deploy_title")}
       text={t("deploy_text")}
@@ -58,11 +58,11 @@ const deployItems = [
       <span class="font-mono text-foreground/75 text-xs">{t("deploy_owns_items")}</span>
     </p>
     <a
-      class="inline-flex h-10 w-fit shrink-0 items-center gap-2 rounded-full bg-background px-4 text-sm font-bold text-foreground transition-colors hover:bg-[var(--inset-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] motion-reduce:transform-none"
+      class="inline-flex h-10 w-fit shrink-0 items-center gap-2 rounded-full bg-background px-4 text-sm font-bold text-foreground transition-colors hover:bg-[var(--inset-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-background"
       href={PROJECT_LINKS.serverGuide}
     >
       {t("deploy_guide_link")}
-      <ArrowUpRight class="size-4" aria-hidden="true" />
+      <ArrowUpRight class="arrow-out size-4" aria-hidden="true" />
     </a>
   </div>
 </section>

@@ -1,16 +1,8 @@
 ---
-import {
-  ArrowUpRight,
-  Blocks,
-  FileStack,
-  Gauge,
-  Quote,
-  Search,
-  Server,
-  ShieldCheck,
-  Waypoints,
-} from "@lucide/astro"
+import { ArrowUpRight, ChevronDown } from "@lucide/astro"
+import { FEATURED_FORMATS, SUPPORTED_FORMAT_GROUPS } from "../../content/supported-formats"
 import { PROJECT_LINKS } from "../../lib/project-links"
+import { CapabilitiesExplorer } from "../capabilities-explorer"
 import { SectionHeader } from "../section-header"
 
 interface Props {
@@ -20,40 +12,18 @@ interface Props {
 const { translations } = Astro.props
 const t = (key: string): string => translations[key] ?? key
 
-/** One group of capabilities: its title and its four items, read from `capabilities_<key>_*`. */
-const group = (key: string, icon: typeof Search) => ({
-  title: t(`capabilities_${key}_title`),
-  icon,
-  items: [1, 2, 3, 4].map((item) => ({
-    name: t(`capabilities_${key}_${item}_name`),
-    text: t(`capabilities_${key}_${item}_text`),
-  })),
-})
-
-// The first panel is the path every answer takes, so its stages are drawn connected; the second
-// gathers what surrounds that path, side by side.
-const panels = [
-  {
-    title: t("capabilities_path_title"),
-    connected: true,
-    groups: [
-      group("index", FileStack),
-      group("search", Search),
-      group("cite", Quote),
-      group("wiki", Waypoints),
-    ],
-  },
-  {
-    title: t("capabilities_around_title"),
-    connected: false,
-    groups: [
-      group("connect", Blocks),
-      group("measure", Gauge),
-      group("run", Server),
-      group("control", ShieldCheck),
-    ],
-  },
-]
+// One group per step an answer travels (index, search, cite, maintain), then what surrounds it.
+// Each group has four items, read from `capabilities_<group>_<n>_name` and `_text`.
+const groups = ["index", "search", "cite", "wiki", "connect", "measure", "run", "control"].map(
+  (key) => ({
+    key,
+    title: t(`capabilities_${key}_title`),
+    items: [1, 2, 3, 4].map((item) => ({
+      name: t(`capabilities_${key}_${item}_name`),
+      text: t(`capabilities_${key}_${item}_text`),
+    })),
+  }),
+)
 ---
 
 <section
@@ -71,75 +41,59 @@ const panels = [
     />
   </div>
 
-  <div class="grid gap-3 md:gap-4">
-    {panels.map((panel) => {
-      const List = panel.connected ? "ol" : "ul"
-      return (
-        <div class="rounded-xl bg-card p-5 md:p-8">
-          <h3 class="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
-            {panel.title}
+  <div class="rounded-xl bg-card p-2 md:p-3">
+    <CapabilitiesExplorer client:visible groups={groups} label={t("capabilities_eyebrow")}>
+      <div class="border-foreground/[0.08] border-t pt-5">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <h3 class="mr-2 inline-flex items-center gap-2 font-bold text-sm" id="formats-heading">
+            {t("formats_title")}
+            <span class="tnum rounded-full bg-foreground/[0.08] px-2 py-0.5 font-mono font-medium text-[10px] text-muted-foreground">
+              <span aria-hidden="true">{t("formats_count")}</span>
+              <span class="sr-only">{t("formats_count_label")}</span>
+            </span>
           </h3>
-          <List
-            class:list={[
-              "mt-8 grid gap-10 lg:grid-cols-4 lg:gap-8",
-              !panel.connected && "sm:grid-cols-2",
-            ]}
-            role="list"
-          >
-            {panel.groups.map((entry, index) => {
-              const linked = panel.connected && index < panel.groups.length - 1
-              return (
-                <li class:list={["relative", panel.connected && "pl-12 lg:pl-0"]}>
-                  {linked && (
-                    <span
-                      aria-hidden="true"
-                      class="absolute top-9 -bottom-10 left-[17px] w-px bg-foreground/15 lg:hidden"
-                    />
-                  )}
-                  <div class="flex min-h-9 items-center gap-3">
-                    {panel.connected ? (
-                      <span class="absolute top-0 left-0 flex size-9 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-foreground/15 lg:static">
-                        <entry.icon
-                          aria-hidden="true"
-                          class="size-[18px] text-[var(--accent-title)]"
-                        />
-                      </span>
-                    ) : (
-                      <entry.icon
-                        aria-hidden="true"
-                        class="size-5 shrink-0 text-[var(--accent-title)]"
-                      />
-                    )}
-                    <h4 class="font-black text-lg leading-tight">{entry.title}</h4>
-                    {linked && (
-                      <span
-                        aria-hidden="true"
-                        class="hidden h-px min-w-6 flex-1 bg-foreground/15 lg:block"
-                      />
-                    )}
-                  </div>
-                  <ul class="mt-4 grid gap-3" role="list">
-                    {entry.items.map((item) => (
-                      <li class="text-sm leading-6">
-                        <span class="font-semibold text-foreground">{item.name}</span>{" "}
-                        <span class="text-muted-foreground">{item.text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              )
-            })}
-          </List>
+          <ul aria-labelledby="formats-heading" class="contents" role="list">
+            {FEATURED_FORMATS.map((format) => (
+              <li class="rounded-full bg-background px-2.5 py-1 font-semibold text-foreground/85 text-xs">
+                {format}
+              </li>
+            ))}
+          </ul>
         </div>
-      )
-    })}
+        <details class="smooth-details group mt-3">
+          <summary class="inline-flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-full font-bold text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+            {t("formats_show_all")}
+            <ChevronDown
+              aria-hidden="true"
+              class="size-4 transition-transform duration-300 group-open:rotate-180 motion-reduce:transition-none"
+            />
+          </summary>
+          <p class="mt-3 max-w-2xl text-muted-foreground text-sm leading-6">{t("formats_text")}</p>
+          <dl class="mt-6 grid gap-x-8 gap-y-5 md:grid-cols-2">
+            {SUPPORTED_FORMAT_GROUPS.map((group) => (
+              <div>
+                <dt class="font-semibold text-foreground/70 text-xs">{t(group.labelKey)}</dt>
+                <dd class="mt-2 text-foreground/85 text-sm leading-6">{group.formats.join(", ")}</dd>
+              </div>
+            ))}
+          </dl>
+          <a
+            class="mt-6 inline-flex h-10 w-fit items-center gap-2 rounded-full bg-background px-4 font-bold text-foreground text-sm transition-colors hover:bg-[var(--inset-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-background"
+            href={PROJECT_LINKS.supportedFormats}
+          >
+            {t("formats_full_list")}
+            <ArrowUpRight aria-hidden="true" class="arrow-out size-4 text-muted-foreground" />
+          </a>
+        </details>
+      </div>
+    </CapabilitiesExplorer>
   </div>
 
   <a
-    class="mx-auto mt-10 flex h-11 w-fit items-center gap-2 rounded-full bg-card px-5 font-bold text-foreground text-sm transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] motion-reduce:transform-none"
+    class="mx-auto mt-10 flex h-11 w-fit items-center gap-2 rounded-full bg-card px-5 font-bold text-foreground text-sm transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-card"
     href={PROJECT_LINKS.docs}
   >
     {t("capabilities_docs_link")}
-    <ArrowUpRight class="size-4" aria-hidden="true" />
+    <ArrowUpRight class="arrow-out size-4" aria-hidden="true" />
   </a>
 </section>

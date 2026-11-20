@@ -8,6 +8,7 @@ import {
   Download,
   FileCode,
   Gauge,
+  GitCompareArrows,
   History,
   Layers,
   type LucideIcon,
@@ -137,12 +138,12 @@ function DrawerLinkList({
               {external ? (
                 <ArrowUpRight
                   aria-hidden="true"
-                  className="size-4 shrink-0 text-muted-foreground"
+                  className="arrow-out size-4 shrink-0 text-muted-foreground"
                 />
               ) : (
                 <ChevronRight
                   aria-hidden="true"
-                  className="size-4 shrink-0 text-muted-foreground"
+                  className="arrow-forward size-4 shrink-0 text-muted-foreground"
                 />
               )}
             </a>
@@ -218,13 +219,16 @@ export function LandingNavbar({
   const isHidden = useRef(false)
 
   const localizedIntegrationsUrl = localizedLibraryUrl.replace(/#library$/u, "#integrations")
+  const localizedComparisonUrl = localizedLibraryUrl.replace(/#library$/u, "#comparison")
+  // In page order, so the drawer reads like the page.
   const drawerPageLinks: DrawerLink[] = [
     { href: localizedUseCasesUrl, label: t("nav_use_cases"), icon: Layers },
+    { href: localizedFeaturesUrl, label: t("nav_features"), icon: Sparkles },
+    { href: localizedComparisonUrl, label: t("nav_comparison"), icon: GitCompareArrows },
     { href: localizedLibraryUrl, label: t("nav_library"), icon: Download },
     { href: localizedIntegrationsUrl, label: t("nav_integrations"), icon: Puzzle },
     { href: localizedAgentsUrl, label: t("nav_agents"), icon: Bot },
     { href: localizedDeployUrl, label: t("nav_deploy"), icon: Rocket },
-    { href: localizedFeaturesUrl, label: t("nav_features"), icon: Sparkles },
     { href: localizedFaqUrl, label: t("nav_faq"), icon: CircleHelp },
     { href: localizedTeamUrl, label: t("nav_team"), icon: Users },
   ]
@@ -323,7 +327,7 @@ export function LandingNavbar({
                 href={NPM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition hover:text-muted-foreground max-[360px]:hidden"
+                className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition-colors hover:text-muted-foreground max-[360px]:hidden"
               >
                 v{version}
               </a>
@@ -358,7 +362,7 @@ export function LandingNavbar({
             <button
               aria-expanded={menuOpen}
               aria-label={t("nav_menu")}
-              className="ml-1 flex h-10 items-center gap-2 rounded-full bg-card px-3 font-bold text-foreground text-sm transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] sm:px-4"
+              className="ml-1 flex h-10 items-center gap-2 rounded-full bg-card px-3 font-bold text-foreground text-sm transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-card sm:px-4"
               onClick={() => setMenuOpen(true)}
               ref={menuTriggerRef}
               type="button"
@@ -433,7 +437,7 @@ export function LandingNavbar({
                 </nav>
                 <button
                   aria-label={t("nav_menu_close")}
-                  className="flex size-10 items-center justify-center rounded-full text-foreground transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={closeMenu}
                   tabIndex={drawerTabIndex}
                   type="button"
@@ -465,7 +469,7 @@ export function LandingNavbar({
               <div className="mt-7 flex items-center justify-end gap-3">
                 {version && (
                   <a
-                    className="font-medium text-muted-foreground text-xs no-underline transition hover:text-foreground"
+                    className="font-medium text-muted-foreground text-xs no-underline transition-colors hover:text-foreground"
                     href={NPM_URL}
                     tabIndex={drawerTabIndex}
                     {...externalLinkProps}

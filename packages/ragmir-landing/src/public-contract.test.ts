@@ -8,6 +8,7 @@ import { findHeroDemoScenario, HERO_DEMO_SCENARIOS } from "./components/hero-dem
 import { USE_CASES } from "./components/use-case-carousel.js"
 import { getFaqItems } from "./content/faq.js"
 import { RAGMIR_SETUP_PROMPT } from "./content/setup-prompt.js"
+import { FEATURED_FORMATS, SUPPORTED_FORMAT_GROUPS } from "./content/supported-formats.js"
 import { getLocalizedUrl, loadTranslations, useTranslations } from "./i18n/utils.js"
 import {
   HERO_DEMO_TRANSLATIONS,
@@ -225,11 +226,11 @@ describe("landing public contract", () => {
     const sections = [
       ["UseCases", "sections/use-cases.astro"],
       ["Capabilities", "sections/capabilities.astro"],
+      ["Comparison", "sections/comparison.astro"],
       ["LibrarySection", "library-section.tsx"],
       ["Integrations", "sections/integrations.astro"],
       ["Agents", "sections/agents.astro"],
       ["Deploy", "sections/deploy.astro"],
-      ["Features", "sections/features.astro"],
       ["Privacy", "sections/privacy.astro"],
       ["Faq", "sections/faq.astro"],
     ] as const
@@ -246,18 +247,46 @@ describe("landing public contract", () => {
     expect(heroSource).toContain("RagmirBackground")
     expect(
       [...homePageSource.matchAll(/<AnimatedBackdrop>\s*<(\w+)/gu)].map((match) => match[1]),
-    ).toEqual(["Capabilities", "Integrations", "Deploy", "Privacy", "ClosingCta"])
+    ).toEqual(["Capabilities", "LibrarySection", "Agents", "Privacy", "ClosingCta"])
     expect(homePageSource).not.toContain("<RagmirBackground")
     expect(footerSource).not.toContain("RagmirBackground")
   })
 
-  it("should present every capability group with a purple icon and its four items", () => {
+  it("should say what Ragmir adds to a coding agent's own search, and where it does not", () => {
+    const comparisonSource = readFileSync(
+      fileURLToPath(new URL("./components/sections/comparison.astro", import.meta.url)),
+      "utf8",
+    )
+    expect(comparisonSource).toContain('id="comparison"')
+    for (const row of ["formats", "wording", "corpus", "silence", "data", "quality"]) {
+      expect(comparisonSource).toContain(`"${row}"`)
+      for (const part of ["name", "alone", "ragmir"]) {
+        expect(en).toHaveProperty(`comparison_${row}_${part}`)
+        expect(fr).toHaveProperty(`comparison_${row}_${part}`)
+      }
+    }
+    // A no-break space keeps "Claude Code" on one line in the title.
+    expect(en.comparison_title.replaceAll("\u00a0", " ")).toContain("Claude Code or Codex")
+    expect(fr.comparison_title.replaceAll("\u00a0", " ")).toContain("Claude Code ou Codex")
+    // The limits stay next to the claims: grep remains the tool for every occurrence or a regex.
+    expect(en.comparison_enough_text).toContain("grep")
+    expect(fr.comparison_enough_text).toContain("grep")
+    for (const messages of [en, fr]) {
+      expect(Object.values(messages).filter((text) => text.includes("—"))).toEqual([])
+    }
+  })
+
+  it("should present every capability group with its four items", () => {
     const capabilitiesSource = readFileSync(
       fileURLToPath(new URL("./components/sections/capabilities.astro", import.meta.url)),
       "utf8",
     )
     expect(capabilitiesSource).toContain('id="capabilities"')
-    expect(capabilitiesSource).toContain("text-[var(--accent-title)]")
+    // Featured formats first; every family stays one click away in a native disclosure.
+    expect(capabilitiesSource).toContain("SUPPORTED_FORMAT_GROUPS.map")
+    expect(capabilitiesSource).toContain("<details")
+    const listedFormats = new Set<string>(SUPPORTED_FORMAT_GROUPS.flatMap((group) => group.formats))
+    expect(FEATURED_FORMATS.filter((format) => !listedFormats.has(format))).toEqual([])
     for (const group of [
       "index",
       "search",
@@ -268,7 +297,7 @@ describe("landing public contract", () => {
       "run",
       "control",
     ]) {
-      expect(capabilitiesSource).toContain(`group("${group}"`)
+      expect(capabilitiesSource).toContain(`"${group}"`)
       for (const item of [1, 2, 3, 4]) {
         for (const part of ["name", "text"]) {
           expect(en).toHaveProperty(`capabilities_${group}_${item}_${part}`)
@@ -280,10 +309,7 @@ describe("landing public contract", () => {
     expect(teamPageSource).toContain("#capabilities")
   })
 
-  it("should distinguish local, self-hosted, and provider modes before the feature map", () => {
-    expect(homePageSource.indexOf("<Agents translations={translations} />")).toBeLessThan(
-      homePageSource.indexOf("<Features translations={translations} />"),
-    )
+  it("should distinguish local, self-hosted, and provider modes", () => {
     expect(en.agents_targets_title).toBe("Choose your operating mode")
     expect(fr.agents_targets_title).toBe("Choisissez votre mode de fonctionnement")
     expect(agentsSource).toContain('t("agents_full_local_name")')
@@ -296,7 +322,7 @@ describe("landing public contract", () => {
       homePageSource.indexOf("<Deploy translations={translations} />"),
     )
     expect(homePageSource.indexOf("<Deploy translations={translations} />")).toBeLessThan(
-      homePageSource.indexOf("<Features translations={translations} />"),
+      homePageSource.indexOf("<Privacy translations={translations} />"),
     )
     expect(deploySource).toContain('id="deploy"')
     expect(deploySource).toContain("PROJECT_LINKS.serverGuide")
@@ -582,8 +608,8 @@ describe("landing public contract", () => {
   })
 
   it("should keep visible localized FAQs without FAQPage structured data", () => {
-    expect(getFaqItems(en)).toHaveLength(13)
-    expect(getFaqItems(fr)).toHaveLength(13)
+    expect(getFaqItems(en)).toHaveLength(15)
+    expect(getFaqItems(fr)).toHaveLength(15)
     expect(homePageSource).toContain("<Faq translations={translations} />")
     expect(homePageSource).not.toContain('"@type": "FAQPage"')
     expect(homePageSource).not.toContain("mainEntity: faqItems.map")

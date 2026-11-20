@@ -76,7 +76,7 @@ export function LibrarySection({ translations }: LibrarySectionProps): React.JSX
         <SectionHeader
           id="library-heading"
           label={t("library_eyebrow")}
-          num="003"
+          num="004"
           text={t("library_text")}
           title={t("library_title")}
         />

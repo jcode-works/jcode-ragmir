@@ -7,9 +7,9 @@ import { LandingNavbar } from "../../components/landing-navbar"
 import Agents from "../../components/sections/agents.astro"
 import Capabilities from "../../components/sections/capabilities.astro"
 import ClosingCta from "../../components/sections/closing-cta.astro"
+import Comparison from "../../components/sections/comparison.astro"
 import Deploy from "../../components/sections/deploy.astro"
 import Faq from "../../components/sections/faq.astro"
-import Features from "../../components/sections/features.astro"
 import Footer from "../../components/sections/footer.astro"
 import Hero from "../../components/sections/hero.astro"
 import Integrations from "../../components/sections/integrations.astro"
@@ -104,7 +104,14 @@ const structuredData = [
       "Gemini CLI extension",
       "Qwen Code extension",
       "LangChain.js retriever",
+      "LangGraph retriever",
+      "LlamaIndex retriever",
       "Python package on PyPI",
+      "sovereign RAG",
+      "RAG evaluation",
+      "RAG without a vector database",
+      "CPU-only retrieval",
+      "multi-model RAG",
       "LLM wiki",
       "Markdown knowledge base",
       "TypeScript",
@@ -200,22 +207,22 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
       <Capabilities translations={translations} />
     </AnimatedBackdrop>
 
-    <LibrarySection
-      client:visible
-      translations={pickTranslations(translations, LIBRARY_TRANSLATIONS)}
-    />
+    <Comparison translations={translations} />
 
     <AnimatedBackdrop>
-      <Integrations translations={translations} />
+      <LibrarySection
+        client:visible
+        translations={pickTranslations(translations, LIBRARY_TRANSLATIONS)}
+      />
     </AnimatedBackdrop>
 
-    <Agents translations={translations} />
+    <Integrations translations={translations} />
 
     <AnimatedBackdrop>
-      <Deploy translations={translations} />
+      <Agents translations={translations} />
     </AnimatedBackdrop>
 
-    <Features translations={translations} />
+    <Deploy translations={translations} />
 
     <AnimatedBackdrop>
       <Privacy translations={translations} />
