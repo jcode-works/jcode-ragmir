@@ -118,6 +118,36 @@ class ExpandedCitation:
 class IndexedFile:
     path: str
     chunks: int
+    title: str | None = None
+    """A Markdown page's front matter ``title``."""
+    description: str | None = None
+    """A Markdown page's front matter ``description`` or ``summary``."""
+
+
+@dataclass(frozen=True, slots=True)
+class SourceChanges:
+    """Indexed files changed since a time, as ``sources(changed_since=...)`` reports them."""
+
+    since: str
+    modified: tuple[str, ...]
+    """Files added or edited since, by the modification time recorded at indexing."""
+    removed: tuple[str, ...]
+    """Files the last ingest dropped."""
+    complete: bool
+    """False when an earlier ingest may have removed other files since that time."""
+
+    @classmethod
+    def from_json(cls, value: Mapping[str, Any]) -> SourceChanges:
+        def items(name: str) -> tuple[str, ...]:
+            part = value.get(name)
+            return _strings(part.get("items")) if isinstance(part, Mapping) else ()
+
+        return cls(
+            since=_str(value.get("since")) or "",
+            modified=items("modified"),
+            removed=items("removed"),
+            complete=value.get("complete") is True,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +164,8 @@ class SourceCatalog:
     missing_from_index: tuple[str, ...]
     stale_in_index: tuple[str, ...]
     raw: Mapping[str, Any] = field(repr=False, compare=False)
+    changes: SourceChanges | None = None
+    """With ``changed_since``: what changed in the index since then."""
 
     @classmethod
     def from_json(cls, value: Mapping[str, Any]) -> SourceCatalog:
@@ -141,9 +173,15 @@ class SourceCatalog:
         totals = value.get("totals")
         page = value.get("page")
         filter_ = value.get("filter")
+        changes = value.get("changes")
         return cls(
             files=tuple(
-                IndexedFile(path=str(item.get("source", "")), chunks=_int(item.get("chunks")) or 0)
+                IndexedFile(
+                    path=str(item.get("source", "")),
+                    chunks=_int(item.get("chunks")) or 0,
+                    title=_str(item.get("title")),
+                    description=_str(item.get("description")),
+                )
                 for item in (files if isinstance(files, list) else [])
                 if isinstance(item, Mapping)
             ),
@@ -157,6 +195,7 @@ class SourceCatalog:
             missing_from_index=_strings(value.get("missingFromIndex")),
             stale_in_index=_strings(value.get("staleInIndex")),
             raw=value,
+            changes=SourceChanges.from_json(changes) if isinstance(changes, Mapping) else None,
         )
 
 

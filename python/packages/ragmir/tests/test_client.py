@@ -69,6 +69,14 @@ def test_knowledge_audit_reports_pages_without_changing_them(rag: Ragmir) -> Non
     }
 
 
+def test_sources_report_changes_since_a_time(rag: Ragmir) -> None:
+    catalog = rag.sources(changed_since="2000-01-01")
+
+    assert catalog.changes is not None
+    assert "docs/refunds.md" in catalog.changes.modified
+    assert rag.sources().changes is None
+
+
 def test_search_many_answers_each_question(rag: Ragmir) -> None:
     answers = rag.search_many(["refund approval", "return label expiry"])
 

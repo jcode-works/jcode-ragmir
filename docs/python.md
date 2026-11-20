@@ -71,6 +71,9 @@ evidence: let your application say so instead of answering from memory. `include
 from the project's configuration. `search_many()` answers up to five related questions in one call,
 `status()` reports readiness, `audit()` lists missing or stale sources, and `knowledge_audit()`
 audits the Markdown pages as a knowledge base (broken links, missing pages, stale citations).
+`sources()` gives each Markdown page its front matter `title` and `description`, and
+`sources(changed_since="2026-11-20")` adds `changes`: the files modified since then and those the
+last ingest removed.
 
 When the question's own words may miss the answer, add `searches`: up to five formulations of the
 same need (`SearchFormulation`), fused with the question into one ranking.

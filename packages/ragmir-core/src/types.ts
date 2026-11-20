@@ -696,6 +696,20 @@ export interface KnowledgeBaseSourceCatalog {
    * order, each with the citation of its first passage.
    */
   outline?: Array<{ contextPath: string; citation: string }>
+  /** With `changedSince`: what changed in the index since then. */
+  changes?: SourceChanges
+}
+
+/**
+ * Indexed files changed since a time: `modified` holds files added or edited since, by the
+ * modification time recorded when they were indexed; `removed` holds files the last ingest
+ * dropped. `complete` is false when an earlier ingest may have removed others since that time.
+ */
+export interface SourceChanges {
+  since: string
+  modified: { count: number; items: string[] }
+  removed: { count: number; items: string[] }
+  complete: boolean
 }
 
 export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
@@ -705,6 +719,8 @@ export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
   paths?: string[]
   /** When `paths` match one indexed file, add its outline. */
   outline?: boolean
+  /** An ISO 8601 date or time: add the indexed files changed since then. */
+  changedSince?: string
 }
 
 export interface SearchOptions extends OperationOptions {

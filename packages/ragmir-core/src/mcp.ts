@@ -256,6 +256,15 @@ const sourcesToolInputSchema = z
       .describe(
         "With paths naming one file: its outline, each heading path with the citation of its first passage, to expand one section of a long document.",
       ),
+    changedSince: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .optional()
+      .describe(
+        "An ISO date or time, such as your last pass: adds the indexed files modified since then and those the last ingest removed.",
+      ),
     maxBytes: outputBudgetSchema,
   })
   .loose()
@@ -1067,6 +1076,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
           ...(offset === undefined ? {} : { offset }),
           ...(paths === undefined ? {} : { paths }),
           ...(input.outline === true ? { outline: true } : {}),
+          ...(input.changedSince === undefined ? {} : { changedSince: input.changedSince }),
         }),
         signal,
       )

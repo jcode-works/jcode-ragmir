@@ -164,6 +164,7 @@ export type {
   SearchScoreExplanation,
   SecurityAuditOptions,
   SecurityAuditReport,
+  SourceChanges,
   SourceDiagnostics,
   SourceDuplicateCandidate,
   SourcePathCandidate,

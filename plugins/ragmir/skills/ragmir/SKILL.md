@@ -37,7 +37,8 @@ validated replacement activates, so never delete `.ragmir/storage/` as the first
    until it is absent. For a Markdown page it also lists the page's links and the pages linking to
    it; `ragmir_sources` with one path and `outline: true` lists a long document's sections.
 3. Narrow or widen the search: `includePaths` and `excludePaths` take folders, files, or globs such
-   as `["**/*.pdf"]`, `scope` selects a named scope, and `ragmir_sources` lists the documents.
+   as `["**/*.pdf"]`, `scope` selects a named scope, and `ragmir_sources` lists the documents
+   (with `changedSince`, those changed since your last pass).
 4. When your wording may miss the answer, add `searches` to the same call, fused with the question
    into one ranking: `lex` for likely keywords (`"exact phrase"` required, `-word` excluded), `vec`
    for a paraphrase, `hyde` for a short passage written as the answer might read. The CLI takes

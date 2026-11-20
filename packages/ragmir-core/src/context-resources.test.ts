@@ -161,4 +161,31 @@ describe("context resources", { timeout: integrationTimeout(15_000) }, () => {
     ])
     expect(several.outline).toBeUndefined()
   })
+
+  it("should list the files changed since a time, and those the last ingest removed", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-changes-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    await mkdir(rawDir, { recursive: true })
+    await writeFile(path.join(rawDir, "kept.md"), "# Kept\nStable.\n")
+    await writeFile(path.join(rawDir, "dropped.md"), "# Dropped\nSoon gone.\n")
+    await ingest({ cwd: root })
+    const before = new Date(Date.now() - 1_000).toISOString()
+    await rm(path.join(rawDir, "dropped.md"))
+    await writeFile(path.join(rawDir, "added.md"), "# Added\nNew page.\n")
+    await ingest({ cwd: root })
+
+    const changes = (await getKnowledgeBaseSourceCatalog(root, { changedSince: before })).changes
+    const future = (await getKnowledgeBaseSourceCatalog(root, { changedSince: "2999-01-01" }))
+      .changes
+
+    expect(changes?.modified.items).toContain(".ragmir/raw/added.md")
+    expect(changes?.removed).toEqual({ count: 1, items: [".ragmir/raw/dropped.md"] })
+    expect(changes?.complete).toBe(true)
+    expect(future).toMatchObject({ modified: { count: 0 }, removed: { count: 0 } })
+    await expect(
+      getKnowledgeBaseSourceCatalog(root, { changedSince: "last week" }),
+    ).rejects.toMatchObject({ code: "INVALID_ARGUMENT" })
+  })
 })

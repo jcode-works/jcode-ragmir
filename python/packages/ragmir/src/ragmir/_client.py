@@ -169,11 +169,18 @@ class AsyncRagmir:
         paths: Sequence[str] | None = None,
         offset: int | None = None,
         limit: int | None = None,
+        changed_since: str | None = None,
     ) -> SourceCatalog:
-        """One page of the indexed documents, optionally under folders or matching globs."""
+        """One page of the indexed documents, optionally under folders or matching globs.
+
+        ``changed_since``, an ISO 8601 date or time, adds ``changes``: the files indexed since then
+        and those the last ingest removed.
+        """
         arguments: dict[str, Any] = {"maxBytes": _MAX_OUTPUT_BYTES}
         if paths is not None:
             arguments["paths"] = list(paths)
+        if changed_since is not None:
+            arguments["changedSince"] = changed_since
         if offset is not None:
             arguments["offset"] = offset
         if limit is not None:
@@ -503,9 +510,14 @@ class Ragmir:
         paths: Sequence[str] | None = None,
         offset: int | None = None,
         limit: int | None = None,
+        changed_since: str | None = None,
     ) -> SourceCatalog:
         """One page of the indexed documents, optionally under folders or matching globs."""
-        return self._run(self._async.sources(paths=paths, offset=offset, limit=limit))
+        return self._run(
+            self._async.sources(
+                paths=paths, offset=offset, limit=limit, changed_since=changed_since
+            )
+        )
 
     async def asources(
         self,
@@ -513,9 +525,14 @@ class Ragmir:
         paths: Sequence[str] | None = None,
         offset: int | None = None,
         limit: int | None = None,
+        changed_since: str | None = None,
     ) -> SourceCatalog:
         """Async twin of ``sources``."""
-        return await self._arun(self._async.sources(paths=paths, offset=offset, limit=limit))
+        return await self._arun(
+            self._async.sources(
+                paths=paths, offset=offset, limit=limit, changed_since=changed_since
+            )
+        )
 
     def status(self) -> Status:
         """Readiness, freshness, and identity of the knowledge base."""

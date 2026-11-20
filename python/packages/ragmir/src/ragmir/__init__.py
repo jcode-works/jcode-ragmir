@@ -25,6 +25,7 @@ from ._models import (
     Passage,
     SearchFormulation,
     SourceCatalog,
+    SourceChanges,
     Status,
 )
 from ._setup import add_sources, init_project, run_cli
@@ -47,6 +48,7 @@ __all__ = [
     "RagmirToolError",
     "SearchFormulation",
     "SourceCatalog",
+    "SourceChanges",
     "Status",
     "__version__",
     "add_sources",

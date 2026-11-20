@@ -53,6 +53,7 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   their first citations. Links navigate; they are not evidence. `rgr audit --knowledge` (or
   `ragmir_audit` with `knowledge: true`) audits Markdown pages read-only: broken links, missing and
   unlinked pages, duplicate titles, written citations that changed, and stale declared sources.
+  `ragmir_sources` with `changedSince` lists the files changed since a time.
 - MCP exposes five read-only tools (`ragmir_status`, `ragmir_search`, `ragmir_expand`,
   `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the `answer`
   prompt, and bounded `ragmir://context` and `ragmir://sources` resources. Search starts with three

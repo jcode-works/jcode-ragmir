@@ -3,13 +3,19 @@ import path from "node:path"
 import { loadConfig } from "./config.js"
 import { doctorWithConfig } from "./doctor.js"
 import { MARKDOWN_EXTENSIONS, markdownFrontmatter } from "./document-structure.js"
+import { RagmirError } from "./errors.js"
 import { checkIndexFreshness } from "./freshness.js"
 import { knowledgeBaseIdentity, knowledgeBaseProfile } from "./knowledge-bases.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { pathMatchesFilter } from "./path-globs.js"
 import { documentOutlineWithConfig } from "./query.js"
 import { canonicalUserPath } from "./source-paths.js"
-import { readIndexManifest, readIndexManifestFilePage, readIndexManifestHeader } from "./store.js"
+import {
+  readIndexManifest,
+  readIndexManifestFilePage,
+  readIndexManifestHeader,
+  readPreviousIndexFiles,
+} from "./store.js"
 import type {
   Config,
   IndexManifestFile,
@@ -17,6 +23,7 @@ import type {
   KnowledgeBaseSourceCatalog,
   KnowledgeBaseSourceCatalogOptions,
   OperationOptions,
+  SourceChanges,
 } from "./types.js"
 
 const SOURCE_CATALOG_LIMIT = 50
@@ -172,6 +179,43 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
     ...(options.outline && indexedFiles.length === 1 && indexedFiles[0]
       ? { outline: await documentOutlineWithConfig(config, indexedFiles[0].source, options) }
       : {}),
+    ...(options.changedSince === undefined
+      ? {}
+      : { changes: await sourceChanges(config, options.changedSince, limit) }),
+  }
+}
+
+async function sourceChanges(
+  config: Config,
+  changedSince: string,
+  limit: number,
+): Promise<SourceChanges> {
+  const since = Date.parse(changedSince)
+  if (!Number.isFinite(since)) {
+    throw new RagmirError(
+      "INVALID_ARGUMENT",
+      "changedSince must be an ISO 8601 date or time, such as 2026-11-20 or 2026-11-20T09:30:00Z.",
+    )
+  }
+  const [manifest, previous] = await Promise.all([
+    readIndexManifest(config),
+    readPreviousIndexFiles(config),
+  ])
+  const current = manifest?.indexedFiles ?? []
+  const currentPaths = new Set(current.map((file) => file.relativePath))
+  const modified = current
+    .filter((file) => (file.mtimeMs ?? 0) > since)
+    .map((file) => file.relativePath)
+  // The last ingest dropped the files it no longer found; earlier removals are not kept.
+  const removed =
+    previous && manifest && Date.parse(manifest.createdAt) > since
+      ? previous.files.map((file) => file.relativePath).filter((path) => !currentPaths.has(path))
+      : []
+  return {
+    since: new Date(since).toISOString(),
+    modified: { count: modified.length, items: modified.slice(0, limit) },
+    removed: { count: removed.length, items: removed.slice(0, limit) },
+    complete: previous !== null && Date.parse(previous.createdAt) >= since,
   }
 }
 

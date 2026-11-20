@@ -274,7 +274,10 @@ to it, each with the citation of the passage holding the link; Ragmir reads the 
 keyword text names the file, and `complete: false` says some were left unread. A link is
 navigation, not evidence. `ragmir_sources` with `paths` naming one file and `outline: true`
 returns its outline: each heading path with the citation of its first passage, to expand one
-section of a long document directly.
+section of a long document directly. To resume work, pass `changedSince` (an ISO date or time,
+such as your last pass): `changes` lists the indexed files modified since then, by the time
+recorded when they were indexed, and the files the last ingest removed; `complete: false` means an
+earlier ingest may have removed others.
 
 `ragmir_audit` with `knowledge: true` audits the indexed Markdown pages as a knowledge base and
 changes nothing: broken links (with a suggestion when one file carries the target's name),
