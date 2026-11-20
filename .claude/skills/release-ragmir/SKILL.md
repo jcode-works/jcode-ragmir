@@ -79,8 +79,11 @@ curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.jc
 ```
 
 Check that the npm license is `AGPL-3.0-only` and the tarball holds `LICENSE`,
-`COMMERCIAL-LICENSE.md`, and `NOTICE`. Build the landing with `PUBLIC_RAGMIR_VERSION` set to the
-release, deploy it through its external process, and run the landing checks in `RELEASING.md`.
+`COMMERCIAL-LICENSE.md`, and `NOTICE`. Check that the GitHub release lists `darwin.`, `linux.`,
+and `win32.ragmir.tar.gz`, and that `gemini extensions install
+https://github.com/jcode-works/ragmir` in an empty `HOME` reports the new version. Build the landing
+with `PUBLIC_RAGMIR_VERSION` set to the release, deploy it through its external process, and run
+the landing checks in `RELEASING.md`.
 Then sync the GitHub wiki with `pnpm wiki:sync <wiki checkout>` (a clone of
 `ragmir.wiki.git`), review its `Home.md`, and push it.
 
@@ -93,9 +96,9 @@ non-publishing promotion:
    (`plugins/ragmir/scripts/serve-mcp.mjs`), `plugins/ragmir/codex.mcp.json`, every
    `@jcode.labs/ragmir@<version>` in `plugins/ragmir/` and `docs/agent-integration.md`, and
    `gemini-extension.json` and `qwen-extension.json`; bump the three plugin manifests' `version`
-   together. Update the plugin README, `GEMINI.md`, and `commands/index.md` for any new tools,
-   here and never in the feature work: Gemini CLI and Qwen Code install the latest GitHub release,
-   whose tree carries the previous pin, so `GEMINI.md` must keep describing that pinned server.
+   together. Update the plugin README, `GEMINI.md`, and `commands/index.md` for any new tools.
+   Gemini CLI and Qwen Code do not wait for this pin: each release attaches their extension,
+   stamped to that release, as `darwin.`, `linux.`, and `win32.ragmir.tar.gz`.
 2. Run `pnpm public:smoke` and `claude plugin validate plugins/ragmir`, merge into `develop`, then
    promote with a `chore(plugin): ...` commit, which publishes nothing. Its `Release npm` run still
    waits for the `npm-publish` approval and then reports no release.
