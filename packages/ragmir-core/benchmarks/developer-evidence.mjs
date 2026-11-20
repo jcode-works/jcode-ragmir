@@ -4,7 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { performance } from "node:perf_hooks"
 import { createRagmirClient, initProject, loadConfig } from "../dist/index.js"
-import { DEFAULT_CONFIG } from "../dist/defaults.js"
+import { DEFAULT_CONFIG, defaultEmbeddingModelRevision } from "../dist/defaults.js"
 import { embedText } from "../dist/embeddings.js"
 import { addLexicalDocument, lexicalDocument, lexicalDocumentScore } from "../dist/lexical-scoring.js"
 import { readRows } from "../dist/store.js"
@@ -14,19 +14,18 @@ import { environmentMetadata } from "./lib/metrics.mjs"
 
 const provider = process.argv[2] ?? "local-hash"
 const models = {
-  mixedbread: ["mixedbread-ai/mxbai-embed-xsmall-v1", "e6ac24e5d6efb8782b59de1647b3ececb4ece94e"],
-  e5: ["intfloat/multilingual-e5-small", "614241f622f53c4eeff9890bdc4f31cfecc418b3"],
-  granite: [
-    "onnx-community/granite-embedding-97m-multilingual-r2-ONNX",
-    "536a9f241cb3f02a9c5995a1e708c784bd274859",
-  ],
+  mixedbread: "mixedbread-ai/mxbai-embed-xsmall-v1",
+  e5: "intfloat/multilingual-e5-small",
+  granite: "onnx-community/granite-embedding-97m-multilingual-r2-ONNX",
+  qwen: "onnx-community/Qwen3-Embedding-0.6B-ONNX",
 }
 if (provider !== "local-hash" && !(provider in models)) {
-  throw new Error("Expected local-hash, mixedbread, e5, or granite.")
+  throw new Error("Expected local-hash, mixedbread, e5, granite, or qwen.")
 }
 const workspace = process.env.INIT_CWD ?? process.cwd()
 const output = path.resolve(workspace, process.argv[3] ?? `packages/ragmir-core/benchmarks/.results/developer-evidence-${provider}.json`)
-const [model, revision] = models[provider] ?? models.e5
+const model = models[provider] ?? models.e5
+const revision = defaultEmbeddingModelRevision(model)
 const facts = {
   "auth-redirect.md": ["AUTH_REDIRECT_ORIGIN_X17", "Reject wildcard hosts"],
   "token-renewal.md": ["/session/renew", "HttpOnly cookie", "terminates the session"],
