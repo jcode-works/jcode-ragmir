@@ -34,7 +34,8 @@ validated replacement activates, so never delete `.ragmir/storage/` as the first
    at the lines holding your words (`excerptLine`), and `pathContext` says what the folder holds.
 2. Expand the citation you will rely on with `ragmir_expand`, or up to five at once with
    `citations`. To read a whole document, expand its `nextCitation` with the same `contextRadius`
-   until it is absent.
+   until it is absent. For a Markdown page it also lists the page's links and the pages linking to
+   it; `ragmir_sources` with one path and `outline: true` lists a long document's sections.
 3. Narrow or widen the search: `includePaths` and `excludePaths` take folders, files, or globs such
    as `["**/*.pdf"]`, `scope` selects a named scope, and `ragmir_sources` lists the documents.
 4. When your wording may miss the answer, add `searches` to the same call, fused with the question

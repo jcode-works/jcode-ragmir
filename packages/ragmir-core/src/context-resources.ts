@@ -7,6 +7,7 @@ import { checkIndexFreshness } from "./freshness.js"
 import { knowledgeBaseIdentity, knowledgeBaseProfile } from "./knowledge-bases.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { pathMatchesFilter } from "./path-globs.js"
+import { documentOutlineWithConfig } from "./query.js"
 import { canonicalUserPath } from "./source-paths.js"
 import { readIndexManifest, readIndexManifestFilePage, readIndexManifestHeader } from "./store.js"
 import type {
@@ -168,6 +169,9 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
       nextOffset: filePage?.nextOffset ?? null,
     },
     ...(filters.length > 0 ? { filter: { paths: filters, matchedFiles: listedTotal ?? 0 } } : {}),
+    ...(options.outline && indexedFiles.length === 1 && indexedFiles[0]
+      ? { outline: await documentOutlineWithConfig(config, indexedFiles[0].source, options) }
+      : {}),
   }
 }
 

@@ -15,6 +15,7 @@ import { indexNoiseFloor } from "./abstention-calibration.js"
 import { citationForCoordinates, stripCitationCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
 import { MAX_SEARCH_TOP_K, VECTOR_DISTANCE_METRIC } from "./defaults.js"
+import { MARKDOWN_EXTENSIONS } from "./document-structure.js"
 import { embedText, embedTexts } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
 import { acquireGenerationReadLease } from "./generation-retention.js"
@@ -27,6 +28,7 @@ import {
   lexicalDocument,
   lexicalDocumentScore,
 } from "./lexical-scoring.js"
+import { linkResolver, type MarkdownLink, markdownLinks } from "./markdown-links.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
 import { defaultExcludedScopePaths, pathContextResolver } from "./path-contexts.js"
 import { isPathGlob, pathGlobRegexSource } from "./path-globs.js"
@@ -63,7 +65,7 @@ import {
   sourceWeightOf,
 } from "./source-weights.js"
 import type { IndexReadSnapshot } from "./store.js"
-import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
+import { closeIndexReadSnapshot, loadIndexReadSnapshot, readIndexManifest } from "./store.js"
 import { normalizeForMatch, tokenize } from "./text.js"
 import {
   exclusionMatcher,
@@ -75,10 +77,12 @@ import {
 } from "./typed-search.js"
 import type {
   Config,
+  DocumentLinks,
   EvidenceVersion,
   ExpandCitationOptions,
   ExpandedCitation,
   IndexManifest,
+  OperationOptions,
   RetrievalProfile,
   SearchContextChunk,
   SearchOptions,
@@ -937,6 +941,52 @@ export async function expandCitationWithConfig(
   connection?: Connection,
   suppliedSnapshot?: IndexReadSnapshot,
 ): Promise<ExpandedCitation> {
+  return readGeneration(config, connection, suppliedSnapshot, (snapshot) =>
+    expandCitationWithinGeneration(citation, options, config, snapshot),
+  )
+}
+
+const MAX_OUTLINE_ENTRIES = 100
+
+/**
+ * An indexed document's outline: its distinct heading paths in reading order, each with the
+ * citation of its first passage, so an agent reads one section of a long document directly.
+ */
+export function documentOutlineWithConfig(
+  config: Config,
+  relativePath: string,
+  options: OperationOptions = {},
+): Promise<Array<{ contextPath: string; citation: string }>> {
+  const signal = operationSignal(options)
+  return readGeneration(config, undefined, undefined, async (snapshot) => {
+    if (!snapshot.table) {
+      return []
+    }
+    const rows = plainRows(
+      await snapshot.table
+        .query()
+        .select(SEARCH_COLUMNS)
+        .where(relativePathEquals(relativePath))
+        .toArray(),
+    )
+    throwIfAborted(signal)
+    const outline = new Map<string, string>()
+    for (const row of rows.sort(compareChunkRows)) {
+      if (!outline.has(row.contextPath)) outline.set(row.contextPath, citationForRow(row))
+    }
+    return [...outline]
+      .slice(0, MAX_OUTLINE_ENTRIES)
+      .map(([contextPath, citation]) => ({ contextPath, citation }))
+  })
+}
+
+/** Read one index generation while holding its lease, so cleanup never removes it mid-read. */
+async function readGeneration<T>(
+  config: Config,
+  connection: Connection | undefined,
+  suppliedSnapshot: IndexReadSnapshot | undefined,
+  read: (snapshot: IndexReadSnapshot) => Promise<T>,
+): Promise<T> {
   const ownsSnapshot = suppliedSnapshot === undefined
   const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
   let lease: Awaited<ReturnType<typeof acquireGenerationReadLease>> | undefined
@@ -944,7 +994,7 @@ export async function expandCitationWithConfig(
     if (snapshot.table) {
       lease = await acquireGenerationReadLease(snapshot.tableName, config)
     }
-    return await expandCitationWithinGeneration(citation, options, config, snapshot)
+    return await read(snapshot)
   } finally {
     await lease?.release().catch(() => undefined)
     if (ownsSnapshot) {
@@ -1062,7 +1112,105 @@ async function expandCitationWithinGeneration(
       contextRadius,
       signal,
     )),
+    ...(MARKDOWN_EXTENSIONS.has(path.posix.extname(target.relativePath).toLowerCase())
+      ? {
+          links: await documentLinks(
+            table,
+            target.relativePath,
+            await indexedPathsOf(config, snapshot),
+            signal,
+          ),
+        }
+      : {}),
   }
+}
+
+const MAX_LINK_ITEMS = 10
+// Passages that name the cited file, read for links back to it.
+const BACKLINK_CANDIDATES = 200
+const MAX_CACHED_PATH_LISTS = 4
+const indexedPathLists = new Map<string, Promise<string[]>>()
+
+/** The links a Markdown page writes, and the indexed pages that link to it. */
+async function documentLinks(
+  table: RowsTable,
+  relativePath: string,
+  indexedPaths: readonly string[],
+  signal: AbortSignal | undefined,
+): Promise<DocumentLinks> {
+  const resolve = linkResolver(indexedPaths)
+  const pageRows = plainRows(
+    await table.query().select(SEARCH_COLUMNS).where(relativePathEquals(relativePath)).toArray(),
+  )
+  throwIfAborted(signal)
+  const outgoing = linksOfRows(pageRows).map(({ link, line }) => ({
+    target: link.target,
+    line,
+    path: resolve(link, relativePath),
+  }))
+  // A page names a file it links to: its name, folded like keywords, reaches the candidates.
+  const nameWords = tokenize(path.posix.basename(relativePath, path.posix.extname(relativePath)))
+  const candidates =
+    nameWords.length === 0
+      ? []
+      : await executeFullTextQuery(
+          table,
+          new MatchQuery(nameWords.join(" "), "searchText", { operator: Operator.And }),
+          BACKLINK_CANDIDATES,
+          `NOT (${relativePathEquals(relativePath)})`,
+        ).catch(() => [])
+  throwIfAborted(signal)
+  const incoming = linksOfRows(
+    candidates.filter((row) =>
+      MARKDOWN_EXTENSIONS.has(path.posix.extname(row.relativePath).toLowerCase()),
+    ),
+  )
+    .filter(({ link, row }) => resolve(link, row.relativePath) === relativePath)
+    .map(({ row, line }) => ({ source: row.relativePath, line, citation: citationForRow(row) }))
+  const uniqueIncoming = [
+    ...new Map(incoming.map((item) => [`${item.source}\0${item.line}`, item])).values(),
+  ]
+  return {
+    outgoing: { count: outgoing.length, items: outgoing.slice(0, MAX_LINK_ITEMS) },
+    incoming: {
+      count: uniqueIncoming.length,
+      complete: candidates.length < BACKLINK_CANDIDATES,
+      items: uniqueIncoming.slice(0, MAX_LINK_ITEMS),
+    },
+  }
+}
+
+/** Links found in indexed passages, once each although neighbouring chunks overlap. */
+function linksOfRows(
+  rows: readonly SearchRow[],
+): Array<{ link: MarkdownLink; line: number; row: SearchRow }> {
+  const found = new Map<string, { link: MarkdownLink; line: number; row: SearchRow }>()
+  for (const row of [...rows].sort(compareChunkRows)) {
+    const firstLine = nullableLineNumber(row.lineStart) ?? 1
+    for (const link of markdownLinks(row.text)) {
+      const line = firstLine + link.line - 1
+      const key = `${row.relativePath}\0${line}\0${link.target}`
+      if (!found.has(key)) found.set(key, { link, line, row })
+    }
+  }
+  return [...found.values()]
+}
+
+/** Every indexed path of the active generation, read once per manifest. */
+function indexedPathsOf(config: Config, snapshot: IndexReadSnapshot): Promise<string[]> {
+  const key = `${config.projectRoot}\0${snapshot.manifestFingerprint ?? ""}`
+  const cached = indexedPathLists.get(key)
+  if (cached !== undefined) {
+    return cached
+  }
+  const paths = readIndexManifest(config).then(
+    (manifest) => manifest?.indexedFiles?.map((file) => file.relativePath) ?? [],
+  )
+  indexedPathLists.set(key, paths)
+  for (const stale of [...indexedPathLists.keys()].slice(0, -MAX_CACHED_PATH_LISTS)) {
+    indexedPathLists.delete(stale)
+  }
+  return paths
 }
 
 /**

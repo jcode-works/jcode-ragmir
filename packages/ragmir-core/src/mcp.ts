@@ -237,6 +237,12 @@ const sourcesToolInputSchema = z
       .describe(
         `Files per page, 1 to ${MAX_SOURCE_CATALOG_LIMIT}. Default ${DEFAULT_MCP_SOURCES_LIMIT}.`,
       ),
+    outline: z
+      .boolean()
+      .optional()
+      .describe(
+        "With paths naming one file: its outline, each heading path with the citation of its first passage, to expand one section of a long document.",
+      ),
     maxBytes: outputBudgetSchema,
   })
   .loose()
@@ -1029,6 +1035,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
           limit: Math.min(limit, mcpPreviewLimit(budget)),
           ...(offset === undefined ? {} : { offset }),
           ...(paths === undefined ? {} : { paths }),
+          ...(input.outline === true ? { outline: true } : {}),
         }),
         signal,
       )

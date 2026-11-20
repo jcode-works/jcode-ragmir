@@ -106,6 +106,7 @@ export type {
   DestroyIndexResult,
   DoctorOptions,
   DoctorReport,
+  DocumentLinks,
   EvaluationCaseResult,
   EvaluationComparison,
   EvaluationComparisonMetric,

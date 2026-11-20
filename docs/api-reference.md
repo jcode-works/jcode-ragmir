@@ -151,7 +151,11 @@ cited document), and `nextCitation` / `previousCitation`: expand them with the s
 to read the neighbouring windows of a long document. `client.sources({ paths, offset, limit })`
 lists indexed files under folders or matching globs, with chunk counts, the `title` and
 `description` of a Markdown page's front matter, `page.nextOffset`, and the number of matching
-files in `filter.matchedFiles`.
+files in `filter.matchedFiles`; with `outline: true` and paths matching one file, it adds that
+file's outline, each heading path with the citation of its first passage. For a Markdown page,
+`expandCitation` also returns `links` (`DocumentLinks`): the links the page writes, with the
+indexed file each reaches or `null` when broken, and the pages that link to it with the citation of
+the linking passage.
 `searchReport(query, options)` and `client.searchReport(...)` return `{ results, absentTerms }`:
 the same results, plus the words of the question that no indexed passage holds, so an application
 can tell "the documents never mention this" from "nothing ranked well". Results carry

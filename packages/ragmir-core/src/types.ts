@@ -691,6 +691,11 @@ export interface KnowledgeBaseSourceCatalog {
     paths: string[]
     matchedFiles: number
   }
+  /**
+   * With `outline` and paths that match one indexed file: its distinct heading paths in reading
+   * order, each with the citation of its first passage.
+   */
+  outline?: Array<{ contextPath: string; citation: string }>
 }
 
 export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
@@ -698,6 +703,8 @@ export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
   limit?: number
   /** List only indexed files under these folders or files, or matching these globs (`**\/*.pdf`). */
   paths?: string[]
+  /** When `paths` match one indexed file, add its outline. */
+  outline?: boolean
 }
 
 export interface SearchOptions extends OperationOptions {
@@ -867,6 +874,29 @@ export interface ExpandedCitation {
   previousCitation?: string
   /** Citation to expand, with the same radius, to read on after this window. */
   nextCitation?: string
+  /** For a Markdown page: the files it links to and the pages that link to it. */
+  links?: DocumentLinks
+}
+
+/**
+ * Links of a Markdown page, read from the index: navigation between pages, never evidence that
+ * the linked page supports a claim.
+ */
+export interface DocumentLinks {
+  /** The links the page writes; `path` is the indexed file it reaches, or null when broken. */
+  outgoing: {
+    count: number
+    items: Array<{ target: string; line: number; path: string | null }>
+  }
+  /**
+   * Indexed pages that link to this one, each with the citation of the passage holding the link.
+   * Only pages whose keyword text names this file are read: `complete` says whether all were.
+   */
+  incoming: {
+    count: number
+    complete: boolean
+    items: Array<{ source: string; line: number; citation: string }>
+  }
 }
 
 export interface CompactSearchResult {

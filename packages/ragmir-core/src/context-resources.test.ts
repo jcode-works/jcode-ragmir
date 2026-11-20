@@ -134,4 +134,31 @@ describe("context resources", { timeout: integrationTimeout(15_000) }, () => {
       },
     ])
   })
+
+  it("should outline one listed document with the first citation of each section", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-outline-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    await mkdir(rawDir, { recursive: true })
+    await writeFile(
+      path.join(rawDir, "guide.md"),
+      "# Guide\nIntro.\n\n## Install\nRun it.\n\n## Upgrade\nRebuild.\n",
+    )
+    await writeFile(path.join(rawDir, "other.md"), "# Other\nText.\n")
+    await ingest({ cwd: root })
+
+    const single = await getKnowledgeBaseSourceCatalog(root, {
+      paths: [".ragmir/raw/guide.md"],
+      outline: true,
+    })
+    const several = await getKnowledgeBaseSourceCatalog(root, { outline: true })
+
+    expect(single.outline).toEqual([
+      { contextPath: "Guide", citation: ".ragmir/raw/guide.md:L1-L2#0" },
+      { contextPath: "Guide > Install", citation: ".ragmir/raw/guide.md:L4-L5#1" },
+      { contextPath: "Guide > Upgrade", citation: ".ragmir/raw/guide.md:L7-L8#2" },
+    ])
+    expect(several.outline).toBeUndefined()
+  })
 })

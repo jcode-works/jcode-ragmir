@@ -318,6 +318,68 @@ describe("search", { timeout: integrationTimeout(20_000) }, () => {
     ])
   })
 
+  it("should list a cited Markdown page's links and the pages that link to it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-links-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const wiki = path.join(root, ".ragmir", "raw", "wiki")
+    await mkdir(wiki, { recursive: true })
+    await writeFile(
+      path.join(wiki, "payment-retries.md"),
+      [
+        "# Payment retries",
+        "Failed payments follow the [backoff policy](backoff.md).",
+        "The [old runbook](missing-runbook.md) is gone; see [[Incident 42]].",
+        "Vendor docs live at [the vendor](https://vendor.example/docs).",
+      ].join("\n"),
+    )
+    await writeFile(path.join(wiki, "backoff.md"), "# Backoff\nWait 2, 4, then 8 minutes.\n")
+    await writeFile(
+      path.join(wiki, "Incident 42.md"),
+      "# Incident 42\nRetries stormed the queue.\n",
+    )
+    await writeFile(
+      path.join(wiki, "index.md"),
+      "# Index\n\n- [Payment retries](payment-retries.md)\n- [[payment-retries|Retries]]\n",
+    )
+    await writeFile(
+      path.join(wiki, "notes.md"),
+      "# Notes\nPayment retries appear in `[code](payment-retries.md)`, which is no link.\n",
+    )
+    await ingest({ cwd: root })
+    const [page] = await search("payment retries backoff policy", {
+      cwd: root,
+      topK: 1,
+      includePaths: [".ragmir/raw/wiki/payment-retries.md"],
+    })
+
+    const expanded = await expandCitation(page?.citation ?? "", { cwd: root })
+
+    expect(expanded.links?.outgoing).toEqual({
+      count: 3,
+      items: [
+        { target: "backoff.md", line: 2, path: ".ragmir/raw/wiki/backoff.md" },
+        { target: "missing-runbook.md", line: 3, path: null },
+        { target: "Incident 42", line: 3, path: ".ragmir/raw/wiki/Incident 42.md" },
+      ],
+    })
+    expect(expanded.links?.incoming).toMatchObject({
+      count: 2,
+      complete: true,
+      items: [
+        { source: ".ragmir/raw/wiki/index.md", line: 3 },
+        { source: ".ragmir/raw/wiki/index.md", line: 4 },
+      ],
+    })
+    expect(expanded.links?.incoming.items[0]?.citation).toMatch(
+      /^\.ragmir\/raw\/wiki\/index\.md:L/u,
+    )
+    const backoff = await search("backoff minutes", { cwd: root, topK: 1 })
+    expect(
+      (await expandCitation(backoff[0]?.citation ?? "", { cwd: root })).links?.incoming.count,
+    ).toBe(1)
+  })
+
   it("should size candidate pools from the fusion bound with a profile margin", () => {
     expect(vectorCandidateLimit(1)).toBe(78)
     expect(vectorCandidateLimit(5)).toBe(88)

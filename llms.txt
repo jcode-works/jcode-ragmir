@@ -48,6 +48,9 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   EPUB spine coordinates. Indexed content is not masked or paraphrased.
 - Markdown passages carry their heading path. Front matter stays one passage; its `title` roots a
   page without a level-1 heading, and `ragmir_sources` lists each page's title and description.
+  `ragmir_expand` adds a Markdown page's outgoing links (broken ones with `path: null`) and the
+  pages linking to it; `ragmir_sources` with `outline: true` returns one document's sections with
+  their first citations. Links navigate; they are not evidence.
 - MCP exposes five read-only tools (`ragmir_status`, `ragmir_search`, `ragmir_expand`,
   `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the `answer`
   prompt, and bounded `ragmir://context` and `ragmir://sources` resources. Search starts with three

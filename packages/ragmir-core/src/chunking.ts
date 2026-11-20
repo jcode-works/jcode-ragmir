@@ -291,7 +291,8 @@ function trimmedSpan(text: string, start: number, end: number): TextSpan {
   }
 }
 
-function lineStartOffsets(text: string, signal: AbortSignal | undefined): number[] {
+/** Offsets where each line of a text starts. */
+export function lineStartOffsets(text: string, signal: AbortSignal | undefined): number[] {
   const starts = [0]
   for (let index = 0; index < text.length; index += 1) {
     if (signal && index % 16_384 === 0) {
@@ -352,7 +353,8 @@ function fenceAtOffset(
   return fence && fence.start < offset && fence.end > offset ? fence : undefined
 }
 
-function lineNumberForOffset(lineStarts: number[], offset: number): number {
+/** The line, from 1, that holds a character offset. */
+export function lineNumberForOffset(lineStarts: number[], offset: number): number {
   let low = 0
   let high = lineStarts.length - 1
   while (low <= high) {

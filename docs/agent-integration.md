@@ -267,6 +267,15 @@ neighbouring windows, until `nextCitation` is absent. Pass `citations` (up to fi
 returns `found: false` without failing the others. This reads PDFs, Office files, and long
 specifications through without filesystem access.
 
+For a Markdown page, `ragmir_expand` also returns `links`, read from the index. `outgoing` lists the
+links the page writes (inline, reference, and `[[wikilinks]]`, never those inside code), each with
+the indexed file it reaches or `path: null` when it is broken. `incoming` lists the pages that link
+to it, each with the citation of the passage holding the link; Ragmir reads the pages whose
+keyword text names the file, and `complete: false` says some were left unread. A link is
+navigation, not evidence. `ragmir_sources` with `paths` naming one file and `outline: true`
+returns its outline: each heading path with the citation of its first passage, to expand one
+section of a long document directly.
+
 `ragmir_ingest` runs an incremental ingest: only new and changed files are parsed, and the previous
 index stays searchable until the new one passes validation. It waits up to `waitSeconds` (30 by
 default, 600 at most), sends MCP progress notifications when the client asks for them, and otherwise
