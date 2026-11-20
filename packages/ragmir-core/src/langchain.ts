@@ -260,11 +260,22 @@ function searchResultsText(results: SearchResult[]): string {
 
 function expandedCitationText(expanded: ExpandedCitation): string {
   if (!expanded.found) {
-    return `${expanded.requestedCitation} is no longer in the index. Search again for current evidence.`
+    return `${expanded.requestedCitation} is no longer in the index. ${missingCitationHint(expanded)}`
   }
   const passages = expanded.passages.map((passage) => `[${passage.citation}]\n${passage.text}`)
   const next = expanded.nextCitation ? [`Continue reading: ${expanded.nextCitation}`] : []
   return [...passages, ...next].join("\n\n")
+}
+
+/** The agent's next step when a citation finds nothing: the hint Core attached, or a new search. */
+function missingCitationHint({ suggestedCitation, similarPaths = [] }: ExpandedCitation): string {
+  if (suggestedCitation) {
+    return `Its document is still indexed: expand ${suggestedCitation} instead.`
+  }
+  if (similarPaths.length > 0) {
+    return `Indexed files with a close name: ${similarPaths.join(", ")}.`
+  }
+  return "Search again for current evidence."
 }
 
 /** Converts one Ragmir search result into a LangChain document that keeps its citation. */

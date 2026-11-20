@@ -814,7 +814,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_expand",
     {
       title: `Ragmir expand: ${profile.name}`,
-      description: `Read the full indexed text of one citation from the "${profile.name}" knowledge base: the cited chunk plus up to ${MAX_MCP_CONTEXT_RADIUS} neighbouring chunks on each side, within the output budget. Use it after ragmir_search to quote or verify a passage before relying on it. To read a whole document, expand the returned nextCitation (or previousCitation) with the same contextRadius until it is absent; documentChunks counts the document's chunks. Pass citations (up to ${MAX_MCP_BATCH_QUERIES}) instead of citation to read several in one output budget. Read-only; reports found:false when the citation is no longer in the index.`,
+      description: `Read the full indexed text of one citation from the "${profile.name}" knowledge base: the cited chunk plus up to ${MAX_MCP_CONTEXT_RADIUS} neighbouring chunks on each side, within the output budget. Use it after ragmir_search to quote or verify a passage before relying on it. To read a whole document, expand the returned nextCitation (or previousCitation) with the same contextRadius until it is absent; documentChunks counts the document's chunks. Pass citations (up to ${MAX_MCP_BATCH_QUERIES}) instead of citation to read several in one output budget. Read-only; reports found:false when the citation is no longer in the index, with suggestedCitation (the nearest passage of a document still indexed) or similarPaths (indexed files with a close name) to try instead.`,
       inputSchema: expandToolInputSchema,
       annotations: READ_ONLY_TOOL_ANNOTATIONS,
     },

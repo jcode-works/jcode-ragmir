@@ -95,9 +95,11 @@ try {
 
 `ragmir_search` answers the model with numbered citations and passage text, flags weak matches and
 changed files, and says so when no passage supports an answer; its tool message `artifact` holds
-the LangChain documents. The model may add `searches`, its own formulations of the question. `ragmir_expand` returns a citation with its neighbours and the next
-citation to read on; its artifact is the `ExpandedCitation`. `new RagmirToolkit({ projectRoot })`
-opens its own client instead: call `toolkit.close()` at shutdown.
+the LangChain documents. The model may add `searches`, its own formulations of the question.
+`ragmir_expand` returns a citation with its neighbours and the next citation to read on, and
+answers a citation the index no longer holds with the nearest passage or the files with a close
+name; its artifact is the `ExpandedCitation`. `new RagmirToolkit({ projectRoot })` opens its own
+client instead: call `toolkit.close()` at shutdown.
 
 ## One-shot operations
 
