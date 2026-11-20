@@ -1,10 +1,11 @@
 {
   "name": "ragmir",
   "displayName": "Ragmir",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Cited local retrieval for Cursor: search a project's code, specs, PDFs, and Office files and get passages cited to lines, pages, slides, or cells.",
   "author": {
-    "name": "Jean-Baptiste Thery"
+    "name": "JCode Works",
+    "email": "contact@jcode.works"
   },
   "homepage": "https://ragmir.com",
   "repository": "https://github.com/jcode-works/ragmir",
