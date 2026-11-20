@@ -23,7 +23,7 @@
     "Use the canonical setup prompt in docs/quick-start.md. Inspect existing sources and respect already authorized changes.",
     "Ragmir supplies local evidence for agentic RAG. The consuming agent owns query planning, synthesis, tool use, and actions.",
     "Show four workflows: build a feature and diagnose an incident with Claude Code or Codex, ground an AI product with the LangChain.js retriever, and decide on confidential architecture with a local or self-hosted chat.",
-    "The only executable is rgr. MCP exposes ragmir_status, ragmir_search, ragmir_expand, ragmir_sources, ragmir_audit, and ragmir_ingest (refreshes the private index), the answer prompt, and the ragmir://context and ragmir://sources resources.",
+    "The only executable is rgr. MCP exposes ragmir_status, ragmir_search, ragmir_expand, ragmir_sources, ragmir_audit, ragmir_ingest (refreshes the index), the answer, compile-source, and audit-knowledge prompts, and two resources.",
     "Search returns three compact citations by default over MCP. includePaths and excludePaths take folders, files, or globs such as **/*.pdf. ragmir_expand follows nextCitation to read a whole document; the host agent refines queries.",
     "Local-hash needs no model or API key. Semantic retrieval explicitly installs the optional @huggingface/transformers peer and preloads a pinned local model.",
     "Ragmir keeps source text unmasked. The consumer decides whether excerpts reach a local model, a self-hosted server, or a cloud provider; confidentiality also depends on client, access, network, and logs. Exclude credentials at source selection.",
@@ -41,11 +41,15 @@
     "Connect an MCP-capable chat or use the library example in docs/agent-integration.md with local Ollama, a self-hosted model endpoint, or a compatible cloud API. The host runs the agent loop and generation.",
     "Register the MCP server per project. Its instructions name the base; unrelated workspaces get a scope notice, or a refusal with mcpAllowedRoots. rgr doctor warns about user-scope and unapproved registrations.",
     "MCP search accepts up to five related queries in one budget and returns passages already seen in the session as short stubs. Results carry sourceStatus when a cited file changed and weakEvidence when support is thin.",
+    "Search excerpts start at the lines holding the question's words (excerptLine); results carry pathContext from pathContexts or scope descriptions; a notice names question words no passage holds; ragmir_expand reads up to five citations at once.",
+    "Markdown knowledge bases: ragmir_expand lists a page's links and backlinks, ragmir_sources outline:true lists its sections, and rgr audit --knowledge reports broken links, missing pages, changed citations, and stale front matter sources.",
+    "Search accepts searches: up to five formulations of one question fused into one ranking. lex keywords require \"quoted phrases\" and drop -words, vec is a paraphrase, hyde a likely answer. CLI --lex, --vec, --hyde; Python searches=.",
     "Paths are cited with forward slashes and in Unicode NFC on Linux, macOS, and Windows; exclusions match decomposed and case-variant names. A committed ragmir.config.json holds shared settings and .ragmir/config.json overrides it locally.",
     "Python: pip install ragmir (sync and async client), langchain-ragmir (RagmirRetriever, RagmirToolkit for LangChain and LangGraph), or llama-index-retrievers-ragmir. They drive the Core MCP server through Node.js or Docker.",
     "LangChain.js: RagmirRetriever and createRagmirTools({ client }) from @jcode.labs/ragmir/langchain, with the optional peer @langchain/core 1.x. An empty result means the documents hold no evidence.",
-    "Agent Skills: npx skills add jcode-works/ragmir installs ragmir (cited retrieval), ragmir-setup (install, sources, connection, OCR, upgrades), ragmir-build (applications), and ragmir-evaluate (golden files and rgr evaluate gates).",
+    "Agent Skills: npx skills add jcode-works/ragmir installs ragmir (retrieval), ragmir-setup (install, sources, OCR, upgrades), ragmir-build (applications), ragmir-evaluate (rgr evaluate gates), and ragmir-wiki (a cited Markdown wiki).",
     "Ragmir indexes 900+ file types: code, Markdown, PDF, Office, OpenDocument, EPUB, HTML, email, Evernote, and exports from Figma, Sketch, Excalidraw, tldraw, XMind, Postman, Insomnia, HAR, OpenAPI, and modeling tools, cited per object.",
-    "Ragmir always skips credential files such as .env, .env.local, .npmrc, .tfvars, SSH keys, and .pem files; dotenv templates (.env.example, .env.sample, env.template) index variable names and comments with every value masked."
+    "Ragmir always skips credential files such as .env, .env.local, .npmrc, .tfvars, SSH keys, and .pem files; dotenv templates (.env.example, .env.sample, env.template) index variable names and comments with every value masked.",
+    "Settings in a cloned or pulled project config that run commands, send data off the machine (remote embeddingEndpoint, embeddingApiKeyEnv, model downloads), or read outside the project stay inactive until approved with rgr trust; agents never approve them."
   ]
 }

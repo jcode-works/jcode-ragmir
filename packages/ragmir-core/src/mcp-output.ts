@@ -61,6 +61,43 @@ export interface McpExpandedCitationSummary {
 
 export type McpExpandedCitationPayload = ExpandedCitation | McpExpandedCitationSummary
 
+/** One citation of a batch that could not be expanded, so the others still return. */
+export interface McpExpandFailure {
+  requestedCitation: string
+  found: false
+  error: string
+}
+
+export type McpExpandedBatchPayload = Array<McpExpandedCitationPayload | McpExpandFailure>
+
+/**
+ * Fit several expanded citations into one budget: each gets an equal share first, so one long
+ * document cannot crowd out the others, then trailing items are dropped if the batch still exceeds
+ * the budget.
+ */
+export function fitExpandedCitations(
+  values: McpExpandedBatchPayload,
+  maxBytes: number,
+): ReducedPayload<McpExpandedBatchPayload> {
+  if (jsonBytes(values) <= maxBytes) {
+    return { value: values, omittedItems: 0, truncated: false }
+  }
+  // Two bytes of brackets and one separator per item frame the shares.
+  const share = Math.floor((maxBytes - 2 - values.length) / Math.max(1, values.length))
+  let omittedItems = 0
+  const fitted = values.map((value) => {
+    if ("error" in value) return value
+    const reduced = fitExpandedCitation(value, share)
+    omittedItems += reduced.omittedItems
+    return reduced.value
+  })
+  while (fitted.length > 0 && jsonBytes(fitted) > maxBytes) {
+    fitted.pop()
+    omittedItems += 1
+  }
+  return { value: fitted, omittedItems, truncated: true }
+}
+
 interface ReducedPayload<T> {
   value: T
   omittedItems: number

@@ -172,6 +172,10 @@ export async function doctorWithConfig(
     fragments: manifest?.maintenance?.fragments,
     noiseFloorAdvice: noiseFloorAdvice(manifest, config, runCommand),
     run: runCommand,
+    untrustedSettings:
+      config.configTrust?.status === "untrusted"
+        ? config.configTrust.settings.map((setting) => setting.name)
+        : [],
   })
 
   throwIfAborted(signal)
@@ -253,6 +257,8 @@ interface NextActionInput {
   run: (args: string[]) => string
   /** The server was started by an agent plugin, which indexes through `init`, `sources`, `ingest`. */
   agentPlugin: boolean
+  /** Names of gated project config settings this machine has not approved. */
+  untrustedSettings: string[]
 }
 
 function nextActions(input: NextActionInput): string[] {
@@ -364,6 +370,12 @@ function nextActions(input: NextActionInput): string[] {
 
   if (input.unsupportedFiles > 0 || input.sensitiveFiles > 0) {
     steps.push("Run `rgr audit --unsupported` to review every intentionally skipped source file.")
+  }
+
+  if (input.untrustedSettings.length > 0) {
+    steps.push(
+      `Project config files set ${input.untrustedSettings.join(", ")}, inactive until approved here: review them with \`${input.run(["trust"])}\`.`,
+    )
   }
 
   if (input.warnings > 0) {

@@ -46,12 +46,28 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   Page caches and bounded batches avoid repeated work.
 - Citations use source lines only when valid; transformed formats use pages, slides, cells, or
   EPUB spine coordinates. Indexed content is not masked or paraphrased.
+- Markdown passages carry their heading path. Front matter stays one passage; its `title` roots a
+  page without a level-1 heading, and `ragmir_sources` lists each page's title and description.
+  `ragmir_expand` adds a Markdown page's outgoing links (broken ones with `path: null`) and the
+  pages linking to it; `ragmir_sources` with `outline: true` returns one document's sections with
+  their first citations. Links navigate; they are not evidence. `rgr audit --knowledge` (or
+  `ragmir_audit` with `knowledge: true`) audits Markdown pages read-only: broken links, missing and
+  unlinked pages, duplicate titles, written citations that changed, and stale declared sources.
+  `ragmir_sources` with `changedSince` lists the files changed since a time.
 - MCP exposes five read-only tools (`ragmir_status`, `ragmir_search`, `ragmir_expand`,
-  `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the `answer`
-  prompt, and bounded `ragmir://context` and `ragmir://sources` resources. Search starts with three
+  `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the
+  `answer`, `compile-source`, and `audit-knowledge` prompts, and bounded `ragmir://context` and
+  `ragmir://sources` resources. Search starts with three
   compact citations, accepts up to five related queries in one budget, filters by folder or glob
-  (`**/*.pdf`), and returns passages already seen in the session as short stubs. Expansion returns
-  `nextCitation` to read a document through. `ragmir_ingest` writes only the private index and
+  (`**/*.pdf`), and returns passages already seen in the session as short stubs. Excerpts start at
+  the lines holding the question's words (`excerptLine`), results carry `pathContext` from
+  `pathContexts` or scope descriptions, and a notice names question words no passage holds
+  (`absentTerms` in `searchReport()` and `--json`). `searches` adds up to five formulations of one
+  question, fused with it into one ranking: `lex` keywords (`"phrase"` required, `-word`
+  excluded), a `vec` paraphrase, or a `hyde` passage written as the answer might read (`--lex`,
+  `--vec`, `--hyde` in the CLI). Expansion returns `nextCitation` to read a
+  document through and accepts up to five `citations` at once. A scope with
+  `searchByDefault: false` is searched only by name. `ragmir_ingest` writes only the private index and
   refuses with `mcpIngest: false` or while `rgr security-audit` warns. Instructions name the base;
   unrelated workspaces get a scope notice, or a refusal with `mcpAllowedRoots`. Register Ragmir per
   project, not for every project.
@@ -94,10 +110,11 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   Gemini CLI (`gemini extensions install https://github.com/jcode-works/ragmir`), and Qwen
   Code (`qwen extensions install jcode-works/ragmir`). Plugins need local files, so they run
   in coding agents, not in web or mobile chat apps.
-- Agent Skills: `npx skills add jcode-works/ragmir` installs four skills from `skills/`
+- Agent Skills: `npx skills add jcode-works/ragmir` installs five skills from `skills/`
   (listed on skills.sh): `ragmir` (cited retrieval loop), `ragmir-setup` (install, sources, index,
   agent connection, OCR, semantic model, upgrades), `ragmir-build` (TypeScript, LangChain.js,
-  Python, LlamaIndex, Docker), and `ragmir-evaluate` (golden files, `rgr evaluate` gates, tuning).
+  Python, LlamaIndex, Docker), `ragmir-evaluate` (golden files, `rgr evaluate` gates, tuning), and
+  `ragmir-wiki` (a cited Markdown wiki compiled from sources and linted with the knowledge audit).
 - LangChain.js: `RagmirRetriever` from `@jcode.labs/ragmir/langchain` (optional peer
   `@langchain/core` 1.x) returns LangChain documents whose `metadata` holds the citation, and an
   empty array when the sources hold no evidence. `createRagmirTools({ client })` (or
@@ -118,6 +135,11 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   source inspection, retrieval quality, live diagnostics, and index maintenance.
 - Optional ingestion metrics are local counters and timings, without source content or raw queries.
 - Keep `.ragmir/` and credentials out of Git. Share reviewed sources normally, then ingest locally.
+- Settings in project config files that run a program (OCR and extractor commands), send data off
+  the machine (a remote `embeddingEndpoint`, any `embeddingApiKeyEnv`, model downloads), or read
+  outside the project stay inactive until approved on each machine with `rgr trust` (`--yes` in
+  CI, or `RAGMIR_TRUST_PROJECT_CONFIG=1`). Embedding calls fail with `UNTRUSTED_CONFIG` before any
+  request; Git hooks and MCP never approve. `RAGMIR_*` environment overrides need no approval.
 - The index stays on the machine running Ragmir. The consuming application decides where
   unmasked passages go: a local model, a self-hosted server (including private cloud), or a provider.
   Local indexing and self-hosting alone do not guarantee confidentiality. Control the client,

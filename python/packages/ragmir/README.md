@@ -31,16 +31,22 @@ with Ragmir("my-project") as rag:
 
 `Ragmir` keeps one MCP server running for the project and reuses it for every call. It works from
 any thread, a notebook, or a web framework, and each method has an async twin (`asearch`,
-`aexpand`, `asources`, `astatus`, `aingest`). Asyncio services can use `AsyncRagmir` directly.
+`aexpand`, `asources`, `aknowledge_audit`, `aingest`, and so on). Asyncio services can use
+`AsyncRagmir` directly.
 
-- `search(query, top_k=, include_paths=, exclude_paths=, scope=)` returns `Passage` objects with
-  `citation`, `path`, `text`, line or page ranges, `weak_evidence`, and `source_status`. Path filters
-  take folders, files, or globs such as `"**/*.pdf"`.
+- `search(query, top_k=, include_paths=, exclude_paths=, scope=, searches=)` returns `Passage`
+  objects with `citation`, `path`, `text`, line or page ranges, `weak_evidence`, and
+  `source_status`. Path filters take folders, files, or globs such as `"**/*.pdf"`. `searches` adds
+  up to five of your own formulations, fused into one ranking: `lex` keywords (`"phrase"` required,
+  `-word` excluded), a `vec` paraphrase, or a `hyde` likely answer.
 - `search_many(queries)` answers up to five related questions in one call.
 - `expand(citation, context_radius=1)` returns the passage with its neighbours; expand
-  `next_citation` to read a long document through.
-- `sources(paths=["contracts/**"])` lists the indexed documents; `status()` and `audit()` report
-  readiness and coverage.
+  `next_citation` to read a long document through. A citation the index no longer holds comes back
+  with `suggested_citation` or `similar_paths`, and a Markdown page with its `links`.
+- `sources(paths=["contracts/**"])` lists the indexed documents with their front matter titles;
+  `changed_since=` adds the files changed since a time, and `outline=True` one document's sections.
+- `status()` and `audit()` report readiness and coverage; `knowledge_audit()` checks Markdown pages
+  as a knowledge base: broken links, missing pages, changed citations, and stale sources.
 - `run_cli(project, "doctor")` runs any `rgr` command, for example an ingest with local OCR, which
   Ragmir leaves to an explicit operator command.
 

@@ -49,6 +49,34 @@ def test_search_filters_with_globs(rag: Ragmir) -> None:
     assert all(passage.path.startswith("notes/") for passage in excluded)
 
 
+def test_search_fuses_formulations_and_drops_exclusions(rag: Ragmir) -> None:
+    passages = rag.search(
+        "refund", top_k=5, searches=[{"type": "lex", "query": '"billing team" -portal'}]
+    )
+
+    assert passages[0].path == "docs/refunds.md"
+    assert "notes/refund-faq.txt" not in [passage.path for passage in passages]
+    with pytest.raises(RagmirToolError, match="only excludes"):
+        rag.search("refund", searches=[{"type": "lex", "query": "-portal"}])
+
+
+def test_knowledge_audit_reports_pages_without_changing_them(rag: Ragmir) -> None:
+    report = rag.knowledge_audit(paths=["docs"])
+
+    assert report["pages"] == 4
+    assert {item["path"] for item in report["findings"]["unlinkedPages"]["items"]} >= {
+        "docs/refunds.md"
+    }
+
+
+def test_sources_report_changes_since_a_time(rag: Ragmir) -> None:
+    catalog = rag.sources(changed_since="2000-01-01")
+
+    assert catalog.changes is not None
+    assert "docs/refunds.md" in catalog.changes.modified
+    assert rag.sources().changes is None
+
+
 def test_search_many_answers_each_question(rag: Ragmir) -> None:
     answers = rag.search_many(["refund approval", "return label expiry"])
 
@@ -77,6 +105,34 @@ def test_expand_reports_a_citation_outside_the_index(rag: Ragmir) -> None:
     assert missing.passages == ()
     with pytest.raises(RagmirToolError, match="chunk suffix"):
         rag.expand("not a citation")
+
+
+def test_expand_points_a_stale_citation_at_the_index(rag: Ragmir) -> None:
+    moved = rag.expand("docs/refunds.md#99")
+
+    assert moved.found is False
+    assert (moved.suggested_citation or "").startswith("docs/refunds.md:L")
+    assert rag.expand("docs/refund.md#0").similar_paths[0] == "docs/refunds.md"
+
+
+def test_expand_lists_the_links_of_a_markdown_page(rag: Ragmir) -> None:
+    page = rag.search("refund approval", include_paths=["docs/refunds.md"], top_k=1)[0]
+    note = rag.search("refund approval", include_paths=["notes"], top_k=1)[0]
+
+    links = rag.expand(page.citation).links
+    assert links is not None
+    assert links["outgoing"]["count"] == 0
+    assert rag.expand(note.citation).links is None
+
+
+def test_sources_outline_one_document(rag: Ragmir) -> None:
+    catalog = rag.sources(paths=["docs/runbook.md"], outline=True)
+
+    assert [entry.context_path for entry in catalog.outline] == [
+        f"Step {step}" for step in range(1, 10)
+    ]
+    assert catalog.outline[0].citation.startswith("docs/runbook.md:L")
+    assert rag.sources(paths=["docs"], outline=True).outline == ()
 
 
 def test_sources_lists_documents_by_glob(rag: Ragmir) -> None:

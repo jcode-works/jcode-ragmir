@@ -3,6 +3,7 @@ import { BaseRetriever, type BaseRetrieverInput } from "@langchain/core/retrieve
 import { BaseToolkit, type StructuredToolInterface, tool } from "@langchain/core/tools"
 import { z } from "zod"
 import { RagmirClient } from "./client.js"
+import { searchFormulationsSchema } from "./typed-search.js"
 import type { ExpandedCitation, SearchOptions, SearchResult, SourceStatus } from "./types.js"
 
 /** Search settings the retriever forwards to `RagmirClient.search` on every query. */
@@ -41,6 +42,8 @@ export interface RagmirDocumentMetadata extends Record<string, unknown> {
   /** Set when the cited file changed or disappeared since it was indexed. */
   sourceStatus?: SourceStatus
   knowledgeBaseId?: string
+  /** What the documents under this path are, from the base configuration. */
+  pathContext?: string
 }
 
 /** Opens a client on first use unless the caller shares one, and closes only the one it opened. */
@@ -159,13 +162,14 @@ export function createRagmirTools(input: RagmirToolkitInput & { client: RagmirCl
 
 function ragmirSearchTool(handle: ClientHandle, defaults: RagmirRetrieverSearchOptions) {
   return tool(
-    async ({ query, topK, includePaths, excludePaths }) => {
+    async ({ query, topK, includePaths, excludePaths, searches }) => {
       const client = await handle.get()
       const results = await client.search(query, {
         ...defaults,
         ...(topK === undefined ? {} : { topK }),
         ...(includePaths === undefined ? {} : { includePaths }),
         ...(excludePaths === undefined ? {} : { excludePaths }),
+        ...(searches === undefined ? {} : { searches }),
       })
       const documents = results.map(ragmirResultToDocument)
       return [searchResultsText(results), documents] as const
@@ -196,6 +200,11 @@ function ragmirSearchTool(handle: ClientHandle, defaults: RagmirRetrieverSearchO
           .max(20)
           .optional()
           .describe("Skip these folders, files, or globs."),
+        searches: searchFormulationsSchema
+          .optional()
+          .describe(
+            'Your own formulations of the same need, fused with the query into one ranking. lex: keywords, "exact phrase", -excluded word; vec: a paraphrase; hyde: a short passage that would answer it.',
+          ),
       }),
       responseFormat: "content_and_artifact",
     },
@@ -242,6 +251,7 @@ function searchResultsText(results: SearchResult[]): string {
       const notes = [
         result.weakEvidence ? "weak match: verify before relying on it" : "",
         result.sourceStatus ? `file ${result.sourceStatus} since indexing` : "",
+        result.pathContext ? `context: ${result.pathContext}` : "",
       ].filter(Boolean)
       return `[${index + 1}] ${result.citation}${notes.length > 0 ? ` (${notes.join("; ")})` : ""}\n${result.text}`
     })
@@ -250,11 +260,22 @@ function searchResultsText(results: SearchResult[]): string {
 
 function expandedCitationText(expanded: ExpandedCitation): string {
   if (!expanded.found) {
-    return `${expanded.requestedCitation} is no longer in the index. Search again for current evidence.`
+    return `${expanded.requestedCitation} is no longer in the index. ${missingCitationHint(expanded)}`
   }
   const passages = expanded.passages.map((passage) => `[${passage.citation}]\n${passage.text}`)
   const next = expanded.nextCitation ? [`Continue reading: ${expanded.nextCitation}`] : []
   return [...passages, ...next].join("\n\n")
+}
+
+/** The agent's next step when a citation finds nothing: the hint Core attached, or a new search. */
+function missingCitationHint({ suggestedCitation, similarPaths = [] }: ExpandedCitation): string {
+  if (suggestedCitation) {
+    return `Its document is still indexed: expand ${suggestedCitation} instead.`
+  }
+  if (similarPaths.length > 0) {
+    return `Indexed files with a close name: ${similarPaths.join(", ")}.`
+  }
+  return "Search again for current evidence."
 }
 
 /** Converts one Ragmir search result into a LangChain document that keeps its citation. */
@@ -276,6 +297,9 @@ export function ragmirResultToDocument(result: SearchResult): Document<RagmirDoc
   }
   if (result.evidence?.knowledgeBaseId) {
     metadata.knowledgeBaseId = result.evidence.knowledgeBaseId
+  }
+  if (result.pathContext) {
+    metadata.pathContext = result.pathContext
   }
   return new Document<RagmirDocumentMetadata>({
     pageContent: result.text,

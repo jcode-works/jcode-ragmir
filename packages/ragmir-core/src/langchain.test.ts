@@ -120,6 +120,23 @@ describe("RagmirToolkit", { timeout: integrationTimeout(10_000) }, () => {
     expect(expandMessage.content).toContain("human approval before production deployment")
     expect(expandMessage.artifact).toMatchObject({ found: true })
 
+    // A stale citation points the agent at what is indexed now instead of a dead end.
+    for (const [citation, hint] of [
+      [
+        ".ragmir/raw/decision.md#9",
+        "Its document is still indexed: expand .ragmir/raw/decision.md:L",
+      ],
+      [".ragmir/raw/decisions.md#0", "Indexed files with a close name: .ragmir/raw/decision.md."],
+    ]) {
+      const stale = (await expand?.invoke({
+        id: "call-stale",
+        name: "ragmir_expand",
+        args: { citation },
+        type: "tool_call",
+      })) as ToolMessage
+      expect(stale.content).toContain(hint)
+    }
+
     const silent = (await search?.invoke({
       id: "call-3",
       name: "ragmir_search",

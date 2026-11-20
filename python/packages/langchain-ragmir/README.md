@@ -42,8 +42,10 @@ agent.invoke({"messages": [{"role": "user", "content": "What is the refund polic
 ```
 
 `ragmir_search` answers with numbered citations and passage text, and keeps the documents as the
-tool message artifact. `ragmir_expand` reads a citation with its neighbours and the citation to
-read on. Retrievers and tools over the same project share one Ragmir server; pass
+tool message artifact; the model may add `searches`, its own keyword, paraphrase, or likely-answer
+formulations of the question. `ragmir_expand` reads a citation with its neighbours and the citation
+to read on, and answers a citation the index no longer holds with the nearest passage or the files
+with a close name. Retrievers and tools over the same project share one Ragmir server; pass
 `client=ragmir.Ragmir(...)` to manage it yourself.
 
 Read the [Python guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md).

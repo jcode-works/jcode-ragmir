@@ -6,11 +6,19 @@ from langchain_core.callbacks import AsyncCallbackManagerForToolRun, CallbackMan
 from langchain_core.documents import Document
 from langchain_core.tools import BaseTool, BaseToolkit
 from pydantic import BaseModel, ConfigDict, Field
-from ragmir import Ragmir, shared_client
+from ragmir import Ragmir, SearchFormulation, shared_client
 
 from ._documents import expanded_text, passage_to_document, passages_text
 
 MAX_TOOL_TOP_K = 10
+
+
+class RagmirSearchFormulation(BaseModel):
+    type: Literal["lex", "vec", "hyde"] = Field(
+        description='lex: keywords, "exact phrase", -excluded word; vec: a paraphrase; '
+        "hyde: a short passage that would answer the question."
+    )
+    query: str = Field(min_length=1, description="The formulation itself.")
 
 
 class RagmirSearchInput(BaseModel):
@@ -26,6 +34,12 @@ class RagmirSearchInput(BaseModel):
     )
     exclude_paths: list[str] | None = Field(
         default=None, description="Skip these folders, files, or globs."
+    )
+    searches: list[RagmirSearchFormulation] | None = Field(
+        default=None,
+        max_length=5,
+        description="Your own formulations of the same need, fused with the query into one "
+        "ranking.",
     )
 
 
@@ -74,6 +88,7 @@ class RagmirSearchTool(_RagmirTool):
         top_k: int | None = None,
         include_paths: list[str] | None = None,
         exclude_paths: list[str] | None = None,
+        searches: list[RagmirSearchFormulation] | None = None,
         run_manager: CallbackManagerForToolRun | None = None,
     ) -> tuple[str, list[Document]]:
         passages = self._ragmir().search(
@@ -81,6 +96,7 @@ class RagmirSearchTool(_RagmirTool):
             top_k=top_k or self.top_k,
             include_paths=include_paths,
             exclude_paths=exclude_paths,
+            searches=_formulations(searches),
         )
         return passages_text(passages), [passage_to_document(passage) for passage in passages]
 
@@ -90,6 +106,7 @@ class RagmirSearchTool(_RagmirTool):
         top_k: int | None = None,
         include_paths: list[str] | None = None,
         exclude_paths: list[str] | None = None,
+        searches: list[RagmirSearchFormulation] | None = None,
         run_manager: AsyncCallbackManagerForToolRun | None = None,
     ) -> tuple[str, list[Document]]:
         passages = await self._ragmir().asearch(
@@ -97,6 +114,7 @@ class RagmirSearchTool(_RagmirTool):
             top_k=top_k or self.top_k,
             include_paths=include_paths,
             exclude_paths=exclude_paths,
+            searches=_formulations(searches),
         )
         return passages_text(passages), [passage_to_document(passage) for passage in passages]
 
@@ -166,3 +184,11 @@ class RagmirToolkit(BaseToolkit):
 
 def _radius(value: int | None) -> int:
     return 1 if value is None else value
+
+
+def _formulations(
+    searches: list[RagmirSearchFormulation] | None,
+) -> list[SearchFormulation] | None:
+    if not searches:
+        return None
+    return [{"type": item.type, "query": item.query} for item in searches]

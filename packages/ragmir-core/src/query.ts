@@ -15,11 +15,13 @@ import { indexNoiseFloor } from "./abstention-calibration.js"
 import { citationForCoordinates, stripCitationCoordinates } from "./citation.js"
 import { loadConfig } from "./config.js"
 import { MAX_SEARCH_TOP_K, VECTOR_DISTANCE_METRIC } from "./defaults.js"
+import { MARKDOWN_EXTENSIONS } from "./document-structure.js"
 import { embedText, embedTexts } from "./embeddings.js"
 import { RagmirError } from "./errors.js"
 import { acquireGenerationReadLease } from "./generation-retention.js"
 import { indexFreshnessWarning } from "./index-diagnostics.js"
 import { lexicalPolicyCurrent } from "./index-policy.js"
+import { auditKnowledge, type KnowledgePassage, writtenCitations } from "./knowledge-audit.js"
 import { knowledgeBaseIdentity } from "./knowledge-bases.js"
 import {
   addLexicalDocument,
@@ -27,10 +29,12 @@ import {
   lexicalDocument,
   lexicalDocumentScore,
 } from "./lexical-scoring.js"
+import { linkResolver, linksInPassages } from "./markdown-links.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
-import { isPathGlob, pathGlobRegexSource } from "./path-globs.js"
+import { defaultExcludedScopePaths, pathContextResolver } from "./path-contexts.js"
+import { isPathGlob, pathGlobRegexSource, pathMatchesFilter } from "./path-globs.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
-import type { QueryTermStatistics, RankedRow } from "./ranking.js"
+import type { FormulationList, QueryTermStatistics, RankedRow } from "./ranking.js"
 import {
   absentShareOf,
   abstentionFilter,
@@ -62,18 +66,32 @@ import {
   sourceWeightOf,
 } from "./source-weights.js"
 import type { IndexReadSnapshot } from "./store.js"
-import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
+import { closeIndexReadSnapshot, loadIndexReadSnapshot, readIndexManifest } from "./store.js"
 import { normalizeForMatch, tokenize } from "./text.js"
+import {
+  exclusionMatcher,
+  formulationKeywords,
+  holdsRequiredPhrases,
+  type LexFormulation,
+  type PreparedFormulation,
+  prepareFormulations,
+} from "./typed-search.js"
 import type {
   Config,
+  DocumentLinks,
   EvidenceVersion,
   ExpandCitationOptions,
   ExpandedCitation,
   IndexManifest,
+  KnowledgeAuditOptions,
+  KnowledgeAuditReport,
+  OperationOptions,
   RetrievalProfile,
   SearchContextChunk,
   SearchOptions,
+  SearchReport,
   SearchResult,
+  SearchRetriever,
   SourceLocationKind,
   VectorIndexManifest,
 } from "./types.js"
@@ -190,8 +208,16 @@ interface LexicalCandidateOptions {
 
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  const results = await searchWithConfig(query, options, config)
-  return results
+  return searchWithConfig(query, options, config)
+}
+
+/** Search and report what the index lacks: the results plus the question's absent words. */
+export async function searchReport(
+  query: string,
+  options: SearchOptions = {},
+): Promise<SearchReport> {
+  const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  return searchReportWithConfig(query, options, config)
 }
 
 export async function searchWithConfig(
@@ -203,6 +229,27 @@ export async function searchWithConfig(
   suppliedSnapshot?: IndexReadSnapshot,
   generationLeaseHeld = false,
 ): Promise<SearchResult[]> {
+  const report = await searchReportWithConfig(
+    query,
+    options,
+    config,
+    connection,
+    activeSignal,
+    suppliedSnapshot,
+    generationLeaseHeld,
+  )
+  return report.results
+}
+
+export async function searchReportWithConfig(
+  query: string,
+  options: SearchOptions,
+  config: Config,
+  connection?: Connection,
+  activeSignal?: AbortSignal,
+  suppliedSnapshot?: IndexReadSnapshot,
+  generationLeaseHeld = false,
+): Promise<SearchReport> {
   const signal = activeSignal ?? operationSignal(options)
   return runWorkload(config, "search", signal, async ({ queueTimeMs }) => {
     const ownsSnapshot = suppliedSnapshot === undefined
@@ -229,9 +276,11 @@ async function searchWithinGeneration(
   snapshot: IndexReadSnapshot,
   activeSignal?: AbortSignal,
   workloadQueueMs = 0,
-): Promise<SearchResult[]> {
+): Promise<SearchReport> {
   const signal = activeSignal ?? operationSignal(options)
   const sanitized = sanitizeRetrievalQuery(query)
+  const retriever = normalizeRetriever(options.retriever)
+  const formulations = prepareFormulations(options.searches)
   const topK = normalizeTopK(options.topK ?? config.topK)
   const maxChunksPerDocument = normalizeMaxChunksPerDocument(
     options.maxChunksPerDocument ?? config.maxChunksPerDocument,
@@ -243,23 +292,30 @@ async function searchWithinGeneration(
   const table = snapshot.table
   throwIfAborted(signal)
   if (!table) {
-    return []
+    return { results: [], absentTerms: [] }
   }
   assertIndexFreshness(config, snapshot.manifest)
 
   const evidence = queryEvidence(sanitized.query)
   const queryTokens = evidence.tokens
   if (!sanitized.query || queryTokens.length === 0) {
-    return []
+    return { results: [], absentTerms: [] }
   }
 
   const scope = resolveSearchScope(config, options.scope)
+  // A scope with `searchByDefault: false` stays out of searches that do not ask for it by name or
+  // by path, such as archives or the raw sources of a compiled wiki.
+  const defaultExclusions =
+    scope === null && (options.includePaths?.length ?? 0) === 0
+      ? defaultExcludedScopePaths(config)
+      : []
   const retrievalPredicate = searchPredicate(
     [scope?.includePaths, options.includePaths],
-    [...(scope?.excludePaths ?? []), ...(options.excludePaths ?? [])],
+    [...(scope?.excludePaths ?? []), ...(options.excludePaths ?? []), ...defaultExclusions],
     options.contextPaths,
   )
   let embeddingQueueMs = 0
+  const semantic = config.embeddingProvider !== "local-hash"
   // Indexes built before folded keyword text cannot answer exact word frequencies reliably.
   const termFrequenciesPromise =
     snapshot.manifest && lexicalPolicyCurrent(snapshot.manifest)
@@ -272,57 +328,72 @@ async function searchWithinGeneration(
     `${snapshot.tableName}\0${snapshot.manifestFingerprint ?? ""}`,
     embedTexts,
   )
-  const lexicalCandidatesPromise = lexicalCandidateRows(table, sanitized.query, {
+  const lexicalOptions: LexicalCandidateOptions = {
     ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
     fallbackBatchSize: config.hybridTextScanLimit,
     indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
     minimumResults: candidateDemand,
     pathPredicate: retrievalPredicate,
     ...(signal === undefined ? {} : { signal }),
-  })
-  const vectorRowsPromise = embedText(sanitized.query, config, signal, ({ queueTimeMs }) => {
-    embeddingQueueMs = queueTimeMs
-  }).then(async (vector) => {
-    throwIfAborted(signal)
-    const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
-    const limit = vectorCandidateLimit(candidateDemand, config.retrievalProfile)
-    const nearest = async (predicate: string | null): Promise<SearchRow[]> => {
-      const vectorQuery = configureAdaptiveVectorQuery(
-        table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
-        manifest.vectorIndex,
-        options.vectorSearchMode === "exact",
-      )
-      return plainRows(
-        await (predicate ? vectorQuery.where(predicate) : vectorQuery).limit(limit).toArray(),
-      )
-    }
-    const rows = await nearest(retrievalPredicate)
-    const crowding = crowdingDocuments(rows, topK)
-    if (crowding.length === 0) {
-      return rows
-    }
-    // One large file (an export, a log, a spreadsheet) filled the pool with its own chunks, yet
-    // shows at most maxChunksPerDocument of them; a second pass reaches the other documents.
-    throwIfAborted(signal)
-    const others = `NOT (${crowding.map(relativePathEquals).join(" OR ")})`
-    const more = await nearest(
-      retrievalPredicate ? `(${retrievalPredicate}) AND ${others}` : others,
-    )
-    const seen = new Set(rows.map(rowKey))
-    return [...rows, ...more.filter((row) => !seen.has(rowKey(row)))]
-  })
-  const [vectorRowsOutcome, lexicalCandidatesOutcome] = await Promise.allSettled([
-    vectorRowsPromise,
-    lexicalCandidatesPromise,
-  ])
-  if (vectorRowsOutcome.status === "rejected") {
-    throw vectorRowsOutcome.reason
+  }
+  const vectorOptions: VectorCandidateOptions = {
+    config,
+    snapshot,
+    exact: options.vectorSearchMode === "exact",
+    limit: vectorCandidateLimit(candidateDemand, config.retrievalProfile),
+    pathPredicate: retrievalPredicate,
+  }
+  const lexicalCandidatesPromise =
+    retriever === "vector"
+      ? Promise.resolve(emptyLexicalCandidateSet())
+      : lexicalCandidateRows(table, sanitized.query, lexicalOptions)
+  const questionVectorPromise: Promise<{ vector: number[] | null; rows: SearchRow[] }> =
+    retriever === "lexical"
+      ? Promise.resolve({ vector: null, rows: [] })
+      : embedText(sanitized.query, config, signal, ({ queueTimeMs }) => {
+          embeddingQueueMs = queueTimeMs
+        }).then(async (vector) => {
+          throwIfAborted(signal)
+          const rows = await nearestRows(table, vector, vectorOptions)
+          const crowding = crowdingDocuments(rows, topK)
+          if (crowding.length === 0) {
+            return { vector, rows }
+          }
+          // One large file (an export, a log, a spreadsheet) filled the pool with its own chunks, yet
+          // shows at most maxChunksPerDocument of them; a second pass reaches the other documents.
+          throwIfAborted(signal)
+          const others = `NOT (${crowding.map(relativePathEquals).join(" OR ")})`
+          const more = await nearestRows(
+            table,
+            vector,
+            vectorOptions,
+            retrievalPredicate ? `(${retrievalPredicate}) AND ${others}` : others,
+          )
+          const seen = new Set(rows.map(rowKey))
+          return { vector, rows: [...rows, ...more.filter((row) => !seen.has(rowKey(row)))] }
+        })
+  const formulationListsPromise =
+    retriever === "vector"
+      ? Promise.resolve([])
+      : formulationCandidateLists(table, formulations, lexicalOptions)
+  const [questionVectorOutcome, lexicalCandidatesOutcome, formulationListsOutcome] =
+    await Promise.allSettled([
+      questionVectorPromise,
+      lexicalCandidatesPromise,
+      formulationListsPromise,
+    ])
+  if (questionVectorOutcome.status === "rejected") {
+    throw questionVectorOutcome.reason
   }
   if (lexicalCandidatesOutcome.status === "rejected") {
     throw lexicalCandidatesOutcome.reason
   }
-  const vectorRows = vectorRowsOutcome.value
+  if (formulationListsOutcome.status === "rejected") {
+    throw formulationListsOutcome.reason
+  }
+  const { vector: questionVector, rows: vectorRows } = questionVectorOutcome.value
   const lexicalCandidates = lexicalCandidatesOutcome.value
+  const formulationLists = formulationListsOutcome.value
   const rankingPolicy = rankingPolicyFor(
     config.embeddingProvider,
     config.retrievalProfile,
@@ -341,52 +412,72 @@ async function searchWithinGeneration(
   const definitionBoost = definitionBoostOf(boostTokens)
   const fileNameBoost = fileNameBoostOf(boostTokens)
   const headingBoost = headingBoostOf(boostTokens)
-  const rankedRows = rankHybridRows(
-    sanitized.query,
-    vectorRows,
-    lexicalCandidates.rows,
-    rankingPolicy,
-    (row) =>
-      weightOf(row.relativePath) * definitionBoost(row) * fileNameBoost(row) * headingBoost(row),
+  const rank = (lists: Array<FormulationList<SearchRow>>): Array<RankedRow<SearchRow>> =>
+    rankHybridRows(
+      sanitized.query,
+      vectorRows,
+      lexicalCandidates.rows,
+      rankingPolicy,
+      (row) =>
+        weightOf(row.relativePath) * definitionBoost(row) * fileNameBoost(row) * headingBoost(row),
+      { lexicalChannel: retriever !== "vector", formulationLists: lists },
+    )
+  const rankedRows = await withQuestionDistances(
+    table,
+    semantic ? questionVector : null,
+    rank(formulationLists),
+    vectorOptions,
+    signal,
   )
+  const isExcluded = exclusionMatcher(formulations)
   const isExactPathMatch = (row: SearchRow): boolean =>
     lexicalCandidates.exactPathMatches.has(rowKey(row))
+  const answerCandidates = (ranked: Array<RankedRow<SearchRow>>): Array<RankedRow<SearchRow>> =>
+    (isExcluded ? ranked.filter((item) => !isExcluded(item.row.searchText)) : ranked).sort(
+      (left, right) => Number(isExactPathMatch(right.row)) - Number(isExactPathMatch(left.row)),
+    )
   const noiseFloor = await noiseFloorPromise
   throwIfAborted(signal)
+  // Evidence rules judge passages against the question alone: the agent's formulations bring words
+  // the documents hold even when the question asks about something they never mention.
   const passesAbstention = abstentionFilter(evidence, rankingPolicy, termStatistics, noiseFloor)
   const hasWeakEvidence = weakEvidenceFilter(evidence, rankingPolicy, termStatistics, noiseFloor)
   const coverageOf =
     options.explain && termStatistics ? queryTermCoverage(evidence, termStatistics) : null
-  const orderedRows = rankedRows.sort(
-    (left, right) => Number(isExactPathMatch(right.row)) - Number(isExactPathMatch(left.row)),
-  )
-  const diversity = selectDiverseRows(orderedRows, {
-    topK,
-    maxChunksPerDocument,
-    isExactPathMatch,
-    ...(config.collapseLocaleVariants
-      ? { documentKeyOf: (row: SearchRow) => localeDocumentKey(row.relativePath) }
-      : {}),
-    isRelevant: (row) => isExactPathMatch(row) || passesAbstention(row),
-  })
+  const selectRows = (candidates: Array<RankedRow<SearchRow>>) =>
+    selectDiverseRows(candidates, {
+      topK,
+      maxChunksPerDocument,
+      isExactPathMatch,
+      ...(config.collapseLocaleVariants
+        ? { documentKeyOf: (row: SearchRow) => localeDocumentKey(row.relativePath) }
+        : {}),
+      isRelevant: (row) => isExactPathMatch(row) || passesAbstention(row),
+    })
+  const diversity = selectRows(answerCandidates(rankedRows))
+  // Formulations reorder and complete an answer, but whether there is one is decided as without
+  // them: by the question's own ranking, so they never turn a refusal into an answer.
+  const questionAnswer =
+    formulationLists.length === 0 ? diversity.rows : selectRows(answerCandidates(rank([]))).rows
   // A semantic answer whose leading passages are all weak holds no evidence: answer nothing rather
   // than noise. An exact path match is never weak.
-  const rows = isWeakAnswer(
-    diversity.rows,
-    (row) => !isExactPathMatch(row.row) && hasWeakEvidence(row.row),
-  )
-    ? []
-    : diversity.rows
+  const rows =
+    questionAnswer.length === 0 ||
+    isWeakAnswer(questionAnswer, (row) => !isExactPathMatch(row.row) && hasWeakEvidence(row.row))
+      ? []
+      : diversity.rows
   const [contextByRow, sourceStatuses] = await Promise.all([
     contextChunksByRow(table, rows, contextRadius, retrievalPredicate),
     sourceStatusesForRows(config.projectRoot, rows),
   ])
   throwIfAborted(signal)
   const knowledgeBaseId = knowledgeBaseIdentity(config.projectRoot)?.id ?? null
+  const pathContextOf = pathContextResolver(config)
 
   const results = rows.map((row) => {
     const vectorDistance = typeof row.row._distance === "number" ? row.row._distance : null
     const sourceStatus = sourceStatuses.get(row.row.relativePath)
+    const pathContext = pathContextOf(row.row.relativePath)
     return {
       source: row.row.source,
       relativePath: row.row.relativePath,
@@ -403,6 +494,7 @@ async function searchWithinGeneration(
       pageEnd: nullablePageNumber(row.row.pageEnd),
       context: contextByRow.get(rowKey(row.row)) ?? [],
       evidence: evidenceVersionForRow(row.row, snapshot, knowledgeBaseId),
+      ...(pathContext === undefined ? {} : { pathContext }),
       ...(sourceStatus === undefined ? {} : { sourceStatus }),
       ...(!isExactPathMatch(row.row) && hasWeakEvidence(row.row)
         ? { weakEvidence: true as const }
@@ -413,6 +505,7 @@ async function searchWithinGeneration(
               retrievalQuery: sanitized.query,
               queryNormalized: sanitized.changed,
               originalQueryLength: sanitized.originalLength,
+              retriever,
               fusion: "rrf" as const,
               combinedScore: row.combinedScore,
               scoreMultiplier: row.scoreMultiplier,
@@ -441,12 +534,210 @@ async function searchWithinGeneration(
               rankingPolicyFingerprint: rankingPolicyFingerprint(rankingPolicy),
               matchedTerms: matchedQueryTerms(config.projectRoot, queryTokens, row.row.searchText),
               queryTermCoverage: coverageOf ? coverageOf(row.row.searchText) : null,
+              ...(formulations.length === 0
+                ? {}
+                : { formulations: row.formulationContributions ?? [] }),
             },
           }
         : {}),
     }
   })
-  return results
+  return { results, absentTerms: absentQueryTerms(queryTokens, termStatistics) }
+}
+
+/**
+ * Question words the index never holds, exactly or, when the focus check scanned for them, as a
+ * fuzzy match. They tell an agent which part of its question the corpus cannot answer, so it can
+ * rephrase or report the gap instead of reading the nearest passages. Words in unsegmented scripts
+ * are not measured and never reported.
+ */
+function absentQueryTerms(
+  tokens: readonly string[],
+  statistics: QueryTermStatistics | null,
+): string[] {
+  if (!statistics) {
+    return []
+  }
+  return [...new Set(tokens)].filter(
+    (token) =>
+      !statistics.unmeasuredTerms?.has(token) &&
+      (statistics.documentFrequencies.get(token) ?? 0) === 0 &&
+      !statistics.fuzzyMatchedTerms?.has(token),
+  )
+}
+
+// The question's own lists weigh twice a formulation's, so an agent's alternatives add evidence
+// without outranking what the question itself found. A hypothetical answer holds many words and
+// weighs half again.
+const FORMULATION_WEIGHT = 0.5
+const HYDE_WEIGHT = 0.25
+const DISTANCE_BATCH_SIZE = 200
+
+interface VectorCandidateOptions {
+  config: Config
+  snapshot: IndexReadSnapshot
+  /** Compare every vector instead of probing the approximate index. */
+  exact: boolean
+  limit: number
+  pathPredicate: string | null
+}
+
+/** The passages nearest to a vector in the active index, within a SQL predicate. */
+async function nearestRows(
+  table: RowsTable,
+  vector: number[],
+  options: VectorCandidateOptions,
+  predicate = options.pathPredicate,
+): Promise<SearchRow[]> {
+  const manifest = assertVectorIndexCompatibility(
+    options.config,
+    options.snapshot.manifest,
+    vector.length,
+  )
+  const query = configureAdaptiveVectorQuery(
+    table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
+    manifest.vectorIndex,
+    options.exact,
+  )
+  return plainRows(
+    await (predicate ? query.where(predicate) : query).limit(options.limit).toArray(),
+  )
+}
+
+/**
+ * One keyword candidate list per formulation: `lex` with its phrases and exclusions, `vec` and
+ * `hyde` as plain words. The question's own vector already carries its meaning, so a paraphrase or
+ * a hypothetical answer adds most through the words the question lacks: embedding them measured
+ * no gain with a semantic model, while searching their words raised top-3 answers with both.
+ */
+async function formulationCandidateLists(
+  table: RowsTable,
+  formulations: readonly PreparedFormulation[],
+  options: LexicalCandidateOptions,
+): Promise<Array<FormulationList<SearchRow>>> {
+  const counts = { lex: 0, vec: 0, hyde: 0 }
+  return Promise.all(
+    formulations.map(async (formulation) => {
+      counts[formulation.type] += 1
+      const label = `${formulation.type}#${counts[formulation.type]}`
+      const rows =
+        formulation.type === "lex"
+          ? await lexFormulationRows(table, formulation, options)
+          : (await lexicalCandidateRows(table, formulation.text, options)).rows
+      const weight = formulation.type === "hyde" ? HYDE_WEIGHT : FORMULATION_WEIGHT
+      return { label, weight, rows }
+    }),
+  )
+}
+
+/** Keyword candidates of a `lex` formulation; without a full-text index, a scan then a filter. */
+async function lexFormulationRows(
+  table: RowsTable,
+  lex: LexFormulation,
+  options: LexicalCandidateOptions,
+): Promise<SearchRow[]> {
+  const stats = await table.indexStats(FULL_TEXT_INDEX_NAME).catch(() => undefined)
+  if (stats) {
+    try {
+      return await executeFullTextQuery(
+        table,
+        lexFormulationQuery(lex),
+        options.ftsLimit,
+        options.pathPredicate,
+      )
+    } catch {
+      // Fall back to the scan below, as the question's own keyword search does.
+    }
+  }
+  const { rows } = await lexicalCandidateRows(table, formulationKeywords(lex), options)
+  return rows.filter((row) => holdsRequiredPhrases(lex, row.searchText))
+}
+
+/** A `lex` formulation's keyword query: its words rank, its phrases must appear, exclusions not. */
+function lexFormulationQuery(lex: LexFormulation): FullTextQuery {
+  const words = [...new Set(lex.words)]
+  const clause = (occur: Occur, query: FullTextQuery): [Occur, FullTextQuery] => [occur, query]
+  return new BooleanQuery([
+    ...(words.length === 0 ? [] : [clause(Occur.Should, keywordQuery(words))]),
+    ...lex.phrases.map((phrase) => clause(Occur.Must, new PhraseQuery(phrase, "searchText"))),
+    ...lex.excludedWords.map((word) => clause(Occur.MustNot, new MatchQuery(word, "searchText"))),
+    ...lex.excludedPhrases.map((phrase) =>
+      clause(Occur.MustNot, new PhraseQuery(phrase, "searchText")),
+    ),
+  ])
+}
+
+/**
+ * With a semantic model, a passage only formulations found is judged like the others, by its
+ * distance to the question, on which abstention and weak-evidence rules are calibrated: their
+ * keyword search returns it without one.
+ */
+async function withQuestionDistances(
+  table: RowsTable,
+  questionVector: number[] | null,
+  rankedRows: Array<RankedRow<SearchRow>>,
+  options: VectorCandidateOptions,
+  signal: AbortSignal | undefined,
+): Promise<Array<RankedRow<SearchRow>>> {
+  const formulationOnly = (ranked: RankedRow<SearchRow>): boolean =>
+    ranked.vectorRank === null && ranked.lexicalRank === null
+  const ids = rankedRows.filter(formulationOnly).map((ranked) => ranked.row.id)
+  if (questionVector === null || ids.length === 0) {
+    return rankedRows
+  }
+  const distances = new Map<string, number>()
+  for (let offset = 0; offset < ids.length; offset += DISTANCE_BATCH_SIZE) {
+    throwIfAborted(signal)
+    const batch = ids.slice(offset, offset + DISTANCE_BATCH_SIZE)
+    const rows = await nearestRows(
+      table,
+      questionVector,
+      { ...options, exact: true, limit: batch.length },
+      `id IN (${batch.map(sqlString).join(", ")})`,
+    )
+    for (const row of rows) {
+      if (typeof row._distance === "number") distances.set(row.id, row._distance)
+    }
+  }
+  return rankedRows.map((ranked) => {
+    const distance = formulationOnly(ranked) ? distances.get(ranked.row.id) : undefined
+    return distance === undefined
+      ? ranked
+      : { ...ranked, row: { ...ranked.row, _distance: distance } }
+  })
+}
+
+const SEARCH_RETRIEVERS: readonly SearchRetriever[] = ["hybrid", "lexical", "vector"]
+
+function normalizeRetriever(value: SearchRetriever | undefined): SearchRetriever {
+  if (value === undefined) {
+    return "hybrid"
+  }
+  if (!SEARCH_RETRIEVERS.includes(value)) {
+    throw new RagmirError(
+      "INVALID_ARGUMENT",
+      `retriever must be one of ${SEARCH_RETRIEVERS.join(", ")}.`,
+    )
+  }
+  return value
+}
+
+/** The keyword channel's result when a vector-only diagnostic search skips it. */
+function emptyLexicalCandidateSet(): LexicalCandidateSet {
+  return {
+    rows: [],
+    exactPathMatches: new Set(),
+    backend: "fts",
+    fallbackActivated: false,
+    fallbackReason: null,
+    candidateLimit: 0,
+    candidatesMaterialized: 0,
+    queryVariants: 0,
+    indexedRows: 0,
+    unindexedRows: 0,
+    coverage: 0,
+    scanBatches: 0,
+  }
 }
 
 const CROWDING_MIN_CHUNKS = 4
@@ -653,6 +944,150 @@ export async function expandCitationWithConfig(
   connection?: Connection,
   suppliedSnapshot?: IndexReadSnapshot,
 ): Promise<ExpandedCitation> {
+  return readGeneration(config, connection, suppliedSnapshot, (snapshot) =>
+    expandCitationWithinGeneration(citation, options, config, snapshot),
+  )
+}
+
+const MAX_OUTLINE_ENTRIES = 100
+
+/**
+ * An indexed document's outline: its distinct heading paths in reading order, each with the
+ * citation of its first passage, so an agent reads one section of a long document directly.
+ */
+export function documentOutlineWithConfig(
+  config: Config,
+  relativePath: string,
+  options: OperationOptions = {},
+): Promise<Array<{ contextPath: string; citation: string }>> {
+  const signal = operationSignal(options)
+  return readGeneration(config, undefined, undefined, async (snapshot) => {
+    if (!snapshot.table) {
+      return []
+    }
+    const rows = plainRows(
+      await snapshot.table
+        .query()
+        .select(SEARCH_COLUMNS)
+        .where(relativePathEquals(relativePath))
+        .toArray(),
+    )
+    throwIfAborted(signal)
+    const outline = new Map<string, string>()
+    for (const row of rows.sort(compareChunkRows)) {
+      if (!outline.has(row.contextPath)) outline.set(row.contextPath, citationForRow(row))
+    }
+    return [...outline]
+      .slice(0, MAX_OUTLINE_ENTRIES)
+      .map(([contextPath, citation]) => ({ contextPath, citation }))
+  })
+}
+
+export async function knowledgeAudit(
+  cwd = process.cwd(),
+  options: KnowledgeAuditOptions = {},
+): Promise<KnowledgeAuditReport> {
+  return knowledgeAuditWithConfig(await loadConfig(cwd), options)
+}
+
+const KNOWLEDGE_PAGE_BATCH = 100
+const DEFAULT_KNOWLEDGE_PREVIEW = 20
+
+/**
+ * Audit the indexed Markdown pages as a knowledge base: their links, titles, written citations,
+ * and declared sources, checked against the active index. Read-only.
+ */
+export function knowledgeAuditWithConfig(
+  config: Config,
+  options: KnowledgeAuditOptions = {},
+): Promise<KnowledgeAuditReport> {
+  const signal = operationSignal(options)
+  return readGeneration(config, undefined, undefined, async (snapshot) => {
+    const files = (await readIndexManifest(config))?.indexedFiles ?? []
+    const filters = (options.paths ?? []).map(canonicalUserPath).filter(Boolean)
+    const pagePaths = files
+      .map((file) => file.relativePath)
+      .filter((relativePath) =>
+        MARKDOWN_EXTENSIONS.has(path.posix.extname(relativePath).toLowerCase()),
+      )
+      .filter(
+        (relativePath) =>
+          filters.length === 0 || filters.some((filter) => pathMatchesFilter(relativePath, filter)),
+      )
+    const knowledgeBaseId = knowledgeBaseIdentity(config.projectRoot)?.id ?? null
+    const rowsOf = async (paths: readonly string[]): Promise<SearchRow[]> => {
+      const rows: SearchRow[] = []
+      for (
+        let offset = 0;
+        snapshot.table && offset < paths.length;
+        offset += KNOWLEDGE_PAGE_BATCH
+      ) {
+        const batch = paths.slice(offset, offset + KNOWLEDGE_PAGE_BATCH)
+        rows.push(
+          ...plainRows(
+            await snapshot.table
+              .query()
+              .select(SEARCH_COLUMNS)
+              .where(`relativePath IN (${batch.map(sqlString).join(", ")})`)
+              .toArray(),
+          ),
+        )
+        throwIfAborted(signal)
+      }
+      return rows
+    }
+    const passagesByPage = new Map<string, KnowledgePassage[]>()
+    for (const row of await rowsOf(pagePaths)) {
+      const passages = passagesByPage.get(row.relativePath) ?? []
+      passages.push({
+        relativePath: row.relativePath,
+        chunkIndex: row.chunkIndex,
+        text: row.text,
+        lineStart: nullableLineNumber(row.lineStart),
+        charStart: nullableNumber(row.charStart),
+        contextPath: row.contextPath,
+        citation: citationForRow(row),
+      })
+      passagesByPage.set(row.relativePath, passages)
+    }
+    const pages = [...passagesByPage].map(([pagePath, passages]) => ({ path: pagePath, passages }))
+    const citedPaths = [
+      ...new Set(
+        pages.flatMap(writtenCitations).map((written) => written.key.replace(/#\d+$/u, "")),
+      ),
+    ]
+    const cited = new Map(
+      (await rowsOf(citedPaths)).map((row) => [
+        `${row.relativePath}#${row.chunkIndex}`,
+        {
+          citation: citationForRow(row),
+          evidence: evidenceVersionForRow(row, snapshot, knowledgeBaseId).id,
+        },
+      ]),
+    )
+    return auditKnowledge(
+      pages,
+      {
+        checksums: new Map(files.map((file) => [file.relativePath, file.checksum])),
+        passages: cited,
+      },
+      {
+        previewLimit: options.previewLimit ?? DEFAULT_KNOWLEDGE_PREVIEW,
+        ...(options.assumeRemoved === undefined
+          ? {}
+          : { assumeRemoved: options.assumeRemoved.map(canonicalUserPath) }),
+      },
+    )
+  })
+}
+
+/** Read one index generation while holding its lease, so cleanup never removes it mid-read. */
+async function readGeneration<T>(
+  config: Config,
+  connection: Connection | undefined,
+  suppliedSnapshot: IndexReadSnapshot | undefined,
+  read: (snapshot: IndexReadSnapshot) => Promise<T>,
+): Promise<T> {
   const ownsSnapshot = suppliedSnapshot === undefined
   const snapshot = suppliedSnapshot ?? (await loadIndexReadSnapshot(config, connection))
   let lease: Awaited<ReturnType<typeof acquireGenerationReadLease>> | undefined
@@ -660,7 +1095,7 @@ export async function expandCitationWithConfig(
     if (snapshot.table) {
       lease = await acquireGenerationReadLease(snapshot.tableName, config)
     }
-    return await expandCitationWithinGeneration(citation, options, config, snapshot)
+    return await read(snapshot)
   } finally {
     await lease?.release().catch(() => undefined)
     if (ownsSnapshot) {
@@ -729,10 +1164,14 @@ async function expandCitationWithinGeneration(
       chunkIndex: target.chunkIndex,
       contextRadius,
       passages: [],
+      ...(await missingCitationHints(table, target, await indexedPathsOf(config, snapshot))),
     }
   }
-  if (canonicalUserPath(citationForRow(targetRow)) !== canonicalUserPath(requestedCitation)) {
-    throw new Error("Citation coordinates do not match the indexed passage.")
+  const currentCitation = citationForRow(targetRow)
+  if (canonicalUserPath(currentCitation) !== canonicalUserPath(requestedCitation)) {
+    throw new Error(
+      `Citation coordinates do not match the indexed passage, now cited as ${currentCitation}: expand that citation, or search again.`,
+    )
   }
   const evidence = evidenceVersionForRow(
     targetRow,
@@ -778,7 +1217,154 @@ async function expandCitationWithinGeneration(
       contextRadius,
       signal,
     )),
+    ...(MARKDOWN_EXTENSIONS.has(path.posix.extname(target.relativePath).toLowerCase())
+      ? {
+          links: await documentLinks(
+            table,
+            target.relativePath,
+            await indexedPathsOf(config, snapshot),
+            signal,
+          ),
+        }
+      : {}),
   }
+}
+
+const MAX_SIMILAR_PATHS = 3
+
+/**
+ * Where to look when a citation finds nothing: in a document still indexed, its chunk count and
+ * the nearest passage; otherwise the indexed files whose names come closest to the one cited.
+ */
+async function missingCitationHints(
+  table: RowsTable,
+  target: { relativePath: string; chunkIndex: number },
+  indexedPaths: readonly string[],
+): Promise<Pick<ExpandedCitation, "documentChunks" | "suggestedCitation" | "similarPaths">> {
+  const rows = plainRows(
+    await table
+      .query()
+      .select(SEARCH_COLUMNS)
+      .where(relativePathEquals(target.relativePath))
+      .toArray(),
+  )
+  const offset = (row: SearchRow): number => Math.abs(row.chunkIndex - target.chunkIndex)
+  const nearest = rows.reduce<SearchRow | undefined>(
+    (best, row) => (best === undefined || offset(row) < offset(best) ? row : best),
+    undefined,
+  )
+  if (nearest) {
+    return { documentChunks: rows.length, suggestedCitation: citationForRow(nearest) }
+  }
+  const name = path.posix.basename(target.relativePath).toLowerCase()
+  const similarPaths = indexedPaths
+    .map((candidate) => ({
+      candidate,
+      distance: editDistance(name, path.posix.basename(candidate).toLowerCase()),
+    }))
+    .filter(({ distance }) => distance <= Math.max(2, Math.floor(name.length / 3)))
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.candidate.length - right.candidate.length ||
+        left.candidate.localeCompare(right.candidate),
+    )
+    .slice(0, MAX_SIMILAR_PATHS)
+    .map(({ candidate }) => candidate)
+  return similarPaths.length === 0 ? {} : { similarPaths }
+}
+
+/** Levenshtein distance between two short strings, such as file names. */
+function editDistance(left: string, right: string): number {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row]
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitution =
+        (previous[column - 1] ?? 0) + (left[row - 1] === right[column - 1] ? 0 : 1)
+      current.push(
+        Math.min((previous[column] ?? 0) + 1, (current[column - 1] ?? 0) + 1, substitution),
+      )
+    }
+    previous = current
+  }
+  return previous[right.length] ?? 0
+}
+
+const MAX_LINK_ITEMS = 10
+// Passages that name the cited file, read for links back to it.
+const BACKLINK_CANDIDATES = 200
+const MAX_CACHED_PATH_LISTS = 4
+const indexedPathLists = new Map<string, Promise<string[]>>()
+
+/** The links a Markdown page writes, and the indexed pages that link to it. */
+async function documentLinks(
+  table: RowsTable,
+  relativePath: string,
+  indexedPaths: readonly string[],
+  signal: AbortSignal | undefined,
+): Promise<DocumentLinks> {
+  const resolve = linkResolver(indexedPaths)
+  const pageRows = plainRows(
+    await table.query().select(SEARCH_COLUMNS).where(relativePathEquals(relativePath)).toArray(),
+  )
+  throwIfAborted(signal)
+  const outgoing = linksInPassages(pageRows).map(({ link, line }) => ({
+    target: link.target,
+    line,
+    path: resolve(link, relativePath),
+  }))
+  // A page names a file it links to: its name, folded like keywords, reaches the candidates.
+  const nameWords = tokenize(path.posix.basename(relativePath, path.posix.extname(relativePath)))
+  const candidates =
+    nameWords.length === 0
+      ? []
+      : await executeFullTextQuery(
+          table,
+          new MatchQuery(nameWords.join(" "), "searchText", { operator: Operator.And }),
+          BACKLINK_CANDIDATES,
+          `NOT (${relativePathEquals(relativePath)})`,
+        ).catch(() => [])
+  throwIfAborted(signal)
+  const incoming = linksInPassages(
+    candidates.filter((row) =>
+      MARKDOWN_EXTENSIONS.has(path.posix.extname(row.relativePath).toLowerCase()),
+    ),
+  )
+    .filter(({ link, passage }) => resolve(link, passage.relativePath) === relativePath)
+    .map(({ passage, line }) => ({
+      source: passage.relativePath,
+      line,
+      citation: citationForRow(passage),
+    }))
+  const uniqueIncoming = [
+    ...new Map(incoming.map((item) => [`${item.source}\0${item.line}`, item])).values(),
+  ]
+  return {
+    outgoing: { count: outgoing.length, items: outgoing.slice(0, MAX_LINK_ITEMS) },
+    incoming: {
+      count: uniqueIncoming.length,
+      complete: candidates.length < BACKLINK_CANDIDATES,
+      items: uniqueIncoming.slice(0, MAX_LINK_ITEMS),
+    },
+  }
+}
+
+/** Every indexed path of the active generation, read once per manifest. */
+function indexedPathsOf(config: Config, snapshot: IndexReadSnapshot): Promise<string[]> {
+  const key = `${config.projectRoot}\0${snapshot.manifestFingerprint ?? ""}`
+  const cached = indexedPathLists.get(key)
+  if (cached !== undefined) {
+    return cached
+  }
+  const paths = readIndexManifest(config).then(
+    (manifest) => manifest?.indexedFiles?.map((file) => file.relativePath) ?? [],
+  )
+  indexedPathLists.set(key, paths)
+  for (const stale of [...indexedPathLists.keys()].slice(0, -MAX_CACHED_PATH_LISTS)) {
+    indexedPathLists.delete(stale)
+  }
+  return paths
 }
 
 /**

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { existsSync, lstatSync } from "node:fs"
+import { existsSync, lstatSync, readFileSync } from "node:fs"
 import {
   cp,
   lstat,
@@ -579,6 +579,37 @@ async function removeRetiredSkills(directory: string, ragmirOwned: boolean): Pro
 }
 
 /** Retired Ragmir skills still present in the project's kit or agent skill directories. */
+/**
+ * Copies of a Ragmir skill that no longer match the one this version ships: the `.ragmir/skills`
+ * kit and Ragmir-managed copies in agent folders. Links to the kit follow it, so they are skipped.
+ */
+function staleRagmirSkills(projectRoot: string): string[] {
+  const directories = [
+    path.join(projectRoot, DEFAULT_SKILL_TARGET_DIR),
+    ...SUPPORTED_AGENT_TARGETS.map((agent) =>
+      path.join(projectRoot, AGENT_DESTINATIONS[agent].projectDir),
+    ),
+  ]
+  return directories.flatMap((directory) =>
+    SKILL_NAMES.filter((skillName) => {
+      const installed = path.join(directory, skillName)
+      try {
+        if (lstatSync(installed).isSymbolicLink()) return false
+        const managed =
+          directory === path.join(projectRoot, DEFAULT_SKILL_TARGET_DIR) ||
+          existsSync(path.join(installed, MANAGED_SKILL_METADATA_FILENAME))
+        return (
+          managed &&
+          readFileSync(path.join(installed, "SKILL.md"), "utf8") !==
+            readFileSync(path.join(bundledSkillPath(skillName), "SKILL.md"), "utf8")
+        )
+      } catch {
+        return false
+      }
+    }).map((skillName) => posixRelativePath(projectRoot, path.join(directory, skillName))),
+  )
+}
+
 function obsoleteRagmirSkills(projectRoot: string): string[] {
   const directories = [
     path.join(projectRoot, DEFAULT_SKILL_TARGET_DIR),
@@ -802,6 +833,12 @@ export function inspectAgentIntegration(
   if (obsoleteSkills.length > 0) {
     warnings.push(
       `Retired Ragmir skills still describe removed commands: ${obsoleteSkills.join(", ")}. Run \`rgr install-agent\` to remove the Ragmir-managed copies, or delete them.`,
+    )
+  }
+  const staleSkills = staleRagmirSkills(projectRoot)
+  if (staleSkills.length > 0) {
+    warnings.push(
+      `Installed Ragmir skills differ from the one Ragmir ${VERSION} ships: ${staleSkills.join(", ")}. Run \`rgr upgrade\` to refresh them; edits made to these copies are replaced.`,
     )
   }
 

@@ -120,9 +120,10 @@ export function chunkDocument(
       if (end >= region.charEnd) {
         break
       }
-      cursor = fenceStarts.has(end)
+      const next = fenceStarts.has(end)
         ? end
         : Math.max(end - chunkOverlap, cursor + 1, region.charStart)
+      cursor = splitsSurrogatePair(document.text, next) ? next + 1 : next
     }
   }
 
@@ -244,7 +245,17 @@ function chooseChunkEnd(
     return cursor + whitespace
   }
 
-  return hardEnd
+  return splitsSurrogatePair(text, hardEnd) ? hardEnd - 1 : hardEnd
+}
+
+/**
+ * Whether an offset falls between the two halves of a surrogate pair, such as an emoji: a chunk
+ * cut there holds a lone half, which embedding endpoints reject as invalid text.
+ */
+function splitsSurrogatePair(text: string, offset: number): boolean {
+  const before = text.charCodeAt(offset - 1)
+  const after = text.charCodeAt(offset)
+  return before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff
 }
 
 function lastSentenceBreakEnd(text: string): number {
@@ -280,7 +291,8 @@ function trimmedSpan(text: string, start: number, end: number): TextSpan {
   }
 }
 
-function lineStartOffsets(text: string, signal: AbortSignal | undefined): number[] {
+/** Offsets where each line of a text starts. */
+export function lineStartOffsets(text: string, signal: AbortSignal | undefined): number[] {
   const starts = [0]
   for (let index = 0; index < text.length; index += 1) {
     if (signal && index % 16_384 === 0) {
@@ -341,7 +353,8 @@ function fenceAtOffset(
   return fence && fence.start < offset && fence.end > offset ? fence : undefined
 }
 
-function lineNumberForOffset(lineStarts: number[], offset: number): number {
+/** The line, from 1, that holds a character offset. */
+export function lineNumberForOffset(lineStarts: number[], offset: number): number {
   let low = 0
   let high = lineStarts.length - 1
   while (low <= high) {

@@ -1,5 +1,19 @@
 import type { AgentInstallMode, AgentInstallScope } from "./skill.js"
-import type { IncrementalFailurePolicy } from "./types.js"
+import { formulationProblem } from "./typed-search.js"
+import type { IncrementalFailurePolicy, SearchFormulation, SearchRetriever } from "./types.js"
+
+/** Collect a repeatable `--lex`, `--vec`, or `--hyde` value, checked as the search API checks it. */
+export function collectFormulation(
+  type: SearchFormulation["type"],
+): (value: string, previous: string[]) => string[] {
+  return (value, previous) => {
+    const problem = formulationProblem({ type, query: value })
+    if (problem !== null) {
+      throw new Error(`--${type} '${value}' ${problem}`)
+    }
+    return [...previous, value]
+  }
+}
 
 /** Parse and validate a positive integer CLI argument. */
 export function parsePositiveInt(value: string): number {
@@ -38,6 +52,14 @@ export function parseRecallThreshold(value: string): number {
     throw new Error("Expected a recall threshold between 0 and 1.")
   }
   return parsed
+}
+
+/** Parse and validate the `--retriever` diagnostic channel. */
+export function parseRetriever(value: string): SearchRetriever {
+  if (value === "hybrid" || value === "lexical" || value === "vector") {
+    return value
+  }
+  throw new Error("Expected hybrid, lexical, or vector.")
 }
 
 /** Parse and validate the incremental ingestion failure policy. */

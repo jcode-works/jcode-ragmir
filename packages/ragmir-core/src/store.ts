@@ -305,6 +305,21 @@ export async function readIndexManifest(config: Config): Promise<IndexManifest |
   return isIndexQualityReport(qualityReport) ? { ...hydrated, qualityReport } : hydrated
 }
 
+/** The files of the generation before the active one, while the store still keeps their list. */
+export async function readPreviousIndexFiles(
+  config: Config,
+): Promise<{ createdAt: string; files: IndexManifestFile[] } | null> {
+  const previous = await readManifestCandidate(INDEX_MANIFEST_PREVIOUS_FILENAME, config)
+  const raw = previous.status === "valid" ? previous.manifest : null
+  if (!raw) {
+    return null
+  }
+  const files = raw.indexedFilesSnapshot
+    ? await readIndexFileSnapshot(raw.indexedFilesSnapshot, config)
+    : raw.indexedFiles
+  return files ? { createdAt: raw.createdAt, files } : null
+}
+
 export async function readIndexManifestHeader(config: Config): Promise<IndexManifest | null> {
   publishIndexReadDiagnostics({ kind: "manifest-read", projectRoot: config.projectRoot })
   const raw = (await resolveIndexManifest(config)).manifest

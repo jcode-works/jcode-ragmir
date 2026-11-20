@@ -7,7 +7,7 @@ import {
 } from "./lexical-scoring.js"
 import { identifierParts, normalizeForMatch, shareStem, stemPrefix, tokenize } from "./text.js"
 import { memoizeByText } from "./text-memo.js"
-import type { EmbeddingProvider, RetrievalProfile } from "./types.js"
+import type { EmbeddingProvider, FormulationContribution, RetrievalProfile } from "./types.js"
 
 export interface RankingRow {
   relativePath: string
@@ -22,11 +22,20 @@ export interface RankedRow<Row extends RankingRow = RankingRow> {
   vectorScore: number
   lexicalScore: number
   combinedScore: number
+  /** Reciprocal-rank contributions of the agent's formulations (`searches`) to this row. */
+  formulationContributions?: FormulationContribution[]
   /** Source weight times definition boost applied to the fused score (1 when neutral). */
   scoreMultiplier: number
   vectorRank: number | null
   lexicalRank: number | null
   lexicalBackendScore: number | null
+}
+
+/** Keyword candidates one formulation of the question found, ranked by their score. */
+export interface FormulationList<Row extends RankingRow> {
+  label: string
+  weight: number
+  rows: Row[]
 }
 
 export interface RankingPolicy {
@@ -226,7 +235,7 @@ export function queryEvidence(query: string): QueryEvidence {
   const tokens = tokenize(query).filter((token) => !LOW_INFORMATION_WORDS.has(token))
   const compoundAnchors = [...query.matchAll(IDENTIFIER_PATTERN)]
     .map((match) => match[0])
-    .filter((anchor) => /\d|_|\.|\//u.test(anchor))
+    .filter((anchor) => /[\d_./]/u.test(anchor))
     .map(normalizeAnchor)
   const tokenAnchors = tokens.filter(
     (token) =>
@@ -248,6 +257,10 @@ export function rankHybridRows<Row extends RankingRow>(
   textRows: Row[],
   policy: RankingPolicy,
   scoreMultiplierOf?: (row: Row) => number,
+  options: {
+    lexicalChannel?: boolean
+    formulationLists?: ReadonlyArray<FormulationList<Row>>
+  } = {},
 ): Array<RankedRow<Row>> {
   const queryTokens = tokenize(query)
   const evidence = queryEvidence(query)
@@ -261,7 +274,35 @@ export function rankHybridRows<Row extends RankingRow>(
     return key
   }
   const compareKeys = (left: Row, right: Row): number => compareOrdinal(keyOf(left), keyOf(right))
-  const rows = mergeRows(vectorRows, textRows, keyOf)
+  // Every list ranks its own candidates: nearest first, or best keyword score first.
+  const nearestFirst = (list: readonly Row[]): Row[] =>
+    list
+      .filter((row) => Number.isFinite(rowDistance(row)))
+      .sort((left, right) => rowDistance(left) - rowDistance(right) || compareKeys(left, right))
+  const bestScoredFirst = (list: readonly Row[]): Row[] =>
+    list
+      .filter((row) => typeof row._score === "number")
+      .sort((left, right) => (right._score ?? 0) - (left._score ?? 0) || compareKeys(left, right))
+  const ranksOf = (ranked: readonly Row[]): Map<string, number> =>
+    new Map(ranked.map((row, index) => [keyOf(row), index]))
+  const questionRows = mergeRows(vectorRows, textRows, keyOf)
+  const rows = [...questionRows]
+  // A passage only a formulation found joins the pool without a distance to the question; the
+  // caller measures that distance before judging its evidence.
+  const formulationLists = options.formulationLists ?? []
+  const pooledKeys = new Set(rows.map(keyOf))
+  for (const row of formulationLists.flatMap((list) => list.rows)) {
+    const key = keyOf(row)
+    if (!pooledKeys.has(key)) {
+      pooledKeys.add(key)
+      rows.push(row)
+    }
+  }
+  const formulationRanks = formulationLists.map((list) => ({
+    label: list.label,
+    weight: list.weight,
+    ranks: ranksOf(bestScoredFirst(list.rows)),
+  }))
   const exactAnchorMatches = new Map<string, number>()
   if (evidence.anchors.length > 0) {
     const requestedAnchors = new Set(evidence.anchors)
@@ -273,29 +314,20 @@ export function rankHybridRows<Row extends RankingRow>(
       exactAnchorMatches.set(keyOf(row), matches.size)
     }
   }
-  const vectorRanked = vectorRows
-    .filter((row) => Number.isFinite(rowDistance(row)))
-    .sort((left, right) => rowDistance(left) - rowDistance(right) || compareKeys(left, right))
-  const vectorRanks = new Map<string, number>()
-  vectorRanked.forEach((row, index) => {
-    vectorRanks.set(keyOf(row), index)
-  })
+  const vectorRanks = ranksOf(nearestFirst(vectorRows))
 
-  const ftsRows = textRows.filter((row) => typeof row._score === "number")
+  const ftsRows = bestScoredFirst(textRows)
+  // Without full-text scores, BM25 is recomputed over the question's merged candidates; a
+  // vector-only diagnostic search turns that channel off instead of rebuilding it from vector rows.
   const lexicalRanked: Array<[string, number]> =
-    ftsRows.length > 0
-      ? ftsRows
-          .sort(
-            (left, right) => (right._score ?? 0) - (left._score ?? 0) || compareKeys(left, right),
-          )
-          .map((row) => [keyOf(row), row._score ?? 0])
-      : [...bm25Scores(queryTokens, rows, keyOf).entries()]
-          .filter(([, score]) => score > 0)
-          .sort(compareScoredKeys)
-  const lexicalRanks = new Map<string, number>()
-  lexicalRanked.forEach(([key], index) => {
-    lexicalRanks.set(key, index)
-  })
+    options.lexicalChannel === false
+      ? []
+      : ftsRows.length > 0
+        ? ftsRows.map((row) => [keyOf(row), row._score ?? 0])
+        : [...bm25Scores(queryTokens, questionRows, keyOf).entries()]
+            .filter(([, score]) => score > 0)
+            .sort(compareScoredKeys)
+  const lexicalRanks = new Map(lexicalRanked.map(([key], index) => [key, index]))
   const lexicalScores = new Map(lexicalRanked)
 
   return rows
@@ -308,11 +340,19 @@ export function rankHybridRows<Row extends RankingRow>(
       const lexicalScore =
         lexicalRank === undefined ? 0 : policy.lexicalWeight / (policy.rrfK + lexicalRank)
       const scoreMultiplier = scoreMultiplierOf ? scoreMultiplierOf(row) : 1
+      const contributions = formulationRanks.flatMap(({ label, weight, ranks }) => {
+        const rank = ranks.get(key)
+        return rank === undefined
+          ? []
+          : [{ label, rank: rank + 1, contribution: weight / (policy.rrfK + rank) }]
+      })
+      const formulationScore = contributions.reduce((sum, item) => sum + item.contribution, 0)
       return {
         row,
         vectorScore,
         lexicalScore,
-        combinedScore: (vectorScore + lexicalScore) * scoreMultiplier,
+        combinedScore: (vectorScore + lexicalScore + formulationScore) * scoreMultiplier,
+        ...(contributions.length > 0 ? { formulationContributions: contributions } : {}),
         scoreMultiplier,
         vectorRank: vectorRank === undefined ? null : vectorRank + 1,
         lexicalRank: lexicalRank === undefined ? null : lexicalRank + 1,
@@ -586,7 +626,7 @@ const foldedText = memoizeByText(normalizeForMatch)
  * dotted identifiers (`compliance.description`) and French elisions (`l'abstention`) whole, while
  * the keyword index also matches each part.
  */
-const coverageWords = memoizeByText((text: string): ReadonlySet<string> => {
+export const coverageWords = memoizeByText((text: string): ReadonlySet<string> => {
   const words = new Set<string>()
   for (const word of [...tokenize(text), ...identifierParts(text)]) {
     words.add(word)

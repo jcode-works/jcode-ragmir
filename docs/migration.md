@@ -3,6 +3,29 @@
 This is a breaking surface change. Ragmir now concentrates on local indexing, search, exact
 citations, OCR, and integration with developer agents.
 
+## Markdown front matter forms one passage (6.16)
+
+A Markdown page that opens with YAML (`---`) or TOML (`+++`) front matter keeps that block whole:
+its closing `---` no longer reads as a heading underline, which named the first section after the
+block's last line. A page without a level-1 heading, as Astro, Docusaurus, and Hugo write them, now
+roots every section's context path at its front matter `title`, and `ragmir_sources` lists each
+page's `title` and `description` (or `summary`). The extraction policy moves to parser version 7,
+so the next `rgr ingest` stages a validated rebuild; the previous index keeps serving until it
+activates.
+
+## Settings from project config files need approval on each machine (6.16)
+
+A project config file can arrive with a clone or a pull, so the settings in it that run a program,
+send data off the machine, or read outside the project now wait for an approval on each machine:
+extractor commands, an embedding endpoint outside the machine and its `embeddingApiKeyEnv`,
+`transformersAllowRemoteModels: true`, and sources or a `rawDir` outside the project root. After
+updating, run `rgr trust` once in a project that uses them (`rgr trust --yes` on a server or in
+CI). Until then, extractors do not run, outside sources are skipped, and embedding calls to the
+endpoint fail with `UNTRUSTED_CONFIG` before sending anything. Settings passed through `RAGMIR_*`
+environment variables need no approval; containers and CI jobs that review their configuration
+elsewhere can set `RAGMIR_TRUST_PROJECT_CONFIG=1`. See
+[Settings that need approval](./configuration.md#settings-that-need-approval-on-each-machine).
+
 ## Repository renamed to jcode-works/ragmir (6.15.1)
 
 The GitHub repository is now [`jcode-works/ragmir`](https://github.com/jcode-works/ragmir).

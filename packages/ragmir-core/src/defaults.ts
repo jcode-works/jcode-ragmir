@@ -110,6 +110,7 @@ export const DEFAULT_CONFIG: Omit<Config, "projectRoot"> = {
   defaultExcludes: true,
   pathPriors: true,
   sourceWeights: {},
+  pathContexts: {},
   scopes: {},
   collapseLocaleVariants: true,
   maxChunksPerDataFile: null,

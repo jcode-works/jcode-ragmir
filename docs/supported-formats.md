@@ -34,6 +34,11 @@ names and comments, each on its own line, with every value masked; `.env` and ev
 file stay skipped as secrets, like Terraform state and variable files (`.tfstate`, `.tfvars`) and
 the Firebase `GoogleService-Info.plist`.
 
+Markdown sections follow the headings, and each passage carries its heading path. YAML (`---`)
+or TOML (`+++`) front matter at the top of a page stays one passage, read as data and never run;
+on a page without a level-1 heading, as Astro, Docusaurus, and Hugo write them, its `title` roots
+every section's path, and `ragmir_sources` lists the page's `title` and `description`.
+
 Office charts are indexed with their titles, axes, series, and values. Text files keep their own
 encoding: a UTF-16 byte order mark selects UTF-16, and bytes that are not valid UTF-8 are read as
 Windows-1252, so legacy CSV files, subtitles, and Apple string tables index correctly. Other text

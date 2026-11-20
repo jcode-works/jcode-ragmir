@@ -1,5 +1,6 @@
 import type { PathLike } from "node:fs"
 import type { PackageManager } from "./package-manager.js"
+import type { ConfigTrustState } from "./trust.js"
 
 export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
 export type RagmirRunnerMode = "local-bin" | "workspace" | "installed-package" | "npm-cache"
@@ -89,6 +90,8 @@ export interface Config {
   pathPriors: boolean
   /** Ranking multipliers by glob, for example `{ "archive/**": 0.5 }`. */
   sourceWeights: Record<string, number>
+  /** Folder, file, or glob -> what its documents are, returned with each result from them. */
+  pathContexts: Record<string, string>
   /** Named path filters that searches can select with `scope`. */
   scopes: Record<string, SearchScope>
   /** Treat translations of one file (en.json, fr.json, docs/fr/...) as one document in results. */
@@ -103,6 +106,12 @@ export interface Config {
   mcpIngest: boolean
   /** How MCP search treats passages already returned in the same session. */
   mcpSeenResults: McpSeenResults
+  /**
+   * Settings from project config files that run a program, send data off the machine, or read
+   * outside the project, and whether this machine approved them. Untrusted ones are inactive.
+   * `loadConfig` always sets it; a hand-built config without it has nothing to approve.
+   */
+  configTrust?: ConfigTrustState
 }
 export type McpSeenResults = "collapse" | "include" | "exclude"
 
@@ -110,6 +119,8 @@ export interface SearchScope {
   includePaths: string[]
   excludePaths: string[]
   description?: string
+  /** False keeps the scope out of searches that name no scope and no includePaths. */
+  searchByDefault?: false
 }
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
 export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
@@ -616,7 +627,9 @@ export interface KnowledgeBaseContextReport {
     name: string
     description: string | null
   }
-  scopes: Array<{ name: string; description: string | null }>
+  scopes: Array<{ name: string; description: string | null; searchByDefault?: false }>
+  /** What the documents under each folder or glob are; results under them carry it. */
+  pathContexts: Array<{ path: string; description: string }>
   projectRoot: string
   retrievalProfile: RetrievalProfile
   embeddingProvider: EmbeddingProvider
@@ -656,7 +669,8 @@ export interface KnowledgeBaseSourceCatalog {
     emptyTextFiles: number
     skippedFiles: number
   }
-  indexedFiles: Array<{ source: string; chunks: number }>
+  /** Indexed files; a Markdown page adds the `title` and `description` of its front matter. */
+  indexedFiles: Array<{ source: string; chunks: number; title?: string; description?: string }>
   missingFromIndex: string[]
   staleInIndex: string[]
   emptyTextFiles: string[]
@@ -677,6 +691,25 @@ export interface KnowledgeBaseSourceCatalog {
     paths: string[]
     matchedFiles: number
   }
+  /**
+   * With `outline` and paths that match one indexed file: its distinct heading paths in reading
+   * order, each with the citation of its first passage.
+   */
+  outline?: Array<{ contextPath: string; citation: string }>
+  /** With `changedSince`: what changed in the index since then. */
+  changes?: SourceChanges
+}
+
+/**
+ * Indexed files changed since a time: `modified` holds files added or edited since, by the
+ * modification time recorded when they were indexed; `removed` holds files the last ingest
+ * dropped. `complete` is false when an earlier ingest may have removed others since that time.
+ */
+export interface SourceChanges {
+  since: string
+  modified: { count: number; items: string[] }
+  removed: { count: number; items: string[] }
+  complete: boolean
 }
 
 export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
@@ -684,6 +717,10 @@ export interface KnowledgeBaseSourceCatalogOptions extends OperationOptions {
   limit?: number
   /** List only indexed files under these folders or files, or matching these globs (`**\/*.pdf`). */
   paths?: string[]
+  /** When `paths` match one indexed file, add its outline. */
+  outline?: boolean
+  /** An ISO 8601 date or time: add the indexed files changed since then. */
+  changedSince?: string
 }
 
 export interface SearchOptions extends OperationOptions {
@@ -698,6 +735,36 @@ export interface SearchOptions extends OperationOptions {
   scope?: string
   explain?: boolean
   vectorSearchMode?: "adaptive" | "exact"
+  /**
+   * Diagnostics: rank with one channel only. `hybrid` (the default) fuses keyword and vector
+   * candidates; `lexical` and `vector` measure what each channel finds on its own.
+   */
+  retriever?: SearchRetriever
+  /**
+   * The agent's own formulations of the same need, fused with the question into one ranking:
+   * `lex` (keywords, `"exact phrase"`, `-excluded`), `vec` (a paraphrase), `hyde` (a hypothetical
+   * answer passage). Up to five.
+   */
+  searches?: SearchFormulation[]
+}
+
+/** One formulation of the question, routed to the channel that suits it. */
+export interface SearchFormulation {
+  type: "lex" | "vec" | "hyde"
+  query: string
+}
+
+/** Candidate channels a search fuses: both by default, or one of them for diagnostics. */
+export type SearchRetriever = "hybrid" | "lexical" | "vector"
+
+/** A search with what the index lacks for the question. */
+export interface SearchReport {
+  results: SearchResult[]
+  /**
+   * Words of the question that no indexed passage holds. Empty when every measured word occurs,
+   * when words could not be measured (older index, unsegmented scripts), or for stop words.
+   */
+  absentTerms: string[]
 }
 
 export interface SearchContextChunk {
@@ -729,6 +796,8 @@ export interface SearchResult {
   pageEnd: number | null
   context: SearchContextChunk[]
   evidence?: EvidenceVersion
+  /** What the documents under this path are, from the config (`pathContexts`, scope descriptions). */
+  pathContext?: string
   score?: SearchScoreExplanation
   /** Present when the cited file changed or disappeared since it was indexed. */
   sourceStatus?: SourceStatus
@@ -754,6 +823,8 @@ export interface SearchScoreExplanation {
   retrievalQuery: string
   queryNormalized: boolean
   originalQueryLength: number
+  /** Channels that supplied candidates: both, or one when `retriever` restricted the search. */
+  retriever: SearchRetriever
   fusion: "rrf"
   combinedScore: number
   /** Path prior, configured source weight, and code definition boost applied to the fused score. */
@@ -785,6 +856,18 @@ export interface SearchScoreExplanation {
   queryTermCoverage: number | null
   /** Distance of the nearest passage to off-topic probe questions; null for local-hash. */
   noiseFloorDistance: number | null
+  /** With `searches`: each formulation that found this passage. */
+  formulations?: FormulationContribution[]
+}
+
+/** One formulation's share of a passage's fused score. */
+export interface FormulationContribution {
+  /** `lex#1`, `vec#1`, `hyde#1`: the formulation's type and position among that type. */
+  label: string
+  /** The passage's rank in that formulation's own candidates, from 1. */
+  rank: number
+  /** Its reciprocal-rank share of the fused score, before source weights and boosts. */
+  contribution: number
 }
 
 export interface ExpandCitationOptions extends OperationOptions {
@@ -807,6 +890,92 @@ export interface ExpandedCitation {
   previousCitation?: string
   /** Citation to expand, with the same radius, to read on after this window. */
   nextCitation?: string
+  /** For a Markdown page: the files it links to and the pages that link to it. */
+  links?: DocumentLinks
+  /** When not found in a document still indexed: the citation of its nearest passage. */
+  suggestedCitation?: string
+  /** When the cited file is not indexed: the indexed files whose names come closest. */
+  similarPaths?: string[]
+}
+
+/**
+ * Links of a Markdown page, read from the index: navigation between pages, never evidence that
+ * the linked page supports a claim.
+ */
+export interface DocumentLinks {
+  /** The links the page writes; `path` is the indexed file it reaches, or null when broken. */
+  outgoing: {
+    count: number
+    items: Array<{ target: string; line: number; path: string | null }>
+  }
+  /**
+   * Indexed pages that link to this one, each with the citation of the passage holding the link.
+   * Only pages whose keyword text names this file are read: `complete` says whether all were.
+   */
+  incoming: {
+    count: number
+    complete: boolean
+    items: Array<{ source: string; line: number; citation: string }>
+  }
+}
+
+export interface KnowledgeAuditOptions extends OperationOptions {
+  /** Audit only the Markdown pages under these folders or files, or matching these globs. */
+  paths?: string[]
+  /** Also report what removing these pages would break; nothing is removed. */
+  assumeRemoved?: string[]
+  /** Items listed per finding; counts stay complete. Default 20. */
+  previewLimit?: number
+}
+
+/** One kind of finding: how many there are, and the first of them. */
+export interface KnowledgeFinding<Item> {
+  count: number
+  items: Item[]
+}
+
+/**
+ * A deterministic audit of the indexed Markdown pages as a knowledge base. It reads the index and
+ * changes nothing: fixes are left to the agent or the author.
+ */
+export interface KnowledgeAuditReport {
+  pages: number
+  links: number
+  /** Ragmir citations written in the pages, in their text or front matter `sources`. */
+  citations: number
+  findings: {
+    /** Relative links to no indexed file; `suggestion` names the one file with that name. */
+    brokenLinks: KnowledgeFinding<{
+      source: string
+      line: number
+      target: string
+      citation: string
+      suggestion?: string
+    }>
+    /** Wikilinks to pages that do not exist, most referenced first. */
+    missingPages: KnowledgeFinding<{ target: string; references: number; sources: string[] }>
+    /** Pages no other page links to. */
+    unlinkedPages: KnowledgeFinding<{ path: string }>
+    /** Pages that share a title, from front matter or a level-1 heading. */
+    duplicateTitles: KnowledgeFinding<{ title: string; paths: string[] }>
+    /** Written citations whose passage moved (`changed`) or left the index (`missing`). */
+    brokenCitations: KnowledgeFinding<{
+      source: string
+      line: number
+      citation: string
+      status: "changed" | "missing"
+    }>
+    /** Pages whose front matter `sources` record a `sha256` the source no longer has. */
+    stalePages: KnowledgeFinding<{ path: string; changedSources: string[] }>
+    /** Pages whose every declared source left the index. */
+    lostSources: KnowledgeFinding<{ path: string }>
+  }
+  /** With `assumeRemoved`: the links that would break and the pages left unlinked. */
+  assumeRemoved?: {
+    paths: string[]
+    brokenLinks: KnowledgeAuditReport["findings"]["brokenLinks"]
+    unlinkedPages: KnowledgeAuditReport["findings"]["unlinkedPages"]
+  }
 }
 
 export interface CompactSearchResult {
@@ -815,7 +984,12 @@ export interface CompactSearchResult {
   chunkIndex: number
   contextPath: string
   citation: string
+  /** The passage's lines holding the most question words, or its opening when none matches. */
   snippet: string
+  /** Source line where the snippet starts, for passages with line coordinates. */
+  excerptLine?: number
+  /** What the documents under this path are, from the config. */
+  pathContext?: string
   distance: number | null
   lineStart: number | null
   lineEnd: number | null
@@ -856,6 +1030,8 @@ export interface GoldenQuery {
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
+  /** Formulations searched with the query, as an agent would send them. */
+  searches?: SearchFormulation[]
   topK?: number
 }
 
@@ -905,6 +1081,46 @@ export interface EvaluationOptions extends OperationOptions {
   thresholds?: QualityMetricThresholds
   persistCompatibleReport?: boolean
   caseDetailLimit?: number
+  /** A previous `--json` report of the same golden file: the result adds signed deltas. */
+  baselinePath?: PathLike
+  /** Evaluate one channel only; such a run never stores a verified quality report. */
+  retriever?: SearchRetriever
+}
+
+/** Metrics an evaluation compares with a baseline report. */
+export type EvaluationComparisonMetric =
+  | "answerRateAt1"
+  | "answerRateAt3"
+  | "answerRateAt10"
+  | "recallAt1"
+  | "recallAt3"
+  | "recallAt5"
+  | "recallAt10"
+  | "precisionAt5"
+  | "meanReciprocalRankAt10"
+  | "ndcgAt10"
+  | "exactCitationRate"
+  | "falsePositiveRate"
+  | "abstentionAccuracy"
+  | "p50LatencyMs"
+  | "p95LatencyMs"
+
+export interface EvaluationMetricDelta {
+  baseline: number | null
+  current: number | null
+  /** `current - baseline`; null when either side lacks the metric. */
+  delta: number | null
+}
+
+export interface EvaluationComparison {
+  baselinePath: string
+  /** False when the baseline evaluated another golden file: its deltas compare different cases. */
+  comparable: boolean
+  /** Settings that differ between the two runs, such as the index, model, profile, or retriever. */
+  differences: string[]
+  metrics: Record<EvaluationComparisonMetric, EvaluationMetricDelta>
+  /** Per-category deltas for the categories both reports hold. */
+  categories: Record<string, Record<keyof EvaluationGroupResult, EvaluationMetricDelta>>
 }
 
 export interface EvaluationCaseResult {
@@ -914,6 +1130,7 @@ export interface EvaluationCaseResult {
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
+  searches?: SearchFormulation[]
   topK: number
   returnedPaths: string[]
   returnedCitations: string[]
@@ -952,6 +1169,8 @@ export interface EvaluationResult {
   rankingPolicyFingerprint: string
   indexFingerprint: string
   goldenFingerprint: string
+  /** Channels the evaluated searches used; `hybrid` unless the run restricted them. */
+  retriever: SearchRetriever
   topK: number
   total: number
   hits: number
@@ -962,6 +1181,8 @@ export interface EvaluationResult {
   meanReciprocalRank: number
   ndcg: number
   recallAt: Record<1 | 3 | 5 | 10, number>
+  /** Share of answerable cases with at least one expected path or citation within the first k. */
+  answerRateAt: Record<1 | 3 | 5 | 10, number>
   precisionAt5: number
   meanReciprocalRankAt10: number
   ndcgAt10: number
@@ -982,6 +1203,8 @@ export interface EvaluationResult {
   p95LatencyMs: number
   cases: EvaluationCaseResult[]
   omittedCases?: number
+  /** Present with `baselinePath`: signed deltas against the earlier report. */
+  comparison?: EvaluationComparison
 }
 
 export interface IndexQualityReport {
@@ -1157,6 +1380,8 @@ export interface SecurityAuditReport {
   projectRoot: string
   zeroTelemetry: true
   retrievalProfile: RetrievalProfile
+  /** Gated settings from project config files and whether this machine approved them. */
+  configTrust: ConfigTrustState
   providers: {
     embedding: EmbeddingProvider
     embeddingModel: string
