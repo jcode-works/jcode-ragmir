@@ -52,6 +52,15 @@ describe("embedding model profiles", () => {
     expect(embeddingPooling(granite?.id ?? "")).toBe("cls")
     expect(embeddingDtype(granite?.id ?? "")).toBe("q8")
   })
+
+  it("run Qwen3-Embedding quantized with last-token pooling and its query instruction", () => {
+    const qwen = embeddingModelProfile("onnx-community/Qwen3-Embedding-0.6B-ONNX")
+
+    expect(qwen).toMatchObject({ dimensions: 1024, license: "Apache-2.0" })
+    expect(qwen?.queryPrompt).toMatch(/^Instruct: .+\nQuery:$/su)
+    expect(embeddingPooling(qwen?.id ?? "")).toBe("last_token")
+    expect(embeddingDtype(qwen?.id ?? "")).toBe("q8")
+  })
 })
 
 describe("assessEmbeddingModel", () => {
@@ -78,5 +87,11 @@ describe("recommendEmbeddingModel", () => {
       "mixedbread-ai/mxbai-embed-xsmall-v1",
     )
     expect(recommendEmbeddingModel(machine(0.25))).toBeNull()
+  })
+
+  it("never picks the heaviest model, even on a large machine", () => {
+    expect(recommendEmbeddingModel(machine(128))?.model.id).not.toBe(
+      "onnx-community/Qwen3-Embedding-0.6B-ONNX",
+    )
   })
 })

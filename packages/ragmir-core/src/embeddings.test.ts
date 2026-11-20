@@ -364,6 +364,38 @@ describe("embedding model adapters", () => {
     )
   })
 
+  it("puts a profile's query prompt before queries only, and leaves other models unchanged", () => {
+    const qwen = "onnx-community/Qwen3-Embedding-0.6B-ONNX"
+
+    expect(prepareEmbeddingText("where is the policy", qwen, "query")).toBe(
+      "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:where is the policy",
+    )
+    expect(prepareEmbeddingText("policy evidence", qwen, "document")).toBe("policy evidence")
+    expect(prepareEmbeddingText("where", "mixedbread-ai/mxbai-embed-xsmall-v1", "query")).toBe(
+      "Represent this sentence for searching relevant passages: where",
+    )
+    const granite = "onnx-community/granite-embedding-97m-multilingual-r2-ONNX"
+    expect(prepareEmbeddingText("where", granite, "query")).toBe("where")
+  })
+
+  it("pads on the left and pools the last token for a last-token model", async () => {
+    const tokenizer = { padding_side: "right" }
+    const extractor = vi.fn(async (texts: string[]) => ({ tolist: () => texts.map(() => [1, 0]) }))
+    transformersMock.pipeline.mockResolvedValue(Object.assign(extractor, { tokenizer }))
+    const config = transformerConfig({
+      embeddingModel: "onnx-community/Qwen3-Embedding-0.6B-ONNX",
+      embeddingModelRevision: "c25a394dd583836952667c12f008335071b3f43d",
+    })
+
+    await embedTexts(["first", "a longer second text"], config)
+
+    expect(tokenizer.padding_side).toBe("left")
+    expect(extractor).toHaveBeenCalledWith(["first", "a longer second text"], {
+      pooling: "last_token",
+      normalize: true,
+    })
+  })
+
   it("should restore the Transformers environment after creating a local extractor", async () => {
     const snapshots: Array<typeof transformersMock.env> = []
     transformersMock.pipeline.mockImplementation(async () => {

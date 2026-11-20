@@ -107,7 +107,7 @@ release from npm against the project the agent has open.
 | Claude Code | `/plugin install ragmir --marketplace jcode-works/ragmir` |
 | OpenAI Codex | `codex plugin marketplace add jcode-works/ragmir`, then `codex plugin add ragmir@ragmir` |
 | Gemini CLI | `gemini extensions install https://github.com/jcode-works/ragmir` |
-| Qwen Code | `qwen extensions install jcode-works/ragmir` |
+| Qwen Code | `qwen extensions install jcode-works/ragmir:ragmir` |
 | Cursor | Cursor Marketplace once listed; until then, copy `plugins/ragmir` to `~/.cursor/plugins/local/ragmir` |
 
 Index each project once. In Claude Code, run `/ragmir:index`: Claude proposes the sources, asks

@@ -166,7 +166,7 @@ modelsCommand
       ].filter(Boolean)
       console.log(`${pc.bold(model.id)}${marks.length > 0 ? `  ${marks.join(", ")}` : ""}`)
       console.log(
-        `  ${model.languages}, ${model.parameters} parameters, ${model.dimensions} dimensions, ${model.maxTokens.toLocaleString("en-US")} tokens, ${model.license}`,
+        `  ${model.languages}, ${model.parameters} parameters, ${model.dimensions.toLocaleString("en-US")} dimensions, ${model.maxTokens.toLocaleString("en-US")} tokens, ${model.license}`,
       )
       console.log(
         `  download ${model.downloadMegabytes} MB, needs about ${formatMemory(model.memoryBytes)}: ${model.fit} (${model.reason})`,
