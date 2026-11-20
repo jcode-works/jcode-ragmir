@@ -248,6 +248,7 @@ export function rankHybridRows<Row extends RankingRow>(
   textRows: Row[],
   policy: RankingPolicy,
   scoreMultiplierOf?: (row: Row) => number,
+  options: { lexicalChannel?: boolean } = {},
 ): Array<RankedRow<Row>> {
   const queryTokens = tokenize(query)
   const evidence = queryEvidence(query)
@@ -282,16 +283,20 @@ export function rankHybridRows<Row extends RankingRow>(
   })
 
   const ftsRows = textRows.filter((row) => typeof row._score === "number")
+  // Without full-text scores, BM25 is recomputed over the merged candidates; a vector-only
+  // diagnostic search turns that channel off instead of rebuilding it from vector rows.
   const lexicalRanked: Array<[string, number]> =
-    ftsRows.length > 0
-      ? ftsRows
-          .sort(
-            (left, right) => (right._score ?? 0) - (left._score ?? 0) || compareKeys(left, right),
-          )
-          .map((row) => [keyOf(row), row._score ?? 0])
-      : [...bm25Scores(queryTokens, rows, keyOf).entries()]
-          .filter(([, score]) => score > 0)
-          .sort(compareScoredKeys)
+    options.lexicalChannel === false
+      ? []
+      : ftsRows.length > 0
+        ? ftsRows
+            .sort(
+              (left, right) => (right._score ?? 0) - (left._score ?? 0) || compareKeys(left, right),
+            )
+            .map((row) => [keyOf(row), row._score ?? 0])
+        : [...bm25Scores(queryTokens, rows, keyOf).entries()]
+            .filter(([, score]) => score > 0)
+            .sort(compareScoredKeys)
   const lexicalRanks = new Map<string, number>()
   lexicalRanked.forEach(([key], index) => {
     lexicalRanks.set(key, index)

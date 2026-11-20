@@ -1,5 +1,5 @@
 import type { AgentInstallMode, AgentInstallScope } from "./skill.js"
-import type { IncrementalFailurePolicy } from "./types.js"
+import type { IncrementalFailurePolicy, SearchRetriever } from "./types.js"
 
 /** Parse and validate a positive integer CLI argument. */
 export function parsePositiveInt(value: string): number {
@@ -38,6 +38,14 @@ export function parseRecallThreshold(value: string): number {
     throw new Error("Expected a recall threshold between 0 and 1.")
   }
   return parsed
+}
+
+/** Parse and validate the `--retriever` diagnostic channel. */
+export function parseRetriever(value: string): SearchRetriever {
+  if (value === "hybrid" || value === "lexical" || value === "vector") {
+    return value
+  }
+  throw new Error("Expected hybrid, lexical, or vector.")
 }
 
 /** Parse and validate the incremental ingestion failure policy. */

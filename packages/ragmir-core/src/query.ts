@@ -74,6 +74,7 @@ import type {
   SearchContextChunk,
   SearchOptions,
   SearchResult,
+  SearchRetriever,
   SourceLocationKind,
   VectorIndexManifest,
 } from "./types.js"
@@ -232,6 +233,7 @@ async function searchWithinGeneration(
 ): Promise<SearchResult[]> {
   const signal = activeSignal ?? operationSignal(options)
   const sanitized = sanitizeRetrievalQuery(query)
+  const retriever = normalizeRetriever(options.retriever)
   const topK = normalizeTopK(options.topK ?? config.topK)
   const maxChunksPerDocument = normalizeMaxChunksPerDocument(
     options.maxChunksPerDocument ?? config.maxChunksPerDocument,
@@ -272,45 +274,51 @@ async function searchWithinGeneration(
     `${snapshot.tableName}\0${snapshot.manifestFingerprint ?? ""}`,
     embedTexts,
   )
-  const lexicalCandidatesPromise = lexicalCandidateRows(table, sanitized.query, {
-    ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
-    fallbackBatchSize: config.hybridTextScanLimit,
-    indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
-    minimumResults: candidateDemand,
-    pathPredicate: retrievalPredicate,
-    ...(signal === undefined ? {} : { signal }),
-  })
-  const vectorRowsPromise = embedText(sanitized.query, config, signal, ({ queueTimeMs }) => {
-    embeddingQueueMs = queueTimeMs
-  }).then(async (vector) => {
-    throwIfAborted(signal)
-    const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
-    const limit = vectorCandidateLimit(candidateDemand, config.retrievalProfile)
-    const nearest = async (predicate: string | null): Promise<SearchRow[]> => {
-      const vectorQuery = configureAdaptiveVectorQuery(
-        table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
-        manifest.vectorIndex,
-        options.vectorSearchMode === "exact",
-      )
-      return plainRows(
-        await (predicate ? vectorQuery.where(predicate) : vectorQuery).limit(limit).toArray(),
-      )
-    }
-    const rows = await nearest(retrievalPredicate)
-    const crowding = crowdingDocuments(rows, topK)
-    if (crowding.length === 0) {
-      return rows
-    }
-    // One large file (an export, a log, a spreadsheet) filled the pool with its own chunks, yet
-    // shows at most maxChunksPerDocument of them; a second pass reaches the other documents.
-    throwIfAborted(signal)
-    const others = `NOT (${crowding.map(relativePathEquals).join(" OR ")})`
-    const more = await nearest(
-      retrievalPredicate ? `(${retrievalPredicate}) AND ${others}` : others,
-    )
-    const seen = new Set(rows.map(rowKey))
-    return [...rows, ...more.filter((row) => !seen.has(rowKey(row)))]
-  })
+  const lexicalCandidatesPromise =
+    retriever === "vector"
+      ? Promise.resolve(emptyLexicalCandidateSet())
+      : lexicalCandidateRows(table, sanitized.query, {
+          ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
+          fallbackBatchSize: config.hybridTextScanLimit,
+          indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
+          minimumResults: candidateDemand,
+          pathPredicate: retrievalPredicate,
+          ...(signal === undefined ? {} : { signal }),
+        })
+  const vectorRowsPromise: Promise<SearchRow[]> =
+    retriever === "lexical"
+      ? Promise.resolve([])
+      : embedText(sanitized.query, config, signal, ({ queueTimeMs }) => {
+          embeddingQueueMs = queueTimeMs
+        }).then(async (vector) => {
+          throwIfAborted(signal)
+          const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
+          const limit = vectorCandidateLimit(candidateDemand, config.retrievalProfile)
+          const nearest = async (predicate: string | null): Promise<SearchRow[]> => {
+            const vectorQuery = configureAdaptiveVectorQuery(
+              table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
+              manifest.vectorIndex,
+              options.vectorSearchMode === "exact",
+            )
+            return plainRows(
+              await (predicate ? vectorQuery.where(predicate) : vectorQuery).limit(limit).toArray(),
+            )
+          }
+          const rows = await nearest(retrievalPredicate)
+          const crowding = crowdingDocuments(rows, topK)
+          if (crowding.length === 0) {
+            return rows
+          }
+          // One large file (an export, a log, a spreadsheet) filled the pool with its own chunks, yet
+          // shows at most maxChunksPerDocument of them; a second pass reaches the other documents.
+          throwIfAborted(signal)
+          const others = `NOT (${crowding.map(relativePathEquals).join(" OR ")})`
+          const more = await nearest(
+            retrievalPredicate ? `(${retrievalPredicate}) AND ${others}` : others,
+          )
+          const seen = new Set(rows.map(rowKey))
+          return [...rows, ...more.filter((row) => !seen.has(rowKey(row)))]
+        })
   const [vectorRowsOutcome, lexicalCandidatesOutcome] = await Promise.allSettled([
     vectorRowsPromise,
     lexicalCandidatesPromise,
@@ -348,6 +356,7 @@ async function searchWithinGeneration(
     rankingPolicy,
     (row) =>
       weightOf(row.relativePath) * definitionBoost(row) * fileNameBoost(row) * headingBoost(row),
+    { lexicalChannel: retriever !== "vector" },
   )
   const isExactPathMatch = (row: SearchRow): boolean =>
     lexicalCandidates.exactPathMatches.has(rowKey(row))
@@ -413,6 +422,7 @@ async function searchWithinGeneration(
               retrievalQuery: sanitized.query,
               queryNormalized: sanitized.changed,
               originalQueryLength: sanitized.originalLength,
+              retriever,
               fusion: "rrf" as const,
               combinedScore: row.combinedScore,
               scoreMultiplier: row.scoreMultiplier,
@@ -447,6 +457,39 @@ async function searchWithinGeneration(
     }
   })
   return results
+}
+
+const SEARCH_RETRIEVERS: readonly SearchRetriever[] = ["hybrid", "lexical", "vector"]
+
+function normalizeRetriever(value: SearchRetriever | undefined): SearchRetriever {
+  if (value === undefined) {
+    return "hybrid"
+  }
+  if (!SEARCH_RETRIEVERS.includes(value)) {
+    throw new RagmirError(
+      "INVALID_ARGUMENT",
+      `retriever must be one of ${SEARCH_RETRIEVERS.join(", ")}.`,
+    )
+  }
+  return value
+}
+
+/** The keyword channel's result when a vector-only diagnostic search skips it. */
+function emptyLexicalCandidateSet(): LexicalCandidateSet {
+  return {
+    rows: [],
+    exactPathMatches: new Set(),
+    backend: "fts",
+    fallbackActivated: false,
+    fallbackReason: null,
+    candidateLimit: 0,
+    candidatesMaterialized: 0,
+    queryVariants: 0,
+    indexedRows: 0,
+    unindexedRows: 0,
+    coverage: 0,
+    scanBatches: 0,
+  }
 }
 
 const CROWDING_MIN_CHUNKS = 4

@@ -173,6 +173,44 @@ describe("search", { timeout: integrationTimeout(20_000) }, () => {
         message: "contextRadius must be a non-negative integer.",
       } satisfies Partial<RagmirError>)
     }
+    await expect(
+      search("policy", { cwd: root, retriever: "dense" as unknown as "vector" }),
+    ).rejects.toMatchObject({
+      code: "INVALID_ARGUMENT",
+      message: "retriever must be one of hybrid, lexical, vector.",
+    } satisfies Partial<RagmirError>)
+  })
+
+  it("should rank with one channel when a diagnostic retriever is requested", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-retriever-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "retention.md"),
+      "Invoices are kept for ten years under the retention policy.\n",
+    )
+    await ingest({ cwd: root })
+
+    const [hybrid] = await search("invoice retention policy", { cwd: root, explain: true })
+    const [lexical] = await search("invoice retention policy", {
+      cwd: root,
+      explain: true,
+      retriever: "lexical",
+    })
+    const [vector] = await search("invoice retention policy", {
+      cwd: root,
+      explain: true,
+      retriever: "vector",
+    })
+
+    expect(hybrid?.score?.retriever).toBe("hybrid")
+    expect(lexical?.score?.retriever).toBe("lexical")
+    expect(lexical?.score?.vectorRank).toBeNull()
+    expect(lexical?.distance).toBeNull()
+    expect(vector?.score?.retriever).toBe("vector")
+    expect(vector?.score?.lexicalRank).toBeNull()
+    expect(vector?.relativePath).toBe(".ragmir/raw/retention.md")
   })
 
   it("should size candidate pools from the fusion bound with a profile margin", () => {

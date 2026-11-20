@@ -194,6 +194,62 @@ describe("evaluateGoldenQueries", { timeout: integrationTimeout(15_000) }, () =>
     expect(report.cases.every((result) => result.ndcg > 0)).toBe(true)
   })
 
+  it("compares a run with a baseline report and restricts the evaluated channel", async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-baseline-"))
+    tempDirs.push(parent)
+    const root = path.join(parent, "example")
+    await copySovereignDemo(root)
+    await ingest({ cwd: root })
+    const baseline = await evaluateGoldenQueries({ cwd: root, goldenPath: "golden-queries.json" })
+    const baselinePath = path.join(parent, "baseline.json")
+    await writeFile(baselinePath, JSON.stringify(baseline), "utf8")
+
+    const same = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "golden-queries.json",
+      baselinePath,
+    })
+
+    expect(same.retriever).toBe("hybrid")
+    expect(same.answerRateAt[10]).toBe(1)
+    expect(same.comparison?.comparable).toBe(true)
+    expect(same.comparison?.differences).toEqual([])
+    expect(same.comparison?.metrics.answerRateAt1.delta).toBe(0)
+    expect(same.comparison?.metrics.meanReciprocalRankAt10.delta).toBe(0)
+
+    const lexical = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "golden-queries.json",
+      baselinePath,
+      retriever: "lexical",
+    })
+
+    expect(lexical.retriever).toBe("lexical")
+    expect(lexical.verificationEligible).toBe(false)
+    expect(lexical.comparison?.differences).toContain("retriever")
+
+    // A report written before answer rates existed still compares through its cases.
+    const { answerRateAt: _omitted, ...olderReport } = baseline
+    await writeFile(
+      baselinePath,
+      JSON.stringify({ ...olderReport, goldenFingerprint: "another-golden-file" }),
+      "utf8",
+    )
+    const older = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "golden-queries.json",
+      baselinePath,
+    })
+
+    expect(older.comparison?.comparable).toBe(false)
+    expect(older.comparison?.metrics.answerRateAt10).toEqual({ baseline: 1, current: 1, delta: 0 })
+
+    await writeFile(baselinePath, "not json", "utf8")
+    await expect(
+      evaluateGoldenQueries({ cwd: root, goldenPath: "golden-queries.json", baselinePath }),
+    ).rejects.toMatchObject({ code: "INVALID_ARGUMENT" })
+  })
+
   it("should use one connection and one table generation for one hundred cases", async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-reuse-"))
     tempDirs.push(parent)

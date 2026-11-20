@@ -113,8 +113,9 @@ if (results[0]) {
 ```
 
 `SearchOptions` includes `topK`, `maxChunksPerDocument`, `contextRadius`, `includePaths`,
-`excludePaths`, `contextPaths`, `scope` (a named scope from the config), `explain`, and
-`vectorSearchMode: "exact"` for ANN comparisons. `includePaths` and `excludePaths` take folders,
+`excludePaths`, `contextPaths`, `scope` (a named scope from the config), `explain`,
+`vectorSearchMode: "exact"` for ANN comparisons, and `retriever: "lexical" | "vector"` to rank
+with one channel for diagnostics (default `"hybrid"`). `includePaths` and `excludePaths` take folders,
 files, or globs (`**` crosses folders, `*` and `?` stay within one, `{a,b}` lists alternatives), so
 `["**/*.pdf"]` searches only PDF files. Path filters accept backslashes and either Unicode form;
 results always use forward slashes and NFC.
@@ -170,7 +171,7 @@ sheet/cell, EPUB, or named section coordinates. They are not byte offsets into a
 | `discoverKnowledgeBases(...)` | Discover root and nested project bases. |
 | `securityAudit(cwd?, options?)` | Inspect permissions, Git exclusions, providers, and extractor authority. |
 | `inspectUpgrade(cwd?)`, `upgradeProject(options?)` | Inspect compatibility or migrate and rebuild safely. |
-| `evaluateGoldenQueries(options)` | Measure retrieval against an explicit golden-query file. |
+| `evaluateGoldenQueries(options)` | Measure retrieval against an explicit golden-query file; `baselinePath` adds signed deltas against an earlier report and `retriever` evaluates one channel. |
 | `destroyIndex(cwd?)` | Explicitly remove managed local index storage. |
 
 The options and result types are exported, including `Config`, `IngestOptions`, `IngestResult`,

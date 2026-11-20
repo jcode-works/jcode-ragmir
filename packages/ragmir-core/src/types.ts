@@ -698,7 +698,15 @@ export interface SearchOptions extends OperationOptions {
   scope?: string
   explain?: boolean
   vectorSearchMode?: "adaptive" | "exact"
+  /**
+   * Diagnostics: rank with one channel only. `hybrid` (the default) fuses keyword and vector
+   * candidates; `lexical` and `vector` measure what each channel finds on its own.
+   */
+  retriever?: SearchRetriever
 }
+
+/** Candidate channels a search fuses: both by default, or one of them for diagnostics. */
+export type SearchRetriever = "hybrid" | "lexical" | "vector"
 
 export interface SearchContextChunk {
   chunkIndex: number
@@ -754,6 +762,8 @@ export interface SearchScoreExplanation {
   retrievalQuery: string
   queryNormalized: boolean
   originalQueryLength: number
+  /** Channels that supplied candidates: both, or one when `retriever` restricted the search. */
+  retriever: SearchRetriever
   fusion: "rrf"
   combinedScore: number
   /** Path prior, configured source weight, and code definition boost applied to the fused score. */
@@ -905,6 +915,46 @@ export interface EvaluationOptions extends OperationOptions {
   thresholds?: QualityMetricThresholds
   persistCompatibleReport?: boolean
   caseDetailLimit?: number
+  /** A previous `--json` report of the same golden file: the result adds signed deltas. */
+  baselinePath?: PathLike
+  /** Evaluate one channel only; such a run never stores a verified quality report. */
+  retriever?: SearchRetriever
+}
+
+/** Metrics an evaluation compares with a baseline report. */
+export type EvaluationComparisonMetric =
+  | "answerRateAt1"
+  | "answerRateAt3"
+  | "answerRateAt10"
+  | "recallAt1"
+  | "recallAt3"
+  | "recallAt5"
+  | "recallAt10"
+  | "precisionAt5"
+  | "meanReciprocalRankAt10"
+  | "ndcgAt10"
+  | "exactCitationRate"
+  | "falsePositiveRate"
+  | "abstentionAccuracy"
+  | "p50LatencyMs"
+  | "p95LatencyMs"
+
+export interface EvaluationMetricDelta {
+  baseline: number | null
+  current: number | null
+  /** `current - baseline`; null when either side lacks the metric. */
+  delta: number | null
+}
+
+export interface EvaluationComparison {
+  baselinePath: string
+  /** False when the baseline evaluated another golden file: its deltas compare different cases. */
+  comparable: boolean
+  /** Settings that differ between the two runs, such as the index, model, profile, or retriever. */
+  differences: string[]
+  metrics: Record<EvaluationComparisonMetric, EvaluationMetricDelta>
+  /** Per-category deltas for the categories both reports hold. */
+  categories: Record<string, Record<keyof EvaluationGroupResult, EvaluationMetricDelta>>
 }
 
 export interface EvaluationCaseResult {
@@ -952,6 +1002,8 @@ export interface EvaluationResult {
   rankingPolicyFingerprint: string
   indexFingerprint: string
   goldenFingerprint: string
+  /** Channels the evaluated searches used; `hybrid` unless the run restricted them. */
+  retriever: SearchRetriever
   topK: number
   total: number
   hits: number
@@ -962,6 +1014,8 @@ export interface EvaluationResult {
   meanReciprocalRank: number
   ndcg: number
   recallAt: Record<1 | 3 | 5 | 10, number>
+  /** Share of answerable cases with at least one expected path or citation within the first k. */
+  answerRateAt: Record<1 | 3 | 5 | 10, number>
   precisionAt5: number
   meanReciprocalRankAt10: number
   ndcgAt10: number
@@ -982,6 +1036,8 @@ export interface EvaluationResult {
   p95LatencyMs: number
   cases: EvaluationCaseResult[]
   omittedCases?: number
+  /** Present with `baselinePath`: signed deltas against the earlier report. */
+  comparison?: EvaluationComparison
 }
 
 export interface IndexQualityReport {

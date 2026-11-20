@@ -9,6 +9,7 @@ import {
   parseNonNegativeInt,
   parsePositiveInt,
   parseRecallThreshold,
+  parseRetriever,
 } from "./cli-options.js"
 import { loadConfig } from "./config.js"
 import { DEFAULT_SKILL_TARGET_DIR } from "./defaults.js"
@@ -74,7 +75,12 @@ import {
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { optimizeStorage } from "./storage-maintenance.js"
 import { readIndexManifestHeader } from "./store.js"
-import type { IncrementalFailurePolicy, PreviewChunksOptions } from "./types.js"
+import type {
+  EvaluationComparison,
+  IncrementalFailurePolicy,
+  PreviewChunksOptions,
+  SearchRetriever,
+} from "./types.js"
 import { inspectUpgrade, upgradeProject } from "./upgrade.js"
 import { VERSION } from "./version.js"
 
@@ -846,6 +852,11 @@ program
   .option("--scope <name>", "Search a named scope from the config's `scopes`.")
   .option("--explain", "Include hybrid score contributions, ranks, and matched terms.")
   .option("--exact-vector-search", "Bypass ANN and use exhaustive vector search for diagnostics.")
+  .option(
+    "--retriever <channel>",
+    "Diagnostics: rank with hybrid (default), lexical, or vector candidates only.",
+    parseRetriever,
+  )
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
@@ -861,6 +872,7 @@ program
         scope?: string
         explain?: boolean
         exactVectorSearch?: boolean
+        retriever?: SearchRetriever
         compact?: boolean
         json?: boolean
       },
@@ -940,10 +952,26 @@ program
     "Legacy average-recall gate from 0 to 1, combined with golden-file quality gates.",
     parseRecallThreshold,
   )
+  .option(
+    "--baseline <report>",
+    "Earlier `rgr evaluate --json` report of the same golden file: print signed deltas.",
+  )
+  .option(
+    "--retriever <channel>",
+    "Evaluate hybrid (default), lexical, or vector candidates only. Never stored as verified.",
+    parseRetriever,
+  )
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
-      options: { golden: string; topK?: number; failUnder?: number; json?: boolean },
+      options: {
+        golden: string
+        topK?: number
+        failUnder?: number
+        baseline?: string
+        retriever?: SearchRetriever
+        json?: boolean
+      },
       command: Command,
     ) => {
       const cwd = projectRoot(command)
@@ -952,6 +980,8 @@ program
         goldenPath: options.golden,
       }
       addOption(evaluationOptions, "topK", options.topK)
+      addOption(evaluationOptions, "baselinePath", options.baseline)
+      addOption(evaluationOptions, "retriever", options.retriever)
       const result = await evaluateGoldenQueries(evaluationOptions)
       const minimumRecall = options.failUnder
       const legacyRecallPassed = minimumRecall === undefined || result.recall >= minimumRecall
@@ -981,6 +1011,9 @@ program
             `failedGate=${gate.metric} direction=${gate.direction} threshold=${gate.threshold.toFixed(3)} actual=${gate.actual?.toFixed(3) ?? "n/a"}`,
           ),
         )
+      }
+      if (result.comparison) {
+        printEvaluationComparison(result.comparison)
       }
       for (const testCase of result.cases) {
         const label = testCase.id ? `${testCase.id}: ${testCase.query}` : testCase.query
@@ -1622,6 +1655,7 @@ function withSearchOptions(
     scope?: string
     explain?: boolean
     exactVectorSearch?: boolean
+    retriever?: SearchRetriever
   },
 ): {
   cwd: string
@@ -1634,6 +1668,7 @@ function withSearchOptions(
   scope?: string
   explain?: boolean
   vectorSearchMode?: "exact"
+  retriever?: SearchRetriever
 } {
   const result: {
     cwd: string
@@ -1646,8 +1681,10 @@ function withSearchOptions(
     scope?: string
     explain?: boolean
     vectorSearchMode?: "exact"
+    retriever?: SearchRetriever
   } = { cwd }
   addOption(result, "scope", options.scope)
+  addOption(result, "retriever", options.retriever)
   addOption(result, "topK", options.topK)
   addOption(result, "maxChunksPerDocument", options.maxChunksPerDocument)
   addOption(result, "contextRadius", options.contextRadius)
@@ -1657,6 +1694,34 @@ function withSearchOptions(
     result.vectorSearchMode = "exact"
   }
   return result
+}
+
+/** One line per metric: baseline, current, and the signed change, then the per-category changes. */
+function printEvaluationComparison(comparison: EvaluationComparison): void {
+  const format = (value: number | null, latency: boolean): string =>
+    value === null ? "n/a" : latency ? value.toFixed(1) : value.toFixed(3)
+  const signed = (value: number | null, latency: boolean): string =>
+    value === null ? "n/a" : `${value >= 0 ? "+" : ""}${format(value, latency)}`
+  console.log(
+    `baseline=${comparison.baselinePath} comparable=${comparison.comparable} differences=${comparison.differences.join(",") || "none"}`,
+  )
+  if (!comparison.comparable) {
+    console.log(
+      pc.yellow("The baseline evaluated another golden file; its deltas compare different cases."),
+    )
+  }
+  for (const [metric, delta] of Object.entries(comparison.metrics)) {
+    const latency = metric.endsWith("LatencyMs")
+    console.log(
+      `${metric}: ${format(delta.baseline, latency)} -> ${format(delta.current, latency)} (${signed(delta.delta, latency)})`,
+    )
+  }
+  for (const [category, metrics] of Object.entries(comparison.categories)) {
+    const changes = Object.entries(metrics)
+      .filter(([, delta]) => delta.delta !== null && delta.delta !== 0)
+      .map(([metric, delta]) => `${metric}=${signed(delta.delta, false)}`)
+    console.log(`category=${category} ${changes.join(" ") || "unchanged"}`)
+  }
 }
 
 function addPathFilters(

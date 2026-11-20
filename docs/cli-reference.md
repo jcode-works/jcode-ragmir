@@ -351,7 +351,19 @@ configuration (and exclude it from `sources` if a glob matches it), then gate CI
 ```bash
 rgr evaluate --golden ragmir.golden.json          # exits with status 1 when a threshold fails
 rgr evaluate --golden ragmir.golden.json --json   # adds gates, per-category groups, and fingerprints
+rgr evaluate --golden ragmir.golden.json --baseline before.json   # signed change per metric
+rgr evaluate --golden ragmir.golden.json --retriever lexical      # one channel, for diagnosis
 ```
+
+- `--baseline` takes an earlier `--json` report of the same golden file and prints each metric
+  before and after with the signed change, then the change per category. It also lists the
+  settings that differ between the two runs (index, model, profile, retriever, `topK`) and warns
+  when the baseline evaluated another golden file.
+- `--retriever lexical` or `vector` ranks with that channel alone, to measure what each one adds
+  (`rgr search --retriever` does the same for one query). Such a run never stores a verified
+  quality report.
+- The report adds `answerRateAt`: the share of answerable questions with a relevant passage in
+  the first 1, 3, 5, or 10 results.
 
 - `expectedPaths` lists project-relative files; any of them in the top `topK` is a hit.
   `expectedCitations` requires exact citations such as `docs/runbook.md:L12-L18#3`, copied from
