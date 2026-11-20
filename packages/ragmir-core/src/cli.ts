@@ -61,7 +61,7 @@ import {
 } from "./ocr.js"
 import { rgrCommand } from "./package-manager.js"
 import { previewChunks } from "./preview.js"
-import { search } from "./query.js"
+import { searchReport } from "./query.js"
 import { compactSearchResults } from "./search-output.js"
 import { securityAudit } from "./security.js"
 import { enableSemanticEmbeddings } from "./semantic-config.js"
@@ -75,6 +75,7 @@ import {
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { optimizeStorage } from "./storage-maintenance.js"
+import { readIndexManifestHeader } from "./store.js"
 import {
   approveConfigTrust,
   type ConfigTrustState,
@@ -84,7 +85,6 @@ import {
   TRUST_PROJECT_CONFIG_ENV,
   trustStorePath,
 } from "./trust.js"
-import { readIndexManifestHeader } from "./store.js"
 import type {
   EvaluationComparison,
   IncrementalFailurePolicy,
@@ -898,16 +898,28 @@ program
       }
       const cwd = projectRoot(command)
       await reviewProjectConfigTrust(cwd, options.json === true)
-      const results = await search(query, withSearchOptions(cwd, options))
-      const outputResults = options.compact ? compactSearchResults(results) : results
+      const report = await searchReport(query, withSearchOptions(cwd, options))
+      const results = report.results
+      const outputResults = options.compact
+        ? compactSearchResults(results, undefined, { query })
+        : results
       if (options.json) {
-        console.log(JSON.stringify({ query, results: outputResults }, null, 2))
+        console.log(
+          JSON.stringify(
+            { query, results: outputResults, absentTerms: report.absentTerms },
+            null,
+            2,
+          ),
+        )
         if (results.length === 0) {
           process.exitCode = 1
         }
         return
       }
 
+      if (report.absentTerms.length > 0) {
+        console.error(pc.yellow(`No indexed passage holds: ${report.absentTerms.join(", ")}.`))
+      }
       if (results.length === 0) {
         const manifest = await readIndexManifestHeader(await loadConfig(cwd))
         if ((manifest?.chunkCount ?? 0) > 0) {
@@ -935,6 +947,9 @@ program
         console.log(
           `\n${pc.cyan(`[${index + 1}] ${result.citation}`)} chunk=${result.chunkIndex} distance=${distance}${flags.length > 0 ? ` ${flags.join(" ")}` : ""}`,
         )
+        if (result.pathContext) {
+          console.log(pc.dim(`context: ${result.pathContext}`))
+        }
         console.log(
           "snippet" in result ? result.snippet : result.text.slice(0, SEARCH_TEXT_PREVIEW_LENGTH),
         )

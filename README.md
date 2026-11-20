@@ -211,9 +211,13 @@ LangChain.js retriever, the MCP server for any client, or the TypeScript API.
 
 The MCP server exposes `ragmir_search` (one question or up to five related ones in a shared budget,
 with folder or glob filters and named scopes), `ragmir_expand` (a citation with its neighbours,
-and the next window to read a document through), `ragmir_sources` (the indexed documents),
+the next window to read a document through, or up to five citations at once), `ragmir_sources`
+(the indexed documents),
 `ragmir_status`, `ragmir_audit`, and `ragmir_ingest`, which refreshes the index after files change
-and writes nothing but Ragmir's private index. An `answer` prompt asks for a fully cited answer.
+and writes nothing but Ragmir's private index. Search excerpts start at the lines that hold the
+question's words, results say what their folder is when the configuration describes it, and a
+notice names question words that no indexed passage holds. An `answer` prompt asks for a fully
+cited answer.
 Its instructions name the base it serves. Register it per project: a server registered for every
 project answers unrelated workspaces too, and `rgr doctor` flags it.
 

@@ -57,6 +57,7 @@ does not create a local copy. With both files, CLI changes go to `.ragmir/config
 | `defaultExcludes` | `true` | Skip tool state, dependency caches, lockfiles, and minified bundles (see Sources). |
 | `scopes` | `{}` | Named path filters that searches select with `scope` (see Scopes). |
 | `sourceWeights` | `{}` | Ranking multipliers by glob, for example `{ "archive/**": 0.5 }`. |
+| `pathContexts` | `{}` | What the documents under a folder, file, or glob are; returned with each result from them (see Scopes). |
 | `pathPriors` | `true` | Built-in mild demotion of tests and snapshots (see Ranking). |
 | `collapseLocaleVariants` | `true` | Give translations of one file (`fr.json`, `en.json`, `docs/fr/...`) one result slot. |
 | `maxChunksPerDataFile` | `null` | Keep a bounded sample of large JSON, CSV, log, and spreadsheet files. Rebuild after changing it. |
@@ -276,6 +277,24 @@ Scopes name path filters that agents and scripts can select instead of repeating
 A scope combines with explicit `includePaths` (both must match) and `excludePaths`. Paths are
 folders, files, or globs such as `"**/*.pdf"` or `"specs/{legal,security}/**"`. MCP instructions
 and tool descriptions list the scope names and descriptions.
+
+A scope with `"searchByDefault": false` stays indexed but out of every search that names neither
+it nor `includePaths`, such as archives or the raw sources behind a compiled wiki: search it with
+`scope`. `pathContexts` describes what the documents under a folder, file, or glob are, without
+defining a scope:
+
+```json
+{
+  "scopes": {
+    "archive": { "includePaths": ["archive"], "description": "Retired notes, may be outdated", "searchByDefault": false }
+  },
+  "pathContexts": { "docs/adr": "Architecture decisions; the newest one wins" }
+}
+```
+
+Each result whose path a scope description or a path context covers carries `pathContext`, the
+matching descriptions from the most general to the most specific, so an agent can weigh a
+passage before expanding it. It never changes ranking or the index.
 
 ## Ranking weights, translations, and large data files
 

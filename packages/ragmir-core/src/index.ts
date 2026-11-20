@@ -53,7 +53,7 @@ export { configurePdfOcr, extractPdfPage, extractPdfPages, inspectPdfOcr } from 
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
 export { previewChunks } from "./preview.js"
-export { expandCitation, search } from "./query.js"
+export { expandCitation, search, searchReport } from "./query.js"
 export { compactSearchResults } from "./search-output.js"
 export { securityAudit } from "./security.js"
 export type { EnableSemanticEmbeddingsResult } from "./semantic-config.js"
@@ -151,6 +151,7 @@ export type {
   RuntimePackageVersion,
   SearchContextChunk,
   SearchOptions,
+  SearchReport,
   SearchResult,
   SearchRetriever,
   SearchScoreExplanation,

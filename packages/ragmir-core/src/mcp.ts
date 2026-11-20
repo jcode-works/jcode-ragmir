@@ -16,6 +16,7 @@ import {
 import type {
   BoundedJsonMetadata,
   CompactJsonValue,
+  McpExpandedBatchPayload,
   McpExpandedCitationPayload,
   McpOutputMetadata,
   McpSearchGroupsPayload,
@@ -24,6 +25,7 @@ import type {
 import {
   budgetMcpJson,
   fitExpandedCitation,
+  fitExpandedCitations,
   fitMcpJsonOutput,
   fitSearchGroups,
   fitSearchPayload,
@@ -177,8 +179,17 @@ const expandToolInputSchema = z
       .string()
       .min(1)
       .max(2_000)
+      .optional()
       .describe(
         "A citation from ragmir_search, such as docs/runbook.md:L12-L18#4 or specs/brief.pdf:p3#2.",
+      ),
+    citations: z
+      .array(z.string().min(1).max(2_000))
+      .min(1)
+      .max(MAX_MCP_BATCH_QUERIES)
+      .optional()
+      .describe(
+        `Instead of citation: up to ${MAX_MCP_BATCH_QUERIES} citations read together in one output budget.`,
       ),
     expectedEvidenceId: z
       .string()
@@ -595,7 +606,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         profile.scopes.length > 0
           ? ` scope selects a named subset: ${profile.scopes.map((scope) => scope.name).join(", ")}.`
           : ""
-      } Each result has a citation (path, lines or page, chunk), an excerpt, and weakEvidence when support is thin; an empty result means the base holds no evidence, so say so instead of guessing. Expand one citation, or set compact:false, only when full text is needed.`,
+      } Each result has a citation (path, lines or page, chunk), an excerpt from its lines that hold the question's words (excerptLine gives the first line), pathContext when the configuration describes its folder, and weakEvidence when support is thin. An empty result means the base holds no evidence, so say so instead of guessing; a notice names question words that no indexed passage holds. Expand one citation, or set compact:false, only when full text is needed.`,
       inputSchema: searchToolInputSchema,
       annotations: SEARCH_TOOL_ANNOTATIONS,
     },
@@ -656,11 +667,11 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       // Repeats do not count toward topK, so ask for a few extra rows to fill it with new evidence.
       const extra = seenMode === "include" ? 0 : Math.min(sessionMemory.size, topK)
       const client = await clientLifecycle.getClient(config)
-      const resultLists = await withRebuildHint(
+      const reports = await withRebuildHint(
         config,
         Promise.all(
           queries.map((query) =>
-            client.search(query, {
+            client.searchReport(query, {
               ...options,
               ...(input.scope === undefined ? {} : { scope: input.scope }),
               topK: Math.min(topK + extra, MAX_SEARCH_TOP_K),
@@ -668,6 +679,12 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
             }),
           ),
         ),
+      )
+      const resultLists = reports.map((report) => report.results)
+      const gaps = reports.flatMap((report, index) =>
+        report.absentTerms.length === 0
+          ? []
+          : [{ query: queries[index] ?? "", absentTerms: report.absentTerms }],
       )
       const returnedInBatch = new Set<string>()
       const groups = resultLists.map((results, index) => {
@@ -677,11 +694,15 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         }
         return { query: queries[index] ?? "", results: selected }
       })
-      const present = (items: (typeof groups)[number]["results"]): McpSearchPayload =>
+      const present = (
+        items: (typeof groups)[number]["results"],
+        query: string,
+      ): McpSearchPayload =>
         items.map((item) =>
-          isSeenCitationStub(item) || !compactOutput ? item : compactSearchResult(item),
+          isSeenCitationStub(item) || !compactOutput ? item : compactSearchResult(item, query),
         )
       const firstGroup = groups[0]?.results ?? []
+      const firstQuery = queries[0] ?? ""
       const fullResults = resultLists.flat()
       const bounded =
         queries.length === 1
@@ -689,9 +710,9 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
               tool: "ragmir_search",
               maxBytes: budget,
               fullValue: fullResults,
-              preferredValue: present(firstGroup),
+              preferredValue: present(firstGroup, firstQuery),
               compactValue: firstGroup.map((item) =>
-                isSeenCitationStub(item) ? item : compactSearchResult(item),
+                isSeenCitationStub(item) ? item : compactSearchResult(item, firstQuery),
               ),
               compacted: compactOutput,
               reduce: fitSearchPayload,
@@ -702,7 +723,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
               fullValue: fullResults,
               preferredValue: groups.map((group) => ({
                 query: group.query,
-                results: present(group.results),
+                results: present(group.results, group.query),
               })),
               compacted: compactOutput,
               reduce: fitSearchGroups,
@@ -711,9 +732,14 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       sessionMemory.remember(returnedCitations(bounded.result.content[0]?.text))
       const changedSources = fullResults.some((result) => result.sourceStatus !== undefined)
       const refreshStarted = changedSources && ingestRunner.requestAuto(config)
+      const withGaps =
+        gaps.length === 0
+          ? bounded.result
+          : { ...bounded.result, _meta: { ...bounded.result._meta, "ragmir/gaps": gaps } }
       return withNotices(
-        bounded.result,
+        withGaps,
         [
+          absentTermsNotice(gaps, queries.length),
           workspaceScopeNotice(verdict, current.name, config.projectRoot),
           !changedSources
             ? null
@@ -735,7 +761,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_expand",
     {
       title: `Ragmir expand: ${profile.name}`,
-      description: `Read the full indexed text of one citation from the "${profile.name}" knowledge base: the cited chunk plus up to ${MAX_MCP_CONTEXT_RADIUS} neighbouring chunks on each side, within the output budget. Use it after ragmir_search to quote or verify a passage before relying on it. To read a whole document, expand the returned nextCitation (or previousCitation) with the same contextRadius until it is absent; documentChunks counts the document's chunks. Read-only; reports found:false when the citation is no longer in the index.`,
+      description: `Read the full indexed text of one citation from the "${profile.name}" knowledge base: the cited chunk plus up to ${MAX_MCP_CONTEXT_RADIUS} neighbouring chunks on each side, within the output budget. Use it after ragmir_search to quote or verify a passage before relying on it. To read a whole document, expand the returned nextCitation (or previousCitation) with the same contextRadius until it is absent; documentChunks counts the document's chunks. Pass citations (up to ${MAX_MCP_BATCH_QUERIES}) instead of citation to read several in one output budget. Read-only; reports found:false when the citation is no longer in the index.`,
       inputSchema: expandToolInputSchema,
       annotations: READ_ONLY_TOOL_ANNOTATIONS,
     },
@@ -763,6 +789,66 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         MAX_MCP_CONTEXT_RADIUS,
       )
       const client = await clientLifecycle.getClient(config)
+      const budget = mcpOutputBudget(
+        config.mcpMaxOutputBytes,
+        clampArgument(
+          adjustments,
+          "maxBytes",
+          input.maxBytes,
+          MIN_MCP_OUTPUT_BYTES,
+          MAX_MCP_OUTPUT_BYTES,
+        ),
+      )
+      if (input.citations !== undefined) {
+        const citations = [...new Set(input.citations)]
+        const items = await withRebuildHint(
+          config,
+          Promise.all(
+            citations.map(async (citation): Promise<McpExpandedBatchPayload[number]> => {
+              try {
+                return await client.expandCitation(citation, {
+                  signal,
+                  ...(contextRadius === undefined ? {} : { contextRadius }),
+                })
+              } catch (error) {
+                throwIfMcpAborted(signal)
+                return {
+                  requestedCitation: citation,
+                  found: false,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              }
+            }),
+          ),
+        )
+        sessionMemory.remember(
+          items.flatMap((item) =>
+            "error" in item
+              ? []
+              : [
+                  ...(item.requestedCitation === undefined ? [] : [item.requestedCitation]),
+                  ...item.passages.map((passage) => passage.citation),
+                ],
+          ),
+        )
+        const boundedBatch = budgetMcpJson<McpExpandedBatchPayload>({
+          tool: "ragmir_expand",
+          maxBytes: budget,
+          fullValue: items,
+          preferredValue: items,
+          compacted: false,
+          reduce: fitExpandedCitations,
+        })
+        return withNotices(
+          boundedBatch.result,
+          [workspaceScopeNotice(verdict, current.name, config.projectRoot)],
+          adjustments,
+          verdict,
+        )
+      }
+      if (input.citation === undefined) {
+        throw new Error("ragmir_expand needs citation, or citations for several at once.")
+      }
       const expanded = await withRebuildHint(
         config,
         client.expandCitation(input.citation, {
@@ -779,16 +865,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
       ])
       const bounded = budgetMcpJson<McpExpandedCitationPayload>({
         tool: "ragmir_expand",
-        maxBytes: mcpOutputBudget(
-          config.mcpMaxOutputBytes,
-          clampArgument(
-            adjustments,
-            "maxBytes",
-            input.maxBytes,
-            MIN_MCP_OUTPUT_BYTES,
-            MAX_MCP_OUTPUT_BYTES,
-          ),
-        ),
+        maxBytes: budget,
         fullValue: expanded,
         preferredValue: expanded,
         compacted: false,
@@ -1204,9 +1281,28 @@ function searchQueries(input: {
   return unique
 }
 
-function compactSearchResult(result: SearchResult): McpSearchPayload[number] {
-  const [compact] = compactSearchResults([result])
+function compactSearchResult(result: SearchResult, query: string): McpSearchPayload[number] {
+  const [compact] = compactSearchResults([result], undefined, { query })
   return compact ?? { citation: result.citation }
+}
+
+/**
+ * Name the question words no indexed passage holds, so the agent rephrases with the project's own
+ * terms or reports that the documents do not cover them, instead of reading the nearest passages.
+ */
+function absentTermsNotice(
+  gaps: ReadonlyArray<{ query: string; absentTerms: string[] }>,
+  queryCount: number,
+): string | null {
+  if (gaps.length === 0) {
+    return null
+  }
+  const parts = gaps.map((gap) =>
+    queryCount === 1
+      ? gap.absentTerms.join(", ")
+      : `${gap.absentTerms.join(", ")} (in "${gap.query}")`,
+  )
+  return `No indexed passage holds: ${parts.join("; ")}. Rephrase with the project's own terms, or say the documents do not cover them.`
 }
 
 /** Citations of whole results in a serialized search payload, ignoring stubs and previews. */

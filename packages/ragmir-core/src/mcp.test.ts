@@ -605,6 +605,74 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
     expect(withoutMarkdown).toMatchObject([{ relativePath: "notes/refunds.txt" }])
   })
 
+  it("describes result folders, keeps opt-in scopes out, and names absent words", async () => {
+    const root = await createProject("ragmir-mcp-contexts-", {
+      sources: ["docs", "archive"],
+      pathContexts: { "docs/adr": "Architecture decisions; the newest one wins" },
+      scopes: {
+        docs: { includePaths: ["docs"], excludePaths: [], description: "Product documentation" },
+        archive: {
+          includePaths: ["archive"],
+          excludePaths: [],
+          description: "Retired notes, may be outdated",
+          searchByDefault: false,
+        },
+      },
+    })
+    await mkdir(path.join(root, "docs", "adr"), { recursive: true })
+    await mkdir(path.join(root, "archive"), { recursive: true })
+    await writeFile(
+      path.join(root, "docs", "adr", "0007-queue.md"),
+      "# Queue\nPayments use a durable queue with retries.\n",
+    )
+    await writeFile(
+      path.join(root, "archive", "queue.md"),
+      "# Old queue\nPayments used an in-memory queue with retries.\n",
+    )
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const byDefault = (await jsonToolResult(client, "ragmir_search", {
+      query: "payments queue retries",
+      topK: 5,
+    })) as Array<{ relativePath: string; pathContext?: string; excerptLine?: number }>
+    expect(byDefault.map((item) => item.relativePath)).toEqual(["docs/adr/0007-queue.md"])
+    expect(byDefault[0]?.pathContext).toBe(
+      "Product documentation; Architecture decisions; the newest one wins",
+    )
+    expect(byDefault[0]?.excerptLine).toBe(2)
+
+    const archived = (await jsonToolResult(client, "ragmir_search", {
+      query: "payments queue retries",
+      scope: "archive",
+      seen: "include",
+    })) as Array<{ relativePath: string; pathContext?: string }>
+    expect(archived).toMatchObject([
+      { relativePath: "archive/queue.md", pathContext: "Retired notes, may be outdated" },
+    ])
+
+    const absent = await client.callTool({
+      name: "ragmir_search",
+      arguments: { query: "payments queue kafka partitions", seen: "include" },
+    })
+    expect(absent._meta?.["ragmir/gaps"]).toEqual([
+      { query: "payments queue kafka partitions", absentTerms: ["kafka", "partitions"] },
+    ])
+    expect(
+      absent.content.some(
+        (item) => item.type === "text" && item.text.startsWith("No indexed passage holds: kafka"),
+      ),
+    ).toBe(true)
+
+    const batch = (await jsonToolResult(client, "ragmir_expand", {
+      citations: ["docs/adr/0007-queue.md:L1-L2#0", "docs/missing.md:L1-L2#0"],
+    })) as Array<{ found: boolean; requestedCitation: string }>
+    expect(batch).toMatchObject([
+      { found: true, requestedCitation: "docs/adr/0007-queue.md:L1-L2#0" },
+      { found: false, requestedCitation: "docs/missing.md:L1-L2#0" },
+    ])
+  })
+
   it("pages through a long document with next and previous citations", async () => {
     const root = await createProject("ragmir-mcp-paging-", { chunkSize: 200, chunkOverlap: 0 })
     const sections = Array.from(

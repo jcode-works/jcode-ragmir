@@ -215,6 +215,13 @@ questions appears once. Within one MCP session, passages already returned come b
 `seen: "include"` to receive them in full again, `seen: "exclude"` to drop them, or set
 `mcpSeenResults` in the config. `ragmir_expand` always returns full text.
 
+Each compact result holds an excerpt from the passage lines that contain the most of the
+question's words (its opening when the passage matched by meaning), `excerptLine` for the first of
+those lines, and `pathContext` when the configuration describes the folder it comes from. When
+some words of the question appear in no indexed passage, a notice names them (and
+`_meta["ragmir/gaps"]` lists them per question): rephrase with the project's own terms, or report
+that the documents do not cover them.
+
 Results flag two conditions. `sourceStatus: "modified"` or `"missing"` means the cited file changed
 after indexing: call `ragmir_ingest`, or set `mcpAutoIngest: true` so the server starts one
 background incremental ingest (at most once a minute). `weakEvidence: true` means the passage holds
@@ -223,7 +230,9 @@ base holds no evidence for the question: say so instead of answering from the ne
 
 `ragmir_expand` returns `documentChunks`, the number of indexed chunks in the cited document, and
 `nextCitation` and `previousCitation`: expand them with the same `contextRadius` to read the
-neighbouring windows, until `nextCitation` is absent. This reads PDFs, Office files, and long
+neighbouring windows, until `nextCitation` is absent. Pass `citations` (up to five) instead of
+`citation` to read several passages in one output budget; a citation that cannot be expanded
+returns `found: false` without failing the others. This reads PDFs, Office files, and long
 specifications through without filesystem access.
 
 `ragmir_ingest` runs an incremental ingest: only new and changed files are parsed, and the previous

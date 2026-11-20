@@ -60,6 +60,8 @@ const retrievalProfileSchema = z.enum(["fast", "balanced", "quality", "custom"])
 const sourceFingerprintModeSchema = z.enum(["fast", "strict"])
 const ingestEmbeddingDeviceSchema = z.enum(["cpu", "webgpu"])
 const incrementalFailurePolicySchema = z.enum(["preserve-last-good", "remove-stale"])
+// Path contexts are read on every search result; a few hundred describe any real project.
+const MAX_PATH_CONTEXTS = 200
 const configPathSchema = z.string().min(1).max(MAX_CONFIG_PATH_CHARACTERS)
 const configTextSchema = z.string().min(1).max(MAX_CONFIG_TEXT_CHARACTERS)
 const externalCommandSchema = z.array(configTextSchema).max(MAX_EXTERNAL_COMMAND_ARGUMENTS)
@@ -68,6 +70,7 @@ const searchScopeSchema = z
     includePaths: z.array(configPathSchema).max(MAX_CONFIG_ARRAY_ITEMS).default([]),
     excludePaths: z.array(configPathSchema).max(MAX_CONFIG_ARRAY_ITEMS).default([]),
     description: configTextSchema.optional(),
+    searchByDefault: z.boolean().optional(),
   })
   .strict()
 const scopeNameSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/u)
@@ -198,6 +201,12 @@ const rawConfigSchema = z
     sourceWeights: z
       .record(configPathSchema, z.number().positive().max(MAX_SOURCE_WEIGHT))
       .default(DEFAULT_CONFIG.sourceWeights),
+    pathContexts: z
+      .record(configPathSchema, configTextSchema)
+      .refine((value) => Object.keys(value).length <= MAX_PATH_CONTEXTS, {
+        message: `pathContexts must define at most ${MAX_PATH_CONTEXTS} entries.`,
+      })
+      .default(DEFAULT_CONFIG.pathContexts),
     scopes: z.record(scopeNameSchema, searchScopeSchema).default(DEFAULT_CONFIG.scopes),
     collapseLocaleVariants: z.boolean().default(DEFAULT_CONFIG.collapseLocaleVariants),
     maxChunksPerDataFile: z
@@ -407,6 +416,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     defaultExcludes: effective.defaultExcludes,
     pathPriors: effective.pathPriors,
     sourceWeights: effective.sourceWeights,
+    pathContexts: effective.pathContexts,
     scopes: Object.fromEntries(
       Object.entries(effective.scopes).map(([name, scope]) => [
         name,
@@ -414,6 +424,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
           includePaths: scope.includePaths,
           excludePaths: scope.excludePaths,
           ...(scope.description === undefined ? {} : { description: scope.description }),
+          ...(scope.searchByDefault === false ? { searchByDefault: false as const } : {}),
         },
       ]),
     ),

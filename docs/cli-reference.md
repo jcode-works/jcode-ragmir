@@ -48,7 +48,10 @@ rgr search "migration" --exact-vector-search
 ```
 
 Text output marks a result whose file changed or disappeared after indexing
-(`source modified since indexing`) and a result with thin support (`weak evidence`). JSON results
+(`source modified since indexing`) and a result with thin support (`weak evidence`), prints the
+result's `context:` when the configuration describes its folder, and names the question's words
+that no indexed passage holds. `--json` adds them as `absentTerms`; `--compact` snippets start at
+the lines holding the question's words. JSON results
 carry the same information as `sourceStatus` and `weakEvidence`. A search whose first five results are
 all weak prints no result, with any provider: the base holds no evidence for the question. `--scope`
 applies a named scope from the config. `--include-path` and `--exclude-path` take a folder, a file,

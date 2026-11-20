@@ -125,6 +125,12 @@ cited document), and `nextCitation` / `previousCitation`: expand them with the s
 to read the neighbouring windows of a long document. `client.sources({ paths, offset, limit })`
 lists indexed files under folders or matching globs, with chunk counts, `page.nextOffset`, and the
 number of matching files in `filter.matchedFiles`.
+`searchReport(query, options)` and `client.searchReport(...)` return `{ results, absentTerms }`:
+the same results, plus the words of the question that no indexed passage holds, so an application
+can tell "the documents never mention this" from "nothing ranked well". Results carry
+`pathContext` when the configuration describes their folder (`pathContexts` or a scope
+description). `compactSearchResults(results, maxLength, { query, intent })` builds bounded
+snippets from the lines that hold the question's words, with `excerptLine` for line-aware sources.
 Use `CompactSearchResult` for bounded snippets or `SearchResult` for text and neighboring context.
 Score explanations describe retrieval signals, not calibrated confidence in a claim.
 

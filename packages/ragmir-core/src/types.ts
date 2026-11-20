@@ -90,6 +90,8 @@ export interface Config {
   pathPriors: boolean
   /** Ranking multipliers by glob, for example `{ "archive/**": 0.5 }`. */
   sourceWeights: Record<string, number>
+  /** Folder, file, or glob -> what its documents are, returned with each result from them. */
+  pathContexts: Record<string, string>
   /** Named path filters that searches can select with `scope`. */
   scopes: Record<string, SearchScope>
   /** Treat translations of one file (en.json, fr.json, docs/fr/...) as one document in results. */
@@ -117,6 +119,8 @@ export interface SearchScope {
   includePaths: string[]
   excludePaths: string[]
   description?: string
+  /** False keeps the scope out of searches that name no scope and no includePaths. */
+  searchByDefault?: false
 }
 export type RetrievalProfile = "fast" | "balanced" | "quality" | "custom"
 export type IncrementalFailurePolicy = "preserve-last-good" | "remove-stale"
@@ -623,7 +627,9 @@ export interface KnowledgeBaseContextReport {
     name: string
     description: string | null
   }
-  scopes: Array<{ name: string; description: string | null }>
+  scopes: Array<{ name: string; description: string | null; searchByDefault?: false }>
+  /** What the documents under each folder or glob are; results under them carry it. */
+  pathContexts: Array<{ path: string; description: string }>
   projectRoot: string
   retrievalProfile: RetrievalProfile
   embeddingProvider: EmbeddingProvider
@@ -715,6 +721,16 @@ export interface SearchOptions extends OperationOptions {
 /** Candidate channels a search fuses: both by default, or one of them for diagnostics. */
 export type SearchRetriever = "hybrid" | "lexical" | "vector"
 
+/** A search with what the index lacks for the question. */
+export interface SearchReport {
+  results: SearchResult[]
+  /**
+   * Words of the question that no indexed passage holds. Empty when every measured word occurs,
+   * when words could not be measured (older index, unsegmented scripts), or for stop words.
+   */
+  absentTerms: string[]
+}
+
 export interface SearchContextChunk {
   chunkIndex: number
   contextPath: string
@@ -744,6 +760,8 @@ export interface SearchResult {
   pageEnd: number | null
   context: SearchContextChunk[]
   evidence?: EvidenceVersion
+  /** What the documents under this path are, from the config (`pathContexts`, scope descriptions). */
+  pathContext?: string
   score?: SearchScoreExplanation
   /** Present when the cited file changed or disappeared since it was indexed. */
   sourceStatus?: SourceStatus
@@ -832,7 +850,12 @@ export interface CompactSearchResult {
   chunkIndex: number
   contextPath: string
   citation: string
+  /** The passage's lines holding the most question words, or its opening when none matches. */
   snippet: string
+  /** Source line where the snippet starts, for passages with line coordinates. */
+  excerptLine?: number
+  /** What the documents under this path are, from the config. */
+  pathContext?: string
   distance: number | null
   lineStart: number | null
   lineEnd: number | null

@@ -163,6 +163,19 @@ try {
     )
   }
 
+  const batch = await callJsonTool(client, "ragmir_expand", {
+    citations: [searchResults[0].citation, "raw/missing-file.md:L1-L2#7"],
+    maxBytes: 4_096,
+  })
+  if (
+    !Array.isArray(batch) ||
+    batch.length !== 2 ||
+    batch[0]?.found !== true ||
+    batch[1]?.found !== false
+  ) {
+    throw new Error(`MCP batch expansion returned an unexpected result: ${JSON.stringify(batch)}`)
+  }
+
   // The passage was already returned in this session; ask for it again in full.
   const filteredSearchResults = await callJsonTool(client, "ragmir_search", {
     query: "offline retrieval approval",

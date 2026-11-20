@@ -28,6 +28,7 @@ import {
   lexicalDocumentScore,
 } from "./lexical-scoring.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
+import { defaultExcludedScopePaths, pathContextResolver } from "./path-contexts.js"
 import { isPathGlob, pathGlobRegexSource } from "./path-globs.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
 import type { QueryTermStatistics, RankedRow } from "./ranking.js"
@@ -73,6 +74,7 @@ import type {
   RetrievalProfile,
   SearchContextChunk,
   SearchOptions,
+  SearchReport,
   SearchResult,
   SearchRetriever,
   SourceLocationKind,
@@ -195,6 +197,15 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   return results
 }
 
+/** Search and report what the index lacks: the results plus the question's absent words. */
+export async function searchReport(
+  query: string,
+  options: SearchOptions = {},
+): Promise<SearchReport> {
+  const config = await loadConfig(String(options.cwd ?? process.cwd()))
+  return searchReportWithConfig(query, options, config)
+}
+
 export async function searchWithConfig(
   query: string,
   options: SearchOptions,
@@ -204,6 +215,27 @@ export async function searchWithConfig(
   suppliedSnapshot?: IndexReadSnapshot,
   generationLeaseHeld = false,
 ): Promise<SearchResult[]> {
+  const report = await searchReportWithConfig(
+    query,
+    options,
+    config,
+    connection,
+    activeSignal,
+    suppliedSnapshot,
+    generationLeaseHeld,
+  )
+  return report.results
+}
+
+export async function searchReportWithConfig(
+  query: string,
+  options: SearchOptions,
+  config: Config,
+  connection?: Connection,
+  activeSignal?: AbortSignal,
+  suppliedSnapshot?: IndexReadSnapshot,
+  generationLeaseHeld = false,
+): Promise<SearchReport> {
   const signal = activeSignal ?? operationSignal(options)
   return runWorkload(config, "search", signal, async ({ queueTimeMs }) => {
     const ownsSnapshot = suppliedSnapshot === undefined
@@ -230,7 +262,7 @@ async function searchWithinGeneration(
   snapshot: IndexReadSnapshot,
   activeSignal?: AbortSignal,
   workloadQueueMs = 0,
-): Promise<SearchResult[]> {
+): Promise<SearchReport> {
   const signal = activeSignal ?? operationSignal(options)
   const sanitized = sanitizeRetrievalQuery(query)
   const retriever = normalizeRetriever(options.retriever)
@@ -245,20 +277,26 @@ async function searchWithinGeneration(
   const table = snapshot.table
   throwIfAborted(signal)
   if (!table) {
-    return []
+    return { results: [], absentTerms: [] }
   }
   assertIndexFreshness(config, snapshot.manifest)
 
   const evidence = queryEvidence(sanitized.query)
   const queryTokens = evidence.tokens
   if (!sanitized.query || queryTokens.length === 0) {
-    return []
+    return { results: [], absentTerms: [] }
   }
 
   const scope = resolveSearchScope(config, options.scope)
+  // A scope with `searchByDefault: false` stays out of searches that do not ask for it by name or
+  // by path, such as archives or the raw sources of a compiled wiki.
+  const defaultExclusions =
+    scope === null && (options.includePaths?.length ?? 0) === 0
+      ? defaultExcludedScopePaths(config)
+      : []
   const retrievalPredicate = searchPredicate(
     [scope?.includePaths, options.includePaths],
-    [...(scope?.excludePaths ?? []), ...(options.excludePaths ?? [])],
+    [...(scope?.excludePaths ?? []), ...(options.excludePaths ?? []), ...defaultExclusions],
     options.contextPaths,
   )
   let embeddingQueueMs = 0
@@ -392,10 +430,12 @@ async function searchWithinGeneration(
   ])
   throwIfAborted(signal)
   const knowledgeBaseId = knowledgeBaseIdentity(config.projectRoot)?.id ?? null
+  const pathContextOf = pathContextResolver(config)
 
   const results = rows.map((row) => {
     const vectorDistance = typeof row.row._distance === "number" ? row.row._distance : null
     const sourceStatus = sourceStatuses.get(row.row.relativePath)
+    const pathContext = pathContextOf(row.row.relativePath)
     return {
       source: row.row.source,
       relativePath: row.row.relativePath,
@@ -412,6 +452,7 @@ async function searchWithinGeneration(
       pageEnd: nullablePageNumber(row.row.pageEnd),
       context: contextByRow.get(rowKey(row.row)) ?? [],
       evidence: evidenceVersionForRow(row.row, snapshot, knowledgeBaseId),
+      ...(pathContext === undefined ? {} : { pathContext }),
       ...(sourceStatus === undefined ? {} : { sourceStatus }),
       ...(!isExactPathMatch(row.row) && hasWeakEvidence(row.row)
         ? { weakEvidence: true as const }
@@ -456,7 +497,28 @@ async function searchWithinGeneration(
         : {}),
     }
   })
-  return results
+  return { results, absentTerms: absentQueryTerms(queryTokens, termStatistics) }
+}
+
+/**
+ * Question words the index never holds, exactly or, when the focus check scanned for them, as a
+ * fuzzy match. They tell an agent which part of its question the corpus cannot answer, so it can
+ * rephrase or report the gap instead of reading the nearest passages. Words in unsegmented scripts
+ * are not measured and never reported.
+ */
+function absentQueryTerms(
+  tokens: readonly string[],
+  statistics: QueryTermStatistics | null,
+): string[] {
+  if (!statistics) {
+    return []
+  }
+  return [...new Set(tokens)].filter(
+    (token) =>
+      !statistics.unmeasuredTerms?.has(token) &&
+      (statistics.documentFrequencies.get(token) ?? 0) === 0 &&
+      !statistics.fuzzyMatchedTerms?.has(token),
+  )
 }
 
 const SEARCH_RETRIEVERS: readonly SearchRetriever[] = ["hybrid", "lexical", "vector"]

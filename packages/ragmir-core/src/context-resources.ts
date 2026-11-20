@@ -52,6 +52,7 @@ export async function getKnowledgeBaseContextWithConfig(
     knowledgeBaseId: identity?.id ?? null,
     knowledgeBase: { name: profile.name, description: profile.description },
     scopes: profile.scopes,
+    pathContexts: profile.pathContexts,
     projectRoot: config.projectRoot,
     retrievalProfile: config.retrievalProfile,
     embeddingProvider: config.embeddingProvider,

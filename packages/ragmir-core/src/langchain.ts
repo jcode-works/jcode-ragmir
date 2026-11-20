@@ -41,6 +41,8 @@ export interface RagmirDocumentMetadata extends Record<string, unknown> {
   /** Set when the cited file changed or disappeared since it was indexed. */
   sourceStatus?: SourceStatus
   knowledgeBaseId?: string
+  /** What the documents under this path are, from the base configuration. */
+  pathContext?: string
 }
 
 /** Opens a client on first use unless the caller shares one, and closes only the one it opened. */
@@ -242,6 +244,7 @@ function searchResultsText(results: SearchResult[]): string {
       const notes = [
         result.weakEvidence ? "weak match: verify before relying on it" : "",
         result.sourceStatus ? `file ${result.sourceStatus} since indexing` : "",
+        result.pathContext ? `context: ${result.pathContext}` : "",
       ].filter(Boolean)
       return `[${index + 1}] ${result.citation}${notes.length > 0 ? ` (${notes.join("; ")})` : ""}\n${result.text}`
     })
@@ -276,6 +279,9 @@ export function ragmirResultToDocument(result: SearchResult): Document<RagmirDoc
   }
   if (result.evidence?.knowledgeBaseId) {
     metadata.knowledgeBaseId = result.evidence.knowledgeBaseId
+  }
+  if (result.pathContext) {
+    metadata.pathContext = result.pathContext
   }
   return new Document<RagmirDocumentMetadata>({
     pageContent: result.text,

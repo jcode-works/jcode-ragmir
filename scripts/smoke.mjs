@@ -765,6 +765,7 @@ async function smokeMcp(cwd) {
       searchJson.length !== 1 ||
       !searchJson[0].citation.includes("tax.md:L") ||
       typeof searchJson[0].snippet !== "string" ||
+      typeof searchJson[0].excerptLine !== "number" ||
       "text" in searchJson[0] ||
       "context" in searchJson[0]
     ) {
@@ -804,6 +805,15 @@ async function smokeMcp(cwd) {
       !expandedJson.passages.some((passage) => passage.citation === searchJson[0].citation)
     ) {
       throw new Error(`MCP should expand an exact returned citation: ${mcpText(expanded)}`)
+    }
+
+    const batch = await client.request("tools/call", {
+      name: "ragmir_expand",
+      arguments: { citations: [searchJson[0].citation, "missing.md:L1-L2#4"], maxBytes: 4_096 },
+    })
+    const batchJson = parseJson(mcpText(batch), "MCP batch expansion JSON")
+    if (!Array.isArray(batchJson) || batchJson[0]?.found !== true || batchJson[1]?.found !== false) {
+      throw new Error(`MCP should expand several citations in one call: ${mcpText(batch)}`)
     }
 
     const audit = await client.request("tools/call", {

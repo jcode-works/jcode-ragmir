@@ -30,14 +30,17 @@ validated replacement activates, so never delete `.ragmir/storage/` as the first
 ## Retrieval loop
 
 1. Call `ragmir_search` with a focused query. It returns at most three compact citations; send up
-   to five related questions together in `queries` to share one output budget.
-2. Expand the citation you will rely on with `ragmir_expand`. To read a whole document, expand its
-   `nextCitation` with the same `contextRadius` until it is absent.
+   to five related questions together in `queries` to share one output budget. Each excerpt starts
+   at the lines holding your words (`excerptLine`), and `pathContext` says what the folder holds.
+2. Expand the citation you will rely on with `ragmir_expand`, or up to five at once with
+   `citations`. To read a whole document, expand its `nextCitation` with the same `contextRadius`
+   until it is absent.
 3. Narrow or widen the search: `includePaths` and `excludePaths` take folders, files, or globs such
    as `["**/*.pdf"]`, `scope` selects a named scope, and `ragmir_sources` lists the documents.
 4. Cite every claim. Separate cited facts from inference, and verify a `weakEvidence` passage
    before relying on it.
-5. An empty result means the base holds no evidence. Rephrase once with the project's own terms,
+5. An empty result means the base holds no evidence. When a notice names words that no indexed
+   passage holds, the documents never mention them: rephrase once with the project's own terms,
    then say the documents do not cover the question instead of guessing.
 
 | Need | MCP | CLI |

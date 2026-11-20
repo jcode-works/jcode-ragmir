@@ -41,12 +41,13 @@
     "Connect an MCP-capable chat or use the library example in docs/agent-integration.md with local Ollama, a self-hosted model endpoint, or a compatible cloud API. The host runs the agent loop and generation.",
     "Register the MCP server per project. Its instructions name the base; unrelated workspaces get a scope notice, or a refusal with mcpAllowedRoots. rgr doctor warns about user-scope and unapproved registrations.",
     "MCP search accepts up to five related queries in one budget and returns passages already seen in the session as short stubs. Results carry sourceStatus when a cited file changed and weakEvidence when support is thin.",
+    "Search excerpts start at the lines holding the question's words (excerptLine); results carry pathContext from pathContexts or scope descriptions; a notice names question words no passage holds; ragmir_expand reads up to five citations at once.",
     "Paths are cited with forward slashes and in Unicode NFC on Linux, macOS, and Windows; exclusions match decomposed and case-variant names. A committed ragmir.config.json holds shared settings and .ragmir/config.json overrides it locally.",
     "Python: pip install ragmir (sync and async client), langchain-ragmir (RagmirRetriever, RagmirToolkit for LangChain and LangGraph), or llama-index-retrievers-ragmir. They drive the Core MCP server through Node.js or Docker.",
     "LangChain.js: RagmirRetriever and createRagmirTools({ client }) from @jcode.labs/ragmir/langchain, with the optional peer @langchain/core 1.x. An empty result means the documents hold no evidence.",
     "Agent Skills: npx skills add jcode-works/ragmir installs ragmir (cited retrieval), ragmir-setup (install, sources, connection, OCR, upgrades), ragmir-build (applications), and ragmir-evaluate (golden files and rgr evaluate gates).",
     "Ragmir indexes 900+ file types: code, Markdown, PDF, Office, OpenDocument, EPUB, HTML, email, Evernote, and exports from Figma, Sketch, Excalidraw, tldraw, XMind, Postman, Insomnia, HAR, OpenAPI, and modeling tools, cited per object.",
     "Ragmir always skips credential files such as .env, .env.local, .npmrc, .tfvars, SSH keys, and .pem files; dotenv templates (.env.example, .env.sample, env.template) index variable names and comments with every value masked.",
-    "Settings in a cloned or pulled project config that run a program (OCR and extractor commands), send data off the machine (a remote embeddingEndpoint, any embeddingApiKeyEnv, model downloads), or read outside the project stay inactive until the user approves them on that machine with rgr trust; agents must never approve them. Embedding calls then fail with UNTRUSTED_CONFIG before any request."
+    "Settings in a cloned or pulled project config that run commands, send data off the machine (remote embeddingEndpoint, embeddingApiKeyEnv, model downloads), or read outside the project stay inactive until approved with rgr trust; agents never approve them."
   ]
 }

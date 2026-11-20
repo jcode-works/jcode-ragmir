@@ -50,8 +50,12 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the `answer`
   prompt, and bounded `ragmir://context` and `ragmir://sources` resources. Search starts with three
   compact citations, accepts up to five related queries in one budget, filters by folder or glob
-  (`**/*.pdf`), and returns passages already seen in the session as short stubs. Expansion returns
-  `nextCitation` to read a document through. `ragmir_ingest` writes only the private index and
+  (`**/*.pdf`), and returns passages already seen in the session as short stubs. Excerpts start at
+  the lines holding the question's words (`excerptLine`), results carry `pathContext` from
+  `pathContexts` or scope descriptions, and a notice names question words no passage holds
+  (`absentTerms` in `searchReport()` and `--json`). Expansion returns `nextCitation` to read a
+  document through and accepts up to five `citations` at once. A scope with
+  `searchByDefault: false` is searched only by name. `ragmir_ingest` writes only the private index and
   refuses with `mcpIngest: false` or while `rgr security-audit` warns. Instructions name the base;
   unrelated workspaces get a scope notice, or a refusal with `mcpAllowedRoots`. Register Ragmir per
   project, not for every project.
