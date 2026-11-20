@@ -1,0 +1,145 @@
+---
+import {
+  ArrowUpRight,
+  Blocks,
+  FileStack,
+  Gauge,
+  Quote,
+  Search,
+  Server,
+  ShieldCheck,
+  Waypoints,
+} from "@lucide/astro"
+import { PROJECT_LINKS } from "../../lib/project-links"
+import { SectionHeader } from "../section-header"
+
+interface Props {
+  translations: Record<string, string>
+}
+
+const { translations } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+
+/** One group of capabilities: its title and its four items, read from `capabilities_<key>_*`. */
+const group = (key: string, icon: typeof Search) => ({
+  title: t(`capabilities_${key}_title`),
+  icon,
+  items: [1, 2, 3, 4].map((item) => ({
+    name: t(`capabilities_${key}_${item}_name`),
+    text: t(`capabilities_${key}_${item}_text`),
+  })),
+})
+
+// The first panel is the path every answer takes, so its stages are drawn connected; the second
+// gathers what surrounds that path, side by side.
+const panels = [
+  {
+    title: t("capabilities_path_title"),
+    connected: true,
+    groups: [
+      group("index", FileStack),
+      group("search", Search),
+      group("cite", Quote),
+      group("wiki", Waypoints),
+    ],
+  },
+  {
+    title: t("capabilities_around_title"),
+    connected: false,
+    groups: [
+      group("connect", Blocks),
+      group("measure", Gauge),
+      group("run", Server),
+      group("control", ShieldCheck),
+    ],
+  },
+]
+---
+
+<section
+  id="capabilities"
+  aria-labelledby="capabilities-heading"
+  class="container-default relative z-10 px-5 py-16 md:px-8 md:py-40"
+>
+  <div class="mb-10 md:mb-14">
+    <SectionHeader
+      num="002"
+      label={t("capabilities_eyebrow")}
+      title={t("capabilities_title")}
+      text={t("capabilities_text")}
+      id="capabilities-heading"
+    />
+  </div>
+
+  <div class="grid gap-3 md:gap-4">
+    {panels.map((panel) => {
+      const List = panel.connected ? "ol" : "ul"
+      return (
+        <div class="rounded-xl bg-card p-5 md:p-8">
+          <h3 class="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+            {panel.title}
+          </h3>
+          <List
+            class:list={[
+              "mt-8 grid gap-10 lg:grid-cols-4 lg:gap-8",
+              !panel.connected && "sm:grid-cols-2",
+            ]}
+            role="list"
+          >
+            {panel.groups.map((entry, index) => {
+              const linked = panel.connected && index < panel.groups.length - 1
+              return (
+                <li class:list={["relative", panel.connected && "pl-12 lg:pl-0"]}>
+                  {linked && (
+                    <span
+                      aria-hidden="true"
+                      class="absolute top-9 -bottom-10 left-[17px] w-px bg-foreground/15 lg:hidden"
+                    />
+                  )}
+                  <div class="flex min-h-9 items-center gap-3">
+                    {panel.connected ? (
+                      <span class="absolute top-0 left-0 flex size-9 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-foreground/15 lg:static">
+                        <entry.icon
+                          aria-hidden="true"
+                          class="size-[18px] text-[var(--accent-title)]"
+                        />
+                      </span>
+                    ) : (
+                      <entry.icon
+                        aria-hidden="true"
+                        class="size-5 shrink-0 text-[var(--accent-title)]"
+                      />
+                    )}
+                    <h4 class="font-black text-lg leading-tight">{entry.title}</h4>
+                    {linked && (
+                      <span
+                        aria-hidden="true"
+                        class="hidden h-px min-w-6 flex-1 bg-foreground/15 lg:block"
+                      />
+                    )}
+                  </div>
+                  <ul class="mt-4 grid gap-3" role="list">
+                    {entry.items.map((item) => (
+                      <li class="text-sm leading-6">
+                        <span class="font-semibold text-foreground">{item.name}</span>{" "}
+                        <span class="text-muted-foreground">{item.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              )
+            })}
+          </List>
+        </div>
+      )
+    })}
+  </div>
+
+  <a
+    class="mx-auto mt-10 flex h-11 w-fit items-center gap-2 rounded-full bg-card px-5 font-bold text-foreground text-sm transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] motion-reduce:transform-none"
+    href={PROJECT_LINKS.docs}
+  >
+    {t("capabilities_docs_link")}
+    <ArrowUpRight class="size-4" aria-hidden="true" />
+  </a>
+</section>

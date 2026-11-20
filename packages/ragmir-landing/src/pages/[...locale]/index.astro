@@ -1,10 +1,11 @@
 ---
+import AnimatedBackdrop from "../../components/animated-backdrop.astro"
 import { CommandCopyToast } from "../../components/command-copy-toast"
 import { FloatingCta } from "../../components/floating-cta"
 import { LibrarySection } from "../../components/library-section"
 import { LandingNavbar } from "../../components/landing-navbar"
-import { RagmirBackground } from "../../components/ragmir-background"
 import Agents from "../../components/sections/agents.astro"
+import Capabilities from "../../components/sections/capabilities.astro"
 import ClosingCta from "../../components/sections/closing-cta.astro"
 import Deploy from "../../components/sections/deploy.astro"
 import Faq from "../../components/sections/faq.astro"
@@ -151,7 +152,7 @@ const structuredData = [
 ]
 const localizedHomeUrl = `${getLocalizedUrl("/", locale)}#top`
 const localizedLibraryUrl = `${getLocalizedUrl("/", locale)}#library`
-const localizedFeaturesUrl = `${getLocalizedUrl("/", locale)}#features`
+const localizedFeaturesUrl = `${getLocalizedUrl("/", locale)}#capabilities`
 const localizedUseCasesUrl = `${getLocalizedUrl("/", locale)}#use-cases`
 const localizedAgentsUrl = `${getLocalizedUrl("/", locale)}#agents`
 const localizedDeployUrl = `${getLocalizedUrl("/", locale)}#deploy`
@@ -195,39 +196,37 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
 
     <UseCases translations={translations} />
 
-    <div class="relative isolate overflow-hidden">
-      <div aria-hidden="true" class="absolute inset-0">
-        <RagmirBackground client:visible behindContent={false} height="100%" />
-      </div>
-      <LibrarySection
-        client:visible
-        translations={pickTranslations(translations, LIBRARY_TRANSLATIONS)}
-      />
-    </div>
+    <AnimatedBackdrop>
+      <Capabilities translations={translations} />
+    </AnimatedBackdrop>
 
-    <Integrations translations={translations} />
+    <LibrarySection
+      client:visible
+      translations={pickTranslations(translations, LIBRARY_TRANSLATIONS)}
+    />
 
-    <div class="relative isolate overflow-hidden">
-      <div aria-hidden="true" class="absolute inset-0">
-        <RagmirBackground client:visible behindContent={false} height="100%" />
-      </div>
-      <Agents translations={translations} />
-    </div>
+    <AnimatedBackdrop>
+      <Integrations translations={translations} />
+    </AnimatedBackdrop>
 
-    <Deploy translations={translations} />
+    <Agents translations={translations} />
+
+    <AnimatedBackdrop>
+      <Deploy translations={translations} />
+    </AnimatedBackdrop>
 
     <Features translations={translations} />
 
-    <Privacy translations={translations} />
+    <AnimatedBackdrop>
+      <Privacy translations={translations} />
+    </AnimatedBackdrop>
 
     <Faq translations={translations} />
 
-    <ClosingCta translations={translations} localizedLibraryUrl={localizedLibraryUrl} />
-
-    <Footer
-      localizedHomeUrl={localizedHomeUrl}
-      translations={translations}
-    />
+    <AnimatedBackdrop>
+      <ClosingCta translations={translations} localizedLibraryUrl={localizedLibraryUrl} />
+      <Footer localizedHomeUrl={localizedHomeUrl} translations={translations} />
+    </AnimatedBackdrop>
 
     <CommandCopyToast client:idle message={t("command_copied")} />
 

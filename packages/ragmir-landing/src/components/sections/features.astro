@@ -13,7 +13,6 @@ import { ArrowUpRight } from "@lucide/astro"
 import { SUPPORTED_FORMAT_GROUPS } from "../../content/supported-formats"
 import { PROJECT_LINKS } from "../../lib/project-links"
 import { CommandCopyBox } from "../command-copy"
-import { RagmirBackground } from "../ragmir-background"
 import { cardTag, SectionHeader } from "../section-header"
 
 interface Props {
@@ -74,12 +73,10 @@ const featureGroups = [
   aria-labelledby="features-heading"
   class="relative z-10 w-full overflow-hidden py-16 md:py-40"
 >
-  <RagmirBackground client:visible behindContent className="inset-0" height="100%" />
-
   <div class="container-default px-5 md:px-8">
     <div class="mb-10 md:mb-14">
       <SectionHeader
-        num="006"
+        num="007"
         label={t("features_eyebrow")}
         title={t("features_title")}
         text={t("features_text")}

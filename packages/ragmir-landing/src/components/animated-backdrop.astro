@@ -1,0 +1,14 @@
+---
+import { RagmirBackground } from "./ragmir-background"
+---
+
+<!--
+  The animated dot field behind one band of the page. Bands alternate down the home page: the
+  hero has the field, the next section does not, the one after does, and so on.
+-->
+<div class="relative isolate overflow-hidden">
+  <div aria-hidden="true" class="absolute inset-0">
+    <RagmirBackground client:visible behindContent={false} height="100%" />
+  </div>
+  <slot />
+</div>

@@ -221,6 +221,65 @@ describe("landing public contract", () => {
     expect(fr.seo_home_keywords).not.toContain("API RAG locale")
   })
 
+  it("should number the sections in page order and alternate the dot field from the hero", () => {
+    const sections = [
+      ["UseCases", "sections/use-cases.astro"],
+      ["Capabilities", "sections/capabilities.astro"],
+      ["LibrarySection", "library-section.tsx"],
+      ["Integrations", "sections/integrations.astro"],
+      ["Agents", "sections/agents.astro"],
+      ["Deploy", "sections/deploy.astro"],
+      ["Features", "sections/features.astro"],
+      ["Privacy", "sections/privacy.astro"],
+      ["Faq", "sections/faq.astro"],
+    ] as const
+    const positions = sections.map(([tag]) => homePageSource.indexOf(`<${tag}`))
+    expect(positions.every((position, index) => position > (positions[index - 1] ?? 0))).toBe(true)
+    sections.forEach(([, file], index) => {
+      const source = readFileSync(
+        fileURLToPath(new URL(`./components/${file}`, import.meta.url)),
+        "utf8",
+      )
+      expect(source).toContain(`num="${String(index + 1).padStart(3, "0")}"`)
+    })
+    // The hero draws the field itself; after it, every second band does.
+    expect(heroSource).toContain("RagmirBackground")
+    expect(
+      [...homePageSource.matchAll(/<AnimatedBackdrop>\s*<(\w+)/gu)].map((match) => match[1]),
+    ).toEqual(["Capabilities", "Integrations", "Deploy", "Privacy", "ClosingCta"])
+    expect(homePageSource).not.toContain("<RagmirBackground")
+    expect(footerSource).not.toContain("RagmirBackground")
+  })
+
+  it("should present every capability group with a purple icon and its four items", () => {
+    const capabilitiesSource = readFileSync(
+      fileURLToPath(new URL("./components/sections/capabilities.astro", import.meta.url)),
+      "utf8",
+    )
+    expect(capabilitiesSource).toContain('id="capabilities"')
+    expect(capabilitiesSource).toContain("text-[var(--accent-title)]")
+    for (const group of [
+      "index",
+      "search",
+      "cite",
+      "wiki",
+      "connect",
+      "measure",
+      "run",
+      "control",
+    ]) {
+      expect(capabilitiesSource).toContain(`group("${group}"`)
+      for (const item of [1, 2, 3, 4]) {
+        for (const part of ["name", "text"]) {
+          expect(en).toHaveProperty(`capabilities_${group}_${item}_${part}`)
+          expect(fr).toHaveProperty(`capabilities_${group}_${item}_${part}`)
+        }
+      }
+    }
+    expect(homePageSource).toContain("#capabilities")
+    expect(teamPageSource).toContain("#capabilities")
+  })
+
   it("should distinguish local, self-hosted, and provider modes before the feature map", () => {
     expect(homePageSource.indexOf("<Agents translations={translations} />")).toBeLessThan(
       homePageSource.indexOf("<Features translations={translations} />"),
