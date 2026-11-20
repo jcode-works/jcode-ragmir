@@ -57,6 +57,7 @@ does not create a local copy. With both files, CLI changes go to `.ragmir/config
 | `defaultExcludes` | `true` | Skip tool state, dependency caches, lockfiles, and minified bundles (see Sources). |
 | `scopes` | `{}` | Named path filters that searches select with `scope` (see Scopes). |
 | `sourceWeights` | `{}` | Ranking multipliers by glob, for example `{ "archive/**": 0.5 }`. |
+| `pathContexts` | `{}` | What the documents under a folder, file, or glob are; returned with each result from them (see Scopes). |
 | `pathPriors` | `true` | Built-in mild demotion of tests and snapshots (see Ranking). |
 | `collapseLocaleVariants` | `true` | Give translations of one file (`fr.json`, `en.json`, `docs/fr/...`) one result slot. |
 | `maxChunksPerDataFile` | `null` | Keep a bounded sample of large JSON, CSV, log, and spreadsheet files. Rebuild after changing it. |
@@ -277,6 +278,24 @@ A scope combines with explicit `includePaths` (both must match) and `excludePath
 folders, files, or globs such as `"**/*.pdf"` or `"specs/{legal,security}/**"`. MCP instructions
 and tool descriptions list the scope names and descriptions.
 
+A scope with `"searchByDefault": false` stays indexed but out of every search that names neither
+it nor `includePaths`, such as archives or the raw sources behind a compiled wiki: search it with
+`scope`. `pathContexts` describes what the documents under a folder, file, or glob are, without
+defining a scope:
+
+```json
+{
+  "scopes": {
+    "archive": { "includePaths": ["archive"], "description": "Retired notes, may be outdated", "searchByDefault": false }
+  },
+  "pathContexts": { "docs/adr": "Architecture decisions; the newest one wins" }
+}
+```
+
+Each result whose path a scope description or a path context covers carries `pathContext`, the
+matching descriptions from the most general to the most specific, so an agent can weigh a
+passage before expanding it. It never changes ranking or the index.
+
 ## Ranking weights, translations, and large data files
 
 Ranking multiplies each candidate's fused score by:
@@ -406,6 +425,42 @@ For a long-running process that hosts more than one isolated project workflow, c
 Close every client during shutdown. Ragmir serializes writers across local OS processes with a
 private heartbeat lock under `storageDir`; readers stay available. This is not a distributed lock,
 so do not place one writable index on a shared network filesystem.
+
+## Settings that need approval on each machine
+
+Project config files (`ragmir.config.json`, and `.ragmir/config.json` if a repository ships one)
+arrive with a clone or a pull. The settings that run a program, send data off the machine, or read
+outside the project take effect only after the person running Ragmir approves them on that
+machine:
+
+| Setting | What it does once approved |
+| --- | --- |
+| `pdfOcrCommand`, `imageOcrCommand`, `legacyWordCommand` | Runs that program while indexing. |
+| `embeddingEndpoint` outside this machine | Sends passages and queries to that server. |
+| `embeddingApiKeyEnv` | Sends that environment variable's value to the endpoint. |
+| `transformersAllowRemoteModels: true` | Downloads missing model files from the network. |
+| `sources` or `rawDir` outside the project root | Reads and indexes those files. |
+
+```bash
+rgr trust            # list the settings and ask in a terminal
+rgr trust --yes      # approve after review, for CI and servers
+rgr trust --list     # every project approved on this machine
+rgr trust --revoke   # remove this project's approval
+```
+
+Approvals live outside every project, in `~/.config/ragmir/trust.json` (`%APPDATA%\ragmir` on
+Windows, or `RAGMIR_TRUST_DIR`), and cover the exact values: changing a command, the endpoint, the
+key name, or an outside source asks again. Until approved, extractors do not run (their files
+count as unsupported), outside sources and raw folders are skipped, model downloads stay off, and
+embedding calls fail with `UNTRUSTED_CONFIG` before any request leaves the process. `rgr ingest`,
+`rgr search`, and `rgr evaluate` ask once in a terminal; Git hooks, MCP servers, and scripts run
+without the settings and print a notice. `rgr ocr setup` and `rgr sources add` approve what they
+write themselves when nothing else awaits approval. `rgr security-audit` and `rgr doctor` list the
+pending settings.
+
+Environment overrides such as `RAGMIR_PDF_OCR_COMMAND` are the operator's own choice and need no
+approval. A CI job or container whose configuration is reviewed elsewhere can set
+`RAGMIR_TRUST_PROJECT_CONFIG=1`.
 
 ## Parser safety limits
 

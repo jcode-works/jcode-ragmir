@@ -143,6 +143,71 @@ describe("hybrid ranking", () => {
     expect(semantic[0]?.row.relativePath).toBe("vector.md")
   })
 
+  it("should fuse formulation lists with half weight and pool what only they found", () => {
+    const policy = rankingPolicyFor("transformers", "balanced", 1)
+    const question = row("question.md", "Refund approval.", { distance: 0.2, score: 5 })
+    const shared = row("shared.md", "Refund owner.", { distance: 0.4 })
+    // Each formulation's keyword search returns its own rows, scored for its own words.
+    const paraphraseList = [
+      row("shared.md", "Refund owner.", { score: 3 }),
+      row("paraphrase.md", "Who signs off on returns.", { score: 4 }),
+    ]
+    const keywordList = [
+      row("keyword.md", "Refund approval matrix.", { score: 7 }),
+      row("question.md", "Refund approval.", { score: 2 }),
+    ]
+
+    const ranked = rankHybridRows(
+      "refund approval",
+      [question, shared],
+      [question],
+      policy,
+      () => 1,
+      {
+        formulationLists: [
+          { label: "vec#1", weight: 0.5, rows: paraphraseList },
+          { label: "lex#1", weight: 0.5, rows: keywordList },
+        ],
+      },
+    )
+    const byPath = new Map(ranked.map((item) => [item.row.relativePath, item]))
+
+    expect(byPath.get("paraphrase.md")?.formulationContributions).toEqual([
+      { label: "vec#1", rank: 1, contribution: 0.5 / policy.rrfK },
+    ])
+    expect(byPath.get("paraphrase.md")?.vectorRank).toBeNull()
+    expect(byPath.get("paraphrase.md")?.lexicalRank).toBeNull()
+    expect(byPath.get("keyword.md")?.formulationContributions?.[0]?.label).toBe("lex#1")
+    expect(byPath.get("shared.md")?.formulationContributions?.[0]?.rank).toBe(2)
+    expect(byPath.get("question.md")?.formulationContributions).toEqual([
+      { label: "lex#1", rank: 2, contribution: 0.5 / (policy.rrfK + 1) },
+    ])
+    expect(ranked[0]?.row.relativePath).toBe("question.md")
+    for (const item of ranked) {
+      const formulationScore = (item.formulationContributions ?? []).reduce(
+        (sum, contribution) => sum + contribution.contribution,
+        0,
+      )
+      expect(item.combinedScore).toBeCloseTo(
+        item.vectorScore + item.lexicalScore + formulationScore,
+      )
+    }
+  })
+
+  it("should leave the question's ranking unchanged without formulation lists", () => {
+    const policy = rankingPolicyFor("local-hash", "balanced", 1)
+    const alpha = row("alpha.md", "Refund approval.", { distance: 0.3, score: 4 })
+    const beta = row("beta.md", "Refund owner.", { distance: 0.2 })
+
+    const plain = rankHybridRows("refund approval", [alpha, beta], [alpha], policy)
+    const empty = rankHybridRows("refund approval", [alpha, beta], [alpha], policy, undefined, {
+      formulationLists: [],
+    })
+
+    expect(empty).toEqual(plain)
+    expect(plain.some((item) => item.formulationContributions !== undefined)).toBe(false)
+  })
+
   it("should compile the same abstention decision as the per-token relation", () => {
     const policy = rankingPolicyFor("local-hash", "balanced", 1)
     const queries = [

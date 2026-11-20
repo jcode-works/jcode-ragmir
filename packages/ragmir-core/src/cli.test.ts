@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  collectFormulation,
   parseAgentInstallMode,
   parseAgentInstallScope,
   parseIncrementalFailurePolicy,
@@ -95,5 +96,16 @@ describe("parseAgentInstallMode", () => {
   it("rejects unknown modes", () => {
     expect(() => parseAgentInstallMode("move")).toThrow("link or copy")
     expect(() => parseAgentInstallMode(undefined)).toThrow("link or copy")
+  })
+})
+
+describe("collectFormulation", () => {
+  it("collects repeated values and names the option the user typed in errors", () => {
+    const lex = collectFormulation("lex")
+    expect(lex('"rate limit"', lex("quota", []))).toEqual(["quota", '"rate limit"'])
+    expect(() => lex("-deprecated", [])).toThrow(
+      "--lex '-deprecated' only excludes: add a word or a quoted phrase to find.",
+    )
+    expect(() => collectFormulation("hyde")("  ", [])).toThrow("--hyde '  ' must not be empty.")
   })
 })

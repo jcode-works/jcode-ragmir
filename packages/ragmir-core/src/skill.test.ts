@@ -46,6 +46,25 @@ describe("retired skills", () => {
   })
 })
 
+describe("skill drift", () => {
+  it("reports installed copies that differ from the shipped skill, never links to the kit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-skill-drift-"))
+    tempDirs.push(root)
+    await installSkill({ cwd: root })
+    await installAgentSkills({ cwd: root, agents: ["claude"], homeDir: root, env: {} })
+    const drift = () =>
+      inspectAgentIntegration(root, root, {}).warnings.filter((warning) =>
+        warning.startsWith("Installed Ragmir skills differ"),
+      )
+
+    expect(drift()).toEqual([])
+    await writeFile(path.join(root, ".ragmir", "skills", "ragmir", "SKILL.md"), "Older guidance\n")
+    expect(drift()).toEqual([expect.stringContaining(".ragmir/skills/ragmir")])
+    await installSkill({ cwd: root })
+    expect(drift()).toEqual([])
+  })
+})
+
 describe("installSkill", () => {
   it("copies the bundled skill and writes an MCP config example", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-skill-"))

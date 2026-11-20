@@ -95,9 +95,11 @@ try {
 
 `ragmir_search` answers the model with numbered citations and passage text, flags weak matches and
 changed files, and says so when no passage supports an answer; its tool message `artifact` holds
-the LangChain documents. `ragmir_expand` returns a citation with its neighbours and the next
-citation to read on; its artifact is the `ExpandedCitation`. `new RagmirToolkit({ projectRoot })`
-opens its own client instead: call `toolkit.close()` at shutdown.
+the LangChain documents. The model may add `searches`, its own formulations of the question.
+`ragmir_expand` returns a citation with its neighbours and the next citation to read on, and
+answers a citation the index no longer holds with the nearest passage or the files with a close
+name; its artifact is the `ExpandedCitation`. `new RagmirToolkit({ projectRoot })` opens its own
+client instead: call `toolkit.close()` at shutdown.
 
 ## One-shot operations
 
@@ -113,17 +115,60 @@ if (results[0]) {
 ```
 
 `SearchOptions` includes `topK`, `maxChunksPerDocument`, `contextRadius`, `includePaths`,
-`excludePaths`, `contextPaths`, `scope` (a named scope from the config), `explain`, and
-`vectorSearchMode: "exact"` for ANN comparisons. `includePaths` and `excludePaths` take folders,
+`excludePaths`, `contextPaths`, `scope` (a named scope from the config), `explain`,
+`vectorSearchMode: "exact"` for ANN comparisons, and `retriever: "lexical" | "vector"` to rank
+with one channel for diagnostics (default `"hybrid"`). `includePaths` and `excludePaths` take folders,
 files, or globs (`**` crosses folders, `*` and `?` stay within one, `{a,b}` lists alternatives), so
 `["**/*.pdf"]` searches only PDF files. Path filters accept backslashes and either Unicode form;
 results always use forward slashes and NFC.
 
+`searches` adds up to five formulations of the same need, fused with the question into one
+ranking. Each one searches the channel that suits it:
+
+```ts
+const results = await ragmir.search("How are API requests throttled?", {
+  searches: [
+    { type: "lex", query: '"rate limit" quota -deprecated' },
+    { type: "vec", query: "limits on how many calls a client may send" },
+    { type: "hyde", query: "Each API key may send 600 requests per minute." },
+  ],
+  explain: true,
+})
+```
+
+A `lex` search ranks by its words, keeps only passages holding each `"quoted phrase"`, and removes
+every passage holding a `-word` or `-"phrase"`, including passages the question found. `vec`
+adds a paraphrase and `hyde` a short passage written as the answer might be; Ragmir searches their
+words. Each formulation weighs half as much as the question's own lists (`hyde` a quarter), and
+evidence rules judge every passage against the question: with a semantic model, a passage that
+only formulations found is measured by its distance to the question. Only the question decides
+whether there is an answer, so formulations never turn a refusal into one. With
+`explain: true`, `score.formulations` lists the formulations that found a result (`lex#1`,
+`vec#1`, ...) with its rank and its share of the fused score. An invalid formulation throws
+`INVALID_ARGUMENT` with a message naming the field, such as
+`searches[0].query leaves a quote open: close every "phrase".`
+
 `expandCitation` returns the cited chunk and its neighbours, `documentChunks` (the chunk count of the
 cited document), and `nextCitation` / `previousCitation`: expand them with the same `contextRadius`
-to read the neighbouring windows of a long document. `client.sources({ paths, offset, limit })`
-lists indexed files under folders or matching globs, with chunk counts, `page.nextOffset`, and the
-number of matching files in `filter.matchedFiles`.
+to read the neighbouring windows of a long document. A citation that finds nothing returns
+`found: false` with `suggestedCitation` (the nearest passage of a document still indexed) or
+`similarPaths` (the indexed files whose names come closest). `client.sources({ paths, offset, limit })`
+lists indexed files under folders or matching globs, with chunk counts, the `title` and
+`description` of a Markdown page's front matter, `page.nextOffset`, and the number of matching
+files in `filter.matchedFiles`; with `outline: true` and paths matching one file, it adds that
+file's outline, each heading path with the citation of its first passage. `changedSince`, an ISO
+8601 date or time, adds `changes` (`SourceChanges`): the files modified since then and those the
+last ingest removed. For a Markdown page,
+`expandCitation` also returns `links` (`DocumentLinks`): the links the page writes, with the
+indexed file each reaches or `null` when broken, and the pages that link to it with the citation of
+the linking passage.
+`searchReport(query, options)` and `client.searchReport(...)` return `{ results, absentTerms }`:
+the same results, plus the words of the question that no indexed passage holds, so an application
+can tell "the documents never mention this" from "nothing ranked well". Results carry
+`pathContext` when the configuration describes their folder (`pathContexts` or a scope
+description). `compactSearchResults(results, maxLength, { query, intent })` builds bounded
+snippets from the lines that hold the question's words, with `excerptLine` for line-aware sources;
+`intent`, a few words on what the question is about, weighs less than the question's own words.
 Use `CompactSearchResult` for bounded snippets or `SearchResult` for text and neighboring context.
 Score explanations describe retrieval signals, not calibrated confidence in a claim.
 
@@ -170,12 +215,14 @@ sheet/cell, EPUB, or named section coordinates. They are not byte offsets into a
 | `discoverKnowledgeBases(...)` | Discover root and nested project bases. |
 | `securityAudit(cwd?, options?)` | Inspect permissions, Git exclusions, providers, and extractor authority. |
 | `inspectUpgrade(cwd?)`, `upgradeProject(options?)` | Inspect compatibility or migrate and rebuild safely. |
-| `evaluateGoldenQueries(options)` | Measure retrieval against an explicit golden-query file. |
+| `knowledgeAudit(cwd?, options?)`, `client.knowledgeAudit(options?)` | Audit the indexed Markdown pages as a knowledge base: links, missing and unlinked pages, titles, written citations, and declared sources; read-only. |
+| `evaluateGoldenQueries(options)` | Measure retrieval against an explicit golden-query file; `baselinePath` adds signed deltas against an earlier report and `retriever` evaluates one channel. |
 | `destroyIndex(cwd?)` | Explicitly remove managed local index storage. |
 
 The options and result types are exported, including `Config`, `IngestOptions`, `IngestResult`,
-`SearchOptions`, `SearchResult`, `EvidenceVersion`, `ExpandedCitation`, `AuditReport`, `DoctorReport`, and
-`UpgradeInspection` / `UpgradeResult`. See the published declarations for the complete surface.
+`SearchOptions`, `SearchFormulation`, `SearchResult`, `EvidenceVersion`, `ExpandedCitation`,
+`AuditReport`, `DoctorReport`, and `UpgradeInspection` / `UpgradeResult`. See the published
+declarations for the complete surface.
 
 Ingestion commits bounded progress and resumes compatible interrupted runs. The default
 `incrementalFailurePolicy: "preserve-last-good"` reports failed changed files as stale while keeping

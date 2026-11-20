@@ -53,7 +53,8 @@ export { configurePdfOcr, extractPdfPage, extractPdfPages, inspectPdfOcr } from 
 export type { PackageManager, RagmirCommand } from "./package-manager.js"
 export { detectPackageManager, kbCommand, ragmirCommand, rgrCommand } from "./package-manager.js"
 export { previewChunks } from "./preview.js"
-export { expandCitation, search } from "./query.js"
+export { expandCitation, knowledgeAudit, search, searchReport } from "./query.js"
+export type { ExcerptFocus } from "./search-output.js"
 export { compactSearchResults } from "./search-output.js"
 export { securityAudit } from "./security.js"
 export type { EnableSemanticEmbeddingsResult } from "./semantic-config.js"
@@ -95,6 +96,7 @@ export type {
   StorageMaintenanceReport,
 } from "./storage-maintenance.js"
 export { optimizeStorage } from "./storage-maintenance.js"
+export type { ConfigTrustState, GatedSetting, GatedSettingName } from "./trust.js"
 export type {
   AuditOptions,
   AuditReport,
@@ -104,12 +106,17 @@ export type {
   DestroyIndexResult,
   DoctorOptions,
   DoctorReport,
+  DocumentLinks,
   EvaluationCaseResult,
+  EvaluationComparison,
+  EvaluationComparisonMetric,
+  EvaluationMetricDelta,
   EvaluationOptions,
   EvaluationResult,
   EvidenceVersion,
   ExpandCitationOptions,
   ExpandedCitation,
+  FormulationContribution,
   GoldenQuery,
   IncrementalFailurePolicy,
   IndexHealthSnapshot,
@@ -128,12 +135,15 @@ export type {
   IngestionThroughputMetrics,
   IngestOptions,
   IngestResult,
+  KnowledgeAuditOptions,
+  KnowledgeAuditReport,
   KnowledgeBaseContextReport,
   KnowledgeBaseIdentity,
   KnowledgeBaseInfo,
   KnowledgeBaseInventory,
   KnowledgeBaseSourceCatalog,
   KnowledgeBaseSourceCatalogOptions,
+  KnowledgeFinding,
   McpOutputTool,
   OperationOptions,
   ParsedPage,
@@ -146,11 +156,15 @@ export type {
   RuntimeInfo,
   RuntimePackageVersion,
   SearchContextChunk,
+  SearchFormulation,
   SearchOptions,
+  SearchReport,
   SearchResult,
+  SearchRetriever,
   SearchScoreExplanation,
   SecurityAuditOptions,
   SecurityAuditReport,
+  SourceChanges,
   SourceDiagnostics,
   SourceDuplicateCandidate,
   SourcePathCandidate,

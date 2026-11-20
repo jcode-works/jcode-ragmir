@@ -1,5 +1,5 @@
 import { subscribe, unsubscribe } from "node:diagnostics_channel"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -208,7 +208,16 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
     const prompts = await client.listPrompts()
     expect(prompts.prompts).toMatchObject([
       { name: "answer", arguments: [{ name: "question", required: true }] },
+      { name: "compile-source", arguments: [{ name: "source", required: true }] },
+      { name: "audit-knowledge" },
     ])
+    const compile = await client.getPrompt({
+      name: "compile-source",
+      arguments: { source: "raw/incident-42.md" },
+    })
+    expect(JSON.stringify(compile.messages)).toContain("Source: raw/incident-42.md")
+    const auditPrompt = await client.getPrompt({ name: "audit-knowledge" })
+    expect(JSON.stringify(auditPrompt.messages)).toContain("ragmir_audit with knowledge: true")
     const prompt = await client.getPrompt({
       name: "answer",
       arguments: { question: "Who approves refunds?" },
@@ -603,6 +612,165 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
       seen: "include",
     })
     expect(withoutMarkdown).toMatchObject([{ relativePath: "notes/refunds.txt" }])
+  })
+
+  it("describes result folders, keeps opt-in scopes out, and names absent words", async () => {
+    const root = await createProject("ragmir-mcp-contexts-", {
+      sources: ["docs", "archive"],
+      pathContexts: { "docs/adr": "Architecture decisions; the newest one wins" },
+      scopes: {
+        docs: { includePaths: ["docs"], excludePaths: [], description: "Product documentation" },
+        archive: {
+          includePaths: ["archive"],
+          excludePaths: [],
+          description: "Retired notes, may be outdated",
+          searchByDefault: false,
+        },
+      },
+    })
+    await mkdir(path.join(root, "docs", "adr"), { recursive: true })
+    await mkdir(path.join(root, "archive"), { recursive: true })
+    await writeFile(
+      path.join(root, "docs", "adr", "0007-queue.md"),
+      "# Queue\nPayments use a durable queue with retries.\n",
+    )
+    await writeFile(
+      path.join(root, "archive", "queue.md"),
+      "# Old queue\nPayments used an in-memory queue with retries.\n",
+    )
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const byDefault = (await jsonToolResult(client, "ragmir_search", {
+      query: "payments queue retries",
+      topK: 5,
+    })) as Array<{ relativePath: string; pathContext?: string; excerptLine?: number }>
+    expect(byDefault.map((item) => item.relativePath)).toEqual(["docs/adr/0007-queue.md"])
+    expect(byDefault[0]?.pathContext).toBe(
+      "Product documentation; Architecture decisions; the newest one wins",
+    )
+    expect(byDefault[0]?.excerptLine).toBe(2)
+
+    const archived = (await jsonToolResult(client, "ragmir_search", {
+      query: "payments queue retries",
+      scope: "archive",
+      seen: "include",
+    })) as Array<{ relativePath: string; pathContext?: string }>
+    expect(archived).toMatchObject([
+      { relativePath: "archive/queue.md", pathContext: "Retired notes, may be outdated" },
+    ])
+
+    const absent = await client.callTool({
+      name: "ragmir_search",
+      arguments: { query: "payments queue kafka partitions", seen: "include" },
+    })
+    expect(absent._meta?.["ragmir/gaps"]).toEqual([
+      { query: "payments queue kafka partitions", absentTerms: ["kafka", "partitions"] },
+    ])
+    expect(
+      absent.content.some(
+        (item) => item.type === "text" && item.text.startsWith("No indexed passage holds: kafka"),
+      ),
+    ).toBe(true)
+
+    const batch = (await jsonToolResult(client, "ragmir_expand", {
+      citations: ["docs/adr/0007-queue.md:L1-L2#0", "docs/missing.md:L1-L2#0"],
+    })) as Array<{ found: boolean; requestedCitation: string }>
+    expect(batch).toMatchObject([
+      { found: true, requestedCitation: "docs/adr/0007-queue.md:L1-L2#0" },
+      { found: false, requestedCitation: "docs/missing.md:L1-L2#0" },
+    ])
+  })
+
+  it("fuses formulations, focuses excerpts on their words, and keeps them to one question", async () => {
+    const root = await createProject("ragmir-mcp-formulations-")
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "gateway.md"),
+      "# Gateway\nThe gateway terminates TLS for every service.\nEach key may send 600 calls per minute.\n",
+    )
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const plain = (await jsonToolResult(client, "ragmir_search", {
+      query: "gateway",
+      seen: "include",
+    })) as Array<{ excerptLine?: number }>
+    const focused = (await jsonToolResult(client, "ragmir_search", {
+      query: "gateway",
+      searches: [{ type: "lex", query: '"calls per minute"' }],
+      intent: "request quota",
+      seen: "include",
+      explain: true,
+    })) as Array<{ excerptLine?: number; score?: { formulations?: Array<{ label: string }> } }>
+    expect(plain[0]?.excerptLine).not.toBe(3)
+    expect(focused[0]?.excerptLine).toBe(3)
+    expect(focused[0]?.score?.formulations?.map((item) => item.label)).toEqual(["lex#1"])
+
+    const refused = await client.callTool({
+      name: "ragmir_search",
+      arguments: {
+        queries: ["gateway", "tls"],
+        searches: [{ type: "vec", query: "request rate limit" }],
+      },
+    })
+    expect(refused.isError).toBe(true)
+    expect(textContent(refused)).toMatch(/searches refine one question/u)
+  })
+
+  it("audits Markdown pages as a knowledge base on request", async () => {
+    const root = await createProject("ragmir-mcp-knowledge-")
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "index.md"),
+      "# Index\nSee [retries](retries.md) and [[Incident 42]].\n",
+    )
+    await writeFile(path.join(root, ".ragmir", "raw", "retries.md"), "# Retries\nBack off.\n")
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const report = (await jsonToolResult(client, "ragmir_audit", { knowledge: true })) as {
+      pages: number
+      findings: {
+        missingPages: { count: number; items: Array<{ target: string }> }
+        unlinkedPages: { count: number; items: Array<{ path: string }> }
+      }
+    }
+
+    expect(report.pages).toBe(2)
+    expect(report.findings.missingPages.items.map((item) => item.target)).toEqual(["Incident 42"])
+    expect(report.findings.unlinkedPages.items).toEqual([{ path: ".ragmir/raw/index.md" }])
+  })
+
+  it("only names tools that exist in its instructions, prompts, skills, and agent guide", async () => {
+    const root = await createProject("ragmir-mcp-tool-names-")
+    const { client } = await connectTestClient(root)
+    const tools = new Set((await client.listTools()).tools.map((tool) => tool.name))
+    const repository = path.resolve(import.meta.dirname, "../../..")
+    const skillFiles = await Promise.all(
+      [
+        "packages/ragmir-core/skills/ragmir/SKILL.md",
+        ...(await readdir(path.join(repository, "skills"))).map(
+          (name) => `skills/${name}/SKILL.md`,
+        ),
+        "plugins/ragmir/README.md",
+        "docs/agent-integration.md",
+      ].map((file) => readFile(path.join(repository, file), "utf8")),
+    )
+    const prompts = await Promise.all(
+      [
+        { name: "answer", arguments: { question: "q" } },
+        { name: "compile-source", arguments: { source: "raw/a.md" } },
+        { name: "audit-knowledge" },
+      ].map(async (request) => JSON.stringify((await client.getPrompt(request)).messages)),
+    )
+    const named = [client.getInstructions() ?? "", ...prompts, ...skillFiles]
+      .join("\n")
+      .matchAll(/\bragmir_[a-z]+(?:_[a-z]+)*\b/gu)
+
+    const unknown = [...new Set([...named].map((match) => match[0]))].filter(
+      (name) => !tools.has(name),
+    )
+    expect(unknown).toEqual([])
+    expect(tools.size).toBe(6)
   })
 
   it("pages through a long document with next and previous citations", async () => {

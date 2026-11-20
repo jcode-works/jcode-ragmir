@@ -4,7 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
+
+
+class SearchFormulation(TypedDict):
+    """One more way to search the same question, fused with it into one ranking.
+
+    ``lex`` searches keywords: words rank, ``"an exact phrase"`` must appear, ``-word`` must not.
+    ``vec`` searches a paraphrase and ``hyde`` a short passage written as the answer might be.
+    """
+
+    type: Literal["lex", "vec", "hyde"]
+    query: str
 
 
 def _int(value: object) -> int | None:
@@ -78,6 +89,12 @@ class ExpandedCitation:
     """Expand it with the same radius to read on; absent at the end of the document."""
     previous_citation: str | None
     raw: Mapping[str, Any] = field(repr=False, compare=False)
+    suggested_citation: str | None = None
+    """When not found in a document still indexed: the citation of its nearest passage."""
+    similar_paths: tuple[str, ...] = ()
+    """When the cited file is not indexed: the indexed files whose names come closest."""
+    links: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
+    """For a Markdown page: its ``outgoing`` links and the ``incoming`` pages linking to it."""
 
     @property
     def text(self) -> str:
@@ -87,6 +104,7 @@ class ExpandedCitation:
     @classmethod
     def from_json(cls, value: Mapping[str, Any]) -> ExpandedCitation:
         passages = value.get("passages")
+        links = value.get("links")
         return cls(
             citation=str(value.get("requestedCitation", "")),
             found=value.get("found") is True,
@@ -100,6 +118,9 @@ class ExpandedCitation:
             next_citation=_str(value.get("nextCitation")),
             previous_citation=_str(value.get("previousCitation")),
             raw=value,
+            suggested_citation=_str(value.get("suggestedCitation")),
+            similar_paths=_strings(value.get("similarPaths")),
+            links=links if isinstance(links, Mapping) else None,
         )
 
 
@@ -107,6 +128,46 @@ class ExpandedCitation:
 class IndexedFile:
     path: str
     chunks: int
+    title: str | None = None
+    """A Markdown page's front matter ``title``."""
+    description: str | None = None
+    """A Markdown page's front matter ``description`` or ``summary``."""
+
+
+@dataclass(frozen=True, slots=True)
+class OutlineEntry:
+    """One section of a document, as ``sources(outline=True)`` lists them."""
+
+    context_path: str
+    """Heading path of the section, such as ``Install > Docker``."""
+    citation: str
+    """Citation of the section's first passage: expand it to read the section."""
+
+
+@dataclass(frozen=True, slots=True)
+class SourceChanges:
+    """Indexed files changed since a time, as ``sources(changed_since=...)`` reports them."""
+
+    since: str
+    modified: tuple[str, ...]
+    """Files added or edited since, by the modification time recorded at indexing."""
+    removed: tuple[str, ...]
+    """Files the last ingest dropped."""
+    complete: bool
+    """False when an earlier ingest may have removed other files since that time."""
+
+    @classmethod
+    def from_json(cls, value: Mapping[str, Any]) -> SourceChanges:
+        def items(name: str) -> tuple[str, ...]:
+            part = value.get(name)
+            return _strings(part.get("items")) if isinstance(part, Mapping) else ()
+
+        return cls(
+            since=_str(value.get("since")) or "",
+            modified=items("modified"),
+            removed=items("removed"),
+            complete=value.get("complete") is True,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +184,10 @@ class SourceCatalog:
     missing_from_index: tuple[str, ...]
     stale_in_index: tuple[str, ...]
     raw: Mapping[str, Any] = field(repr=False, compare=False)
+    changes: SourceChanges | None = None
+    """With ``changed_since``: what changed in the index since then."""
+    outline: tuple[OutlineEntry, ...] = ()
+    """With ``outline=True`` and ``paths`` matching one file: its sections in reading order."""
 
     @classmethod
     def from_json(cls, value: Mapping[str, Any]) -> SourceCatalog:
@@ -130,9 +195,16 @@ class SourceCatalog:
         totals = value.get("totals")
         page = value.get("page")
         filter_ = value.get("filter")
+        changes = value.get("changes")
+        outline = value.get("outline")
         return cls(
             files=tuple(
-                IndexedFile(path=str(item.get("source", "")), chunks=_int(item.get("chunks")) or 0)
+                IndexedFile(
+                    path=str(item.get("source", "")),
+                    chunks=_int(item.get("chunks")) or 0,
+                    title=_str(item.get("title")),
+                    description=_str(item.get("description")),
+                )
                 for item in (files if isinstance(files, list) else [])
                 if isinstance(item, Mapping)
             ),
@@ -146,6 +218,15 @@ class SourceCatalog:
             missing_from_index=_strings(value.get("missingFromIndex")),
             stale_in_index=_strings(value.get("staleInIndex")),
             raw=value,
+            changes=SourceChanges.from_json(changes) if isinstance(changes, Mapping) else None,
+            outline=tuple(
+                OutlineEntry(
+                    context_path=str(entry.get("contextPath", "")),
+                    citation=str(entry.get("citation", "")),
+                )
+                for entry in (outline if isinstance(outline, list) else [])
+                if isinstance(entry, Mapping)
+            ),
         )
 
 

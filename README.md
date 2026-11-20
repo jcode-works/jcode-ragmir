@@ -82,6 +82,8 @@ npx rgr search "how are permissions checked?" --compact
   `rgr hooks install` refreshes it in the background after commits, merges, and checkouts.
 - **Private by default.** No account, telemetry, or hosted storage. The default `local-hash`
   provider runs offline without a model download; local semantic embeddings are one command away.
+  A cloned or pulled config cannot run a command, reach an embedding server, send a secret, or read
+  outside the project until you approve it on your machine with `rgr trust`.
 - **The same on every platform.** Paths are cited with forward slashes and in one Unicode form on
   macOS, Linux, and Windows, so an exclusion written as `Études` also excludes a folder stored
   decomposed, and every release is tested on all three systems.
@@ -200,7 +202,7 @@ LangChain.js retriever, the MCP server for any client, or the TypeScript API.
 | Qwen Code | `qwen extensions install jcode-works/ragmir` |
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
 | Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
-| Any agent that loads skills | `npx skills add jcode-works/ragmir` installs the retrieval, setup, build, and evaluation [skills](./skills) ([skills.sh](https://skills.sh/jcode-works/ragmir)) |
+| Any agent that loads skills | `npx skills add jcode-works/ragmir` installs the retrieval, setup, build, evaluation, and wiki [skills](./skills) ([skills.sh](https://skills.sh/jcode-works/ragmir)) |
 | LangChain.js and LangGraph.js | `RagmirRetriever` for chains, `createRagmirTools` for agents, from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever-and-agent-tools)) |
 | Python | `pip install ragmir` for the client, `langchain-ragmir` for LangChain and LangGraph, `llama-index-retrievers-ragmir` for LlamaIndex ([Python guide](./docs/python.md)) |
 | Local models such as Ollama | [Local model example](./docs/agent-integration.md#confidential-chat-local-model-example) |
@@ -208,10 +210,18 @@ LangChain.js retriever, the MCP server for any client, or the TypeScript API.
 | Your own application | `createRagmirClient()` from the TypeScript API |
 
 The MCP server exposes `ragmir_search` (one question or up to five related ones in a shared budget,
-with folder or glob filters and named scopes), `ragmir_expand` (a citation with its neighbours,
-and the next window to read a document through), `ragmir_sources` (the indexed documents),
-`ragmir_status`, `ragmir_audit`, and `ragmir_ingest`, which refreshes the index after files change
-and writes nothing but Ragmir's private index. An `answer` prompt asks for a fully cited answer.
+with folder or glob filters, named scopes, and the agent's own keyword, paraphrase, or
+likely-answer formulations fused into one ranking), `ragmir_expand` (a citation with its neighbours,
+the next window to read a document through, up to five citations at once, and a Markdown page's
+links and backlinks), `ragmir_sources` (the indexed documents with their page titles, one
+document's outline, or the files changed since a given time), `ragmir_status`, `ragmir_audit`
+(also a read-only audit of Markdown pages: broken links, missing pages, changed citations), and
+`ragmir_ingest`, which refreshes the index after files change and writes nothing but Ragmir's
+private index. Search excerpts start at the lines that hold the
+question's words, results say what their folder is when the configuration describes it, and a
+notice names question words that no indexed passage holds. Prompts ask for a fully cited
+`answer`, for compiling a source into cited pages (`compile-source`), and for fixing what the
+knowledge audit finds (`audit-knowledge`).
 Its instructions name the base it serves. Register it per project: a server registered for every
 project answers unrelated workspaces too, and `rgr doctor` flags it.
 

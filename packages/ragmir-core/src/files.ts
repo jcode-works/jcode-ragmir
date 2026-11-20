@@ -26,6 +26,7 @@ import {
   sourcePathKey,
   unicodeGlobVariants,
 } from "./source-paths.js"
+import { sourceEntryLeavesProject } from "./trust.js"
 import type {
   Config,
   OperationOptions,
@@ -1730,9 +1731,17 @@ async function sourceInputs(
   const patterns: string[] = []
   const ignorePatterns: string[] = []
 
+  // `loadConfig` already dropped unapproved out-of-project entries from `sources`; the legacy
+  // sources file is read here, so the same rule applies to its lines.
+  const outsideSourcesBlocked =
+    config.configTrust?.status === "untrusted" &&
+    config.configTrust.settings.some((setting) => setting.name === "sources")
   const classifyEntry = (entry: string): void => {
     const trimmed = entry.trim()
     if (!trimmed || trimmed.startsWith("#")) {
+      return
+    }
+    if (outsideSourcesBlocked && sourceEntryLeavesProject(config.projectRoot, trimmed)) {
       return
     }
     if (trimmed.startsWith("!")) {

@@ -25,7 +25,7 @@ rgr search "release decision"
 | `preview` | Parse and chunk selected sources without writing the index. |
 | `ingest [--rebuild] [--batch-size N] [--incremental-failure-policy POLICY] [--metrics] [--json]` | Index configured sources through bounded windows with per-file durable progress; optionally return privacy-safe phase and throughput metrics. |
 | `search <query>` | Return ranked cited passages. |
-| `audit [--unsupported]` | Compare sources with the index, list skipped files, and diagnose source rules and index concentration. |
+| `audit [--unsupported] [--knowledge]` | Compare sources with the index, list skipped files, and diagnose source rules and index concentration; `--knowledge` audits the Markdown pages instead. |
 | `hooks install\|uninstall\|status` | Refresh the index in the background after commits, merges, checkouts, and rebases. |
 | `bases` | List root and nested monorepo bases and mark the active one. |
 | `status` | Show the base name and scopes, configuration, live freshness, indexed chunk count, and the latest ingestion progress. |
@@ -48,11 +48,37 @@ rgr search "migration" --exact-vector-search
 ```
 
 Text output marks a result whose file changed or disappeared after indexing
-(`source modified since indexing`) and a result with thin support (`weak evidence`). JSON results
+(`source modified since indexing`) and a result with thin support (`weak evidence`), prints the
+result's `context:` when the configuration describes its folder, and names the question's words
+that no indexed passage holds. `--json` adds them as `absentTerms`; `--compact` snippets start at
+the lines holding the question's words. JSON results
 carry the same information as `sourceStatus` and `weakEvidence`. A search whose first five results are
 all weak prints no result, with any provider: the base holds no evidence for the question. `--scope`
 applies a named scope from the config. `--include-path` and `--exclude-path` take a folder, a file,
 or a glob such as `"**/*.pdf"`, and accept backslashes on every platform.
+
+When the question's own words may miss the answer, add formulations of the same need. Each one
+searches the channel that suits it, and the results are fused with the question's into one ranking:
+
+```bash
+rgr search "How are API requests throttled?" --lex '"rate limit" quota -deprecated'
+rgr search "How are API requests throttled?" --vec "limits on how many calls a client may send"
+rgr search "How are API requests throttled?" --hyde "Each API key may send 600 requests per minute."
+```
+
+- `--lex` searches keywords: plain words rank passages, `"an exact phrase"` must appear, and
+  `-word` or `-"a phrase"` removes every passage that holds it, including passages the question
+  found. Quote a term that starts with a hyphen: `--lex '"--top-k" limit'`.
+- `--vec` adds a paraphrase and `--hyde` a short passage written as the answer might be. Ragmir
+  searches their words, which reach passages the question's own words miss.
+- The options repeat, up to five formulations in total. Each weighs half as much as the question's
+  own lists (`--hyde` a quarter), so it reorders and completes the answer without displacing what
+  the question found.
+  Only the question decides whether there is an answer: formulations never turn a refusal into
+  one.
+- `--explain` lists, per result, the formulations that found it and its rank in each.
+- `--intent "<words>"`, with `--compact`, says what the question is about to pick excerpt lines;
+  it never searches on its own.
 
 `sources add` accepts paths, globs, and `!` exclusions. Search accepts `--top-k`,
 `--include-path`, `--exclude-path`, and repeatable `--context-path`. Search accepts
@@ -86,6 +112,44 @@ required facts, exceptions, and current decisions are actually present.
 `preview` uses the active extraction and chunking configuration without changing the search index.
 It can populate the local OCR cache and returns extracted chunk text. `audit` reports min, mean,
 p50, p95, and max chunk sizes plus structural-context coverage.
+
+### Knowledge audit
+
+`rgr audit --knowledge` audits the indexed Markdown pages as a knowledge base, such as a wiki that
+agents maintain from raw sources. It reads the index, changes nothing, and every finding is
+deterministic:
+
+```bash
+rgr audit --knowledge
+rgr audit --knowledge --path wiki --json
+rgr audit --knowledge --assume-removed wiki/old-runbook.md
+```
+
+| Finding | Meaning |
+| --- | --- |
+| `brokenLinks` | A relative link reaches no indexed file; `suggestion` names the one file with that name. |
+| `missingPages` | `[[Wikilinks]]` to pages that do not exist, most referenced first, each counted once. |
+| `unlinkedPages` | Pages that no other page links to; a link to itself does not count. |
+| `duplicateTitles` | Pages sharing a title, from front matter or a level-1 heading. |
+| `brokenCitations` | Ragmir citations written in a page whose passage moved (`changed`) or left the index (`missing`). |
+| `stalePages` | Pages whose front matter `sources` record a `sha256` the source no longer has. |
+| `lostSources` | Pages whose every declared source left the index. |
+
+A page declares what it was written from in its front matter, as a path, a path with the SHA-256
+of the version it used, or a citation with the `evidence` id that `rgr search --json` returned:
+
+```yaml
+sources:
+  - raw/incident-42.md
+  - path: raw/vendor-sla.pdf
+    sha256: 9f2c...
+  - citation: raw/notes.md:L12-L18#3
+    evidence: 4b1e...
+```
+
+`--path` restricts the audit to some pages, which then form the knowledge base on their own.
+`--assume-removed` adds the links that removing a page would break and the pages it would leave
+unlinked. Each finding lists its first 20 items and keeps its full count.
 
 ## Freshness
 
@@ -293,8 +357,12 @@ rgr storage generations --json
 rgr storage gc --dry-run --json
 rgr storage gc --orphans
 rgr destroy-index --yes
+rgr trust            # review settings from project config files; --yes, --list, --revoke
 ```
 
+- `trust` lists the settings from project config files that run a program, send data off the
+  machine, or read outside the project, and approves them for this machine. They stay inactive
+  until then; see [Settings that need approval](./configuration.md#settings-that-need-approval-on-each-machine).
 - `setup` installs canonical skills, native project links, a local runner, and selected MCP helpers.
 - `install-skill` refreshes only the canonical kit; `install-agent` changes native scope or link mode.
 - `install-agent --force` replaces a conflicting same-name skill only when explicitly requested.
@@ -351,7 +419,19 @@ configuration (and exclude it from `sources` if a glob matches it), then gate CI
 ```bash
 rgr evaluate --golden ragmir.golden.json          # exits with status 1 when a threshold fails
 rgr evaluate --golden ragmir.golden.json --json   # adds gates, per-category groups, and fingerprints
+rgr evaluate --golden ragmir.golden.json --baseline before.json   # signed change per metric
+rgr evaluate --golden ragmir.golden.json --retriever lexical      # one channel, for diagnosis
 ```
+
+- `--baseline` takes an earlier `--json` report of the same golden file and prints each metric
+  before and after with the signed change, then the change per category. It also lists the
+  settings that differ between the two runs (index, model, profile, retriever, `topK`) and warns
+  when the baseline evaluated another golden file.
+- `--retriever lexical` or `vector` ranks with that channel alone, to measure what each one adds
+  (`rgr search --retriever` does the same for one query). Such a run never stores a verified
+  quality report.
+- The report adds `answerRateAt`: the share of answerable questions with a relevant passage in
+  the first 1, 3, 5, or 10 results.
 
 - `expectedPaths` lists project-relative files; any of them in the top `topK` is a hit.
   `expectedCitations` requires exact citations such as `docs/runbook.md:L12-L18#3`, copied from
@@ -360,7 +440,8 @@ rgr evaluate --golden ragmir.golden.json --json   # adds gates, per-category gro
 - `relevanceJudgments` grades evidence from 0 to 3 for nDCG. `answerable: false` marks a hard
   negative whose correct result is no passage. `category` and `locale` group the report.
 - A case can set its own `topK`, `includePaths`, `excludePaths`, and `contextPaths`. `topK`
-  defaults to 3; `--top-k` overrides the file value.
+  defaults to 3; `--top-k` overrides the file value. `searches` replays the formulations an agent
+  sends with the question, so a report measures them too.
 - `thresholds` accepts `recallAt1`, `recallAt3`, `recallAt5`, `recallAt10`, `precisionAt5`,
   `meanReciprocalRankAt10`, `ndcgAt10`, and `exactCitationRate` as minimums, and
   `maximumFalsePositiveRate` as a maximum, all between 0 and 1.

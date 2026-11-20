@@ -132,6 +132,11 @@ with the Ragmir config that records its pinned revision and digest. Normal retri
 model loading disabled, so the server never downloads it. For scanned documents, install Tesseract
 or OCRmyPDF in the image and configure it with `rgr ocr doctor` and `rgr ocr setup`.
 
+Extractor commands, an embedding endpoint outside the server, and sources outside the project run
+only once approved on the machine: run `rgr trust --yes` after reviewing the config, set them
+through `RAGMIR_*` environment variables, or set `RAGMIR_TRUST_PROJECT_CONFIG=1` in an image whose
+configuration you build and review yourself.
+
 ## Before handing it over
 
 - `rgr status --json` reports `ready`, the base name, and the indexed file count for health checks.

@@ -25,6 +25,32 @@ describe("chunkDocument", () => {
     expect(chunks.every((chunk) => chunk.text.length > 0)).toBe(true)
   })
 
+  it("never splits a surrogate pair at a chunk boundary or its overlap", () => {
+    const doc: ParsedDocument = {
+      file: {
+        absolutePath: "/tmp/emoji.txt",
+        relativePath: "emoji.txt",
+        source: "emoji.txt",
+        extension: ".txt",
+        bytes: 100,
+        mtimeMs: 1,
+        checksum: "abc",
+      },
+      text: "🚀".repeat(40),
+    }
+    const loneHalf = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u
+
+    for (const [size, overlap] of [
+      [7, 3],
+      [9, 0],
+      [11, 5],
+    ] as const) {
+      const chunks = chunkDocument(doc, size, overlap)
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.some((chunk) => loneHalf.test(chunk.text))).toBe(false)
+    }
+  })
+
   it("should stop chunk allocation when the configured window is exhausted", () => {
     const doc: ParsedDocument = {
       file: {

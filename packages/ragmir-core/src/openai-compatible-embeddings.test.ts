@@ -1,45 +1,22 @@
-import { createServer, type IncomingMessage, type Server } from "node:http"
-import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { embedTexts } from "./embeddings.js"
 import { rankingPolicyFor } from "./ranking.js"
 import { testConfig } from "./test-support/config.js"
+import { type EmbeddingServer, startEmbeddingServer } from "./test-support/embedding-server.js"
 
-interface CapturedRequest {
-  path: string
-  authorization: string | undefined
-  body: { model: string; input: string[] }
-}
-
-const servers: Server[] = []
+const servers: EmbeddingServer[] = []
 
 afterEach(async () => {
-  await Promise.all(
-    servers
-      .splice(0)
-      .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
-  )
+  await Promise.all(servers.splice(0).map((server) => server.close()))
   delete process.env.RAGMIR_TEST_EMBEDDING_KEY
 })
 
-/** A local stand-in for Ollama or vLLM: answers `/v1/embeddings` with one vector per input. */
 async function embeddingServer(
-  reply: (body: CapturedRequest["body"]) => { status?: number; payload: unknown },
-): Promise<{ endpoint: string; requests: CapturedRequest[] }> {
-  const requests: CapturedRequest[] = []
-  const server = createServer(async (request: IncomingMessage, response) => {
-    let raw = ""
-    for await (const chunk of request) raw += chunk
-    const body = JSON.parse(raw) as CapturedRequest["body"]
-    requests.push({ path: request.url ?? "", authorization: request.headers.authorization, body })
-    const { status = 200, payload } = reply(body)
-    response.writeHead(status, { "content-type": "application/json" })
-    response.end(JSON.stringify(payload))
-  })
+  reply: Parameters<typeof startEmbeddingServer>[0],
+): Promise<EmbeddingServer> {
+  const server = await startEmbeddingServer(reply)
   servers.push(server)
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()))
-  const { port } = server.address() as AddressInfo
-  return { endpoint: `http://127.0.0.1:${port}/v1`, requests }
+  return server
 }
 
 describe("openai-compatible embeddings", () => {

@@ -10,18 +10,22 @@ import { ingest } from "./ingest.js"
 import { initProject } from "./init.js"
 import {
   expandCitation,
+  knowledgeAudit,
   lexicalCandidateLimit,
   QUERY_EXPLANATION_DIAGNOSTICS_CHANNEL,
   search,
   vectorCandidateLimit,
 } from "./query.js"
 import { openRowsTable } from "./store.js"
+import { type EmbeddingServer, startEmbeddingServer } from "./test-support/embedding-server.js"
 import { integrationTimeout } from "./test-support/timeouts.js"
 
 const tempDirs: string[] = []
+const servers: EmbeddingServer[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 afterEach(async () => {
+  await Promise.all(servers.splice(0).map((server) => server.close()))
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true })
   }
@@ -173,6 +177,251 @@ describe("search", { timeout: integrationTimeout(20_000) }, () => {
         message: "contextRadius must be a non-negative integer.",
       } satisfies Partial<RagmirError>)
     }
+    await expect(
+      search("policy", { cwd: root, retriever: "dense" as unknown as "vector" }),
+    ).rejects.toMatchObject({
+      code: "INVALID_ARGUMENT",
+      message: "retriever must be one of hybrid, lexical, vector.",
+    } satisfies Partial<RagmirError>)
+  })
+
+  it("should rank with one channel when a diagnostic retriever is requested", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-retriever-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "retention.md"),
+      "Invoices are kept for ten years under the retention policy.\n",
+    )
+    await ingest({ cwd: root })
+
+    const [hybrid] = await search("invoice retention policy", { cwd: root, explain: true })
+    const [lexical] = await search("invoice retention policy", {
+      cwd: root,
+      explain: true,
+      retriever: "lexical",
+    })
+    const [vector] = await search("invoice retention policy", {
+      cwd: root,
+      explain: true,
+      retriever: "vector",
+    })
+
+    expect(hybrid?.score?.retriever).toBe("hybrid")
+    expect(lexical?.score?.retriever).toBe("lexical")
+    expect(lexical?.score?.vectorRank).toBeNull()
+    expect(lexical?.distance).toBeNull()
+    expect(vector?.score?.retriever).toBe("vector")
+    expect(vector?.score?.lexicalRank).toBeNull()
+    expect(vector?.relativePath).toBe(".ragmir/raw/retention.md")
+  })
+
+  it("should fuse an agent's formulations, requiring lex phrases and dropping exclusions", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-formulations-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(
+      path.join(raw, "quota.md"),
+      "Each API key may send 600 calls per minute; the gateway answers HTTP 429 beyond that.\n",
+    )
+    await writeFile(
+      path.join(raw, "legacy.md"),
+      "Deprecated: the old gateway throttled every key to 60 calls per minute.\n",
+    )
+    await ingest({ cwd: root })
+    const paths = (results: Array<{ relativePath: string }>): string[] =>
+      results.map((result) => result.relativePath).sort()
+    const searches = [{ type: "lex" as const, query: '"per minute" -deprecated' }]
+
+    const alone = await search("gateway calls per key", { cwd: root, topK: 3 })
+    const fused = await search("gateway calls per key", {
+      cwd: root,
+      topK: 3,
+      explain: true,
+      searches,
+    })
+    // The question's own words are absent from both files: formulations never turn its refusal
+    // into an answer, even when their keywords match.
+    const refused = await search("How are requests throttled?", { cwd: root, searches })
+
+    expect(paths(alone)).toEqual([".ragmir/raw/legacy.md", ".ragmir/raw/quota.md"])
+    expect(paths(fused)).toEqual([".ragmir/raw/quota.md"])
+    expect(fused[0]?.score?.formulations).toEqual([
+      expect.objectContaining({ label: "lex#1", rank: 1 }),
+    ])
+    expect(refused).toEqual([])
+    await expect(
+      search("gateway", { cwd: root, searches: [{ type: "lex", query: "-deprecated" }] }),
+    ).rejects.toMatchObject({ code: "INVALID_ARGUMENT" })
+  })
+
+  it("should judge a passage only formulations found by its distance to the question", async () => {
+    // Notes crowd the question's own vector candidates, so only the formulations' keywords reach
+    // the target, which stands near enough to the question to pass its evidence rule.
+    const vectorOf = (text: string): number[] => {
+      const note = /beta note (\d+)/u.exec(text)
+      if (note) return [1, 0, Number(note[1]) / 1_000, 0]
+      if (text.includes("omega")) return [0.6, 0.8, 0, 0]
+      return text.includes("alpha") ? [1, 0, 0, 0] : [0, 0, 0, 1]
+    }
+    const server = await startEmbeddingServer((body) => ({
+      payload: { data: body.input.map((text, index) => ({ index, embedding: vectorOf(text) })) },
+    }))
+    servers.push(server)
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-formulation-distance-"))
+    tempDirs.push(root)
+    await writeFile(
+      path.join(root, "ragmir.config.json"),
+      JSON.stringify({
+        embeddingProvider: "openai-compatible",
+        embeddingEndpoint: server.endpoint,
+        embeddingModel: "test-embedding",
+        chunkSize: 60,
+        chunkOverlap: 0,
+      }),
+    )
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    // One note per chunk, spread over enough files that no single file crowds the candidates.
+    for (let file = 0; file < 8; file += 1) {
+      const notes = Array.from(
+        { length: 13 },
+        (_, item) => `beta note ${file * 13 + item} ${"filler ".repeat(6)}`,
+      )
+      await writeFile(path.join(raw, `beta-${file}.md`), notes.join("\n\n"))
+    }
+    await writeFile(path.join(raw, "target.md"), "omega gamma escalation path\n")
+    await ingest({ cwd: root })
+
+    const results = await search("alpha", {
+      cwd: root,
+      topK: 2,
+      explain: true,
+      searches: [
+        { type: "lex", query: "gamma" },
+        { type: "vec", query: "omega escalation" },
+        { type: "hyde", query: "The omega escalation path starts with gamma." },
+      ],
+    })
+    const target = results.find((result) => result.relativePath === ".ragmir/raw/target.md")
+
+    // The squared L2 distance to the question, measured although keywords found the passage.
+    expect(target?.distance).toBeCloseTo(0.8)
+    expect(target?.score?.vectorRank).toBeNull()
+    expect(target?.score?.lexicalRank).toBeNull()
+    expect(target?.score?.formulations?.map((item) => item.label)).toEqual([
+      "lex#1",
+      "vec#1",
+      "hyde#1",
+    ])
+  })
+
+  it("should list a cited Markdown page's links and the pages that link to it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-links-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const wiki = path.join(root, ".ragmir", "raw", "wiki")
+    await mkdir(wiki, { recursive: true })
+    await writeFile(
+      path.join(wiki, "payment-retries.md"),
+      [
+        "# Payment retries",
+        "Failed payments follow the [backoff policy](backoff.md).",
+        "The [old runbook](missing-runbook.md) is gone; see [[Incident 42]].",
+        "Vendor docs live at [the vendor](https://vendor.example/docs).",
+      ].join("\n"),
+    )
+    await writeFile(path.join(wiki, "backoff.md"), "# Backoff\nWait 2, 4, then 8 minutes.\n")
+    await writeFile(
+      path.join(wiki, "Incident 42.md"),
+      "# Incident 42\nRetries stormed the queue.\n",
+    )
+    await writeFile(
+      path.join(wiki, "index.md"),
+      "# Index\n\n- [Payment retries](payment-retries.md)\n- [[payment-retries|Retries]]\n",
+    )
+    await writeFile(
+      path.join(wiki, "notes.md"),
+      "# Notes\nPayment retries appear in `[code](payment-retries.md)`, which is no link.\n",
+    )
+    await ingest({ cwd: root })
+    const [page] = await search("payment retries backoff policy", {
+      cwd: root,
+      topK: 1,
+      includePaths: [".ragmir/raw/wiki/payment-retries.md"],
+    })
+
+    const expanded = await expandCitation(page?.citation ?? "", { cwd: root })
+
+    expect(expanded.links?.outgoing).toEqual({
+      count: 3,
+      items: [
+        { target: "backoff.md", line: 2, path: ".ragmir/raw/wiki/backoff.md" },
+        { target: "missing-runbook.md", line: 3, path: null },
+        { target: "Incident 42", line: 3, path: ".ragmir/raw/wiki/Incident 42.md" },
+      ],
+    })
+    expect(expanded.links?.incoming).toMatchObject({
+      count: 2,
+      complete: true,
+      items: [
+        { source: ".ragmir/raw/wiki/index.md", line: 3 },
+        { source: ".ragmir/raw/wiki/index.md", line: 4 },
+      ],
+    })
+    expect(expanded.links?.incoming.items[0]?.citation).toMatch(
+      /^\.ragmir\/raw\/wiki\/index\.md:L/u,
+    )
+    const backoff = await search("backoff minutes", { cwd: root, topK: 1 })
+    expect(
+      (await expandCitation(backoff[0]?.citation ?? "", { cwd: root })).links?.incoming.count,
+    ).toBe(1)
+  })
+
+  it("should audit written citations against the index as their sources change", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-knowledge-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(path.join(raw, "wiki"), { recursive: true })
+    await writeFile(path.join(raw, "notes.md"), "Refunds are approved within 14 days.\n")
+    await ingest({ cwd: root })
+    const [source] = await search("refunds approved days", { cwd: root, topK: 1 })
+    await writeFile(
+      path.join(raw, "wiki", "refunds.md"),
+      [
+        "---",
+        "sources:",
+        `  - citation: ${source?.citation}`,
+        `    evidence: ${source?.evidence?.id}`,
+        "---",
+        `# Refunds\nApproved within 14 days (${source?.citation}). See [[Chargebacks]].`,
+      ].join("\n"),
+    )
+    await ingest({ cwd: root })
+
+    const before = await knowledgeAudit(root)
+    await writeFile(path.join(raw, "notes.md"), "Refunds are approved within 30 days.\n")
+    await ingest({ cwd: root })
+    const after = await knowledgeAudit(root, { paths: [".ragmir/raw/wiki"] })
+
+    expect(before).toMatchObject({ pages: 2, citations: 1 })
+    expect(before.findings.brokenCitations.count).toBe(0)
+    expect(before.findings.missingPages.items).toEqual([
+      { target: "Chargebacks", references: 1, sources: [".ragmir/raw/wiki/refunds.md"] },
+    ])
+    expect(after.pages).toBe(1)
+    expect(after.findings.brokenCitations.items).toEqual([
+      {
+        source: ".ragmir/raw/wiki/refunds.md",
+        line: 3,
+        citation: source?.citation,
+        status: "changed",
+      },
+    ])
   })
 
   it("should size candidate pools from the fusion bound with a profile margin", () => {
@@ -1120,6 +1369,32 @@ describe("expandCitation", () => {
     await expect(expandCitation(forgedCitation, { cwd: root })).rejects.toThrow(
       "do not match the indexed passage",
     )
+  })
+
+  it("should point a citation that finds nothing at the nearest passage or similar files", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-expand-hints-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(
+      path.join(raw, "release-policy.md"),
+      "# Releases\nTwo approvals are required.\n",
+    )
+    await ingest({ cwd: root })
+
+    const beyond = await expandCitation(".ragmir/raw/release-policy.md:L1-L2#9", { cwd: root })
+    const misspelt = await expandCitation(".ragmir/raw/releases-policy.md:L1-L2#0", { cwd: root })
+
+    expect(beyond).toMatchObject({
+      found: false,
+      documentChunks: 1,
+      suggestedCitation: ".ragmir/raw/release-policy.md:L1-L2#0",
+    })
+    expect(misspelt).toMatchObject({
+      found: false,
+      similarPaths: [".ragmir/raw/release-policy.md"],
+    })
   })
 
   it("should return no passages when the cited chunk does not exist", async () => {

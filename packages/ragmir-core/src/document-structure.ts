@@ -1,3 +1,6 @@
+import YAML from "yaml"
+import { isRecord } from "./guards.js"
+
 export type StructuralSpanKind = "markdown-section" | "json-node" | "jsonl-entry"
 
 export interface StructuralSpan {
@@ -51,6 +54,34 @@ export const MARKDOWN_EXTENSIONS: ReadonlySet<string> = new Set([
 const ATX_HEADING_PATTERN = /^ {0,3}(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/u
 const SETEXT_HEADING_PATTERN = /^ {0,3}(=+|-+)\s*$/u
 const FENCE_PATTERN = /^\s*(`{3,}|~{3,})/u
+// Front matter is a short metadata block; a longer leading `---` pair is a thematic break.
+const FRONTMATTER_MAX_CHARACTERS = 16_384
+const FRONTMATTER_TITLE_MAX_CHARACTERS = 200
+const FRONTMATTER_DESCRIPTION_MAX_CHARACTERS = 500
+const FRONTMATTER_MAX_SOURCES = 200
+// Its first line is a key, which tells it apart from prose between two thematic breaks.
+const YAML_KEY_LINE_PATTERN = /^["']?[\p{L}\p{N}_][^:\n]*:(?:\s|$)/u
+const TOML_KEY_LINE_PATTERN = /^(?:\[[^\]\n]+\]|["']?[\p{L}\p{N}_][\w.-]*["']?\s*=)/u
+
+/** A leading front matter block of a Markdown page, and the fields Ragmir reads from it. */
+export interface MarkdownFrontmatter {
+  /** Offset just past the closing fence line. */
+  end: number
+  title?: string
+  description?: string
+  /**
+   * The sources a derived page declares: a path, a path with the `sha256` it was written from, or
+   * a Ragmir `citation` with its `evidence` id.
+   */
+  sources?: FrontmatterSource[]
+}
+
+export interface FrontmatterSource {
+  path?: string
+  sha256?: string
+  citation?: string
+  evidence?: string
+}
 
 export function structuralSpans(
   text: string,
@@ -96,14 +127,96 @@ export function markdownFenceSpans(text: string): Array<{ start: number; end: nu
   return spans
 }
 
+/**
+ * The YAML (`---`) or TOML (`+++`) block that opens a page of Obsidian, Astro, Docusaurus, Hugo,
+ * Jekyll, or an LLM-maintained wiki. YAML is read as data, never executed, for `title` and
+ * `description` (or `summary`); TOML is only delimited. Null when the page has none.
+ */
+export function markdownFrontmatter(text: string): MarkdownFrontmatter | null {
+  const lines = textLines(text.slice(0, FRONTMATTER_MAX_CHARACTERS))
+  const opening = lines[0]?.text.trimEnd()
+  if (opening !== "---" && opening !== "+++") {
+    return null
+  }
+  const yaml = opening === "---"
+  const closingIndex = lines.findIndex(
+    (line, index) =>
+      index > 0 &&
+      (yaml
+        ? line.text.trimEnd() === "---" || line.text.trimEnd() === "..."
+        : line.text.trimEnd() === "+++"),
+  )
+  const closing = lines[closingIndex]
+  const firstKey = lines.slice(1, closingIndex).find((line) => line.text.trim() !== "")
+  if (
+    !closing ||
+    !firstKey ||
+    !(yaml ? YAML_KEY_LINE_PATTERN : TOML_KEY_LINE_PATTERN).test(firstKey.text.trim())
+  ) {
+    return null
+  }
+  const fields = yaml ? yamlFrontmatterFields(text.slice(lines[0]?.end ?? 0, closing.start)) : {}
+  return { end: closing.end, ...fields }
+}
+
+function yamlFrontmatterFields(
+  body: string,
+): Pick<MarkdownFrontmatter, "title" | "description" | "sources"> {
+  let data: unknown
+  try {
+    data = YAML.parse(body)
+  } catch {
+    // A malformed block still delimits the front matter; it only yields no fields.
+    return {}
+  }
+  if (!isRecord(data)) {
+    return {}
+  }
+  const title = frontmatterText(data.title, FRONTMATTER_TITLE_MAX_CHARACTERS)
+  const description = frontmatterText(
+    data.description ?? data.summary,
+    FRONTMATTER_DESCRIPTION_MAX_CHARACTERS,
+  )
+  const sources = Array.isArray(data.sources)
+    ? data.sources.slice(0, FRONTMATTER_MAX_SOURCES).flatMap(frontmatterSource)
+    : []
+  return {
+    ...(title === null ? {} : { title }),
+    ...(description === null ? {} : { description }),
+    ...(sources.length === 0 ? {} : { sources }),
+  }
+}
+
+function frontmatterSource(value: unknown): FrontmatterSource[] {
+  if (typeof value === "string") {
+    return value.trim() === "" ? [] : [{ path: value.trim() }]
+  }
+  if (!isRecord(value)) {
+    return []
+  }
+  const source: FrontmatterSource = {}
+  for (const key of ["path", "sha256", "citation", "evidence"] as const) {
+    const field = value[key]
+    if (typeof field === "string" && field.trim() !== "") source[key] = field.trim()
+  }
+  return source.path === undefined && source.citation === undefined ? [] : [source]
+}
+
+function frontmatterText(value: unknown, maxCharacters: number): string | null {
+  const text = typeof value === "string" ? normalizeHeading(value) : ""
+  return text === "" ? null : text.slice(0, maxCharacters)
+}
+
 function markdownSectionSpans(text: string): StructuralSpan[] {
+  const frontmatter = markdownFrontmatter(text)
+  const bodyStart = frontmatter?.end ?? 0
   const lines = textLines(text)
   const headings: MarkdownHeading[] = []
   let fenceMarker: string | null = null
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]
-    if (!line) {
+    if (!line || line.start < bodyStart) {
       continue
     }
     const fence = FENCE_PATTERN.exec(line.text)?.[1]
@@ -128,7 +241,7 @@ function markdownSectionSpans(text: string): StructuralSpan[] {
 
     const setext = SETEXT_HEADING_PATTERN.exec(line.text)
     const previous = lines[index - 1]
-    if (setext?.[1] && previous?.text.trim()) {
+    if (setext?.[1] && previous && previous.start >= bodyStart && previous.text.trim()) {
       headings.push({
         start: previous.start,
         level: setext[1].startsWith("=") ? 1 : 2,
@@ -137,21 +250,24 @@ function markdownSectionSpans(text: string): StructuralSpan[] {
     }
   }
 
-  if (headings.length === 0) {
+  if (headings.length === 0 && frontmatter === null) {
     return []
   }
 
+  // A page without a level-1 heading, as Astro, Docusaurus, and Hugo write them, takes its front
+  // matter title as the root of every section's context path.
+  const root = headings.some((heading) => heading.level === 1) ? "" : (frontmatter?.title ?? "")
+  const section = (charStart: number, charEnd: number, path: string[]): StructuralSpan => ({
+    charStart,
+    charEnd,
+    contextPath: [root, ...path].filter(Boolean).join(" > "),
+    kind: "markdown-section",
+  })
   const spans: StructuralSpan[] = []
-  const firstHeading = headings[0]
-  if (firstHeading && firstHeading.start > 0) {
-    spans.push({
-      charStart: 0,
-      charEnd: firstHeading.start,
-      contextPath: "",
-      kind: "markdown-section",
-    })
+  if (frontmatter) {
+    spans.push({ ...section(0, bodyStart, []), contextPath: frontmatter.title ?? root })
   }
-
+  spans.push(section(bodyStart, headings[0]?.start ?? text.length, []))
   const hierarchy: string[] = []
   for (let index = 0; index < headings.length; index += 1) {
     const heading = headings[index]
@@ -160,13 +276,7 @@ function markdownSectionSpans(text: string): StructuralSpan[] {
     }
     hierarchy.length = Math.max(0, heading.level - 1)
     hierarchy[heading.level - 1] = heading.title
-    const next = headings[index + 1]
-    spans.push({
-      charStart: heading.start,
-      charEnd: next?.start ?? text.length,
-      contextPath: hierarchy.filter(Boolean).join(" > "),
-      kind: "markdown-section",
-    })
+    spans.push(section(heading.start, headings[index + 1]?.start ?? text.length, hierarchy))
   }
   return spans.filter((span) => span.charEnd > span.charStart)
 }

@@ -18,7 +18,14 @@ from mcp.types import TextContent
 
 from ._errors import RagmirError, RagmirServerError, RagmirToolError
 from ._launcher import resolve_launcher
-from ._models import ExpandedCitation, IngestReport, Passage, SourceCatalog, Status
+from ._models import (
+    ExpandedCitation,
+    IngestReport,
+    Passage,
+    SearchFormulation,
+    SourceCatalog,
+    Status,
+)
 from ._version import __version__
 
 logger = logging.getLogger("ragmir")
@@ -94,15 +101,20 @@ class AsyncRagmir:
         scope: str | None = None,
         max_chunks_per_document: int | None = None,
         context_radius: int | None = None,
+        searches: Sequence[SearchFormulation] | None = None,
     ) -> list[Passage]:
         """Cited passages that answer ``query``; an empty list means the base holds no evidence.
 
         ``include_paths`` and ``exclude_paths`` take folders, files, or globs such as ``**/*.pdf``.
-        ``top_k`` is capped by the base's ``mcpMaxTopK`` setting (10 by default).
+        ``top_k`` is capped by the base's ``mcpMaxTopK`` setting (10 by default). ``searches``
+        adds up to five formulations of the same question, such as
+        ``{"type": "lex", "query": '"rate limit" -deprecated'}``, fused into one ranking.
         """
         arguments = _search_arguments(
             top_k, include_paths, exclude_paths, scope, max_chunks_per_document, context_radius
         )
+        if searches is not None:
+            arguments["searches"] = [dict(formulation) for formulation in searches]
         data = await self._call_json("ragmir_search", {"query": query, **arguments})
         return [Passage.from_json(item) for item in _list(data)]
 
@@ -157,11 +169,22 @@ class AsyncRagmir:
         paths: Sequence[str] | None = None,
         offset: int | None = None,
         limit: int | None = None,
+        changed_since: str | None = None,
+        outline: bool = False,
     ) -> SourceCatalog:
-        """One page of the indexed documents, optionally under folders or matching globs."""
+        """One page of the indexed documents, optionally under folders or matching globs.
+
+        ``changed_since``, an ISO 8601 date or time, adds ``changes``: the files indexed since then
+        and those the last ingest removed. ``outline=True``, with ``paths`` naming one file, adds
+        its sections, each with the citation that reads it.
+        """
         arguments: dict[str, Any] = {"maxBytes": _MAX_OUTPUT_BYTES}
         if paths is not None:
             arguments["paths"] = list(paths)
+        if changed_since is not None:
+            arguments["changedSince"] = changed_since
+        if outline:
+            arguments["outline"] = True
         if offset is not None:
             arguments["offset"] = offset
         if limit is not None:
@@ -179,6 +202,30 @@ class AsyncRagmir:
             "ragmir_audit", {"detail": detail, "maxBytes": _MAX_OUTPUT_BYTES}
         )
         return dict(_mapping(data))
+
+    async def knowledge_audit(
+        self,
+        *,
+        paths: Sequence[str] | None = None,
+        assume_removed: Sequence[str] | None = None,
+        detail: bool = False,
+    ) -> dict[str, Any]:
+        """Audit the indexed Markdown pages as a knowledge base, without changing anything.
+
+        Findings cover broken links, missing and unlinked pages, duplicate titles, written Ragmir
+        citations that changed, and pages whose declared sources changed or disappeared.
+        ``assume_removed`` adds what removing those pages would break.
+        """
+        arguments: dict[str, Any] = {
+            "knowledge": True,
+            "detail": detail,
+            "maxBytes": _MAX_OUTPUT_BYTES,
+        }
+        if paths is not None:
+            arguments["paths"] = list(paths)
+        if assume_removed is not None:
+            arguments["assumeRemoved"] = list(assume_removed)
+        return dict(_mapping(await self._call_json("ragmir_audit", arguments)))
 
     async def ingest(self, *, wait: bool = True) -> IngestReport:
         """Refresh the index incrementally: only new and changed files are read again.
@@ -381,6 +428,7 @@ class Ragmir:
         scope: str | None = None,
         max_chunks_per_document: int | None = None,
         context_radius: int | None = None,
+        searches: Sequence[SearchFormulation] | None = None,
     ) -> list[Passage]:
         """Cited passages that answer ``query``; an empty list means the base holds no evidence."""
         return self._run(
@@ -392,6 +440,7 @@ class Ragmir:
                 scope=scope,
                 max_chunks_per_document=max_chunks_per_document,
                 context_radius=context_radius,
+                searches=searches,
             )
         )
 
@@ -405,6 +454,7 @@ class Ragmir:
         scope: str | None = None,
         max_chunks_per_document: int | None = None,
         context_radius: int | None = None,
+        searches: Sequence[SearchFormulation] | None = None,
     ) -> list[Passage]:
         """Async twin of ``search``."""
         return await self._arun(
@@ -416,6 +466,7 @@ class Ragmir:
                 scope=scope,
                 max_chunks_per_document=max_chunks_per_document,
                 context_radius=context_radius,
+                searches=searches,
             )
         )
 
@@ -463,9 +514,19 @@ class Ragmir:
         paths: Sequence[str] | None = None,
         offset: int | None = None,
         limit: int | None = None,
+        changed_since: str | None = None,
+        outline: bool = False,
     ) -> SourceCatalog:
         """One page of the indexed documents, optionally under folders or matching globs."""
-        return self._run(self._async.sources(paths=paths, offset=offset, limit=limit))
+        return self._run(
+            self._async.sources(
+                paths=paths,
+                offset=offset,
+                limit=limit,
+                changed_since=changed_since,
+                outline=outline,
+            )
+        )
 
     async def asources(
         self,
@@ -473,9 +534,19 @@ class Ragmir:
         paths: Sequence[str] | None = None,
         offset: int | None = None,
         limit: int | None = None,
+        changed_since: str | None = None,
+        outline: bool = False,
     ) -> SourceCatalog:
         """Async twin of ``sources``."""
-        return await self._arun(self._async.sources(paths=paths, offset=offset, limit=limit))
+        return await self._arun(
+            self._async.sources(
+                paths=paths,
+                offset=offset,
+                limit=limit,
+                changed_since=changed_since,
+                outline=outline,
+            )
+        )
 
     def status(self) -> Status:
         """Readiness, freshness, and identity of the knowledge base."""
@@ -492,6 +563,30 @@ class Ragmir:
     async def aaudit(self, *, detail: bool = False) -> dict[str, Any]:
         """Async twin of ``audit``."""
         return await self._arun(self._async.audit(detail=detail))
+
+    def knowledge_audit(
+        self,
+        *,
+        paths: Sequence[str] | None = None,
+        assume_removed: Sequence[str] | None = None,
+        detail: bool = False,
+    ) -> dict[str, Any]:
+        """Audit the indexed Markdown pages as a knowledge base, without changing anything."""
+        return self._run(
+            self._async.knowledge_audit(paths=paths, assume_removed=assume_removed, detail=detail)
+        )
+
+    async def aknowledge_audit(
+        self,
+        *,
+        paths: Sequence[str] | None = None,
+        assume_removed: Sequence[str] | None = None,
+        detail: bool = False,
+    ) -> dict[str, Any]:
+        """Async twin of ``knowledge_audit``."""
+        return await self._arun(
+            self._async.knowledge_audit(paths=paths, assume_removed=assume_removed, detail=detail)
+        )
 
     def ingest(self, *, wait: bool = True) -> IngestReport:
         """Refresh the index incrementally; only new and changed files are read again."""

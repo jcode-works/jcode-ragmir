@@ -9,6 +9,7 @@ export type RagmirErrorCode =
   | "INVALID_ARGUMENT"
   | "OVERLOADED"
   | "TIMEOUT"
+  | "UNTRUSTED_CONFIG"
 
 interface RagmirErrorOptions {
   cause?: unknown

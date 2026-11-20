@@ -53,6 +53,7 @@ export function testConfig(
     defaultExcludes: DEFAULT_CONFIG.defaultExcludes,
     pathPriors: DEFAULT_CONFIG.pathPriors,
     sourceWeights: { ...DEFAULT_CONFIG.sourceWeights },
+    pathContexts: { ...DEFAULT_CONFIG.pathContexts },
     scopes: structuredClone(DEFAULT_CONFIG.scopes),
     collapseLocaleVariants: DEFAULT_CONFIG.collapseLocaleVariants,
     maxChunksPerDataFile: DEFAULT_CONFIG.maxChunksPerDataFile,

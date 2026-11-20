@@ -163,6 +163,19 @@ try {
     )
   }
 
+  const batch = await callJsonTool(client, "ragmir_expand", {
+    citations: [searchResults[0].citation, "raw/missing-file.md:L1-L2#7"],
+    maxBytes: 4_096,
+  })
+  if (
+    !Array.isArray(batch) ||
+    batch.length !== 2 ||
+    batch[0]?.found !== true ||
+    batch[1]?.found !== false
+  ) {
+    throw new Error(`MCP batch expansion returned an unexpected result: ${JSON.stringify(batch)}`)
+  }
+
   // The passage was already returned in this session; ask for it again in full.
   const filteredSearchResults = await callJsonTool(client, "ragmir_search", {
     query: "offline retrieval approval",
@@ -204,6 +217,27 @@ try {
   ) {
     throw new Error(
       `MCP structural context filter returned unexpected results: ${JSON.stringify(contextFilteredResults)}`,
+    )
+  }
+
+  const formulationResults = await callJsonTool(client, "ragmir_search", {
+    query: "offline retrieval approval",
+    searches: [
+      { type: "lex", query: "approval" },
+      { type: "vec", query: "who signs off on retrieving without a network" },
+    ],
+    topK: 3,
+    explain: true,
+    seen: "include",
+  })
+  if (
+    !Array.isArray(formulationResults) ||
+    !formulationResults.some((result) =>
+      result.score?.formulations?.some((item) => item.label === "lex#1"),
+    )
+  ) {
+    throw new Error(
+      `MCP search did not fuse the formulations: ${JSON.stringify(formulationResults)}`,
     )
   }
 

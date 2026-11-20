@@ -30,14 +30,26 @@ validated replacement activates, so never delete `.ragmir/storage/` as the first
 ## Retrieval loop
 
 1. Call `ragmir_search` with a focused query. It returns at most three compact citations; send up
-   to five related questions together in `queries` to share one output budget.
-2. Expand the citation you will rely on with `ragmir_expand`. To read a whole document, expand its
-   `nextCitation` with the same `contextRadius` until it is absent.
+   to five related questions together in `queries` to share one output budget. Each excerpt starts
+   at the lines holding your words (`excerptLine`), and `pathContext` says what the folder holds.
+2. Expand the citation you will rely on with `ragmir_expand`, or up to five at once with
+   `citations`. To read a whole document, expand its `nextCitation` with the same `contextRadius`
+   until it is absent. For a Markdown page it also lists the page's links and the pages linking to
+   it; `ragmir_sources` with one path and `outline: true` lists a long document's sections. When
+   it reports `found: false`, expand its `suggestedCitation` or pick one of its `similarPaths`
+   before searching again.
 3. Narrow or widen the search: `includePaths` and `excludePaths` take folders, files, or globs such
-   as `["**/*.pdf"]`, `scope` selects a named scope, and `ragmir_sources` lists the documents.
-4. Cite every claim. Separate cited facts from inference, and verify a `weakEvidence` passage
+   as `["**/*.pdf"]`, `scope` selects a named scope, and `ragmir_sources` lists the documents
+   (with `changedSince`, those changed since your last pass).
+4. When your wording may miss the answer, add `searches` to the same call, fused with the question
+   into one ranking: `lex` for likely keywords (`"exact phrase"` required, `-word` excluded), `vec`
+   for a paraphrase, `hyde` for a short passage written as the answer might read. The CLI takes
+   `--lex`, `--vec`, and `--hyde`. They reorder and complete an answer but never create one: an
+   empty result still means the base holds no evidence.
+5. Cite every claim. Separate cited facts from inference, and verify a `weakEvidence` passage
    before relying on it.
-5. An empty result means the base holds no evidence. Rephrase once with the project's own terms,
+6. An empty result means the base holds no evidence. When a notice names words that no indexed
+   passage holds, the documents never mention them: rephrase once with the project's own terms,
    then say the documents do not cover the question instead of guessing.
 
 | Need | MCP | CLI |
@@ -47,6 +59,7 @@ validated replacement activates, so never delete `.ragmir/storage/` as the first
 | Full passage, read a document through | `ragmir_expand` | `rgr search "query" --json` |
 | List indexed documents | `ragmir_sources` | |
 | Missing, stale, or skipped files | `ragmir_audit`, `ragmir://sources` | `rgr audit --unsupported` |
+| Broken links, missing pages, stale citations in Markdown | `ragmir_audit` with `knowledge: true` | `rgr audit --knowledge` |
 | Refresh after files change | `ragmir_ingest` | `rgr ingest` |
 | Why a passage ranked where it did | | `rgr search "query" --explain` |
 | Retrieval quality on known questions | | `rgr evaluate --golden <file>` |
@@ -64,6 +77,10 @@ truncation. Passages already returned in a session come back as short `seen` stu
   nothing.
 - `ragmir_ingest` refuses while external extractors such as OCR are configured: ask the user to run
   `rgr ingest` from a terminal.
+- `UNTRUSTED_CONFIG`, or a notice naming settings "inactive until approved", means the project
+  config sets a command, an embedding endpoint, an API key variable, or a source outside the
+  project that this machine has not approved. Never approve it yourself: ask the user to review
+  `rgr trust`.
 
 ## Sources, OCR, and models
 
