@@ -26,7 +26,7 @@ export function generateNotes(_pluginConfig, context) {
     "## Verification",
     "",
     ...release.verification,
-    "- Release assets include the Core tarball, checksums, an SBOM, and the release manifest",
+    "- Release assets include the Core tarball, the Gemini CLI and Qwen Code extension pinned to this release, checksums, an SBOM, and the release manifest",
     "- The protected npm workflow requires publication with provenance",
     "",
     "## Install or upgrade",
