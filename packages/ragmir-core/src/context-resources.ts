@@ -1,5 +1,8 @@
+import { type FileHandle, open } from "node:fs/promises"
+import path from "node:path"
 import { loadConfig } from "./config.js"
 import { doctorWithConfig } from "./doctor.js"
+import { MARKDOWN_EXTENSIONS, markdownFrontmatter } from "./document-structure.js"
 import { checkIndexFreshness } from "./freshness.js"
 import { knowledgeBaseIdentity, knowledgeBaseProfile } from "./knowledge-bases.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
@@ -16,6 +19,8 @@ import type {
 } from "./types.js"
 
 const SOURCE_CATALOG_LIMIT = 50
+// Front matter opens a page and stays short: the head of the file holds it.
+const FRONTMATTER_HEAD_BYTES = 16_384
 export const MAX_SOURCE_CATALOG_LIMIT = 100
 const RAGMIR_MCP_TOOLS = [
   "ragmir_status",
@@ -110,10 +115,13 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
   const identity = knowledgeBaseIdentity(config.projectRoot)
   const health = manifest?.health
   const live = freshness.verified ? freshness : null
-  const indexedFiles = (filePage?.files ?? []).map((file) => ({
-    source: file.relativePath,
-    chunks: file.chunkCount,
-  }))
+  const indexedFiles = await Promise.all(
+    (filePage?.files ?? []).map(async (file) => ({
+      source: file.relativePath,
+      chunks: file.chunkCount,
+      ...(await pageHeadline(config.projectRoot, file.relativePath)),
+    })),
+  )
   const listedTotal = filePage && "matched" in filePage ? filePage.matched : manifest?.fileCount
   const missingFromIndex = (
     live?.previews.missingFromIndex ??
@@ -160,6 +168,35 @@ export async function getKnowledgeBaseSourceCatalogWithConfig(
       nextOffset: filePage?.nextOffset ?? null,
     },
     ...(filters.length > 0 ? { filter: { paths: filters, matchedFiles: listedTotal ?? 0 } } : {}),
+  }
+}
+
+/**
+ * The title and description a Markdown page declares in its front matter, read from the head of the
+ * file: the catalog an agent browses names each page, as the index page of a wiki does.
+ */
+async function pageHeadline(
+  projectRoot: string,
+  relativePath: string,
+): Promise<{ title?: string; description?: string }> {
+  if (!MARKDOWN_EXTENSIONS.has(path.posix.extname(relativePath).toLowerCase())) {
+    return {}
+  }
+  let handle: FileHandle | undefined
+  try {
+    handle = await open(path.join(projectRoot, relativePath), "r")
+    const head = Buffer.alloc(FRONTMATTER_HEAD_BYTES)
+    const { bytesRead } = await handle.read(head, 0, head.length, 0)
+    const frontmatter = markdownFrontmatter(head.subarray(0, bytesRead).toString("utf8"))
+    return {
+      ...(frontmatter?.title === undefined ? {} : { title: frontmatter.title }),
+      ...(frontmatter?.description === undefined ? {} : { description: frontmatter.description }),
+    }
+  } catch {
+    // A page that moved or became unreadable since indexing is listed without a headline.
+    return {}
+  } finally {
+    await handle?.close()
   }
 }
 

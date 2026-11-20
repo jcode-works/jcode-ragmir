@@ -106,4 +106,32 @@ describe("context resources", { timeout: integrationTimeout(15_000) }, () => {
     expect(secondPage.indexedFiles[0]?.source).toBe(".ragmir/raw/source-50.md")
     expect(secondPage.page).toEqual({ offset: 50, limit: 10, nextOffset: null })
   })
+
+  it("should name Markdown pages with the title and description of their front matter", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-source-headline-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const rawDir = path.join(root, ".ragmir", "raw")
+    await mkdir(rawDir, { recursive: true })
+    await writeFile(
+      path.join(rawDir, "retries.md"),
+      "---\ntitle: Payment retries\nsummary: How failed payments are retried.\n---\nWait 2 minutes.\n",
+    )
+    await writeFile(path.join(rawDir, "plain.md"), "# Plain page\nNo front matter.\n")
+    await writeFile(path.join(rawDir, "notes.txt"), "title: not front matter\n")
+    await ingest({ cwd: root })
+
+    const catalog = await getKnowledgeBaseSourceCatalog(root)
+
+    expect(catalog.indexedFiles).toEqual([
+      { source: ".ragmir/raw/notes.txt", chunks: 1 },
+      { source: ".ragmir/raw/plain.md", chunks: 1 },
+      {
+        source: ".ragmir/raw/retries.md",
+        chunks: 2,
+        title: "Payment retries",
+        description: "How failed payments are retried.",
+      },
+    ])
+  })
 })

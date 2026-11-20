@@ -192,7 +192,7 @@ this in three ways:
 | `ragmir_status` | Check readiness, freshness, scopes, limits, and a running ingest | Read-only |
 | `ragmir_search` | Find cited passages for one question or up to five related ones | Read-only |
 | `ragmir_expand` | Read one citation with its neighbours; page through a document | Read-only |
-| `ragmir_sources` | List the indexed documents by folder or glob, with chunk counts | Read-only |
+| `ragmir_sources` | List the indexed documents by folder or glob, with chunk counts and page titles | Read-only |
 | `ragmir_audit` | Find missing, stale, unsupported, or duplicated sources | Read-only |
 | `ragmir_ingest` | Refresh the index after files changed | Writes Ragmir's private index only |
 

@@ -149,8 +149,9 @@ whether there is an answer, so formulations never turn a refusal into one. With
 `expandCitation` returns the cited chunk and its neighbours, `documentChunks` (the chunk count of the
 cited document), and `nextCitation` / `previousCitation`: expand them with the same `contextRadius`
 to read the neighbouring windows of a long document. `client.sources({ paths, offset, limit })`
-lists indexed files under folders or matching globs, with chunk counts, `page.nextOffset`, and the
-number of matching files in `filter.matchedFiles`.
+lists indexed files under folders or matching globs, with chunk counts, the `title` and
+`description` of a Markdown page's front matter, `page.nextOffset`, and the number of matching
+files in `filter.matchedFiles`.
 `searchReport(query, options)` and `client.searchReport(...)` return `{ results, absentTerms }`:
 the same results, plus the words of the question that no indexed passage holds, so an application
 can tell "the documents never mention this" from "nothing ranked well". Results carry

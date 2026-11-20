@@ -986,7 +986,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
     "ragmir_sources",
     {
       title: `Ragmir sources: ${profile.name}`,
-      description: `List the documents of the "${profile.name}" knowledge base (${profile.projectRoot}): indexed files with their chunk counts, and files missing from the index or changed since indexing. Filter with paths (folders, files, or globs such as docs/** or **/*.pdf) and page with offset. Use it to answer which documents exist or to choose includePaths for ragmir_search; ragmir_search finds what they say. Read-only.`,
+      description: `List the documents of the "${profile.name}" knowledge base (${profile.projectRoot}): indexed files with their chunk counts and, for a Markdown page, the title and description of its front matter, and files missing from the index or changed since indexing. Filter with paths (folders, files, or globs such as docs/** or **/*.pdf) and page with offset. Use it to answer which documents exist or to choose includePaths for ragmir_search; ragmir_search finds what they say. Read-only.`,
       inputSchema: sourcesToolInputSchema,
       annotations: READ_ONLY_TOOL_ANNOTATIONS,
     },

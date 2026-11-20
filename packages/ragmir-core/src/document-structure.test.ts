@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { markdownFenceSpans, structuralSpans } from "./document-structure.js"
+import { markdownFenceSpans, markdownFrontmatter, structuralSpans } from "./document-structure.js"
 
 describe("structuralSpans", () => {
   it("should preserve nested heading paths when Markdown sections are detected", () => {
@@ -50,6 +50,67 @@ describe("structuralSpans", () => {
 
     expect(spans.map((span) => span.contextPath)).toEqual(["Guide", "Guide > Usage"])
     expect(markdownFenceSpans(text)).toHaveLength(1)
+  })
+
+  it("should keep YAML front matter whole and root a page without H1 at its title", () => {
+    const text = [
+      "---",
+      "title: Payment retries",
+      "description: How failed payments are retried.",
+      "sources: [raw/incident-42.md]",
+      "---",
+      "Retries follow the policy below.",
+      "",
+      "## Backoff",
+      "Wait 2, 4, then 8 minutes.",
+    ].join("\n")
+
+    const spans = structuralSpans(text, ".md", 1_200)
+
+    expect(spans.map((span) => span.contextPath)).toEqual([
+      "Payment retries",
+      "Payment retries",
+      "Payment retries > Backoff",
+    ])
+    expect(text.slice(spans[0]?.charStart, spans[0]?.charEnd)).toBe(
+      "---\ntitle: Payment retries\ndescription: How failed payments are retried.\nsources: [raw/incident-42.md]\n---\n",
+    )
+    expect(markdownFrontmatter(text)).toEqual({
+      end: spans[0]?.charEnd,
+      title: "Payment retries",
+      description: "How failed payments are retried.",
+    })
+  })
+
+  it("should keep a page's own H1 as the root and read TOML front matter as a block", () => {
+    const yaml = ["---", "title: Front title", "---", "# Page title", "Body."].join("\n")
+    const toml = ["+++", 'title = "Hugo page"', "+++", "## Setup", "Steps."].join("\n")
+
+    expect(structuralSpans(yaml, ".md", 1_200).map((span) => span.contextPath)).toEqual([
+      "Front title",
+      "Page title",
+    ])
+    expect(structuralSpans(toml, ".md", 1_200).map((span) => span.contextPath)).toEqual([
+      "",
+      "Setup",
+    ])
+    expect(markdownFrontmatter(toml)?.title).toBeUndefined()
+  })
+
+  it("should not mistake thematic breaks or malformed YAML for a title", () => {
+    const breaks = ["---", "Just prose between rules.", "---", "More prose."].join("\n")
+    const malformed = ["---", "title: [unclosed", "---", "Body."].join("\n")
+
+    expect(markdownFrontmatter(breaks)).toBeNull()
+    expect(structuralSpans(breaks, ".md", 1_200).map((span) => span.contextPath)).toEqual([
+      "",
+      "Just prose between rules.",
+    ])
+    expect(markdownFrontmatter(malformed)).toEqual({ end: 25 })
+    expect(structuralSpans(malformed, ".md", 1_200).map((span) => span.contextPath)).toEqual([
+      "",
+      "",
+    ])
   })
 
   it("should expose exact JSON ranges with JSONPath context", () => {

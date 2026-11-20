@@ -33,7 +33,8 @@ export function indexPolicyFingerprint(config: Config): string {
     extraction: {
       // 5: decoded mail, mailboxes, notes, design files, API collections, and legacy encodings.
       // 6: dotenv templates such as env.example index with every value masked.
-      parserVersion: 6,
+      // 7: Markdown front matter is one region, and its title roots a page without a level-1 heading.
+      parserVersion: 7,
       pdfOcrCommand: config.pdfOcrCommand,
       pdfOcrParserPolicy: config.pdfOcrCommand.length > 0 ? PDF_OCR_PARSER_POLICY : null,
       imageOcrCommand: config.imageOcrCommand,

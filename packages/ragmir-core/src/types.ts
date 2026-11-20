@@ -669,7 +669,8 @@ export interface KnowledgeBaseSourceCatalog {
     emptyTextFiles: number
     skippedFiles: number
   }
-  indexedFiles: Array<{ source: string; chunks: number }>
+  /** Indexed files; a Markdown page adds the `title` and `description` of its front matter. */
+  indexedFiles: Array<{ source: string; chunks: number; title?: string; description?: string }>
   missingFromIndex: string[]
   staleInIndex: string[]
   emptyTextFiles: string[]
