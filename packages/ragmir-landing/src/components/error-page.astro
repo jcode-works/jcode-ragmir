@@ -1,5 +1,5 @@
 ---
-import { defaultLang, getLocalizedUrl } from "../i18n/utils"
+import { defaultLang, getLocalizedUrl, languageTags } from "../i18n/utils"
 import Layout from "../layouts/layout.astro"
 import { RagmirBackground } from "./ragmir-background"
 import RagmirLogo from "./ragmir-logo.astro"
@@ -10,13 +10,18 @@ interface ErrorCopy {
   message: string
 }
 
-interface Props extends ErrorCopy {
-  code: string
-  /** The host serves one error page for every locale, so French is applied from the URL path. */
-  french: ErrorCopy
+interface LocalizedErrorCopy extends ErrorCopy {
+  /** Label of the link back to the localized home page. */
+  back: string
 }
 
-const { code, title, metaDescription, message, french } = Astro.props
+interface Props extends ErrorCopy {
+  code: string
+  /** The host serves one error page for every locale, so the copy follows the URL path's locale. */
+  localized: Record<string, LocalizedErrorCopy>
+}
+
+const { code, title, metaDescription, message, localized } = Astro.props
 const homeUrl = getLocalizedUrl("/", defaultLang)
 ---
 
@@ -53,19 +58,21 @@ const homeUrl = getLocalizedUrl("/", defaultLang)
     </a>
   </main>
 
-  <script is:inline define:vars={{ french }}>
+  <script is:inline define:vars={{ localized, languageTags }}>
     ;(() => {
-      if (!/^\/fr(?:\/|$)/i.test(location.pathname)) return
+      const prefix = /^\/([a-z]{2})(?:\/|$)/i.exec(location.pathname)?.[1]?.toLowerCase()
+      const copy = prefix ? localized[prefix] : undefined
+      if (!copy) return
       const desc = document.querySelector('[data-i18n="desc"]')
       const btn = document.querySelector('[data-i18n="btn"]')
       const link = document.querySelector('[data-i18n="link"]')
       const description = document.querySelector('meta[name="description"]')
-      if (desc) desc.textContent = french.message
-      if (btn) btn.textContent = "Retour à l'accueil"
-      if (link) link.setAttribute("href", "/fr/")
-      if (description) description.setAttribute("content", french.metaDescription)
-      document.title = french.title
-      document.documentElement.setAttribute("lang", "fr")
+      if (desc) desc.textContent = copy.message
+      if (btn) btn.textContent = copy.back
+      if (link) link.setAttribute("href", `/${prefix}/`)
+      if (description) description.setAttribute("content", copy.metaDescription)
+      document.title = copy.title
+      document.documentElement.setAttribute("lang", languageTags[prefix] ?? prefix)
     })()
   </script>
 </Layout>

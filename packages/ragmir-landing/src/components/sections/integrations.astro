@@ -90,7 +90,7 @@ const groups: { title: string; items: Integration[] }[] = [
 >
   <div class="mb-10 md:mb-14">
     <SectionHeader
-      num="003"
+      num="005"
       label={t("integrations_eyebrow")}
       title={t("integrations_title")}
       text={t("integrations_text")}
@@ -148,10 +148,10 @@ const groups: { title: string; items: Integration[] }[] = [
   </div>
 
   <a
-    class="mx-auto mt-10 flex w-fit h-11 items-center gap-2 rounded-full bg-card px-5 text-sm font-bold text-foreground transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] motion-reduce:transform-none"
+    class="mx-auto mt-10 flex w-fit h-11 items-center gap-2 rounded-full bg-card px-5 text-sm font-bold text-foreground transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-card"
     href={pluginsUrl}
   >
     {t("integrations_all_link")}
-    <ArrowUpRight class="size-4" aria-hidden="true" />
+    <ArrowUpRight class="arrow-out size-4" aria-hidden="true" />
   </a>
 </section>

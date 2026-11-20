@@ -64,7 +64,7 @@ export function CommandCopyBox({ command, copyLabel }: CommandCopyBoxProps): Rea
   return (
     <button
       aria-label={`${copyLabel}: ${command}`}
-      className="group flex w-full items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-3 text-left transition-colors hover:bg-[var(--inset-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.995]"
+      className="group flex w-full items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-3 text-left transition-colors hover:bg-[var(--inset-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-background"
       onClick={() => void handleCopy()}
       type="button"
     >
@@ -110,7 +110,7 @@ export function TextCopyButton({
     <button
       aria-label={copyLabel}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-4 py-2 font-bold text-background text-sm transition hover:bg-[var(--foreground-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-4 py-2 font-bold text-background text-sm transition-colors hover:bg-[var(--foreground-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       onClick={() => void handleCopy()}
@@ -138,7 +138,7 @@ export function CommandCopyButton({
     <button
       aria-label={`${copyLabel}: ${command}`}
       className={cn(
-        "inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground transition hover:bg-[var(--card-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground transition-colors hover:bg-[var(--card-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       onClick={() => void handleCopy()}

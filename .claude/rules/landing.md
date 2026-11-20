@@ -7,8 +7,8 @@ paths:
 
 - The landing is a static, telemetry-free Astro site with no vendor deployment configuration and
   no runtime calls to third parties. Keep it that way.
-- Every visible string lives in `messages/en.json` and `messages/fr.json`; add each key to both,
-  in the same order.
+- Every visible string lives in `messages/en.json`, `fr.json`, `es.json`, and `zh.json` (Simplified
+  Chinese); add each key to all four, in the same order.
 - `public/llms.txt` and `public/ai.txt` are copies of the root `llms.txt`: edit the root file,
   never a copy.
 - The format list comes from `src/content/supported-formats.ts` and must match

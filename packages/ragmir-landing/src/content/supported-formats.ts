@@ -179,3 +179,19 @@ export const SUPPORTED_FORMAT_GROUPS = [
     formats: ["PDF OCR", "PNG", "JPEG", "TIFF", "WebP", "HEIC", ".doc"],
   },
 ] as const
+
+/** The formats most visitors look for first, shown before the full families. Each one is listed above. */
+export const FEATURED_FORMATS = [
+  "PDF",
+  "Word",
+  "Excel",
+  "PowerPoint",
+  "Markdown",
+  "Outlook .msg",
+  "Figma",
+  "draw.io",
+  "BPMN",
+  "OpenAPI",
+  "PowerDesigner",
+  "Jupyter",
+] as const

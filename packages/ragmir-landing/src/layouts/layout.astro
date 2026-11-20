@@ -1,6 +1,7 @@
 ---
 import { ClientRouter } from "astro:transitions"
 import "../styles/global.css"
+import { defaultLang, getLocalizedUrl, locales } from "../i18n/utils"
 
 interface Props {
   title?: string
@@ -29,7 +30,7 @@ const {
   robots: robotsProp = "index, follow",
   structuredData,
   canonicalOverride,
-  availableLocales = ["en", "fr"],
+  availableLocales = locales,
 } = Astro.props
 
 const siteBase = Astro.site ?? new URL("https://ragmir.com")
@@ -40,16 +41,21 @@ const ogImageUrl = new URL(ogImage, siteBase)
 const isProduction = siteBase.hostname === "ragmir.com"
 const robots = isProduction ? robotsProp : "noindex, nofollow, noarchive, nosnippet, noimageindex"
 const localesForAlternates = Array.from(new Set(availableLocales)).filter((entry) =>
-  ["en", "fr"].includes(entry),
+  (locales as readonly string[]).includes(entry),
 )
 const hreflangLocaleMap: Record<string, string> = {
   en: "en",
   fr: "fr",
+  es: "es",
+  zh: "zh-Hans",
 }
 const ogLocaleMap: Record<string, string> = {
   en: "en_US",
   fr: "fr_FR",
+  es: "es_ES",
+  zh: "zh_CN",
 }
+const htmlLang = hreflangLocaleMap[locale] ?? locale
 const currentOgLocale = ogLocaleMap[locale] ?? "en_US"
 const alternateOgLocales = localesForAlternates
   .filter((entry) => entry !== locale)
@@ -66,14 +72,17 @@ function getImageType(imageUrl: string): string {
 
 function alternateHref(targetLocale: string): string {
   const currentPath = Astro.url.pathname
-  const basePath = currentPath.replace(/^\/fr(?=\/|$)/, "") || "/"
-  const localizedPath = targetLocale === "en" ? basePath : `/fr${basePath === "/" ? "/" : basePath}`
-  return new URL(localizedPath, siteBase).href
+  const prefixedLocale = locales.find(
+    (entry) =>
+      entry !== defaultLang && (currentPath === `/${entry}` || currentPath.startsWith(`/${entry}/`)),
+  )
+  const basePath = (prefixedLocale ? currentPath.slice(prefixedLocale.length + 1) : currentPath) || "/"
+  return new URL(getLocalizedUrl(basePath, targetLocale), siteBase).href
 }
 ---
 
 <!doctype html>
-<html lang={locale} dir="ltr" class="dark">
+<html lang={htmlLang} dir="ltr" class="dark">
   <head>
     <meta charset="UTF-8" />
     <script is:inline>

@@ -383,7 +383,7 @@ export function HeroDemo({ translations }: HeroDemoProps): React.JSX.Element {
             onClick={() => scrollTabs(1)}
             type="button"
           >
-            <ChevronRight aria-hidden="true" className="size-4" />
+            <ChevronRight aria-hidden="true" className="arrow-forward size-4" />
           </button>
         )}
       </div>

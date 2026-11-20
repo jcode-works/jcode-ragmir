@@ -55,14 +55,14 @@ const heroTitleLines = [
       </p>
       <div class="mt-7 flex flex-col gap-3 sm:flex-row">
         <a
-          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground transition hover:bg-[var(--primary-hover)]"
+          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground transition-colors hover:bg-[var(--primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-primary"
           href={localizedLibraryUrl}
         >
           {t("hero_primary_cta")}
-          <ArrowRight class="size-4" />
+          <ArrowRight class="arrow-forward size-4" />
         </a>
         <a
-          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-card px-8 text-sm font-bold text-white transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-card px-8 text-sm font-bold text-white transition-colors hover:bg-[var(--card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-card"
           href={localizedUseCasesUrl}
         >
           {t("hero_secondary_cta")}
