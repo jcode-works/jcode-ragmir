@@ -202,7 +202,7 @@ LangChain.js retriever, the MCP server for any client, or the TypeScript API.
 | Qwen Code | `qwen extensions install jcode-works/ragmir` |
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
 | Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
-| Any agent that loads skills | `npx skills add jcode-works/ragmir` installs the retrieval, setup, build, and evaluation [skills](./skills) ([skills.sh](https://skills.sh/jcode-works/ragmir)) |
+| Any agent that loads skills | `npx skills add jcode-works/ragmir` installs the retrieval, setup, build, evaluation, and wiki [skills](./skills) ([skills.sh](https://skills.sh/jcode-works/ragmir)) |
 | LangChain.js and LangGraph.js | `RagmirRetriever` for chains, `createRagmirTools` for agents, from `@jcode.labs/ragmir/langchain` ([API](./docs/api-reference.md#langchainjs-retriever-and-agent-tools)) |
 | Python | `pip install ragmir` for the client, `langchain-ragmir` for LangChain and LangGraph, `llama-index-retrievers-ragmir` for LlamaIndex ([Python guide](./docs/python.md)) |
 | Local models such as Ollama | [Local model example](./docs/agent-integration.md#confidential-chat-local-model-example) |
@@ -219,8 +219,9 @@ document's outline),
 pages, changed citations), and `ragmir_ingest`, which refreshes the index after files change
 and writes nothing but Ragmir's private index. Search excerpts start at the lines that hold the
 question's words, results say what their folder is when the configuration describes it, and a
-notice names question words that no indexed passage holds. An `answer` prompt asks for a fully
-cited answer.
+notice names question words that no indexed passage holds. Prompts ask for a fully cited
+`answer`, for compiling a source into cited pages (`compile-source`), and for fixing what the
+knowledge audit finds (`audit-knowledge`).
 Its instructions name the base it serves. Register it per project: a server registered for every
 project answers unrelated workspaces too, and `rgr doctor` flags it.
 

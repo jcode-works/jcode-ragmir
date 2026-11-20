@@ -99,7 +99,7 @@ that calls the library; an Ollama or other model endpoint does not itself attach
 The repository ships one plugin, in `plugins/ragmir`, with manifests for each agent that installs
 plugins from GitHub. Claude Code, Codex, and Cursor bundle the retrieval and indexing skills; Gemini CLI and Qwen
 Code read `plugins/ragmir/GEMINI.md`. Every variant exposes the same MCP server (five read-only
-tools, `ragmir_ingest` to refresh the index, and the `answer` prompt) and runs a pinned Ragmir
+tools, `ragmir_ingest` to refresh the index, and three prompts) and runs a pinned Ragmir
 release from npm against the project the agent has open.
 
 | Agent | Install |
@@ -130,7 +130,7 @@ run in these coding agents and not in web or mobile chat apps.
 
 ### Agent skills for any agent
 
-The [`skills`](../skills) folder publishes four [Agent Skills](https://agentskills.io) on
+The [`skills`](../skills) folder publishes five [Agent Skills](https://agentskills.io) on
 [skills.sh](https://skills.sh/jcode-works/ragmir), for the agents that load skill folders
 (Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, and many more):
 
@@ -140,6 +140,7 @@ The [`skills`](../skills) folder publishes four [Agent Skills](https://agentskil
 | `ragmir-setup` | Install Ragmir, choose sources, index, connect the agent, enable OCR or a semantic model, upgrade, and troubleshoot. |
 | `ragmir-build` | Build cited RAG into an application with the TypeScript client, LangChain.js, the Python packages, LlamaIndex, or Docker. |
 | `ragmir-evaluate` | Write a golden file with hard negatives, gate CI on `rgr evaluate`, diagnose misses, and tune ranking. |
+| `ragmir-wiki` | Maintain a cited Markdown wiki on Ragmir: compile sources into pages, link them, and lint them with `rgr audit --knowledge`. |
 
 ```bash
 npx skills add jcode-works/ragmir                      # choose the skills and agents
@@ -198,6 +199,16 @@ this in three ways:
 
 The `answer` prompt (`/mcp__ragmir__answer` in Claude Code) asks the model to answer one question
 from the base with a citation for every claim, and to say so when the documents hold no evidence.
+`compile-source` walks the model through turning one source into cited Markdown pages with their
+front matter `sources`, and `audit-knowledge` through proposing fixes for what the knowledge audit
+finds. They serve MCP clients that load no skills, such as desktop chat apps; Ragmir never writes
+the pages itself.
+
+Besides the text notices meant for the model, results carry structured signals for programs:
+`_meta["ragmir/output"]` reports budget trimming, `_meta["ragmir/gaps"]` the question words no
+passage holds, `_meta["ragmir/input"]` the argument spellings read or limited,
+`_meta["ragmir/workspace"]` how the client's workspace relates to the base, and each result its
+`sourceStatus` and `weakEvidence`.
 
 Example search arguments:
 

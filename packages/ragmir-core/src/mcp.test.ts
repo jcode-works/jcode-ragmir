@@ -208,7 +208,16 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
     const prompts = await client.listPrompts()
     expect(prompts.prompts).toMatchObject([
       { name: "answer", arguments: [{ name: "question", required: true }] },
+      { name: "compile-source", arguments: [{ name: "source", required: true }] },
+      { name: "audit-knowledge" },
     ])
+    const compile = await client.getPrompt({
+      name: "compile-source",
+      arguments: { source: "raw/incident-42.md" },
+    })
+    expect(JSON.stringify(compile.messages)).toContain("Source: raw/incident-42.md")
+    const auditPrompt = await client.getPrompt({ name: "audit-knowledge" })
+    expect(JSON.stringify(auditPrompt.messages)).toContain("ragmir_audit with knowledge: true")
     const prompt = await client.getPrompt({
       name: "answer",
       arguments: { question: "Who approves refunds?" },

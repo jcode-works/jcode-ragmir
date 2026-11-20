@@ -3,8 +3,8 @@
   "groupings": [
     {
       "title": "Work with a Ragmir base",
-      "description": "Retrieve cited evidence, set up and connect the index, and measure its retrieval quality.",
-      "skills": ["ragmir", "ragmir-setup", "ragmir-evaluate"]
+      "description": "Retrieve cited evidence, set up and connect the index, measure its retrieval quality, and maintain a cited Markdown wiki on it.",
+      "skills": ["ragmir", "ragmir-setup", "ragmir-evaluate", "ragmir-wiki"]
     },
     {
       "title": "Build with Ragmir",

@@ -55,8 +55,9 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   unlinked pages, duplicate titles, written citations that changed, and stale declared sources.
   `ragmir_sources` with `changedSince` lists the files changed since a time.
 - MCP exposes five read-only tools (`ragmir_status`, `ragmir_search`, `ragmir_expand`,
-  `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the `answer`
-  prompt, and bounded `ragmir://context` and `ragmir://sources` resources. Search starts with three
+  `ragmir_sources`, `ragmir_audit`), `ragmir_ingest` to refresh the index incrementally, the
+  `answer`, `compile-source`, and `audit-knowledge` prompts, and bounded `ragmir://context` and
+  `ragmir://sources` resources. Search starts with three
   compact citations, accepts up to five related queries in one budget, filters by folder or glob
   (`**/*.pdf`), and returns passages already seen in the session as short stubs. Excerpts start at
   the lines holding the question's words (`excerptLine`), results carry `pathContext` from
@@ -109,10 +110,11 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   Gemini CLI (`gemini extensions install https://github.com/jcode-works/ragmir`), and Qwen
   Code (`qwen extensions install jcode-works/ragmir`). Plugins need local files, so they run
   in coding agents, not in web or mobile chat apps.
-- Agent Skills: `npx skills add jcode-works/ragmir` installs four skills from `skills/`
+- Agent Skills: `npx skills add jcode-works/ragmir` installs five skills from `skills/`
   (listed on skills.sh): `ragmir` (cited retrieval loop), `ragmir-setup` (install, sources, index,
   agent connection, OCR, semantic model, upgrades), `ragmir-build` (TypeScript, LangChain.js,
-  Python, LlamaIndex, Docker), and `ragmir-evaluate` (golden files, `rgr evaluate` gates, tuning).
+  Python, LlamaIndex, Docker), `ragmir-evaluate` (golden files, `rgr evaluate` gates, tuning), and
+  `ragmir-wiki` (a cited Markdown wiki compiled from sources and linted with the knowledge audit).
 - LangChain.js: `RagmirRetriever` from `@jcode.labs/ragmir/langchain` (optional peer
   `@langchain/core` 1.x) returns LangChain documents whose `metadata` holds the citation, and an
   empty array when the sources hold no evidence. `createRagmirTools({ client })` (or
