@@ -3,7 +3,12 @@ import { createReadStream } from "node:fs"
 import { mkdir, mkdtemp, readdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { MAX_EMBEDDING_BATCH_SIZE } from "./defaults.js"
-import { type EmbeddingPooling, embeddingDtype, embeddingPooling } from "./embedding-models.js"
+import {
+  type EmbeddingPooling,
+  embeddingDtype,
+  embeddingModelProfile,
+  embeddingPooling,
+} from "./embedding-models.js"
 import { RagmirError } from "./errors.js"
 import { removeTree, renameWithRetry } from "./fs-retry.js"
 import { throwIfAborted } from "./operation.js"
@@ -284,6 +289,11 @@ export function prepareEmbeddingText(
   model: string,
   inputType: EmbeddingInputType,
 ): string {
+  const queryPrompt = embeddingModelProfile(model)?.queryPrompt
+  if (queryPrompt !== undefined) {
+    return inputType === "query" ? `${queryPrompt}${text}` : text
+  }
+  // Model families whose prefixes are documented, for profiles and custom models alike.
   if (/(^|\/)(multilingual-)?e5-/iu.test(model)) {
     return `${inputType === "query" ? "query" : "passage"}: ${text}`
   }
@@ -505,6 +515,9 @@ async function createTransformersExtractor(
           `Transformers.js loaded ${config.embeddingModel} without its tokenizer from ${embeddingModelRoot(config)}. Run \`rgr models pull --enable\` to install a complete offline snapshot, then \`rgr ingest --rebuild\`.`,
         )
       }
+      if (embeddingPooling(config.embeddingModel) === "last_token") {
+        padOnTheLeft(extractor.tokenizer)
+      }
       return extractor
     } finally {
       transformers.env.localModelPath = previous.localModelPath
@@ -513,6 +526,16 @@ async function createTransformersExtractor(
       transformers.env.allowRemoteModels = previous.allowRemoteModels
     }
   })
+}
+
+/**
+ * Last-token pooling reads the final position of each row, which is the last real token only when
+ * shorter texts of a batch are padded on the left.
+ */
+function padOnTheLeft(tokenizer: unknown): void {
+  if (typeof tokenizer === "object" && tokenizer !== null && "padding_side" in tokenizer) {
+    tokenizer.padding_side = "left"
+  }
 }
 
 function evictTransformersPipelines(retainedKey: string): void {

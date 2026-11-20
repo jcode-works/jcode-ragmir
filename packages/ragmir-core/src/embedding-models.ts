@@ -1,7 +1,10 @@
 import { formatMemory, type HardwareProfile } from "./hardware.js"
 
-/** How a model turns token vectors into one passage vector. */
-export type EmbeddingPooling = "mean" | "cls"
+/**
+ * How a model turns token vectors into one passage vector. `last_token` reads the final position,
+ * which holds the last real token only when the tokenizer pads on the left.
+ */
+export type EmbeddingPooling = "mean" | "cls" | "last_token"
 
 /** Weight precision Transformers.js loads; `fp32` is its default on Node.js CPU. */
 export type EmbeddingDtype = "fp32" | "q8"
@@ -21,6 +24,8 @@ export interface EmbeddingModelProfile {
   license: string
   dtype: EmbeddingDtype
   pooling: EmbeddingPooling
+  /** Instruction the model expects before a search query; indexed passages go in unchanged. */
+  queryPrompt?: string
   /** Download for the weights and tokenizer, in megabytes. */
   downloadMegabytes: number
   /**
@@ -82,6 +87,25 @@ export const EMBEDDING_MODELS: readonly EmbeddingModelProfile[] = [
     memoryBytes: 0.75 * GIB,
     calibrated: true,
     summary: "The lightest option, for English corpora on small machines.",
+  },
+  // Listed last so the setup never picks it over Granite R2: six times the parameters and a
+  // 1,024-dimension vector make indexing much slower for the gain it measured.
+  {
+    id: "onnx-community/Qwen3-Embedding-0.6B-ONNX",
+    revision: "c25a394dd583836952667c12f008335071b3f43d",
+    languages: "multilingual",
+    parameters: "596M",
+    dimensions: 1024,
+    maxTokens: 32_768,
+    license: "Apache-2.0",
+    dtype: "q8",
+    pooling: "last_token",
+    queryPrompt:
+      "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
+    downloadMegabytes: 628,
+    memoryBytes: 3 * GIB,
+    calibrated: false,
+    summary: "Qwen3-Embedding 0.6B: multilingual with a 32k-token context, the heaviest option.",
   },
 ]
 
