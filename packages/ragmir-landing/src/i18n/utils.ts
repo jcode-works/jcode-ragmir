@@ -1,6 +1,16 @@
 export const languages = {
   en: "English",
   fr: "Français",
+  es: "Español",
+  zh: "中文",
+}
+
+/** BCP 47 tags for `lang`, hreflang, and structured data: Chinese pages are Simplified Chinese. */
+export const languageTags: Record<keyof typeof languages, string> = {
+  en: "en",
+  fr: "fr",
+  es: "es",
+  zh: "zh-Hans",
 }
 
 export const defaultLang = "en"
@@ -17,6 +27,12 @@ export async function loadTranslations(locale: string): Promise<TranslationMap> 
     switch (normalizedLocale) {
       case "fr":
         translations.fr = (await import("../../messages/fr.json")).default
+        break
+      case "es":
+        translations.es = (await import("../../messages/es.json")).default
+        break
+      case "zh":
+        translations.zh = (await import("../../messages/zh.json")).default
         break
       case "en":
         translations.en = (await import("../../messages/en.json")).default
@@ -54,6 +70,11 @@ export function getLocalizedUrl(path: string, locale: string): string {
   return normalizeLocale(locale) === defaultLang
     ? withTrailingSlash
     : `/${locale}${withTrailingSlash}`
+}
+
+/** The BCP 47 tag of a locale, falling back to the default language. */
+export function languageTag(locale: string): string {
+  return languageTags[normalizeLocale(locale)]
 }
 
 function normalizeLocale(locale: string): Locale {

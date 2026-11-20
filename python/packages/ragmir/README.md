@@ -1,15 +1,27 @@
 # ragmir
 
-Cited local retrieval for Python agents and RAG apps. [Ragmir](https://github.com/jcode-works/ragmir)
-indexes a project's code, PDFs, Office files, mail, and design files on your machine, and returns
-passages cited to lines, pages, slides, cells, or objects. A question the documents cannot answer
-returns nothing, so your application can say so instead of guessing.
+**Agentic RAG on your infrastructure, with exact citations, for Python agents and RAG apps.**
+
+[Ragmir](https://ragmir.com) indexes a project's code, PDFs, Office files, scans, mail, and design
+files on your machine, and returns passages cited to lines, pages, slides, cells, or objects. A
+question the documents cannot answer returns nothing, so your application can say so instead of
+guessing.
+
+- **Any model:** the index does not depend on the LLM that writes the answer, so you can switch
+  between Claude, GPT, Gemini, Mistral, or a local model without re-indexing.
+- **No GPU, no vector database:** the default retrieval runs offline on the CPU, and the index is an
+  embedded store in the project's git-ignored `.ragmir/` folder.
+- **Your data stays where you run it:** no account, telemetry, or hosted store.
+- **Measured:** `rgr evaluate` scores retrieval on your own questions and fails CI when it regresses.
 
 ```bash
 pip install ragmir
 ```
 
-Ragmir runs through Node.js 22.12 or later, or Docker. The client uses the project's own npm
+Requires Python 3.11 or later. Ragmir itself runs through Node.js 22.12 or later, or Docker, on
+macOS, Windows, or Linux; the default retrieval needs no model, and the [system
+requirements](https://github.com/jcode-works/ragmir#system-requirements) list what semantic models
+and OCR add. The client uses the project's own npm
 install of `@jcode.labs/ragmir` when there is one, else a global `rgr`, else the matching npm
 release through `npx`, else the `ghcr.io/jcode-works/ragmir` image. Set `RAGMIR_COMMAND` to choose
 another command.
@@ -56,5 +68,6 @@ any thread, a notebook, or a web framework, and each method has an async twin (`
 - [`llama-index-retrievers-ragmir`](https://pypi.org/project/llama-index-retrievers-ragmir/): a
   LlamaIndex retriever.
 
-Read the [Python guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md).
-Ragmir is open source under AGPL-3.0-only, with a commercial license available from JCode Works.
+Read the [Python guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md) and
+[ragmir.com](https://ragmir.com). Ragmir is open source under AGPL-3.0-only, with a commercial
+license available from JCode Works.

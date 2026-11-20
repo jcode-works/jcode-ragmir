@@ -7,6 +7,46 @@ the query. It owns reasoning, generation, and actions, with the model chosen by 
 Forward deployed engineers and AI-native teams use it to ship RAG inside the environment that owns
 the documents: a laptop for the first demo, then a VPS, an on-premise server, or an offline network.
 
+## When a coding agent needs Ragmir
+
+- A coding agent such as Claude Code or Codex can grep and read a few text files. grep matches only
+  exact words and cannot search inside PDF or Office files, and the agent opens such files one at a
+  time. Ragmir indexes more than 900 file types once (scans through optional local OCR) and cites
+  each passage to its line, page, slide, sheet cell, or exported object.
+- MCP search returns three compact citations by default, within a 32 KB output budget per call
+  (`mcpMaxOutputBytes`), so the agent's context holds evidence instead of whole files, and only
+  those excerpts and the passages the agent expands reach its model.
+- One search takes up to five rewordings of the question (keywords, a paraphrase, a likely answer)
+  fused into one ranking, names the question words that no indexed passage holds, and can match
+  meaning with an optional local semantic model.
+- When evidence is weak, search returns nothing, so the agent can say the documents do not cover
+  the question. In Ragmir 6.5 benchmarks on three real bases, 68 of 90 off-topic questions
+  returned nothing and no correct answer was refused.
+- `rgr evaluate` measures retrieval on the team's own golden questions and fails a CI job below its
+  thresholds.
+- On a small code repository, the agent's own search is often enough, and grep remains the tool to
+  list every occurrence or match a regular expression: Ragmir returns ranked passages.
+
+## What teams shipping RAG get
+
+- Any model: the index does not depend on the model that writes the answer, so a team can move
+  between Claude, GPT, Gemini, Mistral, or a local model without re-indexing.
+- Low running cost: default retrieval runs offline on the CPU, with no GPU, embedding API, API key,
+  or vector database server; the index is an embedded LanceDB store under `.ragmir/`.
+- Data residency: the index stays on the machine running Ragmir, in the country, cloud, and network
+  the team chooses. Ragmir supports traceability (exact citations, explicit source selection with
+  credentials left out, evaluation reports) but does not by itself make a system compliant with
+  GDPR or the EU AI Act, and is not legal advice.
+- Frameworks: TypeScript, LangChain.js, Python, LangChain and LangGraph, LlamaIndex, MCP, and the
+  CLI read the same index and return the same citations.
+- System requirements: Node.js 22.12 or later on Linux (x64 or ARM64), macOS, or Windows, or Docker
+  on amd64 and arm64. `local-hash` needs no model. Semantic models need, to index, at least
+  0.75 GB of memory for `mxbai-embed-xsmall-v1` (97 MB download), 1 GB for Granite R2 (124 MB),
+  1.5 GB for `multilingual-e5-small` (492 MB), and 4 GB for `Qwen3-Embedding-0.6B` (624 MB);
+  twice that memory and two CPUs is comfortable, and `rgr models list` checks the machine. A GPU is
+  optional. Local OCR makes the first ingest of scanned documents slow, which is expected; its
+  cache spares later ingests.
+
 ## Core facts
 
 - Install `@jcode.labs/ragmir`; use the `rgr` executable. Node.js 22.12 or later is required.

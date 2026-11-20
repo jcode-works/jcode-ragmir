@@ -250,6 +250,22 @@ textarea {
   letter-spacing: -0.025em;
 }
 
+/*
+ * Chinese pages: Inter has no Han glyphs, so the stack names the platform fonts that do, and display
+ * titles drop the negative tracking and tight leading that crowd Han characters.
+ */
+:lang(zh),
+:lang(zh) .display-title {
+  font-family:
+    "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC",
+    ui-sans-serif, system-ui, sans-serif;
+}
+
+:lang(zh) .display {
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
 .tnum {
   font-variant-numeric: tabular-nums;
 }
@@ -266,7 +282,9 @@ textarea {
 /*
  * Motion. One authored moment, the hero terminal: lines arrive and each citation is marked like a
  * highlighter on the cited span, the product's promise. Everything else explains a state change:
- * the tab pill slides, panels cross-fade, the drawer slides in faster than it leaves. Arrivals use
+ * the tab pill slides, panels settle in, disclosures open to their height, arrows lean toward where
+ * a link goes, and the drawer slides in faster than it leaves. Presses change colour, never size.
+ * Arrivals use
  * one deceleration curve; reduced motion keeps opacity and colour but drops movement.
  */
 :root {
@@ -371,6 +389,42 @@ textarea {
   animation: copy-confirm 160ms var(--ease-out-expo) both;
 }
 
+/*
+ * Links and buttons keep their place under the pointer: hover lightens the fill, a press darkens it
+ * back, and the arrow inside leans toward where the link goes.
+ */
+.arrow-out,
+.arrow-forward,
+.arrow-up {
+  transition: translate 200ms var(--ease-out-expo);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(a, button):is(:hover, :focus-visible) .arrow-out {
+    translate: 2px -2px;
+  }
+
+  :is(a, button):is(:hover, :focus-visible) .arrow-forward {
+    translate: 3px 0;
+  }
+
+  :is(a, button):is(:hover, :focus-visible) .arrow-up {
+    translate: 0 -2px;
+  }
+}
+
+/* A newly selected panel replaces the previous one in place, so it settles rather than slides. */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+.panel-in[data-state="active"] {
+  animation: panel-in 220ms var(--ease-out-expo) both;
+}
+
 /* Loops rest when nobody can see them. */
 [data-marquee][data-paused] .animate-marquee-text,
 header[data-hidden] .logo-stack::before,
@@ -379,9 +433,10 @@ header[data-hidden] .logo-text {
   animation-play-state: paused;
 }
 
-/* FAQ answers open to their natural height where the browser supports it. */
+/* FAQ answers and other disclosures open to their natural height where the browser supports it. */
 @supports selector(::details-content) {
-  .faq-item::details-content {
+  .faq-item::details-content,
+  .smooth-details::details-content {
     block-size: 0;
     overflow-y: clip;
     transition:
@@ -389,7 +444,8 @@ header[data-hidden] .logo-text {
       content-visibility 280ms allow-discrete;
   }
 
-  .faq-item[open]::details-content {
+  .faq-item[open]::details-content,
+  .smooth-details[open]::details-content {
     block-size: auto;
   }
 }
@@ -413,7 +469,12 @@ header[data-hidden] .logo-text {
     transition-delay: 0ms !important;
   }
 
-  .faq-item::details-content {
+  .faq-item::details-content,
+  .smooth-details::details-content {
     transition: none;
+  }
+
+  .panel-in[data-state="active"] {
+    animation: fade-in 160ms ease-out both;
   }
 }

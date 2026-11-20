@@ -3,7 +3,14 @@ import { ArrowUpRight } from "@lucide/astro"
 import { RagmirBackground } from "../../components/ragmir-background"
 import Footer from "../../components/sections/footer.astro"
 import { LandingNavbar } from "../../components/landing-navbar"
-import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
+import {
+  defaultLang,
+  getLocalizedUrl,
+  languages,
+  languageTag,
+  locales,
+  useTranslations,
+} from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
 import { NAVBAR_TRANSLATIONS, pickTranslations } from "../../lib/island-translations"
 
@@ -44,16 +51,16 @@ const stats = [
   { value: t("team_stat_rating_value"), suffix: "/5", label: t("team_stat_rating_label") },
 ]
 const pillClass =
-  "group inline-flex h-11 items-center gap-2 rounded-full px-5 font-bold text-sm transition-[background-color,color,scale] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] motion-reduce:transition-colors"
+  "group inline-flex h-11 items-center gap-2 rounded-full px-5 font-bold text-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 const arrowClass =
-  "size-4 transition-transform duration-200 ease-[var(--ease-out-expo)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 motion-reduce:transform-none"
+  "arrow-out size-4"
 
 const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "AboutPage",
     "@id": pageUrl,
-    inLanguage: locale,
+    inLanguage: languageTag(locale),
     name: t("seo_team_title"),
     description: t("seo_team_description"),
     url: pageUrl,
@@ -115,7 +122,7 @@ const structuredData = [
     localizedAgentsUrl={`${homeUrl}#agents`}
     localizedDeployUrl={`${homeUrl}#deploy`}
     localizedFaqUrl={`${homeUrl}#faq`}
-    localizedFeaturesUrl={`${homeUrl}#features`}
+    localizedFeaturesUrl={`${homeUrl}#capabilities`}
     localizedHomeUrl={`${homeUrl}#top`}
     localizedLibraryUrl={`${homeUrl}#library`}
     localizedTeamUrl={getLocalizedUrl("/team", locale)}
@@ -150,7 +157,7 @@ const structuredData = [
           </p>
           <div class="mt-8 flex flex-wrap gap-3">
             <a
-              class={`${pillClass} rounded-full bg-primary text-primary-foreground hover:bg-[var(--primary-hover)]`}
+              class={`${pillClass} rounded-full bg-primary text-primary-foreground hover:bg-[var(--primary-hover)] active:bg-primary`}
               href={JCODE_URL}
               rel="noopener"
               target="_blank"
@@ -160,7 +167,7 @@ const structuredData = [
             </a>
             {memberLinks.map((link) => (
               <a
-                class={`${pillClass} bg-card text-foreground hover:bg-[var(--card-hover)]`}
+                class={`${pillClass} bg-card text-foreground hover:bg-[var(--card-hover)] active:bg-card`}
                 href={link.href}
                 rel="nofollow noreferrer noopener"
                 target="_blank"
@@ -224,7 +231,7 @@ const structuredData = [
             <h3 class="font-black text-lg leading-snug">{t("team_jcode_title")}</h3>
             <p class="mt-2 text-muted-foreground text-sm leading-7">{t("team_jcode_text")}</p>
             <a
-              class={`${pillClass} mt-6 w-fit bg-background text-foreground hover:bg-[var(--inset-hover)]`}
+              class={`${pillClass} mt-6 w-fit bg-background text-foreground hover:bg-[var(--inset-hover)] active:bg-background`}
               href={JCODE_URL}
               rel="noopener"
               target="_blank"
