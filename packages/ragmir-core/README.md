@@ -74,21 +74,24 @@ jcode-works/ragmir`), OpenAI Codex, or Cursor, or as an extension for Gemini CLI
 Code; the [plugin
 guide](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md#plugins-and-extensions-for-coding-agents)
 lists every install command. Without a plugin, `rgr setup --agents claude,codex` prepares a project
-MCP server and a retrieval skill, and `npx skills add jcode-works/ragmir` installs the
-retrieval, setup, build, and evaluation skills for any agent. The server exposes `ragmir_search` (one question or up to five
-related ones sharing a budget, with folder or glob filters, named scopes, and the agent's own
-keyword, paraphrase, or likely-answer formulations), `ragmir_expand` (a
-citation with its neighbours and the next window of the document), `ragmir_sources`,
-`ragmir_status`, `ragmir_audit`, and `ragmir_ingest` to refresh the index after files change.
-Passages already returned in a session come back as one-line stubs. Its instructions name the base
-it serves, and it warns or refuses agents working in unrelated projects. See [agent
+MCP server and a retrieval skill, and `npx skills add jcode-works/ragmir` installs the retrieval,
+setup, build, evaluation, and wiki skills for any agent. The server exposes `ragmir_search` (one
+question or up to five related ones sharing a budget, with folder or glob filters, named scopes,
+and the agent's own keyword, paraphrase, or likely-answer formulations), `ragmir_expand` (a
+citation with its neighbours, the next window of the document, and a Markdown page's links and
+backlinks), `ragmir_sources` (page titles, one document's outline, or the files changed since a
+given time), `ragmir_status`, `ragmir_audit` (also a read-only audit of Markdown pages as a
+knowledge base), and `ragmir_ingest` to refresh the index after files change. Passages already
+returned in a session come back as one-line stubs. Its instructions name the base it serves, and
+it warns or refuses agents working in unrelated projects. See [agent
 integration](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md) for
 connection steps and local or self-hosted model examples. Python applications install
 `ragmir`, `langchain-ragmir`, or `llama-index-retrievers-ragmir` from PyPI ([Python
 guide](https://github.com/jcode-works/ragmir/blob/main/docs/python.md)), and
-`ghcr.io/jcode-works/ragmir` runs Ragmir without Node.js (`:full` adds semantic search and OCR). LangChain.js chains use
-`RagmirRetriever`, and LangChain or LangGraph agents use `createRagmirTools`, both from
-`@jcode.labs/ragmir/langchain` with the optional peer `@langchain/core`.
+`ghcr.io/jcode-works/ragmir` runs Ragmir without Node.js (`:full` adds semantic search and OCR).
+LangChain.js chains use `RagmirRetriever`, and LangChain or LangGraph agents use
+`createRagmirTools`, both from `@jcode.labs/ragmir/langchain` with the optional peer
+`@langchain/core`.
 
 ## TypeScript API
 
