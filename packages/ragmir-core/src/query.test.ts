@@ -1377,7 +1377,10 @@ describe("expandCitation", () => {
     await initProject(root)
     const raw = path.join(root, ".ragmir", "raw")
     await mkdir(raw, { recursive: true })
-    await writeFile(path.join(raw, "release-policy.md"), "# Releases\nTwo approvals are required.\n")
+    await writeFile(
+      path.join(raw, "release-policy.md"),
+      "# Releases\nTwo approvals are required.\n",
+    )
     await ingest({ cwd: root })
 
     const beyond = await expandCitation(".ragmir/raw/release-policy.md:L1-L2#9", { cwd: root })

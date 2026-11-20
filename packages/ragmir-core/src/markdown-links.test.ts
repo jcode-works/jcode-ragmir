@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { linkResolver, markdownLinks } from "./markdown-links.js"
 
-const linksOf = (text: string) =>
-  markdownLinks(text).map(({ offset: _offset, ...link }) => link)
+const linksOf = (text: string) => markdownLinks(text).map(({ offset: _offset, ...link }) => link)
 
 describe("markdownLinks", () => {
   it("reads inline, reference, and wiki links with their lines", () => {
