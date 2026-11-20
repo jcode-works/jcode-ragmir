@@ -64,6 +64,10 @@ truncation. Passages already returned in a session come back as short `seen` stu
   nothing.
 - `ragmir_ingest` refuses while external extractors such as OCR are configured: ask the user to run
   `rgr ingest` from a terminal.
+- `UNTRUSTED_CONFIG`, or a notice naming settings "inactive until approved", means the project
+  config sets a command, an embedding endpoint, an API key variable, or a source outside the
+  project that this machine has not approved. Never approve it yourself: ask the user to review
+  `rgr trust`.
 
 ## Sources, OCR, and models
 

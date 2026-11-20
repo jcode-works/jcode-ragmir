@@ -82,6 +82,8 @@ npx rgr search "how are permissions checked?" --compact
   `rgr hooks install` refreshes it in the background after commits, merges, and checkouts.
 - **Private by default.** No account, telemetry, or hosted storage. The default `local-hash`
   provider runs offline without a model download; local semantic embeddings are one command away.
+  A cloned or pulled config cannot run a command, reach an embedding server, send a secret, or read
+  outside the project until you approve it on your machine with `rgr trust`.
 - **The same on every platform.** Paths are cited with forward slashes and in one Unicode form on
   macOS, Linux, and Windows, so an exclusion written as `Études` also excludes a folder stored
   decomposed, and every release is tested on all three systems.

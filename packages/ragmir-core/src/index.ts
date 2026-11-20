@@ -95,6 +95,7 @@ export type {
   StorageMaintenanceReport,
 } from "./storage-maintenance.js"
 export { optimizeStorage } from "./storage-maintenance.js"
+export type { ConfigTrustState, GatedSetting, GatedSettingName } from "./trust.js"
 export type {
   AuditOptions,
   AuditReport,

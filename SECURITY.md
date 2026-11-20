@@ -30,6 +30,12 @@ workflow on one machine; a self-hosted endpoint receives passages over the netwo
 cloud model or agent receives the evidence the application sends. A local index or self-hosted
 model alone does not guarantee confidentiality. Ragmir does not mask or anonymize source content.
 
+A project config file arrives with a clone or a pull, so Ragmir treats it as untrusted input for
+the settings that run a program, send passages or a secret off the machine, or read outside the
+project: extractor commands, a remote embedding endpoint and its API key variable, remote model
+downloads, and outside sources. They stay inactive until the person running Ragmir approves them
+on that machine with `rgr trust`, including for ingests started by Git hooks or MCP clients.
+
 Protect source documents and generated indexes with appropriate access, encryption, and retention
 controls. Keep private documents, `.ragmir/`, environment files, credentials, and customer records
 outside commits. See [security boundaries](./SECURITY-HARDENING.md) and the

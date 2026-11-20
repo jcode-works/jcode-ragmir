@@ -9,6 +9,7 @@ import { DEFAULT_CONFIG, LEGACY_KB_DIR, LEGACY_PRIVATE_DIR, RAGMIR_DIR } from ".
 import { isDotenvTemplateName } from "./dotenv-template.js"
 import { activeIngestionMetrics } from "./ingestion-metrics.js"
 import { operationSignal, throwIfAborted } from "./operation.js"
+import { sourceEntryLeavesProject } from "./trust.js"
 import {
   readSourceFingerprintCache,
   reusableSourceFingerprint,
@@ -1730,9 +1731,17 @@ async function sourceInputs(
   const patterns: string[] = []
   const ignorePatterns: string[] = []
 
+  // `loadConfig` already dropped unapproved out-of-project entries from `sources`; the legacy
+  // sources file is read here, so the same rule applies to its lines.
+  const outsideSourcesBlocked =
+    config.configTrust?.status === "untrusted" &&
+    config.configTrust.settings.some((setting) => setting.name === "sources")
   const classifyEntry = (entry: string): void => {
     const trimmed = entry.trim()
     if (!trimmed || trimmed.startsWith("#")) {
+      return
+    }
+    if (outsideSourcesBlocked && sourceEntryLeavesProject(config.projectRoot, trimmed)) {
       return
     }
     if (trimmed.startsWith("!")) {

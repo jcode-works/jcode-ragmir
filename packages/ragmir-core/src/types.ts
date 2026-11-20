@@ -1,5 +1,6 @@
 import type { PathLike } from "node:fs"
 import type { PackageManager } from "./package-manager.js"
+import type { ConfigTrustState } from "./trust.js"
 
 export type AgentTarget = "claude" | "codex" | "kimi" | "opencode" | "cline"
 export type RagmirRunnerMode = "local-bin" | "workspace" | "installed-package" | "npm-cache"
@@ -103,6 +104,12 @@ export interface Config {
   mcpIngest: boolean
   /** How MCP search treats passages already returned in the same session. */
   mcpSeenResults: McpSeenResults
+  /**
+   * Settings from project config files that run a program, send data off the machine, or read
+   * outside the project, and whether this machine approved them. Untrusted ones are inactive.
+   * `loadConfig` always sets it; a hand-built config without it has nothing to approve.
+   */
+  configTrust?: ConfigTrustState
 }
 export type McpSeenResults = "collapse" | "include" | "exclude"
 
@@ -1213,6 +1220,8 @@ export interface SecurityAuditReport {
   projectRoot: string
   zeroTelemetry: true
   retrievalProfile: RetrievalProfile
+  /** Gated settings from project config files and whether this machine approved them. */
+  configTrust: ConfigTrustState
   providers: {
     embedding: EmbeddingProvider
     embeddingModel: string

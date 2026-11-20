@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from "node:path"
+import { createInterface } from "node:readline/promises"
 import { Command } from "commander"
 import pc from "picocolors"
 import {
@@ -74,6 +75,15 @@ import {
 } from "./skill.js"
 import { addSourceEntries, listSourceEntries } from "./sources.js"
 import { optimizeStorage } from "./storage-maintenance.js"
+import {
+  approveConfigTrust,
+  type ConfigTrustState,
+  type GatedSetting,
+  listConfigTrust,
+  revokeConfigTrust,
+  TRUST_PROJECT_CONFIG_ENV,
+  trustStorePath,
+} from "./trust.js"
 import { readIndexManifestHeader } from "./store.js"
 import type {
   EvaluationComparison,
@@ -280,6 +290,7 @@ ocrCommand
       command: Command,
     ) => {
       const cwd = projectRoot(command)
+      const trustBefore = (await loadConfig(cwd)).configTrust
       let pdf: Awaited<ReturnType<typeof configurePdfOcr>> | null = null
       if (options.pdf) {
         const configureOptions: Parameters<typeof configurePdfOcr>[0] = {
@@ -300,6 +311,7 @@ ocrCommand
               ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
             })
           : null
+      await approveOwnConfigWrites(cwd, trustBefore)
       if (options.json) {
         console.log(JSON.stringify({ pdf, local }, null, 2))
         return
@@ -659,7 +671,9 @@ sourcesCommand
   .option("--json", "Print machine-readable JSON.")
   .action(async (entries: string[], options: { json?: boolean }, command: Command) => {
     const cwd = projectRoot(command)
+    const trustBefore = (await loadConfig(cwd)).configTrust
     const result = await addSourceEntries({ cwd, entries })
+    await approveOwnConfigWrites(cwd, trustBefore)
     if (options.json) {
       console.log(JSON.stringify(result, null, 2))
       return
@@ -698,6 +712,7 @@ program
       command: Command,
     ) => {
       const cwd = projectRoot(command)
+      await reviewProjectConfigTrust(cwd, options.json === true)
       const ingestOptions: Parameters<typeof ingest>[0] = { cwd }
       addOption(ingestOptions, "rebuild", options.rebuild)
       addOption(ingestOptions, "batchSize", options.batchSize)
@@ -882,6 +897,7 @@ program
         throw new Error("Search query must not be empty.")
       }
       const cwd = projectRoot(command)
+      await reviewProjectConfigTrust(cwd, options.json === true)
       const results = await search(query, withSearchOptions(cwd, options))
       const outputResults = options.compact ? compactSearchResults(results) : results
       if (options.json) {
@@ -975,6 +991,7 @@ program
       command: Command,
     ) => {
       const cwd = projectRoot(command)
+      await reviewProjectConfigTrust(cwd, options.json === true)
       const evaluationOptions: Parameters<typeof evaluateGoldenQueries>[0] = {
         cwd,
         goldenPath: options.golden,
@@ -1324,6 +1341,98 @@ program
       process.exitCode = 1
     }
   })
+
+program
+  .command("trust")
+  .description(
+    "Review and approve project config settings that run programs, send data off this machine, or read outside the project.",
+  )
+  .option("--yes", "Approve the current settings without a prompt (CI, servers, scripts).")
+  .option("--revoke", "Remove this machine's approval for the project.")
+  .option("--list", "List every project approved on this machine.")
+  .option("--json", "Print machine-readable JSON.")
+  .action(
+    async (
+      options: { yes?: boolean; revoke?: boolean; list?: boolean; json?: boolean },
+      command: Command,
+    ) => {
+      const cwd = projectRoot(command)
+      if (options.list) {
+        const approvals = await listConfigTrust()
+        if (options.json) {
+          console.log(JSON.stringify({ store: trustStorePath(), approvals }, null, 2))
+          return
+        }
+        console.log(`store=${trustStorePath()}`)
+        for (const approval of approvals) {
+          console.log(
+            `${approval.projectRoot} approvedAt=${approval.approvedAt} settings=${approval.settings.join(",")}`,
+          )
+        }
+        return
+      }
+      const config = await loadConfig(cwd)
+      if (options.revoke) {
+        const revoked = await revokeConfigTrust(config.projectRoot)
+        if (options.json) {
+          console.log(JSON.stringify({ projectRoot: config.projectRoot, revoked }, null, 2))
+          return
+        }
+        console.log(revoked ? pc.green("Approval removed.") : "No approval was recorded.")
+        return
+      }
+      const trust = config.configTrust ?? { status: "not-needed", settings: [], fingerprint: null }
+      let approved = trust.status === "trusted"
+      if (trust.status === "untrusted") {
+        printGatedSettings(trust.settings)
+        approved =
+          options.yes === true ||
+          (!options.json &&
+            isInteractiveTerminal() &&
+            (await askYesNo("Approve these settings on this machine? [y/N] ")))
+        if (approved) {
+          await approveConfigTrust(config.projectRoot, trust.settings)
+        }
+      }
+      if (options.json) {
+        console.log(
+          JSON.stringify(
+            {
+              projectRoot: config.projectRoot,
+              status: approved && trust.status === "untrusted" ? "trusted" : trust.status,
+              settings: trust.settings,
+              fingerprint: trust.fingerprint,
+              store: trustStorePath(),
+            },
+            null,
+            2,
+          ),
+        )
+        return
+      }
+      if (trust.status === "not-needed") {
+        console.log("No project config setting needs approval.")
+      } else if (trust.status === "trusted") {
+        console.log(
+          pc.green(
+            trust.grantedBy === "environment"
+              ? `Approved by ${TRUST_PROJECT_CONFIG_ENV}=1.`
+              : "These settings are approved on this machine.",
+          ),
+        )
+        printGatedSettings(trust.settings)
+      } else if (approved) {
+        console.log(pc.green("Approved. Changing any of these settings asks again."))
+      } else {
+        console.log(
+          pc.yellow(
+            "Not approved: these settings stay inactive. Run `rgr trust --yes` after reviewing them.",
+          ),
+        )
+        process.exitCode = 1
+      }
+    },
+  )
 
 const storageCommand = program.command("storage").description("Inspect and maintain local storage.")
 
@@ -1694,6 +1803,76 @@ function withSearchOptions(
     result.vectorSearchMode = "exact"
   }
   return result
+}
+
+function printGatedSettings(settings: readonly GatedSetting[]): void {
+  for (const setting of settings) {
+    const value = Array.isArray(setting.value) ? setting.value.join(" ") : String(setting.value)
+    console.log(`  ${pc.bold(setting.name)} = ${value}`)
+    console.log(pc.dim(`    ${setting.reason}`))
+  }
+}
+
+function isInteractiveTerminal(): boolean {
+  return process.stdin.isTTY === true && process.stdout.isTTY === true
+}
+
+async function askYesNo(question: string): Promise<boolean> {
+  const prompt = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    return /^y(?:es)?$/iu.test((await prompt.question(question)).trim())
+  } finally {
+    prompt.close()
+  }
+}
+
+/**
+ * Before a command that may run extractors or send embeddings: settings a clone or a pull brought in
+ * stay off until approved. A terminal asks once; scripts, hooks, and agents get a notice and run
+ * without them.
+ */
+async function reviewProjectConfigTrust(cwd: string, json: boolean): Promise<void> {
+  const config = await loadConfig(cwd)
+  const trust = config.configTrust
+  if (trust?.status !== "untrusted") {
+    return
+  }
+  if (!json && isInteractiveTerminal()) {
+    console.log(
+      pc.yellow("Project config files set these settings, which this machine has not approved:"),
+    )
+    printGatedSettings(trust.settings)
+    if (await askYesNo("Approve them on this machine? [y/N] ")) {
+      await approveConfigTrust(config.projectRoot, trust.settings)
+      console.log(pc.green("Approved. Changing any of these settings asks again."))
+      return
+    }
+    console.log(pc.yellow("Continuing without them. Run `rgr trust` to review them later."))
+    return
+  }
+  console.error(
+    pc.yellow(
+      `Project config files set ${trust.settings.map((setting) => setting.name).join(", ")}, inactive until this machine approves them: run \`rgr trust\`.`,
+    ),
+  )
+}
+
+/**
+ * A command that writes gated settings on the operator's request approves what it wrote, as long as
+ * the project had nothing else awaiting approval: an unapproved setting from a clone still needs a
+ * review of its own.
+ */
+async function approveOwnConfigWrites(
+  cwd: string,
+  before: ConfigTrustState | undefined,
+): Promise<void> {
+  if (before?.status === "untrusted") {
+    return
+  }
+  const after = await loadConfig(cwd)
+  if (after.configTrust?.status === "untrusted") {
+    await approveConfigTrust(after.projectRoot, after.configTrust.settings)
+  }
 }
 
 /** One line per metric: baseline, current, and the signed change, then the per-category changes. */

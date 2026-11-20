@@ -46,6 +46,7 @@
     "LangChain.js: RagmirRetriever and createRagmirTools({ client }) from @jcode.labs/ragmir/langchain, with the optional peer @langchain/core 1.x. An empty result means the documents hold no evidence.",
     "Agent Skills: npx skills add jcode-works/ragmir installs ragmir (cited retrieval), ragmir-setup (install, sources, connection, OCR, upgrades), ragmir-build (applications), and ragmir-evaluate (golden files and rgr evaluate gates).",
     "Ragmir indexes 900+ file types: code, Markdown, PDF, Office, OpenDocument, EPUB, HTML, email, Evernote, and exports from Figma, Sketch, Excalidraw, tldraw, XMind, Postman, Insomnia, HAR, OpenAPI, and modeling tools, cited per object.",
-    "Ragmir always skips credential files such as .env, .env.local, .npmrc, .tfvars, SSH keys, and .pem files; dotenv templates (.env.example, .env.sample, env.template) index variable names and comments with every value masked."
+    "Ragmir always skips credential files such as .env, .env.local, .npmrc, .tfvars, SSH keys, and .pem files; dotenv templates (.env.example, .env.sample, env.template) index variable names and comments with every value masked.",
+    "Settings in a cloned or pulled project config that run a program (OCR and extractor commands), send data off the machine (a remote embeddingEndpoint, any embeddingApiKeyEnv, model downloads), or read outside the project stay inactive until the user approves them on that machine with rgr trust; agents must never approve them. Embedding calls then fail with UNTRUSTED_CONFIG before any request."
   ]
 }

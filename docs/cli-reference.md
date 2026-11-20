@@ -293,8 +293,12 @@ rgr storage generations --json
 rgr storage gc --dry-run --json
 rgr storage gc --orphans
 rgr destroy-index --yes
+rgr trust            # review settings from project config files; --yes, --list, --revoke
 ```
 
+- `trust` lists the settings from project config files that run a program, send data off the
+  machine, or read outside the project, and approves them for this machine. They stay inactive
+  until then; see [Settings that need approval](./configuration.md#settings-that-need-approval-on-each-machine).
 - `setup` installs canonical skills, native project links, a local runner, and selected MCP helpers.
 - `install-skill` refreshes only the canonical kit; `install-agent` changes native scope or link mode.
 - `install-agent --force` replaces a conflicting same-name skill only when explicitly requested.

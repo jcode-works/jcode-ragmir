@@ -34,6 +34,12 @@ import {
 } from "./defaults.js"
 import { RagmirError } from "./errors.js"
 import { isRecord } from "./guards.js"
+import {
+  type ConfigTrustState,
+  evaluateConfigTrust,
+  gatedSettings,
+  sourceEntryLeavesProject,
+} from "./trust.js"
 import type { Config, WorkloadLimit } from "./types.js"
 
 export const CONFIG_LOAD_DIAGNOSTICS_CHANNEL = "ragmir:config-load"
@@ -333,7 +339,19 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
   const parsed = rawConfigSchema.parse(configWithModelIdentityDefaults(defaults, raw))
   const withProfile = applyRetrievalProfile(parsed, raw)
   const withEnv = rawConfigSchema.parse(applyEnv(withProfile))
-  const effective = withEnv
+  const configTrust = await evaluateConfigTrust(
+    projectConfig.projectRoot,
+    gatedSettings(
+      projectConfig.projectRoot,
+      raw,
+      withEnv,
+      await sourcesFileEntries(resolveFromRoot(projectConfig.projectRoot, withEnv.sourcesFile)),
+    ),
+  )
+  const effective =
+    configTrust.status === "untrusted"
+      ? withoutUntrustedSettings(projectConfig.projectRoot, withEnv, configTrust, defaults)
+      : withEnv
 
   assertAtMost("maxFileBytes", effective.maxFileBytes, MAX_CONFIGURED_FILE_BYTES)
   assertAtMost("ingestConcurrency", effective.ingestConcurrency, MAX_INGEST_CONCURRENCY)
@@ -405,6 +423,7 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     mcpAutoIngest: effective.mcpAutoIngest,
     mcpIngest: effective.mcpIngest,
     mcpSeenResults: effective.mcpSeenResults,
+    configTrust,
   }
   if (Object.keys(config.scopes).length > MAX_SEARCH_SCOPES) {
     throw new Error(`scopes must define at most ${MAX_SEARCH_SCOPES} named scopes.`)
@@ -416,6 +435,48 @@ export async function loadConfig(start = process.cwd()): Promise<Config> {
     } satisfies ConfigLoadDiagnosticsEvent)
   }
   return config
+}
+
+/**
+ * The effective settings with every unapproved gated setting turned off: extractor commands are
+ * dropped, model downloads stay disabled, out-of-project sources and raw folders fall back. The
+ * embedding endpoint and its key stay configured but refuse to send anything until approved,
+ * because silently switching providers would change what the index means.
+ */
+function withoutUntrustedSettings(
+  projectRoot: string,
+  effective: z.infer<typeof rawConfigSchema>,
+  trust: ConfigTrustState,
+  defaults: typeof DEFAULT_CONFIG,
+): z.infer<typeof rawConfigSchema> {
+  const gated = new Set(trust.settings.map((setting) => setting.name))
+  return {
+    ...effective,
+    ...(gated.has("pdfOcrCommand") ? { pdfOcrCommand: [] } : {}),
+    ...(gated.has("imageOcrCommand") ? { imageOcrCommand: [] } : {}),
+    ...(gated.has("legacyWordCommand") ? { legacyWordCommand: [] } : {}),
+    ...(gated.has("transformersAllowRemoteModels") ? { transformersAllowRemoteModels: false } : {}),
+    ...(gated.has("sources")
+      ? {
+          sources: effective.sources.filter(
+            (entry) => !sourceEntryLeavesProject(projectRoot, entry),
+          ),
+        }
+      : {}),
+    ...(gated.has("rawDir") ? { rawDir: defaults.rawDir } : {}),
+  }
+}
+
+/** Lines of the legacy sources file, which discovery reads beside the config's `sources`. */
+async function sourcesFileEntries(sourcesFile: string): Promise<string[]> {
+  if (!existsSync(sourcesFile)) {
+    return []
+  }
+  try {
+    return (await readFile(sourcesFile, "utf8")).split(/\r?\n/u)
+  } catch {
+    return []
+  }
 }
 
 export function externalExtractorsRequested(config: Config): boolean {

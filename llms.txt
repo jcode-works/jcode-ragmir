@@ -118,6 +118,11 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   source inspection, retrieval quality, live diagnostics, and index maintenance.
 - Optional ingestion metrics are local counters and timings, without source content or raw queries.
 - Keep `.ragmir/` and credentials out of Git. Share reviewed sources normally, then ingest locally.
+- Settings in project config files that run a program (OCR and extractor commands), send data off
+  the machine (a remote `embeddingEndpoint`, any `embeddingApiKeyEnv`, model downloads), or read
+  outside the project stay inactive until approved on each machine with `rgr trust` (`--yes` in
+  CI, or `RAGMIR_TRUST_PROJECT_CONFIG=1`). Embedding calls fail with `UNTRUSTED_CONFIG` before any
+  request; Git hooks and MCP never approve. `RAGMIR_*` environment overrides need no approval.
 - The index stays on the machine running Ragmir. The consuming application decides where
   unmasked passages go: a local model, a self-hosted server (including private cloud), or a provider.
   Local indexing and self-hosting alone do not guarantee confidentiality. Control the client,

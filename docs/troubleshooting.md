@@ -142,6 +142,14 @@ and stages the required index rebuild. Source text is now preserved. See [migrat
 permissions, Git exclusions, or external extractor. Warnings are separate from operational readiness.
 OCR remains usable while its explicit external-process advisory is reported.
 
+## `UNTRUSTED_CONFIG`, or OCR stopped after a pull
+
+A project config file sets a command, an embedding endpoint, an API key variable, or a source
+outside the project that this machine has not approved. Run `rgr trust` to review the values and
+approve them (`rgr trust --yes` in CI). Changing any of them asks again. Until then Ragmir indexes
+without them and never contacts the endpoint. See
+[Settings that need approval](./configuration.md#settings-that-need-approval-on-each-machine).
+
 ## Two workstations return different results
 
 Compare source revisions, configured globs, package versions, model identity, and chunk settings.
