@@ -250,6 +250,22 @@ textarea {
   letter-spacing: -0.025em;
 }
 
+/*
+ * Chinese pages: Inter has no Han glyphs, so the stack names the platform fonts that do, and display
+ * titles drop the negative tracking and tight leading that crowd Han characters.
+ */
+:lang(zh),
+:lang(zh) .display-title {
+  font-family:
+    "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC",
+    ui-sans-serif, system-ui, sans-serif;
+}
+
+:lang(zh) .display {
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
 .tnum {
   font-variant-numeric: tabular-nums;
 }

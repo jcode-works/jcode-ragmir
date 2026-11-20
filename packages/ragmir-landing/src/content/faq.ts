@@ -3,6 +3,7 @@ const FAQ_ITEM_KEYS = [
   ["faq_compare_question", "faq_compare_answer"],
   ["faq_private_question", "faq_private_answer"],
   ["faq_offline_question", "faq_offline_answer"],
+  ["faq_requirements_question", "faq_requirements_answer"],
   ["faq_role_question", "faq_role_answer"],
   ["faq_quality_question", "faq_quality_answer"],
   ["faq_compliance_question", "faq_compliance_answer"],

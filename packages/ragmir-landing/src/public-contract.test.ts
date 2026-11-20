@@ -3,13 +3,21 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import en from "../messages/en.json"
+import es from "../messages/es.json"
 import fr from "../messages/fr.json"
+import zh from "../messages/zh.json"
 import { findHeroDemoScenario, HERO_DEMO_SCENARIOS } from "./components/hero-demo-script.js"
 import { USE_CASES } from "./components/use-case-carousel.js"
 import { getFaqItems } from "./content/faq.js"
 import { RAGMIR_SETUP_PROMPT } from "./content/setup-prompt.js"
 import { FEATURED_FORMATS, SUPPORTED_FORMAT_GROUPS } from "./content/supported-formats.js"
-import { getLocalizedUrl, loadTranslations, useTranslations } from "./i18n/utils.js"
+import {
+  getLocalizedUrl,
+  languageTag,
+  loadTranslations,
+  locales,
+  useTranslations,
+} from "./i18n/utils.js"
 import {
   HERO_DEMO_TRANSLATIONS,
   LIBRARY_TRANSLATIONS,
@@ -129,8 +137,11 @@ function collectUiSourceFiles(directory: string): string[] {
 }
 
 describe("landing public contract", () => {
-  it("should keep English and French translation keys in parity", () => {
-    expect(Object.keys(fr).sort()).toEqual(Object.keys(en).sort())
+  it("should keep every locale's translation keys in parity with English, in the same order", () => {
+    for (const messages of [fr, es, zh]) {
+      expect(Object.keys(messages)).toEqual(Object.keys(en))
+      expect(Object.entries(messages).filter(([, value]) => value.trim() === "")).toEqual([])
+    }
   })
 
   it("should keep a prominent outlined headline on three localized lines", () => {
@@ -271,7 +282,7 @@ describe("landing public contract", () => {
     // The limits stay next to the claims: grep remains the tool for every occurrence or a regex.
     expect(en.comparison_enough_text).toContain("grep")
     expect(fr.comparison_enough_text).toContain("grep")
-    for (const messages of [en, fr]) {
+    for (const messages of [en, fr, es, zh]) {
       expect(Object.values(messages).filter((text) => text.includes("—"))).toEqual([])
     }
   })
@@ -386,7 +397,10 @@ describe("landing public contract", () => {
   })
 
   it("should keep shared entities stable and give each localized home page its own WebPage", () => {
-    expect(homePageSource).toContain('inLanguage: ["en", "fr"]')
+    // Shared entities list every locale by its BCP 47 tag; each page names its own language.
+    expect(homePageSource).toContain("inLanguage: locales.map(languageTag)")
+    expect(homePageSource).toContain("inLanguage: languageTag(locale)")
+    expect(locales.map(languageTag)).toEqual(["en", "fr", "es", "zh-Hans"])
     expect(homePageSource).toContain("url: siteUrl")
     expect(homePageSource).toContain('"@type": "WebPage"')
     expect(homePageSource).toMatch(localizedWebPageId)
@@ -395,14 +409,19 @@ describe("landing public contract", () => {
   })
 
   it("should use generic hreflang values while keeping regional Open Graph locales", () => {
+    // Chinese pages are Simplified Chinese: a script subtag, still no region.
     expect(layoutSource).toContain(
-      'const hreflangLocaleMap: Record<string, string> = {\n  en: "en",\n  fr: "fr",',
+      'const hreflangLocaleMap: Record<string, string> = {\n  en: "en",\n  fr: "fr",\n  es: "es",\n  zh: "zh-Hans",',
     )
     expect(astroConfigSource).toContain(
-      'locales: {\n                en: "en",\n                fr: "fr",',
+      'locales: {\n                en: "en",\n                fr: "fr",\n                es: "es",\n                zh: "zh-Hans",',
     )
     expect(layoutSource).toContain('en: "en_US"')
     expect(layoutSource).toContain('fr: "fr_FR"')
+    expect(layoutSource).toContain('es: "es_ES"')
+    expect(layoutSource).toContain('zh: "zh_CN"')
+    // Alternates strip whichever locale prefix the page has, not only /fr.
+    expect(layoutSource).toContain("getLocalizedUrl(basePath, targetLocale)")
   })
 
   it("should expose AGPL and commercial licensing consistently", () => {
@@ -608,8 +627,9 @@ describe("landing public contract", () => {
   })
 
   it("should keep visible localized FAQs without FAQPage structured data", () => {
-    expect(getFaqItems(en)).toHaveLength(15)
-    expect(getFaqItems(fr)).toHaveLength(15)
+    for (const messages of [en, fr, es, zh]) {
+      expect(getFaqItems(messages)).toHaveLength(16)
+    }
     expect(homePageSource).toContain("<Faq translations={translations} />")
     expect(homePageSource).not.toContain('"@type": "FAQPage"')
     expect(homePageSource).not.toContain("mainEntity: faqItems.map")

@@ -60,9 +60,9 @@ PUBLIC_RAGMIR_VERSION=<version> PUBLIC_RAGMIR_LANDING_URL=https://ragmir.com \
 
 The host serves `dist/` as static assets, answers an unknown path with `404.html` and status 404,
 and redirects a directory path to its trailing slash (`/fr` to `/fr/`). After each deployment,
-check that `/`, `/fr/`, and `/team/` answer 200 and show the released version, that an unknown
-path answers 404 with the error page, and that `/llms.txt` and `/ai.txt` match the root
-`llms.txt`.
+check that `/`, `/fr/`, `/es/`, `/zh/`, and `/team/` answer 200 and show the released version,
+that an unknown path answers 404 with the error page, and that `/llms.txt` and `/ai.txt` match
+the root `llms.txt`.
 
 ## Release Notes Contract
 
@@ -82,7 +82,7 @@ Release details:
 
 Verification:
 - pass pnpm validate and the Linux x64 and macOS ARM64 CI matrix
-- verify the English and French production pages in a browser
+- verify the English, French, Spanish, and Chinese production pages in a browser
 ```
 
 `scripts/semantic-release-notes.mjs` converts those sections into a GitHub release with highlights,

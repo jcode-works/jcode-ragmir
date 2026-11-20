@@ -3,7 +3,14 @@ import { ArrowUpRight } from "@lucide/astro"
 import { RagmirBackground } from "../../components/ragmir-background"
 import Footer from "../../components/sections/footer.astro"
 import { LandingNavbar } from "../../components/landing-navbar"
-import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
+import {
+  defaultLang,
+  getLocalizedUrl,
+  languages,
+  languageTag,
+  locales,
+  useTranslations,
+} from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
 import { NAVBAR_TRANSLATIONS, pickTranslations } from "../../lib/island-translations"
 
@@ -53,7 +60,7 @@ const structuredData = [
     "@context": "https://schema.org",
     "@type": "AboutPage",
     "@id": pageUrl,
-    inLanguage: locale,
+    inLanguage: languageTag(locale),
     name: t("seo_team_title"),
     description: t("seo_team_description"),
     url: pageUrl,

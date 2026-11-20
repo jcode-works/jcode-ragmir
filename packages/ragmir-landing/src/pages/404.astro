@@ -7,9 +7,24 @@ import ErrorPage from "../components/error-page.astro"
   title="Page not found | Ragmir"
   metaDescription="The page you are looking for does not exist or has moved."
   message="The page you are looking for does not exist or has moved."
-  french={{
-    title: "Page introuvable | Ragmir",
-    metaDescription: "Cette page n'existe pas ou a été déplacée.",
-    message: "Cette page n'existe pas ou a été déplacée.",
+  localized={{
+    fr: {
+      title: "Page introuvable | Ragmir",
+      metaDescription: "Cette page n'existe pas ou a été déplacée.",
+      message: "Cette page n'existe pas ou a été déplacée.",
+      back: "Retour à l'accueil",
+    },
+    es: {
+      title: "Página no encontrada | Ragmir",
+      metaDescription: "La página que buscas no existe o se ha movido.",
+      message: "La página que buscas no existe o se ha movido.",
+      back: "Volver al inicio de Ragmir",
+    },
+    zh: {
+      title: "页面未找到 | Ragmir",
+      metaDescription: "你所查找的页面不存在或已被移动。",
+      message: "你所查找的页面不存在或已被移动。",
+      back: "返回 Ragmir 首页",
+    },
   }}
 />

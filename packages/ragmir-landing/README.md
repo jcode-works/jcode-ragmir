@@ -78,13 +78,14 @@ and omits the production sitemap.
 - Keep semantic embeddings, model downloads, local OCR, and IndexNow explicit.
 - Share sources through existing Git or file-sharing tools, then run `rgr ingest` locally.
 - Keep localized FAQ copy visible without publishing `FAQPage` structured data.
-- Keep English and French messages aligned, and ground every claim in current code and tests.
+- Keep the English, French, Spanish, and Chinese messages aligned, and ground every claim in current
+  code and tests.
 - Never claim hosted storage, universal formats, blanket compliance, or guaranteed confidentiality.
 
 ## Production invariants
 
-Production remains static, telemetry-free, localized in English and French, canonicalized to
-`https://ragmir.com`, and aligned with the repository README, npm pages, `llms.txt`, `ai.txt`,
+Production remains static, telemetry-free, localized in English, French, Spanish, and Chinese,
+canonicalized to `https://ragmir.com`, and aligned with the repository README, npm pages, `llms.txt`, `ai.txt`,
 Open Graph metadata, hreflang links, and JSON-LD entities. Deployment stays external to this
 package, so no Cloudflare, Vercel, Netlify, or other vendor configuration is committed.
 

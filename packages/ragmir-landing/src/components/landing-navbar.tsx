@@ -10,6 +10,7 @@ import {
   Gauge,
   GitCompareArrows,
   History,
+  Languages,
   Layers,
   type LucideIcon,
   Menu,
@@ -103,6 +104,86 @@ const DRAWER_ROW_CLASS_NAME =
 /** GitHub, npm, and PyPI in the bar: bare icons, like the social icons of the WorkoutGen bar. */
 const HEADER_ICON_CLASS_NAME =
   "flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
+/** BCP 47 tag of each landing locale, so screen readers read every language name in its language. */
+const LANGUAGE_TAGS: Record<string, string> = { zh: "zh-Hans" }
+
+interface LanguageMenuProps {
+  alternateLocales: AlternateLocale[]
+  label: string
+  locale: string
+}
+
+/**
+ * The page language in the header: a disclosure that lists every locale in its own language.
+ * Below 360px the header has no room left, and the drawer keeps its own language switch.
+ */
+function LanguageMenu({ alternateLocales, label, locale }: LanguageMenuProps): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const listId = useId()
+  const current = alternateLocales.find((entry) => entry.locale === locale)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      setOpen(false)
+      buttonRef.current?.focus()
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div className="relative max-[359px]:hidden" ref={rootRef}>
+      <button
+        aria-controls={listId}
+        aria-expanded={open}
+        aria-label={`${label}: ${current?.label ?? locale}`}
+        className={cn(HEADER_ICON_CLASS_NAME, "w-auto gap-1.5 px-2.5", open && "bg-card")}
+        onClick={() => setOpen((value) => !value)}
+        ref={buttonRef}
+        type="button"
+      >
+        <Languages aria-hidden="true" className="size-[18px]" />
+        <span aria-hidden="true" className="font-bold text-xs uppercase">
+          {locale}
+        </span>
+      </button>
+      <ul
+        className="absolute top-full right-0 mt-2 grid min-w-44 gap-0.5 rounded-2xl bg-card p-1.5 shadow-2xl shadow-black/60"
+        hidden={!open}
+        id={listId}
+      >
+        {alternateLocales.map((entry) => (
+          <li key={entry.locale}>
+            <a
+              aria-current={entry.locale === locale ? "page" : undefined}
+              className="flex items-center justify-between gap-4 rounded-xl px-3 py-2 font-semibold text-muted-foreground text-sm transition-colors hover:bg-[var(--card-hover)] hover:text-foreground aria-[current=page]:bg-foreground aria-[current=page]:text-background"
+              href={entry.href}
+              hrefLang={LANGUAGE_TAGS[entry.locale] ?? entry.locale}
+              lang={LANGUAGE_TAGS[entry.locale] ?? entry.locale}
+            >
+              {entry.label}
+              <span aria-hidden="true" className="font-mono text-[10px] uppercase tracking-[0.2em]">
+                {entry.locale}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 const DRAWER_SECTION_TITLE_CLASS_NAME =
   "mb-2 font-black text-foreground text-sm uppercase tracking-tight"
@@ -321,13 +402,13 @@ export function LandingNavbar({
             <a aria-label="Ragmir" className="flex items-center" href={localizedHomeUrl}>
               <RagmirLogo />
             </a>
-            {/* Below 360px the three brand icons need its room; the drawer still shows the version. */}
+            {/* Below 420px the language menu and brand icons need its room; the drawer still shows the version. */}
             {version && (
               <a
                 href={NPM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition-colors hover:text-muted-foreground max-[360px]:hidden"
+                className="ml-2 text-[0.7rem] font-medium text-muted-foreground/60 no-underline transition-colors hover:text-muted-foreground max-[419px]:hidden"
               >
                 v{version}
               </a>
@@ -335,6 +416,11 @@ export function LandingNavbar({
           </div>
 
           <div className="flex items-center gap-1">
+            <LanguageMenu
+              alternateLocales={alternateLocales}
+              label={t("language_label")}
+              locale={locale}
+            />
             <a
               aria-label={t("hero_github_cta")}
               className={HEADER_ICON_CLASS_NAME}
@@ -427,8 +513,9 @@ export function LandingNavbar({
                       aria-current={entry.locale === locale ? "page" : undefined}
                       className="rounded-full px-3 py-1.5 font-bold text-muted-foreground text-xs uppercase transition-colors hover:text-foreground aria-[current=page]:bg-foreground aria-[current=page]:text-background"
                       href={entry.href}
-                      hrefLang={entry.locale}
+                      hrefLang={LANGUAGE_TAGS[entry.locale] ?? entry.locale}
                       key={entry.locale}
+                      lang={LANGUAGE_TAGS[entry.locale] ?? entry.locale}
                       tabIndex={drawerTabIndex}
                     >
                       {entry.locale}
