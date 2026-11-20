@@ -108,7 +108,7 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   jcode-works/ragmir`, then `/ragmir:index`), OpenAI Codex (`codex plugin marketplace add
   jcode-works/ragmir`, then `codex plugin add ragmir@ragmir`), Cursor (`plugins/ragmir`),
   Gemini CLI (`gemini extensions install https://github.com/jcode-works/ragmir`), and Qwen
-  Code (`qwen extensions install jcode-works/ragmir`). Plugins need local files, so they run
+  Code (`qwen extensions install jcode-works/ragmir:ragmir`). Plugins need local files, so they run
   in coding agents, not in web or mobile chat apps.
 - Agent Skills: `npx skills add jcode-works/ragmir` installs five skills from `skills/`
   (listed on skills.sh): `ragmir` (cited retrieval loop), `ragmir-setup` (install, sources, index,

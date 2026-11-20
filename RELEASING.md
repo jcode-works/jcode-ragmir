@@ -116,8 +116,11 @@ launchers pin the npm release they run (`RAGMIR_VERSION` in `scripts/serve-mcp.m
 that the plugin should serve, update that pin everywhere it appears (`commands/index.md` and
 `docs/agent-integration.md` included) and bump the three plugin manifests' `version` together;
 installed plugins only update when that version changes. Set the Gemini and Qwen manifests'
-`version` to the release the promotion will publish, because Gemini CLI installs from the latest
-GitHub release. Keep the plugin's `skills/ragmir/SKILL.md` identical to the Core skill.
+`version` to the pinned release. Gemini CLI and Qwen Code install the source of the latest GitHub
+release, whose tree still carries the previous pin, so they receive a new pin with the next
+release: change `plugins/ragmir/GEMINI.md` only in the pin step, so the context file of every
+release describes the server that release pins. Keep the plugin's `skills/ragmir/SKILL.md`
+identical to the Core skill.
 `pnpm public:smoke` enforces the identical skill, the shared pin, the aligned plugin versions, and
 the identical Gemini and Qwen manifests.
 

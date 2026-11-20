@@ -199,7 +199,7 @@ LangChain.js retriever, the MCP server for any client, or the TypeScript API.
 | OpenAI Codex | `codex plugin marketplace add jcode-works/ragmir`, then `codex plugin add ragmir@ragmir`; or `rgr setup --agents codex` |
 | Cursor | Cursor plugin in [`plugins/ragmir`](./plugins/ragmir) ([plugins](./docs/agent-integration.md#plugins-and-extensions-for-coding-agents)) |
 | Gemini CLI | `gemini extensions install https://github.com/jcode-works/ragmir` |
-| Qwen Code | `qwen extensions install jcode-works/ragmir` |
+| Qwen Code | `qwen extensions install jcode-works/ragmir:ragmir` |
 | Kimi, OpenCode, Cline | `rgr setup --agents kimi,opencode,cline` |
 | Any MCP client over stdio | `node .ragmir/run.cjs serve-mcp`, or `io.github.jcode-works/ragmir` in the MCP Registry |
 | Any agent that loads skills | `npx skills add jcode-works/ragmir` installs the retrieval, setup, build, evaluation, and wiki [skills](./skills) ([skills.sh](https://skills.sh/jcode-works/ragmir)) |
