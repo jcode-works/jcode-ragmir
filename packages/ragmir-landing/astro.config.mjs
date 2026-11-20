@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "astro/config"
 
 const siteUrl = process.env.PUBLIC_RAGMIR_LANDING_URL ?? "https://ragmir.com"
-const locales = ["en", "fr"]
+const locales = ["en", "fr", "es", "zh"]
 const defaultLocale = "en"
 const isProduction = new URL(siteUrl).hostname === "ragmir.com"
 
@@ -34,6 +34,8 @@ export default defineConfig({
               locales: {
                 en: "en",
                 fr: "fr",
+                es: "es",
+                zh: "zh-Hans",
               },
             },
           }),

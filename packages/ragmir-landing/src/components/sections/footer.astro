@@ -1,7 +1,6 @@
 ---
 import { GithubIcon, NpmIcon, PypiIcon } from "../brand-icons"
 import RagmirLogo from "../ragmir-logo.astro"
-import { RagmirBackground } from "../ragmir-background"
 import {
   FOOTER_SECTIONS,
   GITHUB_URL,
@@ -47,13 +46,6 @@ const marqueeCopy =
 
 <footer class="relative z-10 mt-10 overflow-hidden">
   <div class="relative isolate overflow-hidden pt-16 pb-10">
-    <RagmirBackground
-      client:visible
-      behindContent={false}
-      className="inset-0"
-      height="100%"
-    />
-
     <nav aria-label={t("footer_nav_label")} class="relative z-10 px-5 md:px-8">
       <div
         class="mx-auto grid max-w-6xl grid-cols-1 gap-y-10 text-center sm:grid-cols-2 sm:gap-x-8 lg:grid-cols-4 lg:text-start"

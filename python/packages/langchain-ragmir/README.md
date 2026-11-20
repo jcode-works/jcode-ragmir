@@ -1,15 +1,26 @@
 # langchain-ragmir
 
-LangChain and LangGraph integration for [Ragmir](https://github.com/jcode-works/ragmir):
-cited local retrieval over a project's code, PDFs, Office files, and more. Every document carries
-its citation, and a question the documents cannot answer returns nothing.
+**LangChain and LangGraph retrieval with exact citations, on your infrastructure.**
+
+[Ragmir](https://ragmir.com) gives LangChain chains and agents cited local retrieval over a
+project's code, PDFs, Office files, scans, and more. Every document carries its citation, and a
+question the documents cannot answer returns nothing, so the agent can say so instead of guessing.
+
+- **Any model:** the index does not depend on the LLM that writes the answer, so you can switch
+  between Claude, GPT, Gemini, Mistral, or a local model without re-indexing.
+- **No GPU, no vector database:** the default retrieval runs offline on the CPU, and the index is an
+  embedded store in the project's git-ignored `.ragmir/` folder.
+- **Your data stays where you run it:** no account, telemetry, or hosted store.
+- **Measured:** `rgr evaluate` scores retrieval on your own questions and fails CI when it regresses.
 
 ```bash
 pip install langchain-ragmir
 ```
 
-Ragmir runs through Node.js 22.12 or later or Docker; see [`ragmir`](https://pypi.org/project/ragmir/)
-to index a project from Python.
+Requires Python 3.11 or later; Ragmir runs through Node.js 22.12 or later or Docker. See
+[`ragmir`](https://pypi.org/project/ragmir/) to index a project from Python, and the [system
+requirements](https://github.com/jcode-works/ragmir#system-requirements) for semantic models and
+OCR.
 
 ## Retriever
 

@@ -1,0 +1,71 @@
+---
+import { SectionHeader } from "../section-header"
+
+interface Props {
+  translations: Record<string, string>
+}
+
+const { translations } = Astro.props
+const t = (key: string): string => translations[key] ?? key
+
+// What changes when a coding agent searches a document corpus through Ragmir instead of its own
+// grep and file reads. Each row reads `comparison_<row>_name`, `_alone`, and `_ragmir`.
+const rows = ["formats", "wording", "corpus", "silence", "data", "quality"].map((key) => ({
+  key,
+  name: t(`comparison_${key}_name`),
+  alone: t(`comparison_${key}_alone`),
+  ragmir: t(`comparison_${key}_ragmir`),
+}))
+// Two answer columns side by side at every width; the row name joins them as a first column on
+// large screens.
+const grid = "grid grid-cols-2 gap-x-4 lg:grid-cols-[11rem_minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-8"
+---
+
+<section
+  id="comparison"
+  aria-labelledby="comparison-heading"
+  class="container-default relative z-10 px-5 py-16 md:px-8 md:py-40"
+>
+  <div class="mb-10 md:mb-14">
+    <SectionHeader
+      num="003"
+      label={t("comparison_eyebrow")}
+      title={t("comparison_title")}
+      text={t("comparison_text")}
+      id="comparison-heading"
+    />
+  </div>
+
+  <div class="mx-auto max-w-5xl rounded-xl bg-card px-5 md:px-8">
+    <div
+      aria-hidden="true"
+      class:list={[
+        grid,
+        "border-foreground/[0.08] border-b py-4 font-mono text-[10px] uppercase tracking-[0.2em]",
+      ]}
+    >
+      <span class="hidden lg:block"></span>
+      <span class="text-muted-foreground">{t("comparison_alone_label")}</span>
+      <span class="text-foreground">{t("comparison_ragmir_label")}</span>
+    </div>
+    <ul class="divide-y divide-foreground/[0.08]" role="list">
+      {rows.map((row) => (
+        <li class:list={[grid, "gap-y-1.5 py-4 lg:py-5"]}>
+          <h3 class="col-span-2 font-bold text-sm leading-6 lg:col-span-1">{row.name}</h3>
+          <p class="text-muted-foreground text-sm leading-6">
+            <span class="sr-only">{t("comparison_alone_label")}: </span>
+            {row.alone}
+          </p>
+          <p class="font-medium text-foreground text-sm leading-6">
+            <span class="sr-only">{t("comparison_ragmir_label")}: </span>
+            {row.ragmir}
+          </p>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <p class="mx-auto mt-6 max-w-2xl text-center text-muted-foreground text-sm leading-6">
+    {t("comparison_enough_text")}
+  </p>
+</section>

@@ -74,7 +74,7 @@ export const FOOTER_SECTIONS: readonly FooterSection[] = [
       { hash: "integrations", labelKey: "nav_integrations" },
       { hash: "use-cases", labelKey: "nav_use_cases" },
       { hash: "deploy", labelKey: "nav_deploy" },
-      { hash: "features", labelKey: "nav_features" },
+      { hash: "capabilities", labelKey: "nav_features" },
       { hash: "faq", labelKey: "nav_faq" },
     ],
     links: [],

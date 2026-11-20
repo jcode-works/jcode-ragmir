@@ -1,20 +1,28 @@
 ---
+import AnimatedBackdrop from "../../components/animated-backdrop.astro"
 import { CommandCopyToast } from "../../components/command-copy-toast"
 import { FloatingCta } from "../../components/floating-cta"
 import { LibrarySection } from "../../components/library-section"
 import { LandingNavbar } from "../../components/landing-navbar"
-import { RagmirBackground } from "../../components/ragmir-background"
 import Agents from "../../components/sections/agents.astro"
+import Capabilities from "../../components/sections/capabilities.astro"
 import ClosingCta from "../../components/sections/closing-cta.astro"
+import Comparison from "../../components/sections/comparison.astro"
 import Deploy from "../../components/sections/deploy.astro"
 import Faq from "../../components/sections/faq.astro"
-import Features from "../../components/sections/features.astro"
 import Footer from "../../components/sections/footer.astro"
 import Hero from "../../components/sections/hero.astro"
 import Integrations from "../../components/sections/integrations.astro"
 import Privacy from "../../components/sections/privacy.astro"
 import UseCases from "../../components/sections/use-cases.astro"
-import { defaultLang, getLocalizedUrl, languages, locales, useTranslations } from "../../i18n/utils"
+import {
+  defaultLang,
+  getLocalizedUrl,
+  languages,
+  languageTag,
+  locales,
+  useTranslations,
+} from "../../i18n/utils"
 import Layout from "../../layouts/layout.astro"
 import {
   LIBRARY_TRANSLATIONS,
@@ -40,7 +48,8 @@ const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
 const sourceDescription =
-  "The open-source retrieval layer for agentic RAG: document search with exact citations on a laptop, a VPS, or an offline server, through TypeScript, CLI, and MCP. Your agent reasons and acts with your choice of model."
+  "Open-source agentic RAG on your own infrastructure: Ragmir indexes code, Office files, PDFs, and scans locally and gives Claude Code, Codex, LangChain, LlamaIndex, or your application exact citations through MCP, the CLI, TypeScript, or Python. Your agent reasons with any model; Ragmir needs no GPU or vector database."
+const ogImageUrl = new URL("/og/ragmir-og.png", Astro.site ?? "https://ragmir.com").href
 const structuredData = [
   {
     "@context": "https://schema.org",
@@ -63,6 +72,9 @@ const structuredData = [
       "AI agent tooling",
       "Node.js RAG library",
       "self-hosted RAG deployment",
+      "sovereign RAG",
+      "RAG evaluation",
+      "retrieval for coding agents",
     ],
     sameAs: ["https://github.com/jcode-works"],
   },
@@ -73,7 +85,7 @@ const structuredData = [
     url: siteUrl,
     name: "Ragmir",
     description: sourceDescription,
-    inLanguage: ["en", "fr"],
+    inLanguage: locales.map(languageTag),
     publisher: { "@id": "https://ragmir.com/#organization" },
   },
   {
@@ -84,11 +96,16 @@ const structuredData = [
     description: sourceDescription,
     abstract: sourceDescription,
     url: siteUrl,
-    inLanguage: ["en", "fr"],
+    inLanguage: locales.map(languageTag),
     codeRepository: PROJECT_LINKS.github,
     codeSampleType: "full solution",
-    runtimePlatform: "Node.js 22.12 or later on Linux (x64 or ARM64, glibc or musl), macOS, and Windows",
-    programmingLanguage: "TypeScript",
+    runtimePlatform:
+      "Node.js 22.12 or later on Linux (x64 or ARM64, glibc or musl), macOS, and Windows, or Docker on amd64 and arm64",
+    programmingLanguage: ["TypeScript", "Python"],
+    audience: {
+      "@type": "Audience",
+      audienceType: "Developers, AI engineers, and teams shipping RAG",
+    },
     keywords: [
       "agentic RAG",
       "local RAG",
@@ -103,7 +120,18 @@ const structuredData = [
       "Gemini CLI extension",
       "Qwen Code extension",
       "LangChain.js retriever",
+      "LangGraph retriever",
+      "LlamaIndex retriever",
       "Python package on PyPI",
+      "sovereign RAG",
+      "RAG evaluation",
+      "RAG without a vector database",
+      "CPU-only retrieval",
+      "multi-model RAG",
+      "data residency",
+      "RAG for document corpora",
+      "Claude Code document search",
+      "Codex document search",
       "LLM wiki",
       "Markdown knowledge base",
       "TypeScript",
@@ -125,6 +153,8 @@ const structuredData = [
       PROJECT_LINKS.github,
       PROJECT_LINKS.npm,
       PROJECT_LINKS.pypi,
+      PROJECT_LINKS.agentSkills,
+      PROJECT_LINKS.context7,
     ],
     publisher: {
       "@id": "https://ragmir.com/#organization",
@@ -143,15 +173,21 @@ const structuredData = [
     url: pageUrl,
     name: t("seo_home_title"),
     description: t("seo_home_description"),
-    inLanguage: locale,
+    inLanguage: languageTag(locale),
     isPartOf: { "@id": "https://ragmir.com/#website" },
     about: { "@id": "https://ragmir.com/#source" },
     publisher: { "@id": "https://ragmir.com/#organization" },
+    primaryImageOfPage: {
+      "@type": "ImageObject",
+      url: ogImageUrl,
+      width: 2400,
+      height: 1260,
+    },
   },
 ]
 const localizedHomeUrl = `${getLocalizedUrl("/", locale)}#top`
 const localizedLibraryUrl = `${getLocalizedUrl("/", locale)}#library`
-const localizedFeaturesUrl = `${getLocalizedUrl("/", locale)}#features`
+const localizedFeaturesUrl = `${getLocalizedUrl("/", locale)}#capabilities`
 const localizedUseCasesUrl = `${getLocalizedUrl("/", locale)}#use-cases`
 const localizedAgentsUrl = `${getLocalizedUrl("/", locale)}#agents`
 const localizedDeployUrl = `${getLocalizedUrl("/", locale)}#deploy`
@@ -195,39 +231,37 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
 
     <UseCases translations={translations} />
 
-    <div class="relative isolate overflow-hidden">
-      <div aria-hidden="true" class="absolute inset-0">
-        <RagmirBackground client:visible behindContent={false} height="100%" />
-      </div>
+    <AnimatedBackdrop>
+      <Capabilities translations={translations} />
+    </AnimatedBackdrop>
+
+    <Comparison translations={translations} />
+
+    <AnimatedBackdrop>
       <LibrarySection
         client:visible
         translations={pickTranslations(translations, LIBRARY_TRANSLATIONS)}
       />
-    </div>
+    </AnimatedBackdrop>
 
     <Integrations translations={translations} />
 
-    <div class="relative isolate overflow-hidden">
-      <div aria-hidden="true" class="absolute inset-0">
-        <RagmirBackground client:visible behindContent={false} height="100%" />
-      </div>
+    <AnimatedBackdrop>
       <Agents translations={translations} />
-    </div>
+    </AnimatedBackdrop>
 
     <Deploy translations={translations} />
 
-    <Features translations={translations} />
-
-    <Privacy translations={translations} />
+    <AnimatedBackdrop>
+      <Privacy translations={translations} />
+    </AnimatedBackdrop>
 
     <Faq translations={translations} />
 
-    <ClosingCta translations={translations} localizedLibraryUrl={localizedLibraryUrl} />
-
-    <Footer
-      localizedHomeUrl={localizedHomeUrl}
-      translations={translations}
-    />
+    <AnimatedBackdrop>
+      <ClosingCta translations={translations} localizedLibraryUrl={localizedLibraryUrl} />
+      <Footer localizedHomeUrl={localizedHomeUrl} translations={translations} />
+    </AnimatedBackdrop>
 
     <CommandCopyToast client:idle message={t("command_copied")} />
 
