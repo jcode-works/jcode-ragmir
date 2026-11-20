@@ -89,6 +89,12 @@ class ExpandedCitation:
     """Expand it with the same radius to read on; absent at the end of the document."""
     previous_citation: str | None
     raw: Mapping[str, Any] = field(repr=False, compare=False)
+    suggested_citation: str | None = None
+    """When not found in a document still indexed: the citation of its nearest passage."""
+    similar_paths: tuple[str, ...] = ()
+    """When the cited file is not indexed: the indexed files whose names come closest."""
+    links: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
+    """For a Markdown page: its ``outgoing`` links and the ``incoming`` pages linking to it."""
 
     @property
     def text(self) -> str:
@@ -98,6 +104,7 @@ class ExpandedCitation:
     @classmethod
     def from_json(cls, value: Mapping[str, Any]) -> ExpandedCitation:
         passages = value.get("passages")
+        links = value.get("links")
         return cls(
             citation=str(value.get("requestedCitation", "")),
             found=value.get("found") is True,
@@ -111,6 +118,9 @@ class ExpandedCitation:
             next_citation=_str(value.get("nextCitation")),
             previous_citation=_str(value.get("previousCitation")),
             raw=value,
+            suggested_citation=_str(value.get("suggestedCitation")),
+            similar_paths=_strings(value.get("similarPaths")),
+            links=links if isinstance(links, Mapping) else None,
         )
 
 
@@ -122,6 +132,16 @@ class IndexedFile:
     """A Markdown page's front matter ``title``."""
     description: str | None = None
     """A Markdown page's front matter ``description`` or ``summary``."""
+
+
+@dataclass(frozen=True, slots=True)
+class OutlineEntry:
+    """One section of a document, as ``sources(outline=True)`` lists them."""
+
+    context_path: str
+    """Heading path of the section, such as ``Install > Docker``."""
+    citation: str
+    """Citation of the section's first passage: expand it to read the section."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +186,8 @@ class SourceCatalog:
     raw: Mapping[str, Any] = field(repr=False, compare=False)
     changes: SourceChanges | None = None
     """With ``changed_since``: what changed in the index since then."""
+    outline: tuple[OutlineEntry, ...] = ()
+    """With ``outline=True`` and ``paths`` matching one file: its sections in reading order."""
 
     @classmethod
     def from_json(cls, value: Mapping[str, Any]) -> SourceCatalog:
@@ -174,6 +196,7 @@ class SourceCatalog:
         page = value.get("page")
         filter_ = value.get("filter")
         changes = value.get("changes")
+        outline = value.get("outline")
         return cls(
             files=tuple(
                 IndexedFile(
@@ -196,6 +219,14 @@ class SourceCatalog:
             stale_in_index=_strings(value.get("staleInIndex")),
             raw=value,
             changes=SourceChanges.from_json(changes) if isinstance(changes, Mapping) else None,
+            outline=tuple(
+                OutlineEntry(
+                    context_path=str(entry.get("contextPath", "")),
+                    citation=str(entry.get("citation", "")),
+                )
+                for entry in (outline if isinstance(outline, list) else [])
+                if isinstance(entry, Mapping)
+            ),
         )
 
 

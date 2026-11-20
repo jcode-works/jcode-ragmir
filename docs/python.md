@@ -73,7 +73,13 @@ from the project's configuration. `search_many()` answers up to five related que
 audits the Markdown pages as a knowledge base (broken links, missing pages, stale citations).
 `sources()` gives each Markdown page its front matter `title` and `description`, and
 `sources(changed_since="2026-11-20")` adds `changes`: the files modified since then and those the
-last ingest removed.
+last ingest removed. `sources(paths=["docs/runbook.md"], outline=True)` adds `outline`, the
+document's sections as `OutlineEntry` items, each with the citation that reads it.
+
+`expand()` returns an `ExpandedCitation`: its `passages`, `next_citation` and `previous_citation`,
+and for a Markdown page its `links` (the files it links to and the pages linking to it). When the
+citation finds nothing, `found` is false and `suggested_citation` names the nearest passage of a
+document still indexed, or `similar_paths` the indexed files with a close name.
 
 When the question's own words may miss the answer, add `searches`: up to five formulations of the
 same need (`SearchFormulation`), fused with the question into one ranking.
@@ -100,8 +106,9 @@ at shutdown. Retrievers and tools created without a client share one per project
 
 ## Async applications
 
-Every method has an async twin on `Ragmir` (`asearch`, `aexpand`, `asources`, `astatus`,
-`aingest`), and `AsyncRagmir` serves asyncio applications directly:
+Every method has an async twin on `Ragmir` (`asearch`, `asearch_many`, `aexpand`, `asources`,
+`astatus`, `aaudit`, `aknowledge_audit`, `aingest`), and `AsyncRagmir` serves asyncio applications
+directly:
 
 ```python
 from contextlib import asynccontextmanager
@@ -156,9 +163,10 @@ result = agent.invoke({"messages": [{"role": "user", "content": "What is the ref
 
 `ragmir_search` answers the model with numbered citations and passage text, flags weak matches and
 changed files, and keeps the documents as the tool message artifact; the model may add `searches`,
-its own formulations of the question. `ragmir_expand` reads one
-citation with its neighbours and the next citation to read on. Both support `invoke` and
-`ainvoke`, and pass LangChain's standard retriever and tool test suites.
+its own formulations of the question. `ragmir_expand` reads one citation with its neighbours and
+the next citation to read on, and answers a citation the index no longer holds with the nearest
+passage or the files with a close name. Both support `invoke` and `ainvoke`, and pass LangChain's
+standard retriever and tool test suites.
 
 ## LlamaIndex
 

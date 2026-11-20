@@ -107,6 +107,34 @@ def test_expand_reports_a_citation_outside_the_index(rag: Ragmir) -> None:
         rag.expand("not a citation")
 
 
+def test_expand_points_a_stale_citation_at_the_index(rag: Ragmir) -> None:
+    moved = rag.expand("docs/refunds.md#99")
+
+    assert moved.found is False
+    assert (moved.suggested_citation or "").startswith("docs/refunds.md:L")
+    assert rag.expand("docs/refund.md#0").similar_paths[0] == "docs/refunds.md"
+
+
+def test_expand_lists_the_links_of_a_markdown_page(rag: Ragmir) -> None:
+    page = rag.search("refund approval", include_paths=["docs/refunds.md"], top_k=1)[0]
+    note = rag.search("refund approval", include_paths=["notes"], top_k=1)[0]
+
+    links = rag.expand(page.citation).links
+    assert links is not None
+    assert links["outgoing"]["count"] == 0
+    assert rag.expand(note.citation).links is None
+
+
+def test_sources_outline_one_document(rag: Ragmir) -> None:
+    catalog = rag.sources(paths=["docs/runbook.md"], outline=True)
+
+    assert [entry.context_path for entry in catalog.outline] == [
+        f"Step {step}" for step in range(1, 10)
+    ]
+    assert catalog.outline[0].citation.startswith("docs/runbook.md:L")
+    assert rag.sources(paths=["docs"], outline=True).outline == ()
+
+
 def test_sources_lists_documents_by_glob(rag: Ragmir) -> None:
     catalog = rag.sources(paths=["docs/**/*.md"], limit=2)
 

@@ -56,6 +56,11 @@ def test_toolkit_answers_with_citations_and_keeps_documents(indexed_project: Pat
     assert "Return labels for refund requests expire" in str(expanded.content)
     assert expanded.artifact["found"] is True
 
+    stale = expand.invoke({"citation": "docs/returns.md#9"})
+    assert "Its document is still indexed: expand docs/returns.md:L" in stale
+    renamed = expand.invoke({"citation": "docs/return.md#0"})
+    assert "Indexed files with a close name: docs/returns.md" in renamed
+
     silent = search.invoke({"query": "chocolate cake baking temperature"})
     assert "No passage in the indexed documents" in silent
 

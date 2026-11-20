@@ -170,17 +170,21 @@ class AsyncRagmir:
         offset: int | None = None,
         limit: int | None = None,
         changed_since: str | None = None,
+        outline: bool = False,
     ) -> SourceCatalog:
         """One page of the indexed documents, optionally under folders or matching globs.
 
         ``changed_since``, an ISO 8601 date or time, adds ``changes``: the files indexed since then
-        and those the last ingest removed.
+        and those the last ingest removed. ``outline=True``, with ``paths`` naming one file, adds
+        its sections, each with the citation that reads it.
         """
         arguments: dict[str, Any] = {"maxBytes": _MAX_OUTPUT_BYTES}
         if paths is not None:
             arguments["paths"] = list(paths)
         if changed_since is not None:
             arguments["changedSince"] = changed_since
+        if outline:
+            arguments["outline"] = True
         if offset is not None:
             arguments["offset"] = offset
         if limit is not None:
@@ -511,11 +515,16 @@ class Ragmir:
         offset: int | None = None,
         limit: int | None = None,
         changed_since: str | None = None,
+        outline: bool = False,
     ) -> SourceCatalog:
         """One page of the indexed documents, optionally under folders or matching globs."""
         return self._run(
             self._async.sources(
-                paths=paths, offset=offset, limit=limit, changed_since=changed_since
+                paths=paths,
+                offset=offset,
+                limit=limit,
+                changed_since=changed_since,
+                outline=outline,
             )
         )
 
@@ -526,11 +535,16 @@ class Ragmir:
         offset: int | None = None,
         limit: int | None = None,
         changed_since: str | None = None,
+        outline: bool = False,
     ) -> SourceCatalog:
         """Async twin of ``sources``."""
         return await self._arun(
             self._async.sources(
-                paths=paths, offset=offset, limit=limit, changed_since=changed_since
+                paths=paths,
+                offset=offset,
+                limit=limit,
+                changed_since=changed_since,
+                outline=outline,
             )
         )
 
