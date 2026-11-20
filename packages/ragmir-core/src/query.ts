@@ -31,7 +31,7 @@ import { operationSignal, throwIfAborted } from "./operation.js"
 import { defaultExcludedScopePaths, pathContextResolver } from "./path-contexts.js"
 import { isPathGlob, pathGlobRegexSource } from "./path-globs.js"
 import { sanitizeRetrievalQuery } from "./query-sanitizer.js"
-import type { QueryTermStatistics, RankedRow } from "./ranking.js"
+import type { FormulationList, QueryTermStatistics, RankedRow } from "./ranking.js"
 import {
   absentShareOf,
   abstentionFilter,
@@ -65,6 +65,14 @@ import {
 import type { IndexReadSnapshot } from "./store.js"
 import { closeIndexReadSnapshot, loadIndexReadSnapshot } from "./store.js"
 import { normalizeForMatch, tokenize } from "./text.js"
+import {
+  exclusionMatcher,
+  formulationKeywords,
+  holdsRequiredPhrases,
+  type LexFormulation,
+  type PreparedFormulation,
+  prepareFormulations,
+} from "./typed-search.js"
 import type {
   Config,
   EvidenceVersion,
@@ -193,8 +201,7 @@ interface LexicalCandidateOptions {
 
 export async function search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   const config = await loadConfig(String(options.cwd ?? process.cwd()))
-  const results = await searchWithConfig(query, options, config)
-  return results
+  return searchWithConfig(query, options, config)
 }
 
 /** Search and report what the index lacks: the results plus the question's absent words. */
@@ -266,6 +273,7 @@ async function searchWithinGeneration(
   const signal = activeSignal ?? operationSignal(options)
   const sanitized = sanitizeRetrievalQuery(query)
   const retriever = normalizeRetriever(options.retriever)
+  const formulations = prepareFormulations(options.searches)
   const topK = normalizeTopK(options.topK ?? config.topK)
   const maxChunksPerDocument = normalizeMaxChunksPerDocument(
     options.maxChunksPerDocument ?? config.maxChunksPerDocument,
@@ -300,6 +308,7 @@ async function searchWithinGeneration(
     options.contextPaths,
   )
   let embeddingQueueMs = 0
+  const semantic = config.embeddingProvider !== "local-hash"
   // Indexes built before folded keyword text cannot answer exact word frequencies reliably.
   const termFrequenciesPromise =
     snapshot.manifest && lexicalPolicyCurrent(snapshot.manifest)
@@ -312,63 +321,72 @@ async function searchWithinGeneration(
     `${snapshot.tableName}\0${snapshot.manifestFingerprint ?? ""}`,
     embedTexts,
   )
+  const lexicalOptions: LexicalCandidateOptions = {
+    ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
+    fallbackBatchSize: config.hybridTextScanLimit,
+    indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
+    minimumResults: candidateDemand,
+    pathPredicate: retrievalPredicate,
+    ...(signal === undefined ? {} : { signal }),
+  }
+  const vectorOptions: VectorCandidateOptions = {
+    config,
+    snapshot,
+    exact: options.vectorSearchMode === "exact",
+    limit: vectorCandidateLimit(candidateDemand, config.retrievalProfile),
+    pathPredicate: retrievalPredicate,
+  }
   const lexicalCandidatesPromise =
     retriever === "vector"
       ? Promise.resolve(emptyLexicalCandidateSet())
-      : lexicalCandidateRows(table, sanitized.query, {
-          ftsLimit: lexicalCandidateLimit(candidateDemand, config.retrievalProfile),
-          fallbackBatchSize: config.hybridTextScanLimit,
-          indexedChunkCount: snapshot.manifest?.chunkCount ?? 0,
-          minimumResults: candidateDemand,
-          pathPredicate: retrievalPredicate,
-          ...(signal === undefined ? {} : { signal }),
-        })
-  const vectorRowsPromise: Promise<SearchRow[]> =
+      : lexicalCandidateRows(table, sanitized.query, lexicalOptions)
+  const questionVectorPromise: Promise<{ vector: number[] | null; rows: SearchRow[] }> =
     retriever === "lexical"
-      ? Promise.resolve([])
+      ? Promise.resolve({ vector: null, rows: [] })
       : embedText(sanitized.query, config, signal, ({ queueTimeMs }) => {
           embeddingQueueMs = queueTimeMs
         }).then(async (vector) => {
           throwIfAborted(signal)
-          const manifest = assertVectorIndexCompatibility(config, snapshot.manifest, vector.length)
-          const limit = vectorCandidateLimit(candidateDemand, config.retrievalProfile)
-          const nearest = async (predicate: string | null): Promise<SearchRow[]> => {
-            const vectorQuery = configureAdaptiveVectorQuery(
-              table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
-              manifest.vectorIndex,
-              options.vectorSearchMode === "exact",
-            )
-            return plainRows(
-              await (predicate ? vectorQuery.where(predicate) : vectorQuery).limit(limit).toArray(),
-            )
-          }
-          const rows = await nearest(retrievalPredicate)
+          const rows = await nearestRows(table, vector, vectorOptions)
           const crowding = crowdingDocuments(rows, topK)
           if (crowding.length === 0) {
-            return rows
+            return { vector, rows }
           }
           // One large file (an export, a log, a spreadsheet) filled the pool with its own chunks, yet
           // shows at most maxChunksPerDocument of them; a second pass reaches the other documents.
           throwIfAborted(signal)
           const others = `NOT (${crowding.map(relativePathEquals).join(" OR ")})`
-          const more = await nearest(
+          const more = await nearestRows(
+            table,
+            vector,
+            vectorOptions,
             retrievalPredicate ? `(${retrievalPredicate}) AND ${others}` : others,
           )
           const seen = new Set(rows.map(rowKey))
-          return [...rows, ...more.filter((row) => !seen.has(rowKey(row)))]
+          return { vector, rows: [...rows, ...more.filter((row) => !seen.has(rowKey(row)))] }
         })
-  const [vectorRowsOutcome, lexicalCandidatesOutcome] = await Promise.allSettled([
-    vectorRowsPromise,
-    lexicalCandidatesPromise,
-  ])
-  if (vectorRowsOutcome.status === "rejected") {
-    throw vectorRowsOutcome.reason
+  const formulationListsPromise =
+    retriever === "vector"
+      ? Promise.resolve([])
+      : formulationCandidateLists(table, formulations, lexicalOptions)
+  const [questionVectorOutcome, lexicalCandidatesOutcome, formulationListsOutcome] =
+    await Promise.allSettled([
+      questionVectorPromise,
+      lexicalCandidatesPromise,
+      formulationListsPromise,
+    ])
+  if (questionVectorOutcome.status === "rejected") {
+    throw questionVectorOutcome.reason
   }
   if (lexicalCandidatesOutcome.status === "rejected") {
     throw lexicalCandidatesOutcome.reason
   }
-  const vectorRows = vectorRowsOutcome.value
+  if (formulationListsOutcome.status === "rejected") {
+    throw formulationListsOutcome.reason
+  }
+  const { vector: questionVector, rows: vectorRows } = questionVectorOutcome.value
   const lexicalCandidates = lexicalCandidatesOutcome.value
+  const formulationLists = formulationListsOutcome.value
   const rankingPolicy = rankingPolicyFor(
     config.embeddingProvider,
     config.retrievalProfile,
@@ -387,43 +405,60 @@ async function searchWithinGeneration(
   const definitionBoost = definitionBoostOf(boostTokens)
   const fileNameBoost = fileNameBoostOf(boostTokens)
   const headingBoost = headingBoostOf(boostTokens)
-  const rankedRows = rankHybridRows(
-    sanitized.query,
-    vectorRows,
-    lexicalCandidates.rows,
-    rankingPolicy,
-    (row) =>
-      weightOf(row.relativePath) * definitionBoost(row) * fileNameBoost(row) * headingBoost(row),
-    { lexicalChannel: retriever !== "vector" },
+  const rank = (lists: Array<FormulationList<SearchRow>>): Array<RankedRow<SearchRow>> =>
+    rankHybridRows(
+      sanitized.query,
+      vectorRows,
+      lexicalCandidates.rows,
+      rankingPolicy,
+      (row) =>
+        weightOf(row.relativePath) * definitionBoost(row) * fileNameBoost(row) * headingBoost(row),
+      { lexicalChannel: retriever !== "vector", formulationLists: lists },
+    )
+  const rankedRows = await withQuestionDistances(
+    table,
+    semantic ? questionVector : null,
+    rank(formulationLists),
+    vectorOptions,
+    signal,
   )
+  const isExcluded = exclusionMatcher(formulations)
   const isExactPathMatch = (row: SearchRow): boolean =>
     lexicalCandidates.exactPathMatches.has(rowKey(row))
+  const answerCandidates = (ranked: Array<RankedRow<SearchRow>>): Array<RankedRow<SearchRow>> =>
+    (isExcluded ? ranked.filter((item) => !isExcluded(item.row.searchText)) : ranked).sort(
+      (left, right) => Number(isExactPathMatch(right.row)) - Number(isExactPathMatch(left.row)),
+    )
   const noiseFloor = await noiseFloorPromise
   throwIfAborted(signal)
+  // Evidence rules judge passages against the question alone: the agent's formulations bring words
+  // the documents hold even when the question asks about something they never mention.
   const passesAbstention = abstentionFilter(evidence, rankingPolicy, termStatistics, noiseFloor)
   const hasWeakEvidence = weakEvidenceFilter(evidence, rankingPolicy, termStatistics, noiseFloor)
   const coverageOf =
     options.explain && termStatistics ? queryTermCoverage(evidence, termStatistics) : null
-  const orderedRows = rankedRows.sort(
-    (left, right) => Number(isExactPathMatch(right.row)) - Number(isExactPathMatch(left.row)),
-  )
-  const diversity = selectDiverseRows(orderedRows, {
-    topK,
-    maxChunksPerDocument,
-    isExactPathMatch,
-    ...(config.collapseLocaleVariants
-      ? { documentKeyOf: (row: SearchRow) => localeDocumentKey(row.relativePath) }
-      : {}),
-    isRelevant: (row) => isExactPathMatch(row) || passesAbstention(row),
-  })
+  const selectRows = (candidates: Array<RankedRow<SearchRow>>) =>
+    selectDiverseRows(candidates, {
+      topK,
+      maxChunksPerDocument,
+      isExactPathMatch,
+      ...(config.collapseLocaleVariants
+        ? { documentKeyOf: (row: SearchRow) => localeDocumentKey(row.relativePath) }
+        : {}),
+      isRelevant: (row) => isExactPathMatch(row) || passesAbstention(row),
+    })
+  const diversity = selectRows(answerCandidates(rankedRows))
+  // Formulations reorder and complete an answer, but whether there is one is decided as without
+  // them: by the question's own ranking, so they never turn a refusal into an answer.
+  const questionAnswer =
+    formulationLists.length === 0 ? diversity.rows : selectRows(answerCandidates(rank([]))).rows
   // A semantic answer whose leading passages are all weak holds no evidence: answer nothing rather
   // than noise. An exact path match is never weak.
-  const rows = isWeakAnswer(
-    diversity.rows,
-    (row) => !isExactPathMatch(row.row) && hasWeakEvidence(row.row),
-  )
-    ? []
-    : diversity.rows
+  const rows =
+    questionAnswer.length === 0 ||
+    isWeakAnswer(questionAnswer, (row) => !isExactPathMatch(row.row) && hasWeakEvidence(row.row))
+      ? []
+      : diversity.rows
   const [contextByRow, sourceStatuses] = await Promise.all([
     contextChunksByRow(table, rows, contextRadius, retrievalPredicate),
     sourceStatusesForRows(config.projectRoot, rows),
@@ -492,6 +527,9 @@ async function searchWithinGeneration(
               rankingPolicyFingerprint: rankingPolicyFingerprint(rankingPolicy),
               matchedTerms: matchedQueryTerms(config.projectRoot, queryTokens, row.row.searchText),
               queryTermCoverage: coverageOf ? coverageOf(row.row.searchText) : null,
+              ...(formulations.length === 0
+                ? {}
+                : { formulations: row.formulationContributions ?? [] }),
             },
           }
         : {}),
@@ -519,6 +557,147 @@ function absentQueryTerms(
       (statistics.documentFrequencies.get(token) ?? 0) === 0 &&
       !statistics.fuzzyMatchedTerms?.has(token),
   )
+}
+
+// The question's own lists weigh twice a formulation's, so an agent's alternatives add evidence
+// without outranking what the question itself found. A hypothetical answer holds many words and
+// weighs half again.
+const FORMULATION_WEIGHT = 0.5
+const HYDE_WEIGHT = 0.25
+const DISTANCE_BATCH_SIZE = 200
+
+interface VectorCandidateOptions {
+  config: Config
+  snapshot: IndexReadSnapshot
+  /** Compare every vector instead of probing the approximate index. */
+  exact: boolean
+  limit: number
+  pathPredicate: string | null
+}
+
+/** The passages nearest to a vector in the active index, within a SQL predicate. */
+async function nearestRows(
+  table: RowsTable,
+  vector: number[],
+  options: VectorCandidateOptions,
+  predicate = options.pathPredicate,
+): Promise<SearchRow[]> {
+  const manifest = assertVectorIndexCompatibility(
+    options.config,
+    options.snapshot.manifest,
+    vector.length,
+  )
+  const query = configureAdaptiveVectorQuery(
+    table.vectorSearch(vector).select(VECTOR_SEARCH_COLUMNS),
+    manifest.vectorIndex,
+    options.exact,
+  )
+  return plainRows(
+    await (predicate ? query.where(predicate) : query).limit(options.limit).toArray(),
+  )
+}
+
+/**
+ * One keyword candidate list per formulation: `lex` with its phrases and exclusions, `vec` and
+ * `hyde` as plain words. The question's own vector already carries its meaning, so a paraphrase or
+ * a hypothetical answer adds most through the words the question lacks: embedding them measured
+ * no gain with a semantic model, while searching their words raised top-3 answers with both.
+ */
+async function formulationCandidateLists(
+  table: RowsTable,
+  formulations: readonly PreparedFormulation[],
+  options: LexicalCandidateOptions,
+): Promise<Array<FormulationList<SearchRow>>> {
+  const counts = { lex: 0, vec: 0, hyde: 0 }
+  return Promise.all(
+    formulations.map(async (formulation) => {
+      counts[formulation.type] += 1
+      const label = `${formulation.type}#${counts[formulation.type]}`
+      const rows =
+        formulation.type === "lex"
+          ? await lexFormulationRows(table, formulation, options)
+          : (await lexicalCandidateRows(table, formulation.text, options)).rows
+      const weight = formulation.type === "hyde" ? HYDE_WEIGHT : FORMULATION_WEIGHT
+      return { label, weight, rows }
+    }),
+  )
+}
+
+/** Keyword candidates of a `lex` formulation; without a full-text index, a scan then a filter. */
+async function lexFormulationRows(
+  table: RowsTable,
+  lex: LexFormulation,
+  options: LexicalCandidateOptions,
+): Promise<SearchRow[]> {
+  const stats = await table.indexStats(FULL_TEXT_INDEX_NAME).catch(() => undefined)
+  if (stats) {
+    try {
+      return await executeFullTextQuery(
+        table,
+        lexFormulationQuery(lex),
+        options.ftsLimit,
+        options.pathPredicate,
+      )
+    } catch {
+      // Fall back to the scan below, as the question's own keyword search does.
+    }
+  }
+  const { rows } = await lexicalCandidateRows(table, formulationKeywords(lex), options)
+  return rows.filter((row) => holdsRequiredPhrases(lex, row.searchText))
+}
+
+/** A `lex` formulation's keyword query: its words rank, its phrases must appear, exclusions not. */
+function lexFormulationQuery(lex: LexFormulation): FullTextQuery {
+  const words = [...new Set(lex.words)]
+  const clause = (occur: Occur, query: FullTextQuery): [Occur, FullTextQuery] => [occur, query]
+  return new BooleanQuery([
+    ...(words.length === 0 ? [] : [clause(Occur.Should, keywordQuery(words))]),
+    ...lex.phrases.map((phrase) => clause(Occur.Must, new PhraseQuery(phrase, "searchText"))),
+    ...lex.excludedWords.map((word) => clause(Occur.MustNot, new MatchQuery(word, "searchText"))),
+    ...lex.excludedPhrases.map((phrase) =>
+      clause(Occur.MustNot, new PhraseQuery(phrase, "searchText")),
+    ),
+  ])
+}
+
+/**
+ * With a semantic model, a passage only formulations found is judged like the others, by its
+ * distance to the question, on which abstention and weak-evidence rules are calibrated: their
+ * keyword search returns it without one.
+ */
+async function withQuestionDistances(
+  table: RowsTable,
+  questionVector: number[] | null,
+  rankedRows: Array<RankedRow<SearchRow>>,
+  options: VectorCandidateOptions,
+  signal: AbortSignal | undefined,
+): Promise<Array<RankedRow<SearchRow>>> {
+  const formulationOnly = (ranked: RankedRow<SearchRow>): boolean =>
+    ranked.vectorRank === null && ranked.lexicalRank === null
+  const ids = rankedRows.filter(formulationOnly).map((ranked) => ranked.row.id)
+  if (questionVector === null || ids.length === 0) {
+    return rankedRows
+  }
+  const distances = new Map<string, number>()
+  for (let offset = 0; offset < ids.length; offset += DISTANCE_BATCH_SIZE) {
+    throwIfAborted(signal)
+    const batch = ids.slice(offset, offset + DISTANCE_BATCH_SIZE)
+    const rows = await nearestRows(
+      table,
+      questionVector,
+      { ...options, exact: true, limit: batch.length },
+      `id IN (${batch.map(sqlString).join(", ")})`,
+    )
+    for (const row of rows) {
+      if (typeof row._distance === "number") distances.set(row.id, row._distance)
+    }
+  }
+  return rankedRows.map((ranked) => {
+    const distance = formulationOnly(ranked) ? distances.get(ranked.row.id) : undefined
+    return distance === undefined
+      ? ranked
+      : { ...ranked, row: { ...ranked.row, _distance: distance } }
+  })
 }
 
 const SEARCH_RETRIEVERS: readonly SearchRetriever[] = ["hybrid", "lexical", "vector"]

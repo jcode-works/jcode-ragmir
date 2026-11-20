@@ -58,3 +58,9 @@ def test_toolkit_answers_with_citations_and_keeps_documents(indexed_project: Pat
 
     silent = search.invoke({"query": "chocolate cake baking temperature"})
     assert "No passage in the indexed documents" in silent
+
+    fused = search.invoke(
+        {"query": "refund", "searches": [{"type": "lex", "query": '"billing team" -portal'}]}
+    )
+    assert "[1] docs/refunds.md:L" in fused
+    assert "refund-faq.txt" not in fused

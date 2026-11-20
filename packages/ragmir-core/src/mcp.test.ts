@@ -673,6 +673,41 @@ describe("MCP protocol contract", { timeout: integrationTimeout(15_000) }, () =>
     ])
   })
 
+  it("fuses formulations, focuses excerpts on their words, and keeps them to one question", async () => {
+    const root = await createProject("ragmir-mcp-formulations-")
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "gateway.md"),
+      "# Gateway\nThe gateway terminates TLS for every service.\nEach key may send 600 calls per minute.\n",
+    )
+    await ingest({ cwd: root })
+    const { client } = await connectTestClient(root)
+
+    const plain = (await jsonToolResult(client, "ragmir_search", {
+      query: "gateway",
+      seen: "include",
+    })) as Array<{ excerptLine?: number }>
+    const focused = (await jsonToolResult(client, "ragmir_search", {
+      query: "gateway",
+      searches: [{ type: "lex", query: '"calls per minute"' }],
+      intent: "request quota",
+      seen: "include",
+      explain: true,
+    })) as Array<{ excerptLine?: number; score?: { formulations?: Array<{ label: string }> } }>
+    expect(plain[0]?.excerptLine).not.toBe(3)
+    expect(focused[0]?.excerptLine).toBe(3)
+    expect(focused[0]?.score?.formulations?.map((item) => item.label)).toEqual(["lex#1"])
+
+    const refused = await client.callTool({
+      name: "ragmir_search",
+      arguments: {
+        queries: ["gateway", "tls"],
+        searches: [{ type: "vec", query: "request rate limit" }],
+      },
+    })
+    expect(refused.isError).toBe(true)
+    expect(textContent(refused)).toMatch(/searches refine one question/u)
+  })
+
   it("pages through a long document with next and previous citations", async () => {
     const root = await createProject("ragmir-mcp-paging-", { chunkSize: 200, chunkOverlap: 0 })
     const sections = Array.from(

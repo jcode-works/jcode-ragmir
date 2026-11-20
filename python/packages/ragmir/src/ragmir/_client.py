@@ -18,7 +18,14 @@ from mcp.types import TextContent
 
 from ._errors import RagmirError, RagmirServerError, RagmirToolError
 from ._launcher import resolve_launcher
-from ._models import ExpandedCitation, IngestReport, Passage, SourceCatalog, Status
+from ._models import (
+    ExpandedCitation,
+    IngestReport,
+    Passage,
+    SearchFormulation,
+    SourceCatalog,
+    Status,
+)
 from ._version import __version__
 
 logger = logging.getLogger("ragmir")
@@ -94,15 +101,20 @@ class AsyncRagmir:
         scope: str | None = None,
         max_chunks_per_document: int | None = None,
         context_radius: int | None = None,
+        searches: Sequence[SearchFormulation] | None = None,
     ) -> list[Passage]:
         """Cited passages that answer ``query``; an empty list means the base holds no evidence.
 
         ``include_paths`` and ``exclude_paths`` take folders, files, or globs such as ``**/*.pdf``.
-        ``top_k`` is capped by the base's ``mcpMaxTopK`` setting (10 by default).
+        ``top_k`` is capped by the base's ``mcpMaxTopK`` setting (10 by default). ``searches``
+        adds up to five formulations of the same question, such as
+        ``{"type": "lex", "query": '"rate limit" -deprecated'}``, fused into one ranking.
         """
         arguments = _search_arguments(
             top_k, include_paths, exclude_paths, scope, max_chunks_per_document, context_radius
         )
+        if searches is not None:
+            arguments["searches"] = [dict(formulation) for formulation in searches]
         data = await self._call_json("ragmir_search", {"query": query, **arguments})
         return [Passage.from_json(item) for item in _list(data)]
 
@@ -381,6 +393,7 @@ class Ragmir:
         scope: str | None = None,
         max_chunks_per_document: int | None = None,
         context_radius: int | None = None,
+        searches: Sequence[SearchFormulation] | None = None,
     ) -> list[Passage]:
         """Cited passages that answer ``query``; an empty list means the base holds no evidence."""
         return self._run(
@@ -392,6 +405,7 @@ class Ragmir:
                 scope=scope,
                 max_chunks_per_document=max_chunks_per_document,
                 context_radius=context_radius,
+                searches=searches,
             )
         )
 
@@ -405,6 +419,7 @@ class Ragmir:
         scope: str | None = None,
         max_chunks_per_document: int | None = None,
         context_radius: int | None = None,
+        searches: Sequence[SearchFormulation] | None = None,
     ) -> list[Passage]:
         """Async twin of ``search``."""
         return await self._arun(
@@ -416,6 +431,7 @@ class Ragmir:
                 scope=scope,
                 max_chunks_per_document=max_chunks_per_document,
                 context_radius=context_radius,
+                searches=searches,
             )
         )
 

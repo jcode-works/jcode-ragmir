@@ -57,6 +57,29 @@ all weak prints no result, with any provider: the base holds no evidence for the
 applies a named scope from the config. `--include-path` and `--exclude-path` take a folder, a file,
 or a glob such as `"**/*.pdf"`, and accept backslashes on every platform.
 
+When the question's own words may miss the answer, add formulations of the same need. Each one
+searches the channel that suits it, and the results are fused with the question's into one ranking:
+
+```bash
+rgr search "How are API requests throttled?" --lex '"rate limit" quota -deprecated'
+rgr search "How are API requests throttled?" --vec "limits on how many calls a client may send"
+rgr search "How are API requests throttled?" --hyde "Each API key may send 600 requests per minute."
+```
+
+- `--lex` searches keywords: plain words rank passages, `"an exact phrase"` must appear, and
+  `-word` or `-"a phrase"` removes every passage that holds it, including passages the question
+  found. Quote a term that starts with a hyphen: `--lex '"--top-k" limit'`.
+- `--vec` adds a paraphrase and `--hyde` a short passage written as the answer might be. Ragmir
+  searches their words, which reach passages the question's own words miss.
+- The options repeat, up to five formulations in total. Each weighs half as much as the question's
+  own lists (`--hyde` a quarter), so it reorders and completes the answer without displacing what
+  the question found.
+  Only the question decides whether there is an answer: formulations never turn a refusal into
+  one.
+- `--explain` lists, per result, the formulations that found it and its rank in each.
+- `--intent "<words>"`, with `--compact`, says what the question is about to pick excerpt lines;
+  it never searches on its own.
+
 `sources add` accepts paths, globs, and `!` exclusions. Search accepts `--top-k`,
 `--include-path`, `--exclude-path`, and repeatable `--context-path`. Search accepts
 `--max-chunks-per-document` and `--explain`. The document cap defaults to one, applies after scoring,
@@ -379,7 +402,8 @@ rgr evaluate --golden ragmir.golden.json --retriever lexical      # one channel,
 - `relevanceJudgments` grades evidence from 0 to 3 for nDCG. `answerable: false` marks a hard
   negative whose correct result is no passage. `category` and `locale` group the report.
 - A case can set its own `topK`, `includePaths`, `excludePaths`, and `contextPaths`. `topK`
-  defaults to 3; `--top-k` overrides the file value.
+  defaults to 3; `--top-k` overrides the file value. `searches` replays the formulations an agent
+  sends with the question, so a report measures them too.
 - `thresholds` accepts `recallAt1`, `recallAt3`, `recallAt5`, `recallAt10`, `precisionAt5`,
   `meanReciprocalRankAt10`, `ndcgAt10`, and `exactCitationRate` as minimums, and
   `maximumFalsePositiveRate` as a maximum, all between 0 and 1.

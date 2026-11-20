@@ -312,6 +312,40 @@ try {
     )
   }
 
+  const formulationSearchJson = parseJson(
+    (
+      await runKb(
+        [
+          "search",
+          "situation",
+          "--lex",
+          '"tax residency" -thailand',
+          "--top-k",
+          "3",
+          "--explain",
+          "--json",
+        ],
+        tempRoot,
+      )
+    ).stdout,
+    "formulation search JSON",
+  )
+  if (
+    formulationSearchJson.results?.[0]?.relativePath !== ".ragmir/raw/tax.md" ||
+    formulationSearchJson.results.some((result) => result.relativePath.endsWith("thailand.md")) ||
+    !formulationSearchJson.results[0].score?.formulations?.some((item) => item.label === "lex#1")
+  ) {
+    throw new Error(
+      `search --lex should require its phrase and drop its exclusion, got ${JSON.stringify(formulationSearchJson)}`,
+    )
+  }
+  const exclusionOnly = await runKbFailure(["search", "situation", "--lex", "-thailand"], tempRoot)
+  assertIncludes(
+    exclusionOnly.stderr,
+    "--lex '-thailand' only excludes",
+    "search --lex should explain a search that only excludes",
+  )
+
   const search = await runKb(["search", "French tax residency", "--top-k", "1"], tempRoot)
   assertIncludes(search.stdout, "tax.md", "search should retrieve the tax document")
   assertIncludes(search.stdout, "French tax residency", "search should return indexed content")
@@ -774,6 +808,25 @@ async function smokeMcp(cwd) {
       )
     }
 
+    const formulationSearch = await client.request("tools/call", {
+      name: "ragmir_search",
+      arguments: {
+        query: "situation",
+        searches: [{ type: "lex", query: '"tax residency" -thailand' }],
+        seen: "include",
+      },
+    })
+    const formulationSearchJson = parseJson(mcpText(formulationSearch), "MCP formulation search")
+    if (
+      !Array.isArray(formulationSearchJson) ||
+      !formulationSearchJson[0]?.citation?.includes("tax.md:L") ||
+      formulationSearchJson.some((result) => result.citation?.includes("thailand.md"))
+    ) {
+      throw new Error(
+        `MCP search should fuse a lex formulation and drop its exclusion: ${mcpText(formulationSearch)}`,
+      )
+    }
+
     const boundedSearch = await client.request("tools/call", {
       name: "ragmir_search",
       arguments: {
@@ -812,7 +865,11 @@ async function smokeMcp(cwd) {
       arguments: { citations: [searchJson[0].citation, "missing.md:L1-L2#4"], maxBytes: 4_096 },
     })
     const batchJson = parseJson(mcpText(batch), "MCP batch expansion JSON")
-    if (!Array.isArray(batchJson) || batchJson[0]?.found !== true || batchJson[1]?.found !== false) {
+    if (
+      !Array.isArray(batchJson) ||
+      batchJson[0]?.found !== true ||
+      batchJson[1]?.found !== false
+    ) {
       throw new Error(`MCP should expand several citations in one call: ${mcpText(batch)}`)
     }
 

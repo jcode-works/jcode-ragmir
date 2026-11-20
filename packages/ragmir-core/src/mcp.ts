@@ -47,8 +47,9 @@ import {
   mcpPreviewLimit,
   summarizeAuditForMcp,
 } from "./mcp-summaries.js"
-import { compactSearchResults } from "./search-output.js"
+import { compactSearchResults, type ExcerptFocus, searchExcerptFocus } from "./search-output.js"
 import { securityAuditWithConfig } from "./security.js"
+import { searchFormulationsSchema } from "./typed-search.js"
 import type {
   Config,
   IngestionProgress,
@@ -160,6 +161,20 @@ const searchToolInputSchema = z
       .boolean()
       .optional()
       .describe("Adds the retrieval query and ranking signals; signals, not confidence."),
+    searches: searchFormulationsSchema
+      .optional()
+      .describe(
+        'With query: your own formulations of the same need, fused with it into one ranking. lex: keywords, "exact phrase", -excluded word; vec: a paraphrase; hyde: a short passage that would answer it.',
+      ),
+    intent: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_MCP_INPUT_CHARACTERS)
+      .optional()
+      .describe(
+        "What the question is about, in a few words. It picks the excerpt lines; it never searches on its own.",
+      ),
   })
   .loose()
 
@@ -316,7 +331,7 @@ export function mcpServerInstructions(profile: KnowledgeBaseProfile): string {
     `This server searches one local knowledge base: "${profile.name}" at ${profile.projectRoot}.`,
     profile.description ?? "",
     "Use its passages only for questions about that project; other workspaces have their own context.",
-    "Read ragmir://context once, or call ragmir_status. Use ragmir_search for compact citations; send related questions together in queries to share one budget. Passages already returned in this session come back as short seen stubs.",
+    "Read ragmir://context once, or call ragmir_status. Use ragmir_search for compact citations; send related questions together in queries to share one budget, and add searches (lex keywords, a vec paraphrase, a hyde answer) when one question is hard to word. Passages already returned in this session come back as short seen stubs.",
     `Expand one selected citation with ragmir_expand, and follow nextCitation to read a document through.${scopes}`,
     "ragmir_sources lists the indexed documents by folder or glob.",
     "A sourceStatus on a result means the file changed after indexing (call ragmir_ingest to refresh); weakEvidence means no strong match.",
@@ -606,7 +621,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         profile.scopes.length > 0
           ? ` scope selects a named subset: ${profile.scopes.map((scope) => scope.name).join(", ")}.`
           : ""
-      } Each result has a citation (path, lines or page, chunk), an excerpt from its lines that hold the question's words (excerptLine gives the first line), pathContext when the configuration describes its folder, and weakEvidence when support is thin. An empty result means the base holds no evidence, so say so instead of guessing; a notice names question words that no indexed passage holds. Expand one citation, or set compact:false, only when full text is needed.`,
+      } Each result has a citation (path, lines or page, chunk), an excerpt from its lines that hold the question's words (excerptLine gives the first line), pathContext when the configuration describes its folder, and weakEvidence when support is thin. An empty result means the base holds no evidence, so say so instead of guessing; a notice names question words that no indexed passage holds. When a question is hard to word, add searches: your own lex, vec, or hyde formulations of it, fused into one ranking. Expand one citation, or set compact:false, only when full text is needed.`,
       inputSchema: searchToolInputSchema,
       annotations: SEARCH_TOOL_ANNOTATIONS,
     },
@@ -627,6 +642,13 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         Object.keys(searchToolInputSchema.shape),
       )
       const queries = searchQueries(input)
+      if ((input.searches?.length ?? 0) > 0 && queries.length > 1) {
+        throw new Error(
+          "searches refine one question: send them with query, not with several queries.",
+        )
+      }
+      const focusOf = (query: string): ExcerptFocus =>
+        searchExcerptFocus(query, input.searches, input.intent)
       const budget = mcpOutputBudget(
         config.mcpMaxOutputBytes,
         clampArgument(
@@ -674,6 +696,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
             client.searchReport(query, {
               ...options,
               ...(input.scope === undefined ? {} : { scope: input.scope }),
+              ...(input.searches === undefined ? {} : { searches: input.searches }),
               topK: Math.min(topK + extra, MAX_SEARCH_TOP_K),
               signal,
             }),
@@ -699,7 +722,9 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
         query: string,
       ): McpSearchPayload =>
         items.map((item) =>
-          isSeenCitationStub(item) || !compactOutput ? item : compactSearchResult(item, query),
+          isSeenCitationStub(item) || !compactOutput
+            ? item
+            : compactSearchResult(item, focusOf(query)),
         )
       const firstGroup = groups[0]?.results ?? []
       const firstQuery = queries[0] ?? ""
@@ -712,7 +737,7 @@ export function createMcpServer(cwd = resolveMcpProjectRoot()): McpServer {
               fullValue: fullResults,
               preferredValue: present(firstGroup, firstQuery),
               compactValue: firstGroup.map((item) =>
-                isSeenCitationStub(item) ? item : compactSearchResult(item, firstQuery),
+                isSeenCitationStub(item) ? item : compactSearchResult(item, focusOf(firstQuery)),
               ),
               compacted: compactOutput,
               reduce: fitSearchPayload,
@@ -1281,8 +1306,8 @@ function searchQueries(input: {
   return unique
 }
 
-function compactSearchResult(result: SearchResult, query: string): McpSearchPayload[number] {
-  const [compact] = compactSearchResults([result], undefined, { query })
+function compactSearchResult(result: SearchResult, focus: ExcerptFocus): McpSearchPayload[number] {
+  const [compact] = compactSearchResults([result], undefined, focus)
   return compact ?? { citation: result.citation }
 }
 

@@ -4,6 +4,7 @@ import { createInterface } from "node:readline/promises"
 import { Command } from "commander"
 import pc from "picocolors"
 import {
+  collectFormulation,
   parseAgentInstallMode,
   parseAgentInstallScope,
   parseIncrementalFailurePolicy,
@@ -62,7 +63,7 @@ import {
 import { rgrCommand } from "./package-manager.js"
 import { previewChunks } from "./preview.js"
 import { searchReport } from "./query.js"
-import { compactSearchResults } from "./search-output.js"
+import { compactSearchResults, searchExcerptFocus } from "./search-output.js"
 import { securityAudit } from "./security.js"
 import { enableSemanticEmbeddings } from "./semantic-config.js"
 import { repairProject, setupProject } from "./setup.js"
@@ -89,6 +90,7 @@ import type {
   EvaluationComparison,
   IncrementalFailurePolicy,
   PreviewChunksOptions,
+  SearchOptions,
   SearchRetriever,
 } from "./types.js"
 import { inspectUpgrade, upgradeProject } from "./upgrade.js"
@@ -872,22 +874,32 @@ program
     "Diagnostics: rank with hybrid (default), lexical, or vector candidates only.",
     parseRetriever,
   )
+  .option(
+    "--lex <keywords>",
+    'Also search these keywords: words rank, "exact phrase" must appear, -word must not. Repeatable.',
+    collectFormulation("lex"),
+    [],
+  )
+  .option(
+    "--vec <paraphrase>",
+    "Also search a paraphrase of the question. Repeatable.",
+    collectFormulation("vec"),
+    [],
+  )
+  .option(
+    "--hyde <passage>",
+    "Also search a short passage that would answer the question. Repeatable.",
+    collectFormulation("hyde"),
+    [],
+  )
+  .option("--intent <words>", "With --compact: what the question is about, to pick excerpt lines.")
   .option("--compact", "Return short snippets instead of full passages.")
   .option("--json", "Print machine-readable JSON.")
   .action(
     async (
       query: string,
-      options: {
-        topK?: number
-        maxChunksPerDocument?: number
-        contextRadius?: number
-        includePath: string[]
-        excludePath: string[]
-        contextPath: string[]
-        scope?: string
-        explain?: boolean
-        exactVectorSearch?: boolean
-        retriever?: SearchRetriever
+      options: SearchCommandOptions & {
+        intent?: string
         compact?: boolean
         json?: boolean
       },
@@ -896,12 +908,20 @@ program
       if (query.trim() === "") {
         throw new Error("Search query must not be empty.")
       }
+      if (options.intent !== undefined && !options.compact) {
+        throw new Error("--intent picks the lines of compact excerpts: add --compact.")
+      }
       const cwd = projectRoot(command)
       await reviewProjectConfigTrust(cwd, options.json === true)
-      const report = await searchReport(query, withSearchOptions(cwd, options))
+      const searchOptions = withSearchOptions(cwd, options)
+      const report = await searchReport(query, searchOptions)
       const results = report.results
       const outputResults = options.compact
-        ? compactSearchResults(results, undefined, { query })
+        ? compactSearchResults(
+            results,
+            undefined,
+            searchExcerptFocus(query, searchOptions.searches, options.intent),
+          )
         : results
       if (options.json) {
         console.log(
@@ -1767,46 +1787,24 @@ function explicitProjectRoot(command: Command): string | undefined {
   return options.projectRoot ? path.resolve(options.projectRoot) : undefined
 }
 
-function withSearchOptions(
-  cwd: string,
-  options: {
-    topK?: number
-    maxChunksPerDocument?: number
-    contextRadius?: number
-    includePath?: string[]
-    excludePath?: string[]
-    contextPath?: string[]
-    scope?: string
-    explain?: boolean
-    exactVectorSearch?: boolean
-    retriever?: SearchRetriever
-  },
-): {
-  cwd: string
+interface SearchCommandOptions {
   topK?: number
   maxChunksPerDocument?: number
   contextRadius?: number
-  includePaths?: string[]
-  excludePaths?: string[]
-  contextPaths?: string[]
+  includePath?: string[]
+  excludePath?: string[]
+  contextPath?: string[]
   scope?: string
   explain?: boolean
-  vectorSearchMode?: "exact"
+  exactVectorSearch?: boolean
   retriever?: SearchRetriever
-} {
-  const result: {
-    cwd: string
-    topK?: number
-    maxChunksPerDocument?: number
-    contextRadius?: number
-    includePaths?: string[]
-    excludePaths?: string[]
-    contextPaths?: string[]
-    scope?: string
-    explain?: boolean
-    vectorSearchMode?: "exact"
-    retriever?: SearchRetriever
-  } = { cwd }
+  lex?: string[]
+  vec?: string[]
+  hyde?: string[]
+}
+
+function withSearchOptions(cwd: string, options: SearchCommandOptions): SearchOptions {
+  const result: SearchOptions = { cwd }
   addOption(result, "scope", options.scope)
   addOption(result, "retriever", options.retriever)
   addOption(result, "topK", options.topK)
@@ -1816,6 +1814,12 @@ function withSearchOptions(
   addOption(result, "explain", options.explain)
   if (options.exactVectorSearch) {
     result.vectorSearchMode = "exact"
+  }
+  const searches = (["lex", "vec", "hyde"] as const).flatMap((type) =>
+    (options[type] ?? []).map((query) => ({ type, query })),
+  )
+  if (searches.length > 0) {
+    result.searches = searches
   }
   return result
 }

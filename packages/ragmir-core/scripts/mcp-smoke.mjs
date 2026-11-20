@@ -220,6 +220,27 @@ try {
     )
   }
 
+  const formulationResults = await callJsonTool(client, "ragmir_search", {
+    query: "offline retrieval approval",
+    searches: [
+      { type: "lex", query: "approval" },
+      { type: "vec", query: "who signs off on retrieving without a network" },
+    ],
+    topK: 3,
+    explain: true,
+    seen: "include",
+  })
+  if (
+    !Array.isArray(formulationResults) ||
+    !formulationResults.some((result) =>
+      result.score?.formulations?.some((item) => item.label === "lex#1"),
+    )
+  ) {
+    throw new Error(
+      `MCP search did not fuse the formulations: ${JSON.stringify(formulationResults)}`,
+    )
+  }
+
   const audit = await callJsonTool(client, "ragmir_audit", {})
   if (audit.counts?.missingFromIndex !== 0) throw new Error("MCP audit found unindexed sources")
   if (toolNames.length !== requiredTools.length) throw new Error("Unexpected MCP tool surface")

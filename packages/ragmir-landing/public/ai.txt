@@ -53,7 +53,10 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
   (`**/*.pdf`), and returns passages already seen in the session as short stubs. Excerpts start at
   the lines holding the question's words (`excerptLine`), results carry `pathContext` from
   `pathContexts` or scope descriptions, and a notice names question words no passage holds
-  (`absentTerms` in `searchReport()` and `--json`). Expansion returns `nextCitation` to read a
+  (`absentTerms` in `searchReport()` and `--json`). `searches` adds up to five formulations of one
+  question, fused with it into one ranking: `lex` keywords (`"phrase"` required, `-word`
+  excluded), a `vec` paraphrase, or a `hyde` passage written as the answer might read (`--lex`,
+  `--vec`, `--hyde` in the CLI). Expansion returns `nextCitation` to read a
   document through and accepts up to five `citations` at once. A scope with
   `searchByDefault: false` is searched only by name. `ragmir_ingest` writes only the private index and
   refuses with `mcpIngest: false` or while `rgr security-audit` warns. Instructions name the base;

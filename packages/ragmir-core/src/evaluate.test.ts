@@ -518,6 +518,49 @@ describe("evaluateGoldenQueries", { timeout: integrationTimeout(15_000) }, () =>
     expect(report.cases[0]?.returnedPaths).toEqual([".ragmir/raw/runbook.md"])
   })
 
+  it("searches the formulations declared by each golden query", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-formulations-"))
+    tempDirs.push(root)
+    await initProject(root)
+    await mkdir(path.join(root, ".ragmir", "raw"), { recursive: true })
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "quota.md"),
+      "Each API key may send 600 calls per minute; the gateway answers HTTP 429 beyond that.\n",
+      "utf8",
+    )
+    await writeFile(
+      path.join(root, ".ragmir", "raw", "legacy.md"),
+      "Deprecated: the old gateway capped gateway calls per key at 60 calls per key.\n",
+      "utf8",
+    )
+    const searches = [{ type: "lex", query: '"per minute" -deprecated' }]
+    const question = { query: "gateway calls per key", expectedPaths: [".ragmir/raw/quota.md"] }
+    await writeFile(
+      path.join(root, "formulation-golden.json"),
+      JSON.stringify({ topK: 1, queries: [question, { ...question, searches }] }),
+      "utf8",
+    )
+    await ingest({ cwd: root })
+
+    const report = await evaluateGoldenQueries({
+      cwd: root,
+      goldenPath: "formulation-golden.json",
+    })
+
+    expect(report.cases.map((item) => item.hit)).toEqual([false, true])
+    expect(report.cases[1]?.searches).toEqual(searches)
+    await writeFile(
+      path.join(root, "invalid-golden.json"),
+      JSON.stringify([
+        { query: "q", expectedPaths: ["a.md"], searches: [{ type: "sql", query: "q" }] },
+      ]),
+      "utf8",
+    )
+    await expect(
+      evaluateGoldenQueries({ cwd: root, goldenPath: "invalid-golden.json" }),
+    ).rejects.toThrow()
+  })
+
   it("reports a miss when no expected path is retrieved", async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), "ragmir-evaluate-miss-"))
     tempDirs.push(parent)

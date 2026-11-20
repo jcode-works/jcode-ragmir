@@ -1,7 +1,5 @@
 import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
-import { createServer, type Server } from "node:http"
-import type { AddressInfo } from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -9,6 +7,7 @@ import { loadConfig } from "./config.js"
 import { embedTexts } from "./embeddings.js"
 import { ingest } from "./ingest.js"
 import { securityAudit } from "./security.js"
+import { type EmbeddingServer, startEmbeddingServer } from "./test-support/embedding-server.js"
 import { integrationTimeout } from "./test-support/timeouts.js"
 import {
   approveConfigTrust,
@@ -23,7 +22,7 @@ import {
 } from "./trust.js"
 
 const tempDirs: string[] = []
-const servers: Server[] = []
+const servers: EmbeddingServer[] = []
 
 beforeEach(async () => {
   // The suite runs as an approved machine; these tests exercise the gate itself.
@@ -33,11 +32,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.unstubAllEnvs()
-  await Promise.all(
-    servers
-      .splice(0)
-      .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
-  )
+  await Promise.all(servers.splice(0).map((server) => server.close()))
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true })
   }
@@ -248,22 +243,19 @@ describe("loading an unapproved project config", { timeout: integrationTimeout(2
   })
 
   it("sends no request and no secret to an unapproved embedding endpoint", async () => {
-    const requests: string[] = []
-    const server = createServer((request, response) => {
-      requests.push(String(request.headers.authorization))
-      response.writeHead(200, { "content-type": "application/json" })
-      response.end(JSON.stringify({ data: [{ index: 0, embedding: [1, 0] }] }))
-    })
+    const server = await startEmbeddingServer(() => ({
+      payload: { data: [{ index: 0, embedding: [1, 0] }] },
+    }))
     servers.push(server)
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()))
-    const { port } = server.address() as AddressInfo
+    const authorizations = (): Array<string | undefined> =>
+      server.requests.map((request) => request.authorization)
     vi.stubEnv("RAGMIR_TEST_PROJECT_SECRET", "secret-value")
     const root = await temporaryDirectory("ragmir-trust-endpoint-")
     await writeFile(
       path.join(root, "ragmir.config.json"),
       JSON.stringify({
         embeddingProvider: "openai-compatible",
-        embeddingEndpoint: `http://127.0.0.1:${port}/v1`,
+        embeddingEndpoint: server.endpoint,
         embeddingModel: "nomic-embed-text",
         embeddingApiKeyEnv: "RAGMIR_TEST_PROJECT_SECRET",
       }),
@@ -274,10 +266,10 @@ describe("loading an unapproved project config", { timeout: integrationTimeout(2
     await expect(embedTexts(["passage"], blocked, "document")).rejects.toMatchObject({
       code: "UNTRUSTED_CONFIG",
     })
-    expect(requests).toEqual([])
+    expect(authorizations()).toEqual([])
 
     await approveConfigTrust(root, blocked.configTrust?.settings ?? [])
     await embedTexts(["passage"], await loadConfig(root), "document")
-    expect(requests).toEqual(["Bearer secret-value"])
+    expect(authorizations()).toEqual(["Bearer secret-value"])
   })
 })

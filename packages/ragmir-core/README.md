@@ -76,7 +76,8 @@ guide](https://github.com/jcode-works/ragmir/blob/main/docs/agent-integration.md
 lists every install command. Without a plugin, `rgr setup --agents claude,codex` prepares a project
 MCP server and a retrieval skill, and `npx skills add jcode-works/ragmir` installs the
 retrieval, setup, build, and evaluation skills for any agent. The server exposes `ragmir_search` (one question or up to five
-related ones sharing a budget, with folder or glob filters and named scopes), `ragmir_expand` (a
+related ones sharing a budget, with folder or glob filters, named scopes, and the agent's own
+keyword, paraphrase, or likely-answer formulations), `ragmir_expand` (a
 citation with its neighbours and the next window of the document), `ragmir_sources`,
 `ragmir_status`, `ragmir_audit`, and `ragmir_ingest` to refresh the index after files change.
 Passages already returned in a session come back as one-line stubs. Its instructions name the base

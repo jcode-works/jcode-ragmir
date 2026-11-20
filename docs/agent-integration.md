@@ -182,8 +182,9 @@ this in three ways:
    `queries`. Defaults return at most three compact citations per question.
 3. Call `ragmir_expand` on a selected citation for the indexed passage and bounded neighbors.
    Follow its `nextCitation` to read a long document through.
-4. Refine the query, list the documents with `ragmir_sources`, or inspect `ragmir_audit` if evidence
-   is incomplete. Call `ragmir_ingest` when files changed since indexing.
+4. Refine the query or add `searches` (your own keywords, a paraphrase, or a likely answer), list
+   the documents with `ragmir_sources`, or inspect `ragmir_audit` if evidence is incomplete. Call
+   `ragmir_ingest` when files changed since indexing.
 5. Generate an answer with source markers, identify gaps, and verify citations before taking action.
 
 | Tool | Use it to | Effect |
@@ -221,6 +222,37 @@ those lines, and `pathContext` when the configuration describes the folder it co
 some words of the question appear in no indexed passage, a notice names them (and
 `_meta["ragmir/gaps"]` lists them per question): rephrase with the project's own terms, or report
 that the documents do not cover them.
+
+When the question's own words may miss the answer, add `searches`: up to five formulations of the
+same need, fused with the question into one ranking. Send them with `query`, not with `queries`.
+
+```json
+{
+  "query": "How are API requests throttled?",
+  "searches": [
+    { "type": "lex", "query": "\"rate limit\" quota -deprecated" },
+    { "type": "vec", "query": "limits on how many calls a client may send" },
+    { "type": "hyde", "query": "Each API key may send 600 requests per minute." }
+  ],
+  "intent": "gateway configuration"
+}
+```
+
+- `lex` searches keywords: plain words rank passages, `"an exact phrase"` must appear, and `-word`
+  or `-"a phrase"` removes every passage that holds it, including passages the question found.
+  Quote a term that starts with a hyphen, such as `"--top-k"`.
+- `vec` adds a paraphrase and `hyde` a short passage written as the answer might be. Ragmir
+  searches their words, which reach passages the question's own words miss; with a semantic
+  model, the question's vector already carries its meaning.
+- Each formulation weighs half as much as the question's own lists (a `hyde` passage, with its
+  many words, a quarter), so it reorders and completes the answer without displacing what the
+  question found. Evidence rules still judge every passage
+  against the question, and only the question decides whether there is an answer: formulations
+  never turn a refusal into one. When the documents never mention the question's words, rephrase
+  the question itself.
+- `intent` says in a few words what the question is about. It picks the excerpt lines and never
+  searches on its own; excerpts also favor the lines that hold a `lex` formulation's words.
+- With `explain: true`, each result lists the formulations that found it and its rank in each.
 
 Results flag two conditions. `sourceStatus: "modified"` or `"missing"` means the cited file changed
 after indexing: call `ragmir_ingest`, or set `mcpAutoIngest: true` so the server starts one

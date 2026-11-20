@@ -4,7 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
+
+
+class SearchFormulation(TypedDict):
+    """One more way to search the same question, fused with it into one ranking.
+
+    ``lex`` searches keywords: words rank, ``"an exact phrase"`` must appear, ``-word`` must not.
+    ``vec`` searches a paraphrase and ``hyde`` a short passage written as the answer might be.
+    """
+
+    type: Literal["lex", "vec", "hyde"]
+    query: str
 
 
 def _int(value: object) -> int | None:

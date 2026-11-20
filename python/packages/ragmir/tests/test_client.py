@@ -49,6 +49,17 @@ def test_search_filters_with_globs(rag: Ragmir) -> None:
     assert all(passage.path.startswith("notes/") for passage in excluded)
 
 
+def test_search_fuses_formulations_and_drops_exclusions(rag: Ragmir) -> None:
+    passages = rag.search(
+        "refund", top_k=5, searches=[{"type": "lex", "query": '"billing team" -portal'}]
+    )
+
+    assert passages[0].path == "docs/refunds.md"
+    assert "notes/refund-faq.txt" not in [passage.path for passage in passages]
+    with pytest.raises(RagmirToolError, match="only excludes"):
+        rag.search("refund", searches=[{"type": "lex", "query": "-portal"}])
+
+
 def test_search_many_answers_each_question(rag: Ragmir) -> None:
     answers = rag.search_many(["refund approval", "return label expiry"])
 

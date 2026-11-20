@@ -210,7 +210,8 @@ LangChain.js retriever, the MCP server for any client, or the TypeScript API.
 | Your own application | `createRagmirClient()` from the TypeScript API |
 
 The MCP server exposes `ragmir_search` (one question or up to five related ones in a shared budget,
-with folder or glob filters and named scopes), `ragmir_expand` (a citation with its neighbours,
+with folder or glob filters, named scopes, and the agent's own keyword, paraphrase, or
+likely-answer formulations fused into one ranking), `ragmir_expand` (a citation with its neighbours,
 the next window to read a document through, or up to five citations at once), `ragmir_sources`
 (the indexed documents),
 `ragmir_status`, `ragmir_audit`, and `ragmir_ingest`, which refreshes the index after files change

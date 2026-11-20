@@ -25,6 +25,7 @@ import {
   readIndexManifest,
   writeIndexManifest,
 } from "./store.js"
+import { searchFormulationsSchema } from "./typed-search.js"
 import type {
   Config,
   EvaluationCaseResult,
@@ -91,6 +92,7 @@ const goldenQuerySchema = z
     includePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     excludePaths: z.array(z.string().min(1).max(500)).max(20).optional(),
     contextPaths: z.array(z.string().min(1).max(500)).max(20).optional(),
+    searches: searchFormulationsSchema.optional(),
     topK: z.number().int().positive().optional(),
   })
   .strict()
@@ -344,6 +346,7 @@ async function evaluateGoldenQueriesWithConfig(
               ...(goldenQuery.contextPaths === undefined
                 ? {}
                 : { contextPaths: goldenQuery.contextPaths }),
+              ...(goldenQuery.searches === undefined ? {} : { searches: goldenQuery.searches }),
             })
             throwIfAborted(signal)
             return evaluateCase(
@@ -566,6 +569,7 @@ function normalizeGoldenQuery(value: z.infer<typeof goldenQuerySchema>): GoldenQ
     ...(value.includePaths === undefined ? {} : { includePaths: value.includePaths }),
     ...(value.excludePaths === undefined ? {} : { excludePaths: value.excludePaths }),
     ...(value.contextPaths === undefined ? {} : { contextPaths: value.contextPaths }),
+    ...(value.searches === undefined ? {} : { searches: value.searches }),
   }
 }
 
@@ -658,6 +662,9 @@ function evaluateCase(
   }
   if (goldenQuery.contextPaths !== undefined) {
     result.contextPaths = goldenQuery.contextPaths
+  }
+  if (goldenQuery.searches !== undefined) {
+    result.searches = goldenQuery.searches
   }
   return result
 }

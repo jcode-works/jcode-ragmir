@@ -71,6 +71,25 @@ evidence: let your application say so instead of answering from memory. `include
 from the project's configuration. `search_many()` answers up to five related questions in one call,
 `status()` reports readiness, and `audit()` lists missing or stale sources.
 
+When the question's own words may miss the answer, add `searches`: up to five formulations of the
+same need (`SearchFormulation`), fused with the question into one ranking.
+
+```python
+passages = rag.search(
+    "How are API requests throttled?",
+    searches=[
+        {"type": "lex", "query": '"rate limit" quota -deprecated'},
+        {"type": "vec", "query": "limits on how many calls a client may send"},
+        {"type": "hyde", "query": "Each API key may send 600 requests per minute."},
+    ],
+)
+```
+
+A `lex` search ranks by its words, keeps only passages holding each `"quoted phrase"`, and removes
+every passage holding a `-word`. `vec` searches a paraphrase and `hyde` a short passage written as
+the answer might be. An invalid formulation raises `RagmirToolError` with a message naming the
+field.
+
 One `Ragmir` keeps one MCP server running for its project and serves every call, from any thread,
 a notebook, or a web framework. Use one client per project in a long-running process and close it
 at shutdown. Retrievers and tools created without a client share one per project for the process.
@@ -132,7 +151,8 @@ result = agent.invoke({"messages": [{"role": "user", "content": "What is the ref
 ```
 
 `ragmir_search` answers the model with numbered citations and passage text, flags weak matches and
-changed files, and keeps the documents as the tool message artifact; `ragmir_expand` reads one
+changed files, and keeps the documents as the tool message artifact; the model may add `searches`,
+its own formulations of the question. `ragmir_expand` reads one
 citation with its neighbours and the next citation to read on. Both support `invoke` and
 `ainvoke`, and pass LangChain's standard retriever and tool test suites.
 

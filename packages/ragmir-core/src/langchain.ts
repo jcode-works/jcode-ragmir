@@ -3,6 +3,7 @@ import { BaseRetriever, type BaseRetrieverInput } from "@langchain/core/retrieve
 import { BaseToolkit, type StructuredToolInterface, tool } from "@langchain/core/tools"
 import { z } from "zod"
 import { RagmirClient } from "./client.js"
+import { searchFormulationsSchema } from "./typed-search.js"
 import type { ExpandedCitation, SearchOptions, SearchResult, SourceStatus } from "./types.js"
 
 /** Search settings the retriever forwards to `RagmirClient.search` on every query. */
@@ -161,13 +162,14 @@ export function createRagmirTools(input: RagmirToolkitInput & { client: RagmirCl
 
 function ragmirSearchTool(handle: ClientHandle, defaults: RagmirRetrieverSearchOptions) {
   return tool(
-    async ({ query, topK, includePaths, excludePaths }) => {
+    async ({ query, topK, includePaths, excludePaths, searches }) => {
       const client = await handle.get()
       const results = await client.search(query, {
         ...defaults,
         ...(topK === undefined ? {} : { topK }),
         ...(includePaths === undefined ? {} : { includePaths }),
         ...(excludePaths === undefined ? {} : { excludePaths }),
+        ...(searches === undefined ? {} : { searches }),
       })
       const documents = results.map(ragmirResultToDocument)
       return [searchResultsText(results), documents] as const
@@ -198,6 +200,11 @@ function ragmirSearchTool(handle: ClientHandle, defaults: RagmirRetrieverSearchO
           .max(20)
           .optional()
           .describe("Skip these folders, files, or globs."),
+        searches: searchFormulationsSchema
+          .optional()
+          .describe(
+            'Your own formulations of the same need, fused with the query into one ranking. lex: keywords, "exact phrase", -excluded word; vec: a paraphrase; hyde: a short passage that would answer it.',
+          ),
       }),
       responseFormat: "content_and_artifact",
     },

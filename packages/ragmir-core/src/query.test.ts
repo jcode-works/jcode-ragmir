@@ -16,12 +16,15 @@ import {
   vectorCandidateLimit,
 } from "./query.js"
 import { openRowsTable } from "./store.js"
+import { type EmbeddingServer, startEmbeddingServer } from "./test-support/embedding-server.js"
 import { integrationTimeout } from "./test-support/timeouts.js"
 
 const tempDirs: string[] = []
+const servers: EmbeddingServer[] = []
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 afterEach(async () => {
+  await Promise.all(servers.splice(0).map((server) => server.close()))
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true })
   }
@@ -211,6 +214,108 @@ describe("search", { timeout: integrationTimeout(20_000) }, () => {
     expect(vector?.score?.retriever).toBe("vector")
     expect(vector?.score?.lexicalRank).toBeNull()
     expect(vector?.relativePath).toBe(".ragmir/raw/retention.md")
+  })
+
+  it("should fuse an agent's formulations, requiring lex phrases and dropping exclusions", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-formulations-"))
+    tempDirs.push(root)
+    await initProject(root)
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    await writeFile(
+      path.join(raw, "quota.md"),
+      "Each API key may send 600 calls per minute; the gateway answers HTTP 429 beyond that.\n",
+    )
+    await writeFile(
+      path.join(raw, "legacy.md"),
+      "Deprecated: the old gateway throttled every key to 60 calls per minute.\n",
+    )
+    await ingest({ cwd: root })
+    const paths = (results: Array<{ relativePath: string }>): string[] =>
+      results.map((result) => result.relativePath).sort()
+    const searches = [{ type: "lex" as const, query: '"per minute" -deprecated' }]
+
+    const alone = await search("gateway calls per key", { cwd: root, topK: 3 })
+    const fused = await search("gateway calls per key", {
+      cwd: root,
+      topK: 3,
+      explain: true,
+      searches,
+    })
+    // The question's own words are absent from both files: formulations never turn its refusal
+    // into an answer, even when their keywords match.
+    const refused = await search("How are requests throttled?", { cwd: root, searches })
+
+    expect(paths(alone)).toEqual([".ragmir/raw/legacy.md", ".ragmir/raw/quota.md"])
+    expect(paths(fused)).toEqual([".ragmir/raw/quota.md"])
+    expect(fused[0]?.score?.formulations).toEqual([
+      expect.objectContaining({ label: "lex#1", rank: 1 }),
+    ])
+    expect(refused).toEqual([])
+    await expect(
+      search("gateway", { cwd: root, searches: [{ type: "lex", query: "-deprecated" }] }),
+    ).rejects.toMatchObject({ code: "INVALID_ARGUMENT" })
+  })
+
+  it("should judge a passage only formulations found by its distance to the question", async () => {
+    // Notes crowd the question's own vector candidates, so only the formulations' keywords reach
+    // the target, which stands near enough to the question to pass its evidence rule.
+    const vectorOf = (text: string): number[] => {
+      const note = /beta note (\d+)/u.exec(text)
+      if (note) return [1, 0, Number(note[1]) / 1_000, 0]
+      if (text.includes("omega")) return [0.6, 0.8, 0, 0]
+      return text.includes("alpha") ? [1, 0, 0, 0] : [0, 0, 0, 1]
+    }
+    const server = await startEmbeddingServer((body) => ({
+      payload: { data: body.input.map((text, index) => ({ index, embedding: vectorOf(text) })) },
+    }))
+    servers.push(server)
+    const root = await mkdtemp(path.join(os.tmpdir(), "ragmir-query-formulation-distance-"))
+    tempDirs.push(root)
+    await writeFile(
+      path.join(root, "ragmir.config.json"),
+      JSON.stringify({
+        embeddingProvider: "openai-compatible",
+        embeddingEndpoint: server.endpoint,
+        embeddingModel: "test-embedding",
+        chunkSize: 60,
+        chunkOverlap: 0,
+      }),
+    )
+    const raw = path.join(root, ".ragmir", "raw")
+    await mkdir(raw, { recursive: true })
+    // One note per chunk, spread over enough files that no single file crowds the candidates.
+    for (let file = 0; file < 8; file += 1) {
+      const notes = Array.from(
+        { length: 13 },
+        (_, item) => `beta note ${file * 13 + item} ${"filler ".repeat(6)}`,
+      )
+      await writeFile(path.join(raw, `beta-${file}.md`), notes.join("\n\n"))
+    }
+    await writeFile(path.join(raw, "target.md"), "omega gamma escalation path\n")
+    await ingest({ cwd: root })
+
+    const results = await search("alpha", {
+      cwd: root,
+      topK: 2,
+      explain: true,
+      searches: [
+        { type: "lex", query: "gamma" },
+        { type: "vec", query: "omega escalation" },
+        { type: "hyde", query: "The omega escalation path starts with gamma." },
+      ],
+    })
+    const target = results.find((result) => result.relativePath === ".ragmir/raw/target.md")
+
+    // The squared L2 distance to the question, measured although keywords found the passage.
+    expect(target?.distance).toBeCloseTo(0.8)
+    expect(target?.score?.vectorRank).toBeNull()
+    expect(target?.score?.lexicalRank).toBeNull()
+    expect(target?.score?.formulations?.map((item) => item.label)).toEqual([
+      "lex#1",
+      "vec#1",
+      "hyde#1",
+    ])
   })
 
   it("should size candidate pools from the fusion bound with a profile margin", () => {

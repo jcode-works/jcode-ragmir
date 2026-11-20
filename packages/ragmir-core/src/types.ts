@@ -716,6 +716,18 @@ export interface SearchOptions extends OperationOptions {
    * candidates; `lexical` and `vector` measure what each channel finds on its own.
    */
   retriever?: SearchRetriever
+  /**
+   * The agent's own formulations of the same need, fused with the question into one ranking:
+   * `lex` (keywords, `"exact phrase"`, `-excluded`), `vec` (a paraphrase), `hyde` (a hypothetical
+   * answer passage). Up to five.
+   */
+  searches?: SearchFormulation[]
+}
+
+/** One formulation of the question, routed to the channel that suits it. */
+export interface SearchFormulation {
+  type: "lex" | "vec" | "hyde"
+  query: string
 }
 
 /** Candidate channels a search fuses: both by default, or one of them for diagnostics. */
@@ -820,6 +832,18 @@ export interface SearchScoreExplanation {
   queryTermCoverage: number | null
   /** Distance of the nearest passage to off-topic probe questions; null for local-hash. */
   noiseFloorDistance: number | null
+  /** With `searches`: each formulation that found this passage. */
+  formulations?: FormulationContribution[]
+}
+
+/** One formulation's share of a passage's fused score. */
+export interface FormulationContribution {
+  /** `lex#1`, `vec#1`, `hyde#1`: the formulation's type and position among that type. */
+  label: string
+  /** The passage's rank in that formulation's own candidates, from 1. */
+  rank: number
+  /** Its reciprocal-rank share of the fused score, before source weights and boosts. */
+  contribution: number
 }
 
 export interface ExpandCitationOptions extends OperationOptions {
@@ -896,6 +920,8 @@ export interface GoldenQuery {
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
+  /** Formulations searched with the query, as an agent would send them. */
+  searches?: SearchFormulation[]
   topK?: number
 }
 
@@ -994,6 +1020,7 @@ export interface EvaluationCaseResult {
   includePaths?: string[]
   excludePaths?: string[]
   contextPaths?: string[]
+  searches?: SearchFormulation[]
   topK: number
   returnedPaths: string[]
   returnedCitations: string[]

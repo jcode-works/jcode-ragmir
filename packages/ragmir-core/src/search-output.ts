@@ -1,6 +1,7 @@
 import { queryEvidence } from "./ranking.js"
 import { identifierParts, shareStem, tokenize } from "./text.js"
-import type { CompactSearchResult, SearchResult } from "./types.js"
+import { formulationKeywords, prepareFormulations } from "./typed-search.js"
+import type { CompactSearchResult, SearchFormulation, SearchResult } from "./types.js"
 
 const COMPACT_SNIPPET_LENGTH = 260
 // Background words refine which lines an excerpt shows without outweighing the question's own.
@@ -13,6 +14,24 @@ const ELLIPSIS = "..."
 export interface ExcerptFocus {
   query?: string
   intent?: string
+}
+
+/**
+ * The excerpt focus of one search: the question with the words and phrases of its `lex`
+ * formulations, which found passages by those words, then the intent as background.
+ */
+export function searchExcerptFocus(
+  query: string,
+  searches: readonly SearchFormulation[] | undefined,
+  intent: string | undefined,
+): ExcerptFocus {
+  const lexKeywords = prepareFormulations(searches)
+    .filter((formulation) => formulation.type === "lex")
+    .map(formulationKeywords)
+  return {
+    query: [query, ...lexKeywords].join(" "),
+    ...(intent === undefined ? {} : { intent }),
+  }
 }
 
 interface ExcerptTerm {

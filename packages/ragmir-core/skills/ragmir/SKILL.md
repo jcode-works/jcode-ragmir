@@ -37,9 +37,14 @@ validated replacement activates, so never delete `.ragmir/storage/` as the first
    until it is absent.
 3. Narrow or widen the search: `includePaths` and `excludePaths` take folders, files, or globs such
    as `["**/*.pdf"]`, `scope` selects a named scope, and `ragmir_sources` lists the documents.
-4. Cite every claim. Separate cited facts from inference, and verify a `weakEvidence` passage
+4. When your wording may miss the answer, add `searches` to the same call, fused with the question
+   into one ranking: `lex` for likely keywords (`"exact phrase"` required, `-word` excluded), `vec`
+   for a paraphrase, `hyde` for a short passage written as the answer might read. The CLI takes
+   `--lex`, `--vec`, and `--hyde`. They reorder and complete an answer but never create one: an
+   empty result still means the base holds no evidence.
+5. Cite every claim. Separate cited facts from inference, and verify a `weakEvidence` passage
    before relying on it.
-5. An empty result means the base holds no evidence. When a notice names words that no indexed
+6. An empty result means the base holds no evidence. When a notice names words that no indexed
    passage holds, the documents never mention them: rephrase once with the project's own terms,
    then say the documents do not cover the question instead of guessing.
 

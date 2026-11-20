@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest"
-import { compactSearchResults } from "./search-output.js"
+import { compactSearchResults, searchExcerptFocus } from "./search-output.js"
 import type { SearchResult } from "./types.js"
+
+describe("searchExcerptFocus", () => {
+  it("adds the words and phrases of lex formulations, never their exclusions", () => {
+    expect(
+      searchExcerptFocus(
+        "gateway",
+        [
+          { type: "lex", query: '"calls per minute" quota -deprecated' },
+          { type: "hyde", query: "Each key may send 600 calls per minute." },
+        ],
+        "request limits",
+      ),
+    ).toEqual({ query: "gateway quota calls per minute", intent: "request limits" })
+    expect(searchExcerptFocus("gateway", undefined, undefined)).toEqual({ query: "gateway" })
+  })
+})
 
 function result(text: string, overrides: Partial<SearchResult> = {}): SearchResult {
   return {

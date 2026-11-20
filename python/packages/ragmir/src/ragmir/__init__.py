@@ -23,6 +23,7 @@ from ._models import (
     IndexedFile,
     IngestReport,
     Passage,
+    SearchFormulation,
     SourceCatalog,
     Status,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "RagmirNotFoundError",
     "RagmirServerError",
     "RagmirToolError",
+    "SearchFormulation",
     "SourceCatalog",
     "Status",
     "__version__",
