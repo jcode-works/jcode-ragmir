@@ -6,7 +6,8 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "node scripts/astro-no-telemetry.mjs check && node scripts/astro-no-telemetry.mjs build",
+    "audit:seo": "node scripts/audit-seo-build.mjs",
+    "build": "node scripts/astro-no-telemetry.mjs check && node scripts/astro-no-telemetry.mjs build && node scripts/audit-seo-build.mjs",
     "check": "node scripts/astro-no-telemetry.mjs check",
     "dev": "node scripts/astro-no-telemetry.mjs dev",
     "preview": "node scripts/astro-no-telemetry.mjs preview",

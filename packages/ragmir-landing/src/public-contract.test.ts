@@ -41,6 +41,13 @@ const astroConfigSource = readFileSync(
   fileURLToPath(new URL("../astro.config.mjs", import.meta.url)),
   "utf8",
 )
+const seoAuditSource = readFileSync(
+  fileURLToPath(new URL("../scripts/audit-seo-build.mjs", import.meta.url)),
+  "utf8",
+)
+const landingPackageJson = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
+) as { scripts: Record<string, string> }
 const llmsSource = readFileSync(
   fileURLToPath(new URL("../public/llms.txt", import.meta.url)),
   "utf8",
@@ -422,6 +429,50 @@ describe("landing public contract", () => {
     expect(layoutSource).toContain('zh: "zh_CN"')
     // Alternates strip whichever locale prefix the page has, not only /fr.
     expect(layoutSource).toContain("getLocalizedUrl(basePath, targetLocale)")
+  })
+
+  it("should give the sitemap the pages' alternates and no build date, and audit every build", () => {
+    // Google uses lastmod only when it is verifiably accurate, and Bing asks not to stamp
+    // unchanged pages with the build time.
+    expect(astroConfigSource).not.toMatch(/^\s*lastmod:/mu)
+    expect(astroConfigSource).toContain('lang: "x-default"')
+    expect(landingPackageJson.scripts.build).toMatch(
+      /build && node scripts\/audit-seo-build\.mjs$/u,
+    )
+    const auditTags = locales.map((locale) => `${locale}: "${languageTag(locale)}"`).join(", ")
+    expect(seoAuditSource).toContain(`const LANGUAGE_TAGS = { ${auditTags} }`)
+  })
+
+  it("should let search quote full snippets and keep error pages without a canonical", () => {
+    expect(layoutSource).toContain(
+      'const INDEXABLE_ROBOTS = "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"',
+    )
+    expect(layoutSource).toContain(
+      '{isIndexable && <link rel="canonical" href={canonicalURL.href} />}',
+    )
+    for (const messages of [en, fr, es, zh]) {
+      expect(messages).not.toHaveProperty("seo_robots")
+    }
+  })
+
+  it("should describe Ragmir in the page's language wherever search engines read it", () => {
+    expect(homePageSource).not.toContain("sourceDescription")
+    expect(homePageSource).toContain('description: t("seo_home_description")')
+    expect(homePageSource).toContain('description: t("seo_source_description")')
+    expect(homePageSource).toContain('abstract: t("faq_what_answer")')
+    expect(homePageSource).toContain('audienceType: t("seo_source_audience")')
+    expect(homePageSource).toContain('keywords={t("seo_home_keywords")}')
+    expect(layoutSource).toContain('<meta name="keywords" content={keywords} />')
+    // Raw-text readers get "Agentic RAG. Your infrastructure." rather than "RAG.Your".
+    expect(heroSource).toContain('{index > 0 && " "}')
+    for (const messages of [en, fr, es, zh]) {
+      expect(messages.seo_home_title.length).toBeLessThanOrEqual(60)
+      expect(messages.seo_home_description.length).toBeLessThanOrEqual(160)
+      expect(messages.seo_team_description.length).toBeLessThanOrEqual(160)
+    }
+    for (const locale of locales) {
+      expect(llmsSource).toContain(new URL(getLocalizedUrl("/", locale), "https://ragmir.com").href)
+    }
   })
 
   it("should expose AGPL and commercial licensing consistently", () => {
