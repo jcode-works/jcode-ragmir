@@ -189,6 +189,13 @@ the documents: a laptop for the first demo, then a VPS, an on-premise server, or
 - AGPL-3.0-only from v3.0.0, with separate commercial licensing from JCode Works. Earlier releases
   keep their original license. No accounts, activation, hosted storage, or cloud OCR.
 
+## Website
+
+- [ragmir.com](https://ragmir.com/) exists in English, French, Spanish, and Simplified Chinese,
+  each page linked to its translations by reciprocal hreflang. Localized home pages: English
+  https://ragmir.com/, French https://ragmir.com/fr/, Spanish https://ragmir.com/es/, Simplified
+  Chinese https://ragmir.com/zh/. Link readers to the page in their language.
+
 ## Documentation
 
 - [Quick start](https://github.com/jcode-works/ragmir/blob/main/docs/quick-start.md)

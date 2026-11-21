@@ -27,8 +27,16 @@ export default defineConfig({
     ...(isProduction
       ? [
           sitemap({
-            // Crawlers use lastmod to schedule recrawls; each deploy ships changed content.
-            lastmod: new Date(),
+            // No lastmod: Google uses it only when it is verifiably accurate, and Bing asks not to
+            // stamp pages that did not change with the build time, which every release would do.
+            // Each URL lists the same alternates as its hreflang links, x-default included.
+            serialize: (item) => {
+              const english = item.links?.find((link) => link.lang === defaultLocale)
+              // The plugin shares one links array between a page's locales: copy, never push.
+              return english
+                ? { ...item, links: [...item.links, { url: english.url, lang: "x-default" }] }
+                : item
+            },
             i18n: {
               defaultLocale,
               locales: {
