@@ -12,11 +12,17 @@ interface Props {
   ogImageAlt?: string
   twitterCard?: string
   author?: string
+  /** Comma-separated keywords in the page's language. */
+  keywords?: string
   robots?: string
   structuredData?: Record<string, unknown> | Record<string, unknown>[]
   canonicalOverride?: string
   availableLocales?: readonly string[] | string[]
 }
+
+// Full snippets, which also bound what AI Overviews and AI Mode may quote, and large image and video
+// previews. Without these rules Google picks the snippet length and keeps previews at default size.
+const INDEXABLE_ROBOTS = "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
 
 const {
   title = "Ragmir",
@@ -27,7 +33,8 @@ const {
   ogImageAlt = "Ragmir: agentic RAG on your infrastructure with exact citations",
   twitterCard = "summary_large_image",
   author = "JCode Works",
-  robots: robotsProp = "index, follow",
+  keywords,
+  robots: robotsProp = INDEXABLE_ROBOTS,
   structuredData,
   canonicalOverride,
   availableLocales = locales,
@@ -40,6 +47,8 @@ const canonicalURL = canonicalOverride
 const ogImageUrl = new URL(ogImage, siteBase)
 const isProduction = siteBase.hostname === "ragmir.com"
 const robots = isProduction ? robotsProp : "noindex, nofollow, noarchive, nosnippet, noimageindex"
+// An error page answers any path, so it names no canonical URL of its own.
+const isIndexable = !/\bnoindex\b/iu.test(robotsProp)
 const localesForAlternates = Array.from(new Set(availableLocales)).filter((entry) =>
   (locales as readonly string[]).includes(entry),
 )
@@ -120,12 +129,13 @@ function alternateHref(targetLocale: string): string {
     <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0" />
     <meta name="application-name" content="Ragmir" />
     <meta name="description" content={description} />
+    {keywords && <meta name="keywords" content={keywords} />}
     <meta name="author" content={author} />
     <meta name="robots" content={robots} />
     <meta name="googlebot" content={robots} />
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#000000" />
-    <link rel="canonical" href={canonicalURL.href} />
+    {isIndexable && <link rel="canonical" href={canonicalURL.href} />}
     {isProduction && <link rel="sitemap" href="/sitemap-index.xml" />}
     <link rel="alternate" href="/llms.txt" type="text/plain" title="LLM instructions" />
     <link rel="alternate" href="/ai.txt" type="text/plain" title="AI instructions" />
@@ -138,7 +148,7 @@ function alternateHref(targetLocale: string): string {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content={ogType} />
-    <meta property="og:url" content={canonicalURL.href} />
+    {isIndexable && <meta property="og:url" content={canonicalURL.href} />}
     <meta property="og:image" content={ogImageUrl.href} />
     <meta property="og:image:alt" content={ogImageAlt} />
     <meta property="og:image:width" content="2400" />

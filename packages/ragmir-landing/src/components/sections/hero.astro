@@ -48,7 +48,13 @@ const heroTitleLines = [
         aria-label={t("hero_title")}
         class="hero-title-outline display-title max-w-3xl text-4xl font-black leading-[1.06] text-white sm:text-3xl lg:text-4xl"
       >
-        {heroTitleLines.map((line) => <span class="block">{line}</span>)}
+        {/* A space between the lines keeps the words apart for crawlers that read the raw text. */}
+        {heroTitleLines.map((line, index) => (
+          <Fragment>
+            {index > 0 && " "}
+            <span class="block">{line}</span>
+          </Fragment>
+        ))}
       </h1>
       <p class="text-shadow-hero mt-5 max-w-xl text-xs font-medium leading-5 text-white sm:text-sm sm:leading-6">
         {t("hero_description")}
