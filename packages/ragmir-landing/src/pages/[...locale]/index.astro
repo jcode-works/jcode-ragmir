@@ -47,8 +47,6 @@ const alternateLocales = locales.map((entry) => ({
 const siteUrl = new URL("/", Astro.site ?? "https://ragmir.com").href
 const pageUrl = new URL(getLocalizedUrl("/", locale), Astro.site ?? "https://ragmir.com").href
 const publicVersion = import.meta.env.PUBLIC_RAGMIR_VERSION?.trim()
-const sourceDescription =
-  "Open-source agentic RAG on your own infrastructure: Ragmir indexes code, Office files, PDFs, and scans locally and gives Claude Code, Codex, LangChain, LlamaIndex, or your application exact citations through MCP, the CLI, TypeScript, or Python. Your agent reasons with any model; Ragmir needs no GPU or vector database."
 const ogImageUrl = new URL("/og/ragmir-og.png", Astro.site ?? "https://ragmir.com").href
 const structuredData = [
   {
@@ -84,7 +82,8 @@ const structuredData = [
     "@id": "https://ragmir.com/#website",
     url: siteUrl,
     name: "Ragmir",
-    description: sourceDescription,
+    // The shared entities keep their ids on every page and speak the page's language.
+    description: t("seo_home_description"),
     inLanguage: locales.map(languageTag),
     publisher: { "@id": "https://ragmir.com/#organization" },
   },
@@ -93,18 +92,24 @@ const structuredData = [
     "@type": "SoftwareSourceCode",
     "@id": "https://ragmir.com/#source",
     name: "Ragmir",
-    description: sourceDescription,
-    abstract: sourceDescription,
+    description: t("seo_source_description"),
+    abstract: t("faq_what_answer"),
     url: siteUrl,
     inLanguage: locales.map(languageTag),
     codeRepository: PROJECT_LINKS.github,
     codeSampleType: "full solution",
-    runtimePlatform:
-      "Node.js 22.12 or later on Linux (x64 or ARM64, glibc or musl), macOS, and Windows, or Docker on amd64 and arm64",
+    // Product names only, so the value reads the same in every language.
+    runtimePlatform: [
+      "Node.js 22.12+",
+      "Linux x64/ARM64 (glibc, musl)",
+      "macOS",
+      "Windows",
+      "Docker (amd64, arm64)",
+    ],
     programmingLanguage: ["TypeScript", "Python"],
     audience: {
       "@type": "Audience",
-      audienceType: "Developers, AI engineers, and teams shipping RAG",
+      audienceType: t("seo_source_audience"),
     },
     keywords: [
       "agentic RAG",
@@ -199,7 +204,7 @@ const localizedTeamUrl = getLocalizedUrl("/team", locale)
   title={t("seo_home_title")}
   description={t("seo_home_description")}
   author={t("seo_author")}
-  robots={t("seo_robots")}
+  keywords={t("seo_home_keywords")}
   ogImageAlt={t("seo_image_alt")}
   locale={locale}
   availableLocales={locales}

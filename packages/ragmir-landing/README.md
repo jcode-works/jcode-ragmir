@@ -2,7 +2,8 @@
 
 The static, telemetry-free website for [Ragmir](https://ragmir.com). It presents the open-source
 retrieval layer for agentic RAG: a TypeScript library, CLI, local MCP server, optional semantic
-embeddings, local OCR, and English/French public documentation. It hosts no corpus, account, upload flow, or Ragmir API.
+embeddings, and local OCR, in English, French, Spanish, and Simplified Chinese. It hosts no corpus,
+account, upload flow, or Ragmir API.
 
 ## Structure
 
@@ -10,7 +11,7 @@ embeddings, local OCR, and English/French public documentation. It hosts no corp
 | --- | --- |
 | `src/pages` | Localized static routes, error pages, and robots output |
 | `src/components` | Landing sections, navigation, and local UI primitives |
-| `src/i18n` and `messages` | Locale routing and aligned English/French copy |
+| `src/i18n` and `messages` | Locale routing and aligned English, French, Spanish, and Chinese copy |
 | `src/services` | Build-time public data with deterministic fallbacks |
 | `public` | Favicons, social cards, `llms.txt`, `ai.txt`, and static assets |
 
@@ -25,7 +26,8 @@ pnpm bootstrap
 pnpm --filter @jcode.labs/ragmir-landing dev
 ```
 
-Development runs on <http://localhost:4322>. Routes are `/`, `/fr/`, `/team/`, and `/fr/team/`.
+Development runs on <http://localhost:4322>. Routes are `/` and `/team/`, and the same pages under
+`/fr/`, `/es/`, and `/zh/`.
 Build and preview on <http://localhost:4323> with:
 
 ```bash
@@ -38,12 +40,21 @@ pnpm --filter @jcode.labs/ragmir-landing preview
 | `test` | Public-copy and build-helper contracts |
 | `test:coverage` | Landing tests with coverage thresholds |
 | `check` | Astro type and content checks |
-| `build` | Static build with telemetry disabled |
+| `build` | Static build with telemetry disabled, followed by the SEO audit |
+| `audit:seo` | Audit the built pages and sitemap again |
 | `preview` | Serve generated output locally |
 | `submit:indexnow` | Submit configured sitemap URLs explicitly |
 
 Prefix each command with `pnpm --filter @jcode.labs/ragmir-landing`. The repository-wide
 `pnpm validate` covers the landing tests, checks, and build.
+
+The SEO audit (`scripts/audit-seo-build.mjs`) fails the build when a page loses its self canonical,
+its `lang`, or its matching Open Graph and JSON-LD language, when the translations of a page stop
+listing the same hreflang set with `x-default`, when two pages of one language share a title or
+description, when an error page names a canonical, or when the production sitemap stops listing
+exactly the indexable pages with their alternates. The sitemap carries no `lastmod`: a build date on
+unchanged pages is a signal Google and Bing discard, so after a content change run
+`submit:indexnow --all`.
 
 ## Build-time configuration
 
